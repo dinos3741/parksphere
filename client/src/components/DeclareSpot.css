@@ -1,0 +1,85 @@
+.declare-spot-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgb(143, 117, 166);
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 500px;
+  font-family: sans-serif;
+}
+
+.declare-spot-container h2 {
+  margin-top: 0;
+  color: white;
+  text-align: center;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.form-row label {
+  width: 160px;            /* fixed width for alignment */
+  text-align: left;        /* left-align text */
+  font-weight: bold;
+  color: white;
+  padding-top: 6px;        /* align vertically with input */
+}
+
+.form-row input[type="number"],
+.form-row textarea {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.form-row input[type="checkbox"] {
+  flex: 1; /* Allow checkbox to take remaining space */
+  width: auto; /* Override 100% width from other inputs */
+  margin-left: auto; /* Push checkbox to the right */
+  transform: scale(1.5); /* Make checkbox a bit larger for visibility */
+}
+
+
+
+/* Buttons */
+.declare-spot-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: center;
+}
+
+.declare-spot-buttons button {
+  flex: 1;
+  max-width: 150px;
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 25px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  background-color: #cd275c;
+}
+
+.declare-spot-buttons button:first-of-type {
+  background-color: #007bff;
+}

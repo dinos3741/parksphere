@@ -1,0 +1,42 @@
+.filter-container {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-color: #f0f0f0;
+}
+
+.filter-container label {
+  margin-right: 10px;
+}
+
+.filter-container select {
+  margin-right: 20px;
+}
+
+.user-info {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.user-info span {
+  margin-right: 10px;
+  font-weight: bold;
+}
+
+.user-info button {
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 25px; /* More rounded corners */
+  background-color: #dc3545; /* Red color for logout */
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+}
+
+.user-info button:hover {
+  background-color: #c82333;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}

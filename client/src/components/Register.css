@@ -1,0 +1,141 @@
+.auth-page-wrapper {
+  background: linear-gradient(to right, #512da8, #1976d2); /* Same as splash screen */
+  min-height: 100vh; /* Ensure it covers the full viewport height */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* Align content to the top */
+}
+
+.register-header {
+  text-align: center;
+  margin-bottom: 0; /* Reduced space below header */
+  padding-top: 20px; /* Space from top of the page */
+}
+
+.register-header .logo {
+  font-family: 'Advent Pro', sans-serif; /* Consistent with SplashScreen */
+  font-size: 2.5rem;
+  letter-spacing: 2.3px;
+  margin: 0;
+  color: white;
+}
+
+.logo-container .tagline {
+  font-size: 1.4rem;
+  margin-top: 5px;
+  color: white;
+  text-align: center;
+}
+
+.register-header .highlight {
+  color: #4dd0e1;
+}
+
+.spacer {
+  height: 0px; /* Adjust this value to control the vertical position */
+}
+
+.auth-container {
+  /* Keep existing styles for the form container */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  position: relative;
+  z-index: 1;
+  margin-top: -20px; /* Pushes the form up */
+}
+
+.auth-container h2 {
+  color: #FFFFFF !important; /* Change heading color to white for contrast */
+}
+
+.auth-container label {
+  color: white; /* Change label color to white for contrast */
+}
+
+.auth-container p {
+  margin-top: 20px;
+  color: #FFFFFF !important; /* Made text brighter */
+}
+
+.auth-container form {
+  background-color: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-container .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-container label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #332294;
+}
+
+.auth-container input,
+.auth-container select {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1em;
+}
+
+.auth-container button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.1em;
+  margin-top: 10px;
+}
+
+.auth-container button:hover {
+  background-color: #0056b3;
+}
+
+.auth-container a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.auth-container a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .register-header {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .register-header .tagline {
+    text-align: center;
+  }
+
+  .tagline {
+    font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+    font-weight: 440; /* Semi-bold */
+    font-size: 1.4rem;
+    margin-top: 35px;
+    margin-left: -126px;
+    color: white;
+    text-align: center;
+  }
+
+  .auth-container {
+    margin-top: 10px; /* Space below tagline */
+  }
+}

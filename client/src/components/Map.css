@@ -1,0 +1,28 @@
+.spot-action-button {
+  border: none;
+  color: white;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin-top: 10px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.request-spot-button {
+  background-color: #4CAF50; /* Green */
+}
+
+.delete-spot-button {
+  background-color: #f44336; /* Red */
+}
+
+.delete-button-container {
+  text-align: center;
+}
+
+.request-button-container {
+  text-align: center;
+}

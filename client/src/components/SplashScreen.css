@@ -1,0 +1,174 @@
+@import url('https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;600&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(to right, #512da8, #1976d2);
+  color: white;
+}
+
+.container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center content horizontally */
+}
+
+.top-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.logo-and-title {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Adjust as needed for spacing between logo and title */
+  margin-bottom: -35px;
+}
+
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* Align logo and tagline to the left */
+}
+
+.logo {
+  font-family: 'Advent Pro', sans-serif; /* Changed to Advent Pro */
+  font-size: 2.7rem;
+  font-style: normal;
+  font-weight: 600; /* Semi-bold */
+  letter-spacing: 15px; /* Increased by 15% */
+  text-align: center;
+}
+
+.logo-img {
+  width: 80px;  /* Increased from 50px */
+  height: 80px; /* Set height equal to width for perfect circle */
+  object-fit: cover; /* Ensure the image covers the area without distortion */
+  border-radius: 50%; /* Rounded shape */
+  margin-right: 0px; /* Adds space between the logo and the title */
+  margin-top: 40px;
+}
+
+.tagline-splash {
+  font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+  font-weight: 440; /* Semi-bold */
+  font-size: 1.4rem;
+  margin-top: 20px;
+  color: white;
+  text-align: center;
+  padding-left: 110px;
+  margin-bottom: 10px;
+}
+
+.highlight {
+  color: #4dd0e1;
+}
+
+.auth-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  background-color: #87CEEB; /* Blue Ciel */
+  font-family: 'Inter', sans-serif; /* Changed to Inter */
+  font-weight: 500;
+  border: none;
+  color: black;
+  padding: 10px 20px;
+  font-size: 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.3s;
+  text-decoration: none;
+}
+
+/* inherits from .btn */
+.btn.signup {
+  background-color: #32aeb3;
+  color: black;
+}
+
+.main-content-area {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+  align-items: flex-start;
+  justify-content: center; /* Center items when they wrap */
+  width: 100%; /* Ensure it takes full width */
+}
+
+.image {
+  flex: 1 1 45%; /* Allow to grow/shrink, but prefer 45% width */
+  max-width: 400px; /* Increased by 20% */
+}
+
+.image img {
+  max-width: 100%;
+  height: auto; /* Ensure image scales proportionally */
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.text {
+  flex: 1 1 45%; /* Allow to grow/shrink, but prefer 45% width */
+  min-width: 300px;
+}
+
+.text p {
+  margin-top: 5px; /* Bring paragraph closer to title */
+}
+
+.accent {
+  color: #ef306f;
+}
+
+h2 {
+  font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+  font-size: 2rem; /* Adjust size as needed */
+  font-weight: 400;
+  margin-top: 0;
+  margin-bottom: 5px; /* Reduced bottom margin */
+  letter-spacing: 1px; /* Slightly less than main logo */
+  color: #df1a83; /* Red Magenta color */
+}
+
+ul {
+  padding-left: 20px;
+}
+
+footer {
+  text-align: center;
+  padding: 2px 0; /* Reduced vertical padding by 20% */
+  font-size: 1rem;
+  color: blue;
+  background-color: #547abb; /* Blue Ciel */
+  width: 100%; /* Full width */
+  margin-top: 40px; /* Keep space above */
+  border-radius: 10px; /* Rounded corners */
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .logo-container {
+    align-items: center;
+  }
+
+  .tagline {
+    text-align: center;
+  }
+
+  .auth-buttons {
+    margin-top: 20px;
+  }
+}

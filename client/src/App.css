@@ -1,0 +1,407 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&family=Open+Sans&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Open Sans', sans-serif; /* General font */
+}
+
+.App {
+  background-color: transparent; /* Make App background transparent to show body image */
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Use min-height to allow scrolling */
+  overflow-y: auto; /* Enable vertical scrolling */
+}
+
+.App-header {
+  background: linear-gradient(to right, #512da8, #1976d2);
+  padding: 10px; /* Adjusted padding for mobile */
+  color: white;
+  display: flex;
+  flex-direction: column; /* Stack items vertically on mobile */
+  justify-content: center; /* Center content vertically */
+  align-items: center; /* Center content horizontally */
+  text-align: center; /* Center text within header */
+}
+
+@media (min-width: 768px) {
+  .App-header {
+    flex-direction: row; /* Row layout for larger screens */
+    justify-content: space-between; /* Space out title group and nav */
+    padding: 10px 20px; /* Original padding for desktop */
+  }
+}
+
+.header-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Center text horizontally */
+  flex-grow: 1; /* Allow title group to take available space */
+}
+
+
+.header-title-group h2 {
+  font-family: 'Open Sans', sans-serif; /* Match general font */
+  font-size: 1.2em; /* Smaller than h1 */
+  font-weight: 400; /* Normal weight */
+  margin: -10px 0 0 0; /* Adjust vertical spacing */
+  color: white !important; /* Changed to white */
+}
+
+.App-header nav {
+  display: flex;
+  flex-direction: column; /* Stack nav items vertically on mobile */
+  align-items: center; /* Center nav items horizontally */
+  gap: 10px;
+  margin-left: 0; /* Remove auto margin for mobile */
+  width: 100%; /* Take full width on mobile */
+  margin-top: 10px; /* Add some space from the title */
+}
+
+@media (min-width: 768px) {
+  .App-header nav {
+    flex-direction: row; /* Row layout for larger screens */
+    margin-left: auto; /* Push nav to the right on desktop */
+    width: auto;
+    margin-top: 0;
+  }
+}
+
+.map-container {
+  flex-grow: 1;
+  border: 2px solid #333; /* Border around the map */
+  margin: 10px; /* Add some margin around the map */
+  height: 60vh; /* Give the map container a fixed height */
+}
+
+.filter-container {
+  padding: 20px;
+  background: linear-gradient(to right, #512da8, #1976d2);
+  display: flex;
+  justify-content: flex-start; /* Align to the left */
+  align-items: center; /* Vertically center items */
+  gap: 15px; /* Space between label and dropdown */
+}
+
+.filter-label {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #333;
+}
+
+.filter-dropdown {
+  padding: 10px 20px;
+  font-size: 1em;
+  font-family: 'Open Sans', sans-serif;
+  border: none;
+  border-radius: 25px; /* More rounded corners */
+  background-color: rgba(255, 255, 255, 0.2); /* Slightly transparent white */
+  color: white;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+  transition: all 0.3s ease;
+}
+
+.filter-dropdown:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.filter-dropdown:focus {
+  border-color: transparent;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+
+.App-footer {
+  text-align: center;
+  font-size: 1rem;
+  color: blue;
+  background-color: #547abb; /* Blue Ciel */
+  width: 100%; /* Full width */
+  margin-top: 10px; /* Keep space above */
+  border-radius: 10px; /* Rounded corners */
+}
+
+.declare-spot-button {
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 25px; /* More rounded corners */
+  background-color: #007bff; /* Blue color for declare spot */
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+  margin: 20px auto;
+  display: block;
+}
+
+.declare-spot-button:hover {
+  background-color: #0056b3;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+
+
+.auth-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative; /* Needed for absolute positioning of auth-top-background */
+  background-color: #F5F5DC; /* Fallback for bottom part */
+}
+
+.auth-top-background {
+  height: 33vh;
+  background-image: var(--background-image-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.6;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 0; /* Place behind the form */
+}
+
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1; /* Allow it to take remaining space */
+  padding: 20px;
+  position: relative; /* Ensure it creates a stacking context above auth-top-background */
+  z-index: 1; /* Place above the background */
+  margin-top: 20vh; /* Push the form down below the background image */
+}
+
+.auth-container h2 {
+  color: #333;
+  margin-bottom: 20px;
+}
+
+.auth-container form {
+  background-color: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-container .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-container label {
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+}
+
+.auth-container input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1em;
+}
+
+.auth-container button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1.1em;
+  margin-top: 10px;
+}
+
+.auth-container button:hover {
+  background-color: #0056b3;
+}
+
+.auth-container p {
+  margin-top: 20px;
+  color: #555;
+}
+
+.auth-container a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.auth-container a:hover {
+  text-decoration: underline;
+}
+
+.logout-button {
+  background-color: #dc3545; /* Red color for logout */
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  margin-left: 10px; /* Space from other nav items */
+}
+
+.logout-button:hover {
+  background-color: #c82333;
+}
+
+.App-header nav a {
+  color: white;
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  transition: background-color 0.3s ease;
+}
+
+.App-header nav a:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.user-info-box {
+  background-color: rgba(255, 255, 255, 0.2); /* Slightly transparent white background */
+  padding: 10px 15px; /* Adjusted padding */
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column; /* Stack items vertically */
+  align-items: center;
+  gap: 8px; /* Space between text and button */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.user-info-box p {
+  margin: 0;
+  font-size: 1em;
+  font-weight: bold;
+  color: white;
+  white-space: nowrap;
+}
+
+.user-info-box .logout-button {
+  margin-left: 0;
+  width: 100%; /* Make button fill the box */
+}
+
+.delete-spot-button {
+  padding: 10px 20px;
+  font-size: 1em;
+  border: none;
+  border-radius: 25px; /* More rounded corners */
+  background-color: #dc3545; /* Red color for delete */
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
+  margin-left: 10px; /* Space from other elements */
+}
+
+.delete-spot-button:hover {
+  background-color: #c82333;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Styles copied from SplashScreen.css for consistency */
+.logo-title-container {
+  display: flex;
+  flex-direction: row;
+  align-items: center; /* Aligns items to the center */
+  justify-content: center;
+  width: 100%; /* Ensure the container takes full width */
+}
+
+.logo {
+  font-family: 'Advent Pro', sans-serif; /* Changed to Advent Pro */
+  font-size: 2.7rem;
+  font-style: normal;
+  font-weight: 600; /* Semi-bold */
+  margin: 0;
+  letter-spacing: 15px; /* Increased by 15% */
+  text-align: center;
+}
+
+.logo-img {
+  width: 80px;  /* Increased from 50px */
+  height: 80px; /* Set height equal to width for perfect circle */
+  object-fit: cover; /* Ensure the image covers the area without distortion */
+  border-radius: 50%; /* Rounded shape */
+  margin-right: 20px; /* Adds space between the logo and the title */
+  margin-top: 0px;
+}
+
+.tagline {
+  font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+  font-weight: 440; /* Semi-bold */
+  font-size: 1.4rem;
+  margin-top: 10px;
+  color: white;
+  text-align: center;
+  margin-left: 0px; /* Align with the start of h1 (logo width + logo margin-right + gap) */
+}
+
+.title-subtitle-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Aligns the title and subtitle to the center */
+}
+
+.main-title, .subtitle {
+  margin: 0; /* Removes default margins */
+  padding: 0; /* Removes default padding */
+  line-height: 1.2; /* Adjust line height for closer spacing */
+  color: white !important; /* Ensure subtitle is white */
+}
+
+.main-title {
+  font-size: 4em; /* Or your desired size */
+}
+
+.subtitle {
+  font-size: 1.2em; /* Or your desired size */
+}
+
+/* Responsive adjustments for logo and titles */
+@media (max-width: 767px) { /* Apply these styles for screens smaller than 768px */
+  .logo-img {
+    width: 60px;  /* Smaller for mobile */
+    margin-right: 10px; /* Reduced margin for mobile */
+  }
+
+  .main-title {
+    font-size: 2.5em; /* Smaller for mobile */
+  }
+
+  .subtitle {
+    font-size: 1em; /* Smaller for mobile */
+  }
+}
+
+/* Responsive adjustments for logo and titles */
+@media (max-width: 767px) { /* Apply these styles for screens smaller than 768px */
+  .logo-img {
+    width: 60px;  /* Smaller for mobile */
+    margin-right: 10px; /* Reduced margin for mobile */
+  }
+
+  .main-title {
+    font-size: 2.5em; /* Smaller for mobile */
+  }
+
+  .subtitle {
+    font-size: 1em; /* Smaller for mobile */
+  }
+}
