@@ -4,12 +4,13 @@ import { jwtDecode } from 'jwt-decode';
 import { io } from 'socket.io-client';
 import Map from './components/Map';
 import Filter from './components/Filter';
-import DeclareSpot from './components/DeclareSpot';
+import DeclareSpot from './components/DeclareSpot'; // Re-import DeclareSpot
 import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
 import ProtectedRoute from './components/ProtectedRoute';
 import Notification from './components/Notification'; // Import Notification component
+import LeavingFab from './components/LeavingFab'; // Add this import
 import backgroundImage from './assets/images/parking_background.png'; // Import the image
 import logo from './assets/images/logo.png';
 import './App.css';
@@ -26,12 +27,17 @@ function MainAppContent() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
+  const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false); // Reintroduce this state
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
   const [notifications, setNotifications] = useState([]); // New state for notifications
   const navigate = useNavigate();
+
+  // Function to show the DeclareSpot form
+  const handleShowDeclareSpotForm = useCallback(() => {
+    setShowDeclareSpotForm(true);
+  }, []);
 
   const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername) => {
     socket.emit('acceptRequest', { requesterId, spotId, ownerUsername, ownerId: currentUserId });
@@ -280,11 +286,20 @@ function MainAppContent() {
           <div>Loading map or getting your location...</div>
         )}
       </div>
-      <button onClick={() => setShowDeclareSpotForm(true)} className="declare-spot-button">
-        Declare My Spot
-      </button>
+      <LeavingFab
+        userLocation={userLocation}
+        currentUserCarType={currentUserCarType}
+        currentUserId={currentUserId}
+        onCustomDeclare={handleShowDeclareSpotForm} // Pass the new callback
+      />
+
+      {/* Re-add the conditional rendering for DeclareSpot */}
       {showDeclareSpotForm && (
-        <DeclareSpot userLocation={userLocation} currentUserCarType={currentUserCarType} onClose={() => { setShowDeclareSpotForm(false); }} />
+        <DeclareSpot
+          userLocation={userLocation}
+          currentUserCarType={currentUserCarType}
+          onClose={() => setShowDeclareSpotForm(false)}
+        />
       )}
 
       {notifications.map(notification => (
