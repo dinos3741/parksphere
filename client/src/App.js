@@ -113,27 +113,26 @@ function MainAppContent() {
     }
   }, []); // Run only once on component mount
 
-  // Effect to register the user with the socket once the userId is known
+  // Effect to register the user with the socket and handle reconnections
   useEffect(() => {
-    if (currentUserId) {
-      const registerSocket = (userId, username) => {
-        const payload = { userId, username };
-        if (socket.connected) {
-          socket.emit('register', payload);
-        } else {
-          socket.on('connect', () => {
-            socket.emit('register', payload);
-          });
-        }
-      };
-      registerSocket(currentUserId, currentUsername);
+    const handleRegister = () => {
+      if (currentUserId && currentUsername) {
+        console.log(`Registering user ${currentUsername} (ID: ${currentUserId}) with socket.`);
+        socket.emit('register', { userId: currentUserId, username: currentUsername });
+      }
+    };
 
-      // Clean up the connect listener when the component unmounts or userId changes
-      return () => {
-        socket.off('connect');
-      };
-    }
-  }, [currentUserId, currentUsername]); // Reruns only when currentUserId or currentUsername changes
+    // Register when the component mounts and user is logged in
+    handleRegister();
+
+    // Add listener for reconnection events
+    socket.on('connect', handleRegister);
+
+    // Cleanup listener on component unmount
+    return () => {
+      socket.off('connect', handleRegister);
+    };
+  }, [currentUserId, currentUsername]); // Reruns when user info changes
 
   // Effect for fetching data and setting up socket listeners that depend on filters
   useEffect(() => {

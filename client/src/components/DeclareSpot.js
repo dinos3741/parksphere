@@ -53,7 +53,6 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType }) => {
       });
 
       if (response.ok) {
-        alert("Parking spot declared successfully!");
         onClose();
       } else if (response.status === 401 || response.status === 403) {
         alert("Authentication failed. Please log in again.");

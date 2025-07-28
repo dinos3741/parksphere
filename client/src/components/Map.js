@@ -35,6 +35,7 @@ const parkingSpotIcon = new L.Icon({
 });
 
 const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
+  const mapRef = React.useRef(null);
   console.log("Map.js - Received userLocation:", userLocation);
   console.log("Map.js - Received parkingSpots:", parkingSpots);
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
@@ -94,7 +95,9 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
-        alert('Request sent successfully!');
+        if (mapRef.current) {
+          mapRef.current.closePopup();
+        }
       } else {
         const errorText = await response.text();
         alert(`Failed to send request: ${errorText}`);
@@ -106,7 +109,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
   };
 
   return (
-    <MapContainer center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
+    <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
