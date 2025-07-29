@@ -34,7 +34,7 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted, onEditSpot }) => { // NEW PROP
   const mapRef = React.useRef(null);
   console.log("Map.js - Received userLocation:", userLocation);
   console.log("Map.js - Received parkingSpots:", parkingSpots);
@@ -74,7 +74,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
   };
 
   const handleNewButtonClick = (spotId) => {
-    console.log(`New button clicked for spot ID: ${spotId}`);
+    console.log(`Edit button clicked for spot ID: ${spotId}`);
+    // Find the full spot object from parkingSpots to pass to the modal
+    const spot = parkingSpots.find(s => s.id === spotId);
+    if (spot && onEditSpot) {
+      onEditSpot(spot); // Call the callback from App.js
+      if (mapRef.current) {
+        mapRef.current.closePopup(); // Close the map popup
+      }
+    }
   };
 
   const handleRequest = async (spotId) => {
@@ -166,7 +174,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
                       // This is a revealed spot, but not owned by current user
                       <div className="request-button-container">
                         <hr />
-                        <button onClick={() => handleRequest(spot.id)} className="request-spot-button spot-action-button">
+                        <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
                           Request
                         </button>
                       </div>

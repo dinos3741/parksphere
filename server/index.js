@@ -254,6 +254,37 @@ app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// NEW: Protect this route with authentication middleware
+app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
+  const spotId = req.params.id;
+  const userId = req.user.userId;
+  const { timeToLeave, isFree, price, comments } = req.body;
+
+  try {
+    // First, verify that the user owns this spot
+    const spot = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spot.rows.length === 0) {
+      return res.status(404).send('Parking spot not found.');
+    }
+    if (spot.rows[0].user_id !== userId) {
+      return res.status(403).send('You are not authorized to update this parking spot.');
+    }
+
+    // Update the parking spot details
+    const result = await pool.query(
+      'UPDATE parking_spots SET time_to_leave = $1, is_free = $2, price = $3, comments = $4 WHERE id = $5 RETURNING * ',
+      [timeToLeave, isFree, price, comments, spotId]
+    );
+
+    const updatedSpot = result.rows[0];
+    io.emit('spotUpdated', updatedSpot); // Emit event for real-time update
+    res.status(200).json({ message: 'Parking spot updated successfully!', spot: updatedSpot });
+  } catch (error) {
+    console.error('Error updating parking spot:', error);
+    res.status(500).send('Server error updating parking spot.');
+  }
+});
+
 app.post('/api/request-spot', authenticateToken, async (req, res) => {
   const { spotId } = req.body;
   const requesterId = req.user.userId;

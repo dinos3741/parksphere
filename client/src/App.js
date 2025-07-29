@@ -10,6 +10,7 @@ import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
 import ProtectedRoute from './components/ProtectedRoute';
 import Notification from './components/Notification'; // Import Notification component
+import EditSpotModal from './components/EditSpotModal'; // NEW IMPORT
 import LeavingFab from './components/LeavingFab'; // Add this import
 import backgroundImage from './assets/images/parking_background.png'; // Import the image
 import logo from './assets/images/logo.png';
@@ -28,8 +29,8 @@ function MainAppContent() {
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
-  const [showEditSpotForm, setShowEditSpotForm] = useState(false); // New state for edit form visibility
-  const [spotToEdit, setSpotToEdit] = useState(null); // New state to hold spot data for editing
+  const [showEditModal, setShowEditModal] = useState(false); // NEW STATE for EditSpotModal visibility
+  const [spotToEdit, setSpotToEdit] = useState(null); // NEW STATE to pass spot data to modal
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
@@ -39,6 +40,12 @@ function MainAppContent() {
   // Function to show the DeclareSpot form
   const handleShowDeclareSpotForm = useCallback(() => {
     setShowDeclareSpotForm(true);
+  }, []);
+
+  // NEW: Callback to open the EditSpotModal
+  const handleOpenEditModal = useCallback((spot) => {
+    setSpotToEdit(spot);
+    setShowEditModal(true);
   }, []);
 
   const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername) => {
@@ -93,7 +100,8 @@ function MainAppContent() {
         time_to_leave: spot.time_to_leave,
         price: parseFloat(spot.price),
         comments: spot.comments, // Ensure comments are passed through
-        isExactLocation: spot.isExactLocation, // Pass the new flag
+        isExactLocation: spot.isExactLocation,
+        is_free: spot.is_free, // <--- ADD THIS LINE
       }));
       console.log("App.js - Formatted spots for Map:", formattedSpots);
       setFilteredParkingSpots(formattedSpots); // Set filtered spots directly from fetched data
@@ -173,11 +181,16 @@ function MainAppContent() {
     const handleRequestResponse = (data) => {
       alert(data.message);
     };
+    const handleSpotUpdated = (updatedSpot) => { // NEW: Handle spotUpdated event
+      console.log('Received spot updated via WebSocket:', updatedSpot);
+      fetchParkingSpots(selectedFilter, currentUserCarType); // Re-fetch spots to update map
+    };
 
     socket.on('newParkingSpot', handleNewSpot);
     socket.on('spotDeleted', handleSpotDeleted);
     socket.on('spotRequest', handleSpotRequest);
     socket.on('requestResponse', handleRequestResponse);
+    socket.on('spotUpdated', handleSpotUpdated); // NEW: Listen for spotUpdated
 
     // Cleanup listeners
     return () => {
@@ -185,6 +198,7 @@ function MainAppContent() {
       socket.off('spotDeleted', handleSpotDeleted);
       socket.off('spotRequest', handleSpotRequest);
       socket.off('requestResponse', handleRequestResponse);
+      socket.off('spotUpdated', handleSpotUpdated); // NEW: Clean up spotUpdated listener
     };
   }, [fetchParkingSpots, selectedFilter, currentUserCarType, currentUsername, handleAccept, handleDecline, handleCloseNotification]); // Reruns when filters change
 
@@ -283,6 +297,7 @@ function MainAppContent() {
             userLocation={userLocation}
             currentUserId={currentUserId}
             onSpotDeleted={() => {}} // No longer needed as Socket.IO handles updates
+            onEditSpot={handleOpenEditModal} // NEW: Pass the callback to Map
           />
         ) : (
           <div>Loading map or getting your location...</div>
@@ -313,6 +328,17 @@ function MainAppContent() {
           onClose={() => handleCloseNotification(notification.id)}
         />
       ))}
+
+      {/* NEW: Conditional rendering for EditSpotModal */}
+      {showEditModal && spotToEdit && (
+        <EditSpotModal
+          spotData={spotToEdit} // Pass the spot data to the modal
+          onClose={() => {
+            setShowEditModal(false);
+            setSpotToEdit(null); // Clear spot data on close
+          }}
+        />
+      )}
 
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
