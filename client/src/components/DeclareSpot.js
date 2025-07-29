@@ -1,14 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Import useEffect
 import './DeclareSpot.css';
 
-const DeclareSpot = ({ userLocation, onClose, currentUserCarType }) => {
-  const [timeToLeave, setTimeToLeave] = useState('');
-  const [isFree, setIsFree] = useState(false); // Initialize as false (not free by default)
-  const [price, setPrice] = useState('');
-  const [comments, setComments] = useState('');
+// Accept new props: spotData and isEditing
+const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEditing }) => {
+  // Initialize state based on spotData if editing, otherwise empty
+  const [timeToLeave, setTimeToLeave] = useState(spotData?.time_to_leave || '');
+  const [isFree, setIsFree] = useState(spotData?.is_free ?? false); // Use nullish coalescing for boolean
+  const [price, setPrice] = useState(spotData?.price ?? '');
+  const [comments, setComments] = useState(spotData?.comments || '');
+
+  // useEffect to update state if spotData changes (e.g., when opening for a different spot)
+  useEffect(() => {
+    if (isEditing && spotData) {
+      setTimeToLeave(spotData.time_to_leave);
+      setIsFree(spotData.is_free);
+      setPrice(spotData.price);
+      setComments(spotData.comments);
+    } else if (!isEditing) {
+      // Clear form if switching to declare mode
+      setTimeToLeave('');
+      setIsFree(false);
+      setPrice('');
+      setComments('');
+    }
+  }, [spotData, isEditing]);
+
 
   const handleSubmit = async () => {
-    if (!userLocation) {
+    if (!userLocation && !isEditing) { // userLocation is not needed for editing existing spot
       alert("Cannot declare spot: User location not available.");
       return;
     }
@@ -34,22 +53,38 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType }) => {
 
     const parsedPrice = parseFloat(price);
 
+    let url = '/api/declare-spot';
+    let method = 'POST';
+    let body = {
+      latitude: userLocation ? userLocation[0] : undefined, // Only send if declaring
+      longitude: userLocation ? userLocation[1] : undefined, // Only send if declaring
+      timeToLeave: parsedTimeToLeave,
+      price: parsedPrice,
+      declaredCarType: currentUserCarType,
+      comments,
+      isFree,
+    };
+
+    if (isEditing && spotData?.id) {
+      url = `/api/parkingspots/${spotData.id}`; // Use spot ID for PUT request
+      method = 'PUT';
+      // For editing, only send fields that can be updated
+      body = {
+        timeToLeave: parsedTimeToLeave,
+        price: parsedPrice,
+        comments,
+        isFree,
+      };
+    }
+
     try {
-      const response = await fetch('/api/declare-spot', {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          latitude: userLocation[0],
-          longitude: userLocation[1],
-          timeToLeave: parsedTimeToLeave,
-          price: parsedPrice,
-          declaredCarType: currentUserCarType,
-          comments,
-          isFree, // Add isFree to the request body
-        }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
@@ -60,21 +95,21 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType }) => {
         onClose();
       } else {
         const errorText = await response.text();
-        alert(`Failed to declare spot: ${errorText}`);
+        alert(`Failed to ${isEditing ? 'update' : 'declare'} spot: ${errorText}`);
       }
     } catch (error) {
-      console.error('Error declaring spot:', error);
-      alert('An error occurred while declaring the spot.');
+      console.error(`Error ${isEditing ? 'updating' : 'declaring'} spot:`, error);
+      alert(`An error occurred while ${isEditing ? 'updating' : 'declaring'} the spot.`);
     }
   };
 
   return (
     <div className="declare-spot-container">
-      <h2>Declare Your Parking Spot</h2>
-      {userLocation ? (
+      <h2>{isEditing ? 'Edit Your Parking Spot' : 'Declare Your Parking Spot'}</h2>
+      {!isEditing && userLocation ? ( // Only show location if declaring
         <p>Your current location: {userLocation[0].toFixed(4)}, {userLocation[1].toFixed(4)}</p>
       ) : (
-        <p>Getting your location...</p>
+        !isEditing && <p>Getting your location...</p> // Only show if declaring and no location
       )}
 
       <div className="form-row">
@@ -117,7 +152,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType }) => {
       </div>
 
       <div className="declare-spot-buttons">
-        <button onClick={handleSubmit}>Declare Spot</button>
+        <button onClick={handleSubmit}>{isEditing ? 'Update Spot' : 'Declare Spot'}</button>
         <button onClick={onClose}>Cancel</button>
       </div>
     </div>

@@ -28,6 +28,8 @@ function MainAppContent() {
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
+  const [showEditSpotForm, setShowEditSpotForm] = useState(false); // New state for edit form visibility
+  const [spotToEdit, setSpotToEdit] = useState(null); // New state to hold spot data for editing
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
