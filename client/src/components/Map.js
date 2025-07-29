@@ -73,6 +73,10 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
     }
   };
 
+  const handleNewButtonClick = (spotId) => {
+    console.log(`New button clicked for spot ID: ${spotId}`);
+  };
+
   const handleRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -149,9 +153,12 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted }) => {
                     Time to leave: {spot.time_to_leave} minutes <br />
                     Comments: {spot.comments}
                     {isOwner ? (
-                      <div className="delete-button-container">
-                        <hr />
-                        <button onClick={() => handleDelete(spot.id)} className="delete-spot-button spot-action-button">
+                      <div className="owner-actions-container">
+                        {/* New button, identical to delete button */}
+                        <button onClick={() => handleNewButtonClick(spot.id)} className="delete-spot-button edit-button-color">
+                          Edit
+                        </button>
+                        <button onClick={() => handleDelete(spot.id)} className="delete-spot-button">
                           Delete
                         </button>
                       </div>

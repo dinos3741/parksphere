@@ -27,11 +27,11 @@ function MainAppContent() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false); // Reintroduce this state
+  const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
-  const [notifications, setNotifications] = useState([]); // New state for notifications
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   // Function to show the DeclareSpot form
