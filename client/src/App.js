@@ -180,6 +180,11 @@ function MainAppContent() {
 
     const handleRequestResponse = (data) => {
       alert(data.message);
+      // NEW: If the message indicates acceptance, refresh the map
+      if (data.message.includes('ACCEPTED')) {
+        console.log('Request accepted, refreshing map...');
+        fetchParkingSpots(selectedFilter, currentUserCarType);
+      }
     };
     const handleSpotUpdated = (updatedSpot) => { // NEW: Handle spotUpdated event
       console.log('Received spot updated via WebSocket:', updatedSpot);
