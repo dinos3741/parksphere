@@ -36,9 +36,6 @@ const EditSpotModal = ({ spotData, onClose }) => {
 
     const parsedPrice = parseFloat(price);
 
-    // NEW: Log the value of isFree before sending
-    console.log("EditSpotModal: Value of isFree before sending:", isFree);
-
     try {
       const response = await fetch(`/api/parkingspots/${spotData.id}`, {
         method: 'PUT',
