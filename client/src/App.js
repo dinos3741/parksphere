@@ -19,6 +19,17 @@ import './App.css';
 // establish a persistent connection from the UI client to the backend server
 const socket = io('http://localhost:3001');
 
+// NEW: Log socket connection status
+socket.on('connect', () => {
+  console.log('App.js: Socket connected:', socket.id);
+});
+socket.on('disconnect', () => {
+  console.log('App.js: Socket disconnected:', socket.id);
+});
+socket.on('connect_error', (err) => {
+  console.error('App.js: Socket connection error:', err);
+});
+
 // websocket flow
 // 1. An anonymous connection is made first.
 //   2. Then, once the person logs in, that anonymous connection is "upgraded" or "identified" by associating
@@ -65,6 +76,7 @@ function MainAppContent() {
   // Function to fetch parking spots
   const fetchParkingSpots = useCallback(async (filterValue, userCarType) => {
     let url = '/api/parkingspots';
+    console.log(`App.js: fetchParkingSpots called with URL: ${url}`);
     const params = new URLSearchParams();
     if (filterValue && filterValue !== 'all') {
       params.append('filter', filterValue);
@@ -84,6 +96,7 @@ function MainAppContent() {
 
       const response = await fetch(url, {
         headers: headers,
+        cache: 'no-store', // <--- ADD THIS LINE to prevent caching
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -133,7 +146,7 @@ function MainAppContent() {
   useEffect(() => {
     const handleRegister = () => {
       if (currentUserId && currentUsername) {
-        console.log(`Registering user ${currentUsername} (ID: ${currentUserId}) with socket.`);
+        console.log(`App.js: Attempting to register user ${currentUsername} (ID: ${currentUserId}) with socket ${socket.id}.`);
         socket.emit('register', { userId: currentUserId, username: currentUsername });
       }
     };
@@ -144,8 +157,9 @@ function MainAppContent() {
     // Add listener for reconnection events
     socket.on('connect', handleRegister);
 
-    // Cleanup listener on component unmount
+    // Cleanup listener when the component unmounts or userId changes
     return () => {
+      console.log("App.js: Cleaning up socket connect listener.");
       socket.off('connect', handleRegister);
     };
   }, [currentUserId, currentUsername]); // Reruns when user info changes
@@ -153,20 +167,24 @@ function MainAppContent() {
   // Effect for fetching data and setting up socket listeners that depend on filters
   useEffect(() => {
     // Fetch initial data
+    console.log("App.js: Initial fetchParkingSpots call.");
     fetchParkingSpots(selectedFilter, currentUserCarType);
 
     // Setup listeners
     const handleNewSpot = (newSpot) => {
-      console.log('Received new parking spot via WebSocket:', newSpot);
+      console.log('App.js: Received new parking spot via WebSocket:', newSpot);
+      console.log('App.js: Calling fetchParkingSpots in response to newParkingSpot.');
       fetchParkingSpots(selectedFilter, currentUserCarType);
     };
     const handleSpotDeleted = (deletedSpotId) => {
-      console.log('Received spot deleted via WebSocket:', deletedSpotId);
+      console.log('App.js: Received spot deleted via WebSocket:', deletedSpotId);
+      console.log('App.js: Calling fetchParkingSpots in response to spotDeleted.');
       fetchParkingSpots(selectedFilter, currentUserCarType);
     };
     const handleSpotRequest = (data) => {
+      console.log('App.js: Received spotRequest via WebSocket:', data);
       const { spotId, requesterId, message } = data;
-      const ownerUsername = currentUsername; // The current user is the owner
+      const ownerUsername = currentUsername;
 
       // Add a new notification to the state
       setNotifications(prev => [...prev, {
@@ -182,12 +200,16 @@ function MainAppContent() {
       alert(data.message);
       // NEW: If the message indicates acceptance, refresh the map
       if (data.message.includes('ACCEPTED')) {
-        console.log('Request accepted, refreshing map...');
-        fetchParkingSpots(selectedFilter, currentUserCarType);
+        console.log('App.js: Request accepted, refreshing map with delay...');
+        // Add a small delay before fetching to allow server to propagate changes
+        setTimeout(() => {
+          fetchParkingSpots(selectedFilter, currentUserCarType);
+        }, 500); // 500ms delay
       }
     };
-    const handleSpotUpdated = (updatedSpot) => { // NEW: Handle spotUpdated event
-      console.log('Received spot updated via WebSocket:', updatedSpot);
+    const handleSpotUpdated = (updatedSpot) => {
+      console.log('App.js: Received spot updated via WebSocket:', updatedSpot);
+      console.log('App.js: Calling fetchParkingSpots in response to spotUpdated.');
       fetchParkingSpots(selectedFilter, currentUserCarType); // Re-fetch spots to update map
     };
 
@@ -195,15 +217,16 @@ function MainAppContent() {
     socket.on('spotDeleted', handleSpotDeleted);
     socket.on('spotRequest', handleSpotRequest);
     socket.on('requestResponse', handleRequestResponse);
-    socket.on('spotUpdated', handleSpotUpdated); // NEW: Listen for spotUpdated
+    socket.on('spotUpdated', handleSpotUpdated);
 
     // Cleanup listeners
     return () => {
+      console.log("App.js: Cleaning up socket listeners.");
       socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
       socket.off('spotRequest', handleSpotRequest);
       socket.off('requestResponse', handleRequestResponse);
-      socket.off('spotUpdated', handleSpotUpdated); // NEW: Clean up spotUpdated listener
+      socket.off('spotUpdated', handleSpotUpdated);
     };
   }, [fetchParkingSpots, selectedFilter, currentUserCarType, currentUsername, handleAccept, handleDecline, handleCloseNotification]); // Reruns when filters change
 
