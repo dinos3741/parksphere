@@ -60,9 +60,13 @@ io.on('connection', (socket) => {
       );
       console.log(`Accepted request for spot ${spotId} by requester ${requesterId}. Record added to DB.`);
 
+      const spotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
+      const spot = spotResult.rows[0];
+
       if (requesterSocketId) {
         io.to(requesterSocketId).emit('requestResponse', {
-          message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}!`
+          message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}!`,
+          spot: spot // Include the full spot object
         });
       }
     } catch (error) {

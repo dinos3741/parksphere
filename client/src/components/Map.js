@@ -34,10 +34,11 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted, onEditSpot }) => { // NEW PROP
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDeleted, onEditSpot }) => { // NEW PROP
   const mapRef = React.useRef(null);
   console.log("Map.js - Received userLocation:", userLocation);
   console.log("Map.js - Received parkingSpots:", parkingSpots);
+  console.log("Map.js - Received acceptedSpot:", acceptedSpot);
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
   }
@@ -145,6 +146,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted, onEditS
 
         const isOwner = spot.user_id === currentUserId;
         const isExactLocation = spot.isExactLocation; // Use the flag from the backend
+
+        if (acceptedSpot) {
+          console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
+        }
+
         const circleColor = '#FF0000'; // Red color for the circle
         const circleFillColor = '#FF0000';
 
@@ -172,12 +178,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, onSpotDeleted, onEditS
                       </div>
                     ) : (
                       // This is a revealed spot, but not owned by current user
-                      <div className="request-button-container">
-                        <hr />
-                        <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
-                          Request
-                        </button>
-                      </div>
+                      // Hide the request button if this spot is the accepted one
+                      acceptedSpot && acceptedSpot.id === spot.id ? null : (
+                        <div className="request-button-container">
+                          <hr />
+                          <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
+                            Request
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
                 </Popup>

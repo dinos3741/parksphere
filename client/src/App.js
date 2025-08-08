@@ -42,6 +42,7 @@ function MainAppContent() {
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false); // NEW STATE for EditSpotModal visibility
   const [spotToEdit, setSpotToEdit] = useState(null); // NEW STATE to pass spot data to modal
+  const [acceptedSpot, setAcceptedSpot] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
@@ -201,6 +202,7 @@ function MainAppContent() {
       // NEW: If the message indicates acceptance, refresh the map
       if (data.message.includes('ACCEPTED')) {
         console.log('App.js: Request accepted, refreshing map with delay...');
+        setAcceptedSpot(data.spot);
         // Add a small delay before fetching to allow server to propagate changes
         setTimeout(() => {
           fetchParkingSpots(selectedFilter, currentUserCarType);
@@ -324,6 +326,7 @@ function MainAppContent() {
             parkingSpots={filteredParkingSpots}
             userLocation={userLocation}
             currentUserId={currentUserId}
+            acceptedSpot={acceptedSpot}
             onSpotDeleted={() => {}} // No longer needed as Socket.IO handles updates
             onEditSpot={handleOpenEditModal} // NEW: Pass the callback to Map
           />
