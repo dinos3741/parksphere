@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
-const { pool, createUsersTable, createParkingSpotsTable, createAcceptedRequestsTable } = require('./db');
+const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable } = require('./db');
 const { getRandomPointInCircle } = require('./utils/geoutils'); // Import geoutils
 const app = express();
 const server = http.createServer(app); // Create http server
@@ -49,16 +49,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('acceptRequest', async (data) => {
-    const { requesterId, spotId, ownerUsername, ownerId } = data;
+    const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
     const requesterSocketId = userSockets[requesterId]?.socketId;
 
     try {
-      // Record the accepted request in the database
+      // Update the request status in the database
       await pool.query(
-        'INSERT INTO accepted_requests (spot_id, requester_id, owner_id) VALUES ($1, $2, $3) ON CONFLICT (spot_id, requester_id) DO NOTHING',
-        [spotId, requesterId, ownerId]
+        `UPDATE requests SET status = 'accepted', responded_at = NOW() WHERE id = $1 AND spot_id = $2 AND owner_id = $3`,
+        [requestId, spotId, ownerId]
       );
-      console.log(`Accepted request for spot ${spotId} by requester ${requesterId}. Record added to DB.`);
+      console.log(`Request ${requestId} for spot ${spotId} was ACCEPTED by owner ${ownerId}.`);
 
       const spotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
       const spot = spotResult.rows[0];
@@ -70,18 +70,30 @@ io.on('connection', (socket) => {
         });
       }
     } catch (error) {
-      console.error('Error accepting request and recording to DB:', error);
+      console.error('Error accepting request and updating DB:', error);
       // Optionally, send an error message back to the owner or requester
     }
   });
 
-  socket.on('declineRequest', (data) => {
-    const { requesterId, spotId, ownerUsername } = data;
+  socket.on('declineRequest', async (data) => {
+    const { requestId, requesterId, spotId, ownerUsername } = data;
     const requesterSocket = userSockets[requesterId]?.socketId;
-    if (requesterSocket) {
-      io.to(requesterSocket).emit('requestResponse', {
-        message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`
-      });
+
+    try {
+      // Update the request status in the database
+      await pool.query(
+        `UPDATE requests SET status = 'rejected', responded_at = NOW() WHERE id = $1 AND spot_id = $2`,
+        [requestId, spotId]
+      );
+      console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
+
+      if (requesterSocket) {
+        io.to(requesterSocket).emit('requestResponse', {
+          message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`
+        });
+      }
+    } catch (error) {
+      console.error('Error declining request and updating DB:', error);
     }
   });
 
@@ -119,7 +131,7 @@ app.use(cors()); // Enable CORS for all routes
 // Ensure tables exist on server start
 createUsersTable();
 createParkingSpotsTable();
-createAcceptedRequestsTable(); // Ensure accepted_requests table exists
+createRequestsTable(); // Ensure requests table exists
 
 // Middleware to authenticate JWT
 function authenticateToken(req, res, next) {
@@ -184,7 +196,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     let acceptedRequests = {};
     if (currentUserId) {
       const acceptedResult = await pool.query(
-        'SELECT spot_id FROM accepted_requests WHERE requester_id = $1',
+        `SELECT spot_id FROM requests WHERE requester_id = $1 AND status = 'accepted'`,
         [currentUserId]
       );
       acceptedRequests = acceptedResult.rows.reduce((acc, row) => {
@@ -275,6 +287,22 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
     const ownerId = spotResult.rows[0].user_id;
     console.log(`Request for spot ${spotId}: Owner ID is ${ownerId}`);
 
+    // Check if a pending request already exists for this spot by this requester
+    const existingRequest = await pool.query(
+      `SELECT id FROM requests WHERE spot_id = $1 AND requester_id = $2 AND status = 'pending'`,
+      [spotId, requesterId]
+    );
+    if (existingRequest.rows.length > 0) {
+      return res.status(409).send('You already have a pending request for this spot.');
+    }
+
+    // Insert the new request into the requests table with 'pending' status
+    const requestResult = await pool.query(
+      `INSERT INTO requests (spot_id, requester_id, owner_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id`,
+      [spotId, requesterId, ownerId]
+    );
+    const requestId = requestResult.rows[0].id;
+
     // Get the requester's username
     const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
     if (requesterResult.rows.length === 0) {
@@ -286,21 +314,21 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
 
     // Find the owner's socket ID
     const ownerSocketInfo = userSockets[ownerId];
-    console.log(`Owner socket info for ID ${ownerId}:`, ownerSocketInfo);
 
     if (ownerSocketInfo && ownerSocketInfo.socketId) {
-      console.log(`Attempting to emit spotRequest to socket ${ownerSocketInfo.socketId}`);
       // Send a notification to the spot owner
       io.to(ownerSocketInfo.socketId).emit('spotRequest', {
         spotId,
         requesterId,
         requesterUsername,
+        requestId, // Pass the new requestId
         message: `User ${requesterUsername} has requested your parking spot!`
       });
-      res.status(200).send('Request sent successfully.');
+      res.status(200).json({ message: 'Request sent successfully.', requestId });
     } else {
       console.log(`Spot owner ${ownerId} is not currently connected or socketId is missing.`);
-      res.status(404).send('Spot owner is not currently connected.');
+      // If owner is not connected, still create the request in DB, but inform requester
+      res.status(200).json({ message: 'Request sent. Owner is currently offline, they will be notified when they connect.', requestId });
     }
   } catch (error) {
     console.error('Error requesting spot:', error);

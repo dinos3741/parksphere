@@ -60,13 +60,13 @@ function MainAppContent() {
     setShowEditModal(true);
   }, []);
 
-  const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername) => {
-    socket.emit('acceptRequest', { requesterId, spotId, ownerUsername, ownerId: currentUserId });
+  const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
+    socket.emit('acceptRequest', { requestId, requesterId, spotId, ownerUsername, ownerId: currentUserId });
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, [currentUserId]);
 
-  const handleDecline = useCallback((notificationId, requesterId, spotId, ownerUsername) => {
-    socket.emit('declineRequest', { requesterId, spotId, ownerUsername });
+  const handleDecline = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
+    socket.emit('declineRequest', { requestId, requesterId, spotId, ownerUsername });
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
@@ -183,8 +183,7 @@ function MainAppContent() {
       fetchParkingSpots(selectedFilter, currentUserCarType);
     };
     const handleSpotRequest = (data) => {
-      console.log('App.js: Received spotRequest via WebSocket:', data);
-      const { spotId, requesterId, message } = data;
+      const { spotId, requesterId, message, requestId } = data;
       const ownerUsername = currentUsername;
 
       // Add a new notification to the state
@@ -194,6 +193,7 @@ function MainAppContent() {
         requesterId,
         ownerUsername,
         message,
+        requestId, // Include requestId here
       }]);
     };
 
@@ -354,8 +354,8 @@ function MainAppContent() {
         <Notification
           key={notification.id}
           message={notification.message}
-          onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername)}
-          onDecline={() => handleDecline(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername)}
+          onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
+          onDecline={() => handleDecline(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
           onClose={() => handleCloseNotification(notification.id)}
         />
       ))}

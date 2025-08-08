@@ -75,24 +75,29 @@ async function createParkingSpotsTable() {
   }
 }
 
-async function createAcceptedRequestsTable() {
+async function createRequestsTable() {
   try {
     const client = await pool.connect();
+    // Drop the old accepted_requests table if it exists
+    await client.query(`DROP TABLE IF EXISTS accepted_requests CASCADE;`);
     await client.query(`
-      CREATE TABLE IF NOT EXISTS accepted_requests (
+      CREATE TABLE IF NOT EXISTS requests (
         id SERIAL PRIMARY KEY,
         spot_id INTEGER REFERENCES parking_spots(id) ON DELETE CASCADE,
         requester_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        accepted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(spot_id, requester_id) -- A requester can only have one accepted request per spot
+        status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'rejected', 'cancelled', 'fulfilled', 'expired'
+        requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP WITH TIME ZONE, -- When owner accepted/rejected
+        message TEXT, -- Optional message from requester
+        response_message TEXT -- Optional message from owner
       );
     `);
     client.release();
-    console.log('Accepted requests table ensured to exist.');
+    console.log('Requests table ensured to exist.');
   } catch (err) {
-    console.error('Error creating accepted requests table:', err);
+    console.error('Error creating requests table:', err);
   }
 }
 
-module.exports = { pool, createUsersTable, createParkingSpotsTable, createAcceptedRequestsTable };
+module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable };
