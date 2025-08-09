@@ -70,14 +70,15 @@ async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
             const plateNumber = generateRandomPlateNumber();
             const carColor = generateRandomCarColor();
             const carType = generateRandomCarType();
+            const initialCredits = parseFloat((Math.random() * 100).toFixed(2)); // Random credits between 0 and 100
 
             const result = await client.query(
-                'INSERT INTO users (username, password, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, username',
-                [username, hashedPassword, plateNumber, carColor, carType]
+                'INSERT INTO users (username, password, plate_number, car_color, car_type, credits) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username',
+                [username, hashedPassword, plateNumber, carColor, carType, initialCredits]
             );
             const newUser = result.rows[0];
             insertedUserIds[newUser.username] = newUser.id;
-            console.log(`  Added user: ${newUser.username}`);
+            console.log(`  Added user: ${newUser.username} with ${initialCredits} credits`);
         }
 
         // Seed Parking Spots

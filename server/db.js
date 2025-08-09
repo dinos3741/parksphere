@@ -33,6 +33,12 @@ async function createUsersTable() {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS car_type VARCHAR(255);
     `);
+
+    // Add credits column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS credits DECIMAL(10, 2) DEFAULT 0.00;
+    `);
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
