@@ -57,7 +57,7 @@ async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
         console.log('Clearing existing parking spots...');
         await client.query('DELETE FROM parking_spots');
         console.log('Clearing existing users (except "dinos")...');
-        await client.query("DELETE FROM users WHERE username != 'dinos'"); // Keep your user
+        await client.query("DELETE FROM users WHERE username NOT IN ('dinos', 'riva')"); // Keep your users
         const insertedUserIds = {};
         // All seeded users will have a random 6-character password
 
@@ -73,8 +73,8 @@ async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
             const initialCredits = parseFloat((Math.random() * 100).toFixed(2)); // Random credits between 0 and 100
 
             const result = await client.query(
-                'INSERT INTO users (username, password, plate_number, car_color, car_type, credits) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, username',
-                [username, hashedPassword, plateNumber, carColor, carType, initialCredits]
+                'INSERT INTO users (username, password, plate_number, car_color, car_type, credits, reserved_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username',
+                [username, hashedPassword, plateNumber, carColor, carType, initialCredits, 0.00]
             );
             const newUser = result.rows[0];
             insertedUserIds[newUser.username] = newUser.id;

@@ -51,17 +51,34 @@ io.on('connection', (socket) => {
   socket.on('acceptRequest', async (data) => {
     const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
     const requesterSocketId = userSockets[requesterId]?.socketId;
+    const client = await pool.connect();
 
     try {
+      await client.query('BEGIN');
+
+      // Get the spot price
+      const spotResult = await client.query('SELECT price FROM parking_spots WHERE id = $1', [spotId]);
+      if (spotResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        // maybe emit an error to the owner
+        return;
+      }
+      const { price } = spotResult.rows[0];
+
       // Update the request status in the database
-      await pool.query(
+      await client.query(
         `UPDATE requests SET status = 'accepted', responded_at = NOW() WHERE id = $1 AND spot_id = $2 AND owner_id = $3`,
         [requestId, spotId, ownerId]
       );
+
+      // Reserve the funds in the requester's account
+      await client.query('UPDATE users SET reserved_amount = $1 WHERE id = $2', [price, requesterId]);
+
+      await client.query('COMMIT');
       console.log(`Request ${requestId} for spot ${spotId} was ACCEPTED by owner ${ownerId}.`);
 
-      const spotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
-      const spot = spotResult.rows[0];
+      const fullSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
+      const spot = fullSpotResult.rows[0];
 
       if (requesterSocketId) {
         io.to(requesterSocketId).emit('requestResponse', {
@@ -70,8 +87,11 @@ io.on('connection', (socket) => {
         });
       }
     } catch (error) {
+      await client.query('ROLLBACK');
       console.error('Error accepting request and updating DB:', error);
       // Optionally, send an error message back to the owner or requester
+    } finally {
+      client.release();
     }
   });
 

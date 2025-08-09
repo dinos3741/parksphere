@@ -39,6 +39,12 @@ async function createUsersTable() {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS credits DECIMAL(10, 2) DEFAULT 0.00;
     `);
+
+    // Add reserved_amount column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS reserved_amount DECIMAL(10, 2) DEFAULT 0.00;
+    `);
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
