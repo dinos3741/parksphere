@@ -405,8 +405,8 @@ async function checkAndRemoveExpiredSpots() {
   }
 }
 
-// Schedule the function to run every minute (60000 milliseconds)
-setInterval(checkAndRemoveExpiredSpots, 300000);
+// Schedule the function to run every 15 seconds (15000 milliseconds)
+setInterval(checkAndRemoveExpiredSpots, 15000);
 
 
 server.listen(port, () => {

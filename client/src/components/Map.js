@@ -57,18 +57,33 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
     const expirationTime = declaredTime + (timeToLeave * 60 * 1000); // Add timeToLeave minutes in milliseconds
     const remainingMinutes = (expirationTime - currentTime) / (60 * 1000); // Remaining time in minutes
 
-    if (remainingMinutes > 10 && remainingMinutes <= 15) {
+    if (remainingMinutes > 15) {
+      return '#0000FF'; // Blue for > 15 min
+    } else if (remainingMinutes > 10 && remainingMinutes <= 15) {
       return '#008000'; // Green
     } else if (remainingMinutes > 5 && remainingMinutes <= 10) {
       return '#800080'; // Purple
     } else if (remainingMinutes > 2 && remainingMinutes <= 5) {
       return '#FFA500'; // Orange
-    } else if (remainingMinutes > 0 && remainingMinutes <= 2) { // This is the key change for Red
+    } else if (remainingMinutes >= 0 && remainingMinutes <= 2) {
       return '#FF0000'; // Red
-    } else if (remainingMinutes <= 0) {
-      return '#808080'; // Grey for expired spots
+    } else { // This case should ideally not be reached if all positive ranges are covered
+      return '#808080'; // Grey for expired spots (should be removed by server)
+    }
+  };
+
+  // Helper function to format remaining time for display
+  const formatRemainingTime = (declaredAt, timeToLeave) => {
+    const declaredTime = new Date(declaredAt).getTime();
+    const expirationTime = declaredTime + (timeToLeave * 60 * 1000);
+    const remainingMinutes = (expirationTime - currentTime) / (60 * 1000);
+
+    if (remainingMinutes <= 0) {
+      return 'Expired';
+    } else if (remainingMinutes < 1) {
+      return '< 1 minute';
     } else {
-      return '#0000FF'; // Default Blue for anything else (e.g., > 15 min)
+      return `${Math.floor(remainingMinutes)} minutes`;
     }
   };
 
@@ -190,7 +205,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
                     Declared by: {spot.username} <br />
                     Status: {spot.is_free ? 'Free' : 'Charged'} <br />
                     Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                    Time to leave: {spot.time_to_leave} minutes <br />
+                    Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
                     Comments: {spot.comments}
                     {isOwner ? (
                       <div className="owner-actions-container">
@@ -225,7 +240,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
                     Declared by: {spot.username} <br />
                     Status: {spot.is_free ? 'Free' : 'Charged'} <br />
                     Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                    Time to leave: {spot.time_to_leave} minutes <br />
+                    Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
                     Comments: {spot.comments}
                     <div className="request-button-container">
                       <hr />
