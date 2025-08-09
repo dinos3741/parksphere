@@ -87,6 +87,16 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
     }
   };
 
+  // Helper function to determine if a circle should animate
+  const shouldAnimate = (declaredAt, timeToLeave) => {
+    const declaredTime = new Date(declaredAt).getTime();
+    const expirationTime = declaredTime + (timeToLeave * 60 * 1000);
+    const remainingMinutes = (expirationTime - currentTime) / (60 * 1000);
+
+    // Animate if red (<= 2 minutes) AND less than 1 minute remaining
+    return (remainingMinutes >= 0 && remainingMinutes <= 2) && (remainingMinutes < 1);
+  };
+
   const handleDelete = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -233,7 +243,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
                 </Popup>
               </Marker>
             ) : (
-              <Circle center={[lat, lng]} radius={200} pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}>
+              <Circle center={[lat, lng]} radius={200} pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }} className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}>
                 <Popup>
                   <div>
                     Parking Spot ID: {spot.id} <br />

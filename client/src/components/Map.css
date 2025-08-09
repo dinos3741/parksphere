@@ -1,4 +1,3 @@
-
 .delete-spot-button {
   padding: 10px 20px;
   font-size: 1em;
@@ -35,6 +34,7 @@
 
 .request-button-container {
   text-align: center;
+
 }
 
 .owner-actions-container {
@@ -50,4 +50,18 @@
 
 .request-spot-button:hover {
   background-color: #218838;
+}
+
+/* Opacity pulse animation */
+.pulse-opacity {
+  animation: pulseOpacity 1s infinite alternate; /* Changed to 1s */
+}
+
+@keyframes pulseOpacity {
+  0% {
+    opacity: 0.3; /* Changed to 0.3 */
+  }
+  100% {
+    opacity: 1;
+  }
 }
