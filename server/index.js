@@ -206,7 +206,9 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     }
 
     const spotsToSend = result.rows.map(spot => {
-      if (spot.user_id === currentUserId || acceptedRequests[spot.id]) {
+      const shouldBeExactLocation = Boolean(spot.user_id === currentUserId || acceptedRequests[spot.id]);
+
+      if (shouldBeExactLocation) {
         // If the spot belongs to the current user OR the current user has an accepted request for it, send exact coordinates
         return { ...spot, isExactLocation: true };
       } else {
@@ -386,8 +388,12 @@ app.post('/api/login', async (req, res) => {
 async function checkAndRemoveExpiredSpots() {
   try {
     const expiredSpots = await pool.query(
-      "SELECT id FROM parking_spots WHERE declared_at + (time_to_leave * INTERVAL '1 minute') < NOW()"
+      "SELECT id, declared_at, time_to_leave FROM parking_spots WHERE declared_at + (time_to_leave * INTERVAL '1 minute') < NOW()"
     );
+
+    if (expiredSpots.rows.length > 0) {
+      // console.log("Server: Expired spots found:", expiredSpots.rows);
+    }
 
     for (const spot of expiredSpots.rows) {
       await pool.query('DELETE FROM parking_spots WHERE id = $1', [spot.id]);
@@ -400,7 +406,7 @@ async function checkAndRemoveExpiredSpots() {
 }
 
 // Schedule the function to run every minute (60000 milliseconds)
-setInterval(checkAndRemoveExpiredSpots, 60000);
+setInterval(checkAndRemoveExpiredSpots, 300000);
 
 
 server.listen(port, () => {

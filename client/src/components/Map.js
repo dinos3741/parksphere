@@ -36,12 +36,41 @@ const parkingSpotIcon = new L.Icon({
 
 const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDeleted, onEditSpot }) => { // NEW PROP
   const mapRef = React.useRef(null);
-  console.log("Map.js - Received userLocation:", userLocation);
-  console.log("Map.js - Received parkingSpots:", parkingSpots);
-  console.log("Map.js - Received acceptedSpot:", acceptedSpot);
+
+  const [currentTime, setCurrentTime] = React.useState(Date.now());
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
   }
+
+  // Helper function to determine circle color based on remaining time
+  const getCircleColor = (declaredAt, timeToLeave) => {
+    const declaredTime = new Date(declaredAt).getTime(); // Convert declared_at to milliseconds
+    const expirationTime = declaredTime + (timeToLeave * 60 * 1000); // Add timeToLeave minutes in milliseconds
+    const remainingMinutes = (expirationTime - currentTime) / (60 * 1000); // Remaining time in minutes
+
+    if (remainingMinutes > 10 && remainingMinutes <= 15) {
+      return '#008000'; // Green
+    } else if (remainingMinutes > 5 && remainingMinutes <= 10) {
+      return '#800080'; // Purple
+    } else if (remainingMinutes > 2 && remainingMinutes <= 5) {
+      return '#FFA500'; // Orange
+    } else if (remainingMinutes > 0 && remainingMinutes <= 2) { // This is the key change for Red
+      return '#FF0000'; // Red
+    } else if (remainingMinutes <= 0) {
+      return '#808080'; // Grey for expired spots
+    } else {
+      return '#0000FF'; // Default Blue for anything else (e.g., > 15 min)
+    }
+  };
 
   const handleDelete = async (spotId) => {
     const token = localStorage.getItem('token');
@@ -136,8 +165,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
       {parkingSpots.map(spot => {
         const lat = spot.lat;
         const lng = spot.lng;
-        console.log(`Map.js - Spot ID: ${spot.id}, Lat: ${lat}, Lng: ${lng}`);
-        console.log(`Map.js - Typeof Lat: ${typeof lat}, Typeof Lng: ${typeof lng}`);
 
         if (isNaN(lat) || isNaN(lng)) {
           console.warn(`Skipping invalid parking spot coordinates for ID: ${spot.id}. Lat: ${lat}, Lng: ${lng}`);
@@ -151,8 +178,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
           console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
         }
 
-        const circleColor = '#FF0000'; // Red color for the circle
-        const circleFillColor = '#FF0000';
+        const circleColor = getCircleColor(spot.declared_at, spot.time_to_leave);
 
         return (
           <React.Fragment key={spot.id}>
@@ -192,7 +218,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
                 </Popup>
               </Marker>
             ) : (
-              <Circle center={[lat, lng]} radius={130} pathOptions={{ color: circleColor, fillColor: circleFillColor, fillOpacity: 0.2 }}>
+              <Circle center={[lat, lng]} radius={200} pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}>
                 <Popup>
                   <div>
                     Parking Spot ID: {spot.id} <br />

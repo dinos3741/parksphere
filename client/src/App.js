@@ -103,7 +103,6 @@ function MainAppContent() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log("App.js - Raw data from API:", data);
       const formattedSpots = data.map(spot => ({
         id: spot.id,
         user_id: spot.user_id,
@@ -116,8 +115,8 @@ function MainAppContent() {
         comments: spot.comments, // Ensure comments are passed through
         isExactLocation: spot.isExactLocation,
         is_free: spot.is_free, // <--- ADD THIS LINE
+        declared_at: spot.declared_at, // Ensure declared_at is passed through
       }));
-      console.log("App.js - Formatted spots for Map:", formattedSpots);
       setFilteredParkingSpots(formattedSpots); // Set filtered spots directly from fetched data
     } catch (error) {
       console.error('Error fetching parking spots:', error);

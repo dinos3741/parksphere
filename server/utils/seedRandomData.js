@@ -33,9 +33,9 @@ function generateRandomCarType() {
 
 function generateRandomLatLng() {
     // Coordinates around Thessaloniki, Greece
-    const minLat = 40.5;
-    const maxLat = 40.7;
-    const minLng = 22.8;
+    const minLat = 40.3;
+    const maxLat = 40.4;
+    const minLng = 22.9;
     const maxLng = 23.1;
 
     const lat = Math.random() * (maxLat - minLat) + minLat;
@@ -43,7 +43,7 @@ function generateRandomLatLng() {
     return { lat: lat.toFixed(8), lng: lng.toFixed(8) };
 }
 
-async function seedDatabase(numUsers = 8, numSpotsPerUser = 1) {
+async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
     let client;
     try {
         client = await pool.connect();
@@ -92,13 +92,14 @@ async function seedDatabase(numUsers = 8, numSpotsPerUser = 1) {
                 const timeToLeave = Math.floor(1 + Math.random() * 15); // 1 to 15 minutes
                 const isFree = Math.random() > 0.5; // 50% chance of being free
                 const price = isFree ? 0.00 : parseFloat((Math.random() * 10).toFixed(2)); // Random price between 0 and 10 for paid spots
+                const declaredCarType = generateRandomCarType(); // Generate a random car type for the spot
 
-                console.log(`    Attempting to insert spot: userId=${userId}, lat=${lat}, lng=${lng}, timeToLeave=${timeToLeave}, isFree=${isFree}, price=${price}`);
+                console.log(`    Attempting to insert spot: userId=${userId}, lat=${lat}, lng=${lng}, timeToLeave=${timeToLeave}, isFree=${isFree}, price=${price}, declaredCarType=${declaredCarType}`);
                 await client.query(
-                    'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price) VALUES ($1, $2, $3, $4, $5, $6)',
-                    [userId, lat, lng, timeToLeave, isFree, price]
+                    'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                    [userId, lat, lng, timeToLeave, isFree, price, declaredCarType]
                 );
-                console.log(`    Successfully added spot for ${username} at (${lat}, ${lng}), ${timeToLeave} min, Free: ${isFree}, Price: ${price}`);
+                console.log(`    Successfully added spot for ${username} at (${lat}, ${lng}), ${timeToLeave} min, Free: ${isFree}, Price: ${price}, Car Type: ${declaredCarType}`);
             }
         }
 
