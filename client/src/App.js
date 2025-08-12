@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import { io } from 'socket.io-client';
+import { emitter } from './emitter';
+import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
 import DeclareSpot from './components/DeclareSpot'; // Re-import DeclareSpot
@@ -16,19 +17,10 @@ import backgroundImage from './assets/images/parking_background.png'; // Import 
 import logo from './assets/images/logo.png';
 import './App.css';
 
-// establish a persistent connection from the UI client to the backend server
-const socket = io('http://localhost:3001');
+
 
 // NEW: Log socket connection status
-socket.on('connect', () => {
-  console.log('App.js: Socket connected:', socket.id);
-});
-socket.on('disconnect', () => {
-  console.log('App.js: Socket disconnected:', socket.id);
-});
-socket.on('connect_error', (err) => {
-  console.error('App.js: Socket connection error:', err);
-});
+
 
 // websocket flow
 // 1. An anonymous connection is made first.
@@ -40,33 +32,33 @@ function MainAppContent() {
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false); // NEW STATE for EditSpotModal visibility
-  const [spotToEdit, setSpotToEdit] = useState(null); // NEW STATE to pass spot data to modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [spotToEdit, setSpotToEdit] = useState(null);
   const [acceptedSpot, setAcceptedSpot] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
-  const [currentUserCarType, setCurrentUserCarType] = useState(null); // New state for user's car type
+  const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [notifications, setNotifications] = useState([]);
+  const [requesterEta, setRequesterEta] = useState(null);
+  const [requesterArrived, setRequesterArrived] = useState(null);
   const navigate = useNavigate();
 
-  // Function to show the DeclareSpot form
   const handleShowDeclareSpotForm = useCallback(() => {
     setShowDeclareSpotForm(true);
   }, []);
 
-  // NEW: Callback to open the EditSpotModal
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
     setShowEditModal(true);
   }, []);
 
   const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
-    socket.emit('acceptRequest', { requestId, requesterId, spotId, ownerUsername, ownerId: currentUserId });
+    emitAcceptRequest({ requestId, requesterId, spotId, ownerUsername, ownerId: currentUserId });
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, [currentUserId]);
 
   const handleDecline = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
-    socket.emit('declineRequest', { requestId, requesterId, spotId, ownerUsername });
+    emitDeclineRequest({ requestId, requesterId, spotId, ownerUsername });
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
@@ -74,10 +66,13 @@ function MainAppContent() {
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
-  // Function to fetch parking spots
+  const handleAcknowledgeArrival = useCallback((spotId, requesterId) => {
+    emitAcknowledgeArrival({ spotId, requesterId });
+    setRequesterArrived(null);
+  }, []);
+
   const fetchParkingSpots = useCallback(async (filterValue, userCarType) => {
     let url = '/api/parkingspots';
-    console.log(`App.js: fetchParkingSpots called with URL: ${url}`);
     const params = new URLSearchParams();
     if (filterValue && filterValue !== 'all') {
       params.append('filter', filterValue);
@@ -97,7 +92,7 @@ function MainAppContent() {
 
       const response = await fetch(url, {
         headers: headers,
-        cache: 'no-store', // <--- ADD THIS LINE to prevent caching
+        cache: 'no-store',
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -112,18 +107,17 @@ function MainAppContent() {
         status: spot.is_free ? 'available' : 'occupied',
         time_to_leave: spot.time_to_leave,
         price: parseFloat(spot.price),
-        comments: spot.comments, // Ensure comments are passed through
+        comments: spot.comments || '',
         isExactLocation: spot.isExactLocation,
-        is_free: spot.is_free, // <--- ADD THIS LINE
-        declared_at: spot.declared_at, // Ensure declared_at is passed through
+        is_free: spot.is_free,
+        declared_at: spot.declared_at,
       }));
-      setFilteredParkingSpots(formattedSpots); // Set filtered spots directly from fetched data
+      setFilteredParkingSpots(formattedSpots);
     } catch (error) {
       console.error('Error fetching parking spots:', error);
     }
   }, []);
 
-  // Effect to handle authentication from token on initial load
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -140,100 +134,87 @@ function MainAppContent() {
         setCurrentUserCarType(null);
       }
     }
-  }, []); // Run only once on component mount
+  }, []);
 
-  // Effect to register the user with the socket and handle reconnections
   useEffect(() => {
     const handleRegister = () => {
       if (currentUserId && currentUsername) {
-        console.log(`App.js: Attempting to register user ${currentUsername} (ID: ${currentUserId}) with socket ${socket.id}.`);
-        socket.emit('register', { userId: currentUserId, username: currentUsername });
+        emitRegister({ userId: currentUserId, username: currentUsername });
       }
     };
-
-    // Register when the component mounts and user is logged in
     handleRegister();
-
-    // Add listener for reconnection events
     socket.on('connect', handleRegister);
-
-    // Cleanup listener when the component unmounts or userId changes
     return () => {
-      console.log("App.js: Cleaning up socket connect listener.");
       socket.off('connect', handleRegister);
     };
-  }, [currentUserId, currentUsername]); // Reruns when user info changes
+  }, [currentUserId, currentUsername]);
 
-  // Effect for fetching data and setting up socket listeners that depend on filters
   useEffect(() => {
-    // Fetch initial data
-    console.log("App.js: Initial fetchParkingSpots call.");
     fetchParkingSpots(selectedFilter, currentUserCarType);
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
-    // Setup listeners
-    const handleNewSpot = (newSpot) => {
-      console.log('App.js: Received new parking spot via WebSocket:', newSpot);
-      console.log('App.js: Calling fetchParkingSpots in response to newParkingSpot.');
-      fetchParkingSpots(selectedFilter, currentUserCarType);
-    };
-    const handleSpotDeleted = (deletedSpotId) => {
-      console.log('App.js: Received spot deleted via WebSocket:', deletedSpotId);
-      console.log('App.js: Calling fetchParkingSpots in response to spotDeleted.');
-      fetchParkingSpots(selectedFilter, currentUserCarType);
-    };
-    const handleSpotRequest = (data) => {
-      const { spotId, requesterId, message, requestId } = data;
-      const ownerUsername = currentUsername;
-
-      // Add a new notification to the state
-      setNotifications(prev => [...prev, {
-        id: Date.now(), // Unique ID for the notification
-        spotId,
-        requesterId,
-        ownerUsername,
-        message,
-        requestId, // Include requestId here
-      }]);
-    };
-
-    const handleRequestResponse = (data) => {
-      alert(data.message);
-      // NEW: If the message indicates acceptance, refresh the map
-      if (data.message.includes('ACCEPTED')) {
-        console.log('App.js: Request accepted, refreshing map with delay...');
-        setAcceptedSpot(data.spot);
-        // Add a small delay before fetching to allow server to propagate changes
-        setTimeout(() => {
-          fetchParkingSpots(selectedFilter, currentUserCarType);
-        }, 500); // 500ms delay
+  useEffect(() => {
+    const onNewSpot = (newSpot) => {
+      if (newSpot.user_id !== currentUserId) {
+        setFilteredParkingSpots(prevSpots => [...prevSpots, {
+          id: newSpot.id,
+          user_id: newSpot.user_id,
+          username: newSpot.username,
+          lat: parseFloat(newSpot.latitude),
+          lng: parseFloat(newSpot.longitude),
+          status: newSpot.is_free ? 'available' : 'occupied',
+          time_to_leave: newSpot.time_to_leave,
+          price: parseFloat(newSpot.price),
+          comments: newSpot.comments || '',
+          isExactLocation: newSpot.isExactLocation,
+          is_free: newSpot.is_free,
+          declared_at: newSpot.declared_at,
+        }]);
       }
     };
-    const handleSpotUpdated = (updatedSpot) => {
-      console.log('App.js: Received spot updated via WebSocket:', updatedSpot);
-      console.log('App.js: Calling fetchParkingSpots in response to spotUpdated.');
-      fetchParkingSpots(selectedFilter, currentUserCarType); // Re-fetch spots to update map
+    const onSpotDeleted = () => fetchParkingSpots(selectedFilter, currentUserCarType);
+    const onSpotUpdated = () => fetchParkingSpots(selectedFilter, currentUserCarType);
+
+    emitter.on('newParkingSpot', onNewSpot);
+    emitter.on('spotDeleted', onSpotDeleted);
+    emitter.on('spotUpdated', onSpotUpdated);
+
+    const handleSpotRequest = (data) => {
+      const { spotId, requesterId, message, requestId } = data;
+      setNotifications(prev => [...prev, { id: Date.now(), spotId, requesterId, ownerUsername: currentUsername, message, requestId }]);
     };
+    const handleRequestResponse = (data) => {
+      alert(data.message);
+      if (data.message.includes('ACCEPTED')) {
+        setAcceptedSpot(data.spot);
+        setTimeout(() => fetchParkingSpots(selectedFilter, currentUserCarType), 500);
+      }
+    };
+    const handleEtaUpdate = (data) => setRequesterEta(data);
+    const handleRequesterArrived = (data) => setRequesterArrived(data);
+    const handleTransactionComplete = (data) => alert(data.message);
 
-    socket.on('newParkingSpot', handleNewSpot);
-    socket.on('spotDeleted', handleSpotDeleted);
-    socket.on('spotRequest', handleSpotRequest);
-    socket.on('requestResponse', handleRequestResponse);
-    socket.on('spotUpdated', handleSpotUpdated);
+    emitter.on('spotRequest', handleSpotRequest);
+    emitter.on('requestResponse', handleRequestResponse);
+    emitter.on('etaUpdate', handleEtaUpdate);
+    emitter.on('requesterArrived', handleRequesterArrived);
+    emitter.on('transactionComplete', handleTransactionComplete);
 
-    // Cleanup listeners
     return () => {
-      console.log("App.js: Cleaning up socket listeners.");
-      socket.off('newParkingSpot', handleNewSpot);
-      socket.off('spotDeleted', handleSpotDeleted);
-      socket.off('spotRequest', handleSpotRequest);
-      socket.off('requestResponse', handleRequestResponse);
-      socket.off('spotUpdated', handleSpotUpdated);
+      emitter.off('newParkingSpot', onNewSpot);
+      emitter.off('spotDeleted', onSpotDeleted);
+      emitter.off('spotUpdated', onSpotUpdated);
+      emitter.off('spotRequest', handleSpotRequest);
+      emitter.off('requestResponse', handleRequestResponse);
+      emitter.off('etaUpdate', handleEtaUpdate);
+      emitter.off('requesterArrived', handleRequesterArrived);
+      emitter.off('transactionComplete', handleTransactionComplete);
     };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType, currentUsername, handleAccept, handleDecline, handleCloseNotification]); // Reruns when filters change
+  }, [selectedFilter, currentUserCarType, fetchParkingSpots, currentUsername, currentUserId]);
 
   const handleLogout = useCallback(() => {
     if (currentUserId) {
-      socket.emit('unregister', currentUserId);
+      emitUnregister(currentUserId);
     }
     localStorage.removeItem('token');
     setCurrentUserId(null);
@@ -242,25 +223,22 @@ function MainAppContent() {
     navigate('/');
   }, [currentUserId, navigate]);
 
-  // Function to check token expiration
   const checkTokenExpiration = useCallback(() => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
         const decodedToken = jwtDecode(token);
-        const currentTime = Date.now() / 1000; // Convert to seconds
+        const currentTime = Date.now() / 1000;
         if (decodedToken.exp < currentTime) {
-          console.log('Token expired. Logging out...');
-          handleLogout(); // Log out if token is expired
+          handleLogout();
         }
       } catch (error) {
         console.error("Error decoding token during expiration check:", error);
-        handleLogout(); // Log out if token is invalid
+        handleLogout();
       }
     }
-  }, [handleLogout]); // handleLogout is a dependency
+  }, [handleLogout]);
 
-  // Effect to handle authentication from token on initial load
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -269,7 +247,7 @@ function MainAppContent() {
         setCurrentUserId(decodedToken.userId);
         setCurrentUsername(decodedToken.username);
         setCurrentUserCarType(decodedToken.carType);
-        checkTokenExpiration(); // Initial check on load
+        checkTokenExpiration();
       } catch (error) {
         console.error("Error decoding token:", error);
         localStorage.removeItem('token');
@@ -278,14 +256,9 @@ function MainAppContent() {
         setCurrentUserCarType(null);
       }
     }
-
-    // Set up periodic check
-    const interval = setInterval(checkTokenExpiration, 5 * 60 * 1000); // Check every 5 minutes
-
-    // Cleanup interval on component unmount
+    const interval = setInterval(checkTokenExpiration, 5 * 60 * 1000);
     return () => clearInterval(interval);
-
-  }, [checkTokenExpiration]); // checkTokenExpiration is a dependency
+  }, [checkTokenExpiration]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -302,7 +275,7 @@ function MainAppContent() {
       console.log("Geolocation is not supported by this browser.");
       setUserLocation([51.505, -0.09]);
     }
-  }, [currentUserId]); // Add currentUserId to dependencies to re-fetch location on login
+  }, [currentUserId]);
 
   return (
     <div className="App">
@@ -318,16 +291,17 @@ function MainAppContent() {
       
       <Filter selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} currentUsername={currentUsername} onLogout={handleLogout} />
       <div className="map-container">
-        {console.log("App.js - userLocation before Map:", userLocation)}
-        {console.log("App.js - filteredParkingSpots before Map:", filteredParkingSpots)}
         {userLocation && !isNaN(userLocation[0]) && !isNaN(userLocation[1]) ? (
           <Map
             parkingSpots={filteredParkingSpots}
             userLocation={userLocation}
             currentUserId={currentUserId}
             acceptedSpot={acceptedSpot}
-            onSpotDeleted={() => {}} // No longer needed as Socket.IO handles updates
-            onEditSpot={handleOpenEditModal} // NEW: Pass the callback to Map
+            requesterEta={requesterEta}
+            requesterArrived={requesterArrived}
+            onAcknowledgeArrival={handleAcknowledgeArrival}
+            onSpotDeleted={() => {}}
+            onEditSpot={handleOpenEditModal}
           />
         ) : (
           <div>Loading map or getting your location...</div>
@@ -337,10 +311,9 @@ function MainAppContent() {
         userLocation={userLocation}
         currentUserCarType={currentUserCarType}
         currentUserId={currentUserId}
-        onCustomDeclare={handleShowDeclareSpotForm} // Pass the new callback
+        onCustomDeclare={handleShowDeclareSpotForm}
       />
 
-      {/* Re-add the conditional rendering for DeclareSpot */}
       {showDeclareSpotForm && (
         <DeclareSpot
           userLocation={userLocation}
@@ -359,13 +332,12 @@ function MainAppContent() {
         />
       ))}
 
-      {/* NEW: Conditional rendering for EditSpotModal */}
       {showEditModal && spotToEdit && (
         <EditSpotModal
-          spotData={spotToEdit} // Pass the spot data to the modal
+          spotData={spotToEdit}
           onClose={() => {
             setShowEditModal(false);
-            setSpotToEdit(null); // Clear spot data on close
+            setSpotToEdit(null);
           }}
         />
       )}

@@ -43,7 +43,7 @@ function generateRandomLatLng() {
     return { lat: lat.toFixed(8), lng: lng.toFixed(8) };
 }
 
-async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
+async function seedDatabase(numUsers = 3, numSpotsPerUser = 1) {
     let client;
     try {
         client = await pool.connect();
@@ -97,8 +97,8 @@ async function seedDatabase(numUsers = 10, numSpotsPerUser = 1) {
 
                 console.log(`    Attempting to insert spot: userId=${userId}, lat=${lat}, lng=${lng}, timeToLeave=${timeToLeave}, isFree=${isFree}, price=${price}, declaredCarType=${declaredCarType}`);
                 await client.query(
-                    'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-                    [userId, lat, lng, timeToLeave, isFree, price, declaredCarType]
+                    'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                    [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '']
                 );
                 console.log(`    Successfully added spot for ${username} at (${lat}, ${lng}), ${timeToLeave} min, Free: ${isFree}, Price: ${price}, Car Type: ${declaredCarType}`);
             }

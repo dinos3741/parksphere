@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
 const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable } = require('./db');
-const { getRandomPointInCircle } = require('./utils/geoutils'); // Import geoutils
+const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const app = express();
 const server = http.createServer(app); // Create http server
 const io = new Server(server, { // Initialize Socket.IO
@@ -114,6 +114,62 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       console.error('Error declining request and updating DB:', error);
+    }
+  });
+
+  socket.on('acknowledgeArrival', async (data) => {
+    const { spotId, requesterId } = data;
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const spotResult = await client.query('SELECT user_id, price FROM parking_spots WHERE id = $1', [spotId]);
+      if (spotResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return;
+      }
+      const { user_id: ownerId, price } = spotResult.rows[0];
+
+      const requesterResult = await client.query('SELECT credits, reserved_amount FROM users WHERE id = $1', [requesterId]);
+      if (requesterResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return;
+      }
+      const { credits: requesterCredits, reserved_amount: requesterReservedAmount } = requesterResult.rows[0];
+
+      if (requesterReservedAmount < price) {
+        // Not enough reserved, something is wrong
+        await client.query('ROLLBACK');
+        // maybe emit an error
+        return;
+      }
+
+      // Transfer credits
+      await client.query('UPDATE users SET credits = credits - $1, reserved_amount = 0 WHERE id = $2', [price, requesterId]);
+      await client.query('UPDATE users SET credits = credits + $1 WHERE id = $2', [price, ownerId]);
+
+      // Delete the spot
+      await client.query('DELETE FROM parking_spots WHERE id = $1', [spotId]);
+      io.emit('spotDeleted', spotId);
+
+      await client.query('COMMIT');
+
+      const requesterSocketId = userSockets[requesterId]?.socketId;
+      if (requesterSocketId) {
+        io.to(requesterSocketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. ${price} credits have been transferred.` });
+      }
+
+      const ownerSocketId = userSockets[ownerId]?.socketId;
+      if (ownerSocketId) {
+        io.to(ownerSocketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. You have received ${price} credits.` });
+      }
+
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error acknowledging arrival:', error);
+    } finally {
+      client.release();
     }
   });
 
@@ -257,7 +313,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments',
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, declared_at',
       [userId, latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments] // Add comments
     );
     const newSpot = result.rows[0];
@@ -332,6 +388,7 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       return res.status(404).send('Requester not found.');
     }
     const requesterUsername = requesterResult.rows[0].username;
+    console.log(`Requester username from DB: ${requesterUsername}`);
     console.log(`Requester username: ${requesterUsername}`);
 
     // Find the owner's socket ID
@@ -355,6 +412,56 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error requesting spot:', error);
     res.status(500).send('Server error requesting spot.');
+  }
+});
+
+app.post('/api/eta', authenticateToken, async (req, res) => {
+  const { requesterLat, requesterLon, spotId } = req.body;
+  const requesterId = req.user.userId;
+
+  try {
+    const spotResult = await pool.query('SELECT user_id, latitude, longitude FROM parking_spots WHERE id = $1', [spotId]);
+    if (spotResult.rows.length === 0) {
+      return res.status(404).send('Parking spot not found.');
+    }
+    const { user_id: ownerId, latitude: spotLat, longitude: spotLon } = spotResult.rows[0];
+
+    const distance = getDistance(requesterLat, requesterLon, parseFloat(spotLat), parseFloat(spotLon));
+    const eta = (distance / 20) * 60; // ETA in minutes, assuming 20 km/h average speed
+
+    const ownerSocketInfo = userSockets[ownerId];
+    if (ownerSocketInfo && ownerSocketInfo.socketId) {
+      io.to(ownerSocketInfo.socketId).emit('etaUpdate', { spotId, requesterId, eta: Math.round(eta) });
+    }
+
+    res.status(200).json({ eta: Math.round(eta) });
+  } catch (error) {
+    console.error('Error calculating ETA:', error);
+    res.status(500).send('Server error calculating ETA.');
+  }
+});
+
+app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
+  const { spotId } = req.body;
+  const requesterId = req.user.userId;
+
+  try {
+    const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spotResult.rows.length === 0) {
+      return res.status(404).send('Parking spot not found.');
+    }
+    const ownerId = spotResult.rows[0].user_id;
+
+    const ownerSocketInfo = userSockets[ownerId];
+    if (ownerSocketInfo && ownerSocketInfo.socketId) {
+      io.to(ownerSocketInfo.socketId).emit('requesterArrived', { spotId, requesterId });
+      res.status(200).json({ message: 'Arrival confirmed and owner notified.' });
+    } else {
+      res.status(200).json({ message: 'Arrival confirmed. Owner is currently offline.' });
+    }
+  } catch (error) {
+    console.error('Error confirming arrival:', error);
+    res.status(500).send('Server error confirming arrival.');
   }
 });
 

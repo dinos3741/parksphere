@@ -34,10 +34,12 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDeleted, onEditSpot }) => { // NEW PROP
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot }) => { // NEW PROP
   const mapRef = React.useRef(null);
 
   const [currentTime, setCurrentTime] = React.useState(Date.now());
+  const [eta, setEta] = React.useState(null);
+  const [isConfirming, setIsConfirming] = React.useState(false);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -46,6 +48,97 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
 
     return () => clearInterval(interval);
   }, []);
+
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in km
+    return distance;
+  }
+
+  const handleConfirmArrival = async (spotId) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert("You must be logged in to confirm arrival.");
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/confirm-arrival', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ spotId }),
+      });
+
+      if (response.ok) {
+        alert("Arrival confirmed! The spot owner has been notified.");
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to confirm arrival: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Error confirming arrival:', error);
+      alert('An error occurred while confirming arrival.');
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    if (acceptedSpot && !isConfirming) {
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          const distance = getDistance(latitude, longitude, acceptedSpot.latitude, acceptedSpot.longitude);
+
+          if (distance < 0.02) { // 20 meters
+            setIsConfirming(true);
+            if (window.confirm("It looks like you've arrived. Confirm your arrival?")) {
+              handleConfirmArrival(acceptedSpot.id);
+              navigator.geolocation.clearWatch(watchId);
+            } else {
+              setIsConfirming(false); // Allow the dialog to reappear if the user cancels
+            }
+          }
+
+          // Fetch ETA every 10 seconds
+          const now = Date.now();
+          if (!eta || (now - eta.lastUpdated) > 10000) {
+            const fetchEta = async () => {
+              const token = localStorage.getItem('token');
+              const response = await fetch('/api/eta', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ requesterLat: latitude, requesterLon: longitude, spotId: acceptedSpot.id }),
+              });
+              const data = await response.json();
+              setEta({ value: data.eta, lastUpdated: Date.now() });
+            };
+            fetchEta();
+          }
+        },
+        (error) => {
+          console.error("Error watching position:", error);
+        },
+        { enableHighAccuracy: true }
+      );
+
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
+    }
+  }, [acceptedSpot, isConfirming]);
 
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
@@ -203,8 +296,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
           console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
         }
 
-        const circleColor = getCircleColor(spot.declared_at, spot.time_to_leave);
-
         return (
           <React.Fragment key={spot.id}>
             {isExactLocation ? (
@@ -217,8 +308,10 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, onSpotDe
                     Price: €{ (spot.price ?? 0).toFixed(2) } <br />
                     Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
                     Comments: {spot.comments}
+                    {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
                     {isOwner ? (
                       <div className="owner-actions-container">
+                        {requesterArrived && requesterArrived.spotId === spot.id && <button onClick={() => onAcknowledgeArrival(spot.id, requesterArrived.requesterId)} className="delete-spot-button">Acknowledge Arrival</button>}
                         {/* New button, identical to delete button */}
                         <button onClick={() => handleNewButtonClick(spot.id)} className="delete-spot-button edit-button-color">
                           Edit
