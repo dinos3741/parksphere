@@ -311,7 +311,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                     {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
                     {isOwner ? (
                       <div className="owner-actions-container">
-                        {requesterArrived && requesterArrived.spotId === spot.id && <button onClick={() => onAcknowledgeArrival(spot.id, requesterArrived.requesterId)} className="delete-spot-button">Acknowledge Arrival</button>}
                         {/* New button, identical to delete button */}
                         <button onClick={() => handleNewButtonClick(spot.id)} className="delete-spot-button edit-button-color">
                           Edit

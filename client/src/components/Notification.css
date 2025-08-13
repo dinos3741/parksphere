@@ -56,6 +56,15 @@
   background-color: #da190b;
 }
 
+.notification-actions .acknowledge {
+  background-color: #008CBA; /* Blue */
+  color: white;
+}
+
+.notification-actions .acknowledge:hover {
+  background-color: #007B9A;
+}
+
 .notification-close-button {
   position: absolute;
   top: 10px;

@@ -66,9 +66,9 @@ function MainAppContent() {
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
-  const handleAcknowledgeArrival = useCallback((spotId, requesterId) => {
+  const handleAcknowledgeArrival = useCallback((notificationId, spotId, requesterId) => {
     emitAcknowledgeArrival({ spotId, requesterId });
-    setRequesterArrived(null);
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
   const fetchParkingSpots = useCallback(async (filterValue, userCarType) => {
@@ -181,7 +181,7 @@ function MainAppContent() {
 
     const handleSpotRequest = (data) => {
       const { spotId, requesterId, message, requestId } = data;
-      setNotifications(prev => [...prev, { id: Date.now(), spotId, requesterId, ownerUsername: currentUsername, message, requestId }]);
+      setNotifications(prev => [...prev, { id: Date.now(), type: 'request', spotId, requesterId, ownerUsername: currentUsername, message, requestId }]);
     };
     const handleRequestResponse = (data) => {
       alert(data.message);
@@ -191,7 +191,10 @@ function MainAppContent() {
       }
     };
     const handleEtaUpdate = (data) => setRequesterEta(data);
-    const handleRequesterArrived = (data) => setRequesterArrived(data);
+    const handleRequesterArrived = (data) => {
+      const { spotId, requesterId } = data;
+      setNotifications(prev => [...prev, { id: Date.now(), type: 'arrival', spotId, requesterId, message: `User ${requesterId} has arrived at spot ${spotId}.` }]);
+    };
     const handleTransactionComplete = (data) => alert(data.message);
 
     emitter.on('spotRequest', handleSpotRequest);
@@ -298,7 +301,6 @@ function MainAppContent() {
             currentUserId={currentUserId}
             acceptedSpot={acceptedSpot}
             requesterEta={requesterEta}
-            requesterArrived={requesterArrived}
             onAcknowledgeArrival={handleAcknowledgeArrival}
             onSpotDeleted={() => {}}
             onEditSpot={handleOpenEditModal}
@@ -326,8 +328,10 @@ function MainAppContent() {
         <Notification
           key={notification.id}
           message={notification.message}
+          type={notification.type}
           onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
           onDecline={() => handleDecline(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
+          onAcknowledge={() => handleAcknowledgeArrival(notification.id, notification.spotId, notification.requesterId)}
           onClose={() => handleCloseNotification(notification.id)}
         />
       ))}
