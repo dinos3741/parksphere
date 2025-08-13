@@ -43,11 +43,6 @@
   margin-top: 10px;
 }
 
-.request-spot-button {
-  background-color: #28a745; /* Green color for request */
-  color: white;
-}
-
 .request-spot-button:hover {
   background-color: #218838;
 }

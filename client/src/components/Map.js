@@ -346,7 +346,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                     Comments: {spot.comments}
                     <div className="request-button-container">
                       <hr />
-                      <button onClick={() => handleRequest(spot.id)} className="request-spot-button spot-action-button">
+                      <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
                         Request
                       </button>
                     </div>

@@ -17,7 +17,7 @@ function generateRandomUsername() {
 
 function generateRandomPlateNumber() {
     const letters = generateRandomString(3).toUpperCase();
-    const numbers = Math.floor(100 + Math.random() * 900); // 3-digit number
+    const numbers = Math.floor(100 + Math.random() * 900);
     return `${letters}-${numbers}`;
 }
 
@@ -32,10 +32,9 @@ function generateRandomCarType() {
 }
 
 function generateRandomLatLng() {
-    // Coordinates around Thessaloniki, Greece
     const minLat = 40.3;
     const maxLat = 40.4;
-    const minLng = 22.9;
+    const minLng = 23.0;
     const maxLng = 23.1;
 
     const lat = Math.random() * (maxLat - minLat) + minLat;
@@ -43,80 +42,85 @@ function generateRandomLatLng() {
     return { lat: lat.toFixed(8), lng: lng.toFixed(8) };
 }
 
-async function seedDatabase(numUsers = 3, numSpotsPerUser = 1) {
+async function createRandomUser(client) {
+    const username = generateRandomUsername();
+    const randomPassword = generateRandomString(6);
+    const hashedPassword = await bcrypt.hash(randomPassword, 10);
+    const plateNumber = generateRandomPlateNumber();
+    const carColor = generateRandomCarColor();
+    const carType = generateRandomCarType();
+    const initialCredits = parseFloat((Math.random() * 50).toFixed(2));
+
+    const result = await client.query(
+        'INSERT INTO users (username, password, plate_number, car_color, car_type, credits, reserved_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username',
+        [username, hashedPassword, plateNumber, carColor, carType, initialCredits, 0.00]
+    );
+    const newUser = result.rows[0];
+    console.log(`  Added user: ${newUser.username} with ${initialCredits} credits`);
+    return newUser.id;
+}
+
+async function createRandomSpot(client, userId) {
+    const { lat, lng } = generateRandomLatLng();
+    const timeToLeave = Math.floor(1 + Math.random() * 15);
+    const isFree = Math.random() > 0.5;
+    const price = isFree ? 0.00 : parseFloat((Math.random() * 10).toFixed(2));
+    const declaredCarType = generateRandomCarType();
+
+    await client.query(
+        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '']
+    );
+    console.log(`    Successfully added spot for user ${userId} at (${lat}, ${lng})`);
+}
+
+async function main() {
     let client;
     try {
         client = await pool.connect();
-        console.log('Connected to database for seeding.');
+        console.log('Connected to database for seeding service.');
 
-        // Ensure tables exist before seeding
         await createUsersTable();
         await createParkingSpotsTable();
 
-        // Optional: Clear existing data (uncomment if you want a fresh start each time)
         console.log('Clearing existing parking spots...');
         await client.query('DELETE FROM parking_spots');
-        console.log('Clearing existing users (except "dinos")...');
-        await client.query("DELETE FROM users WHERE username NOT IN ('dinos', 'riva')"); // Keep your users
-        const insertedUserIds = {};
-        // All seeded users will have a random 6-character password
+        console.log('Clearing existing users (except "dinos" and "riva")...');
+        await client.query("DELETE FROM users WHERE username NOT IN ('dinos', 'riva')");
 
-        // Seed Users
-        console.log(`Seeding ${numUsers} users...`);
-        for (let i = 0; i < numUsers; i++) {
-            const username = generateRandomUsername();
-            const randomPassword = generateRandomString(6); // Generate a random 6-character password
-            const hashedPassword = await bcrypt.hash(randomPassword, 10);
-            const plateNumber = generateRandomPlateNumber();
-            const carColor = generateRandomCarColor();
-            const carType = generateRandomCarType();
-            const initialCredits = parseFloat((Math.random() * 100).toFixed(2)); // Random credits between 0 and 100
-
-            const result = await client.query(
-                'INSERT INTO users (username, password, plate_number, car_color, car_type, credits, reserved_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username',
-                [username, hashedPassword, plateNumber, carColor, carType, initialCredits, 0.00]
-            );
-            const newUser = result.rows[0];
-            insertedUserIds[newUser.username] = newUser.id;
-            console.log(`  Added user: ${newUser.username} with ${initialCredits} credits`);
+        const userIds = [];
+        const dinosResult = await client.query("SELECT id FROM users WHERE username = 'dinos'");
+        if (dinosResult.rows.length > 0) {
+            userIds.push(dinosResult.rows[0].id);
+        }
+        const rivaResult = await client.query("SELECT id FROM users WHERE username = 'riva'");
+        if (rivaResult.rows.length > 0) {
+            userIds.push(rivaResult.rows[0].id);
         }
 
-        // Seed Parking Spots
-        console.log(`Seeding ${numUsers * numSpotsPerUser} parking spots...`);
-        const userUsernames = Object.keys(insertedUserIds);
-        console.log(`Found ${userUsernames.length} users to seed spots for.`);
-        for (const username of userUsernames) {
-            const userId = insertedUserIds[username];
-            console.log(`  Seeding spots for user: ${username} (ID: ${userId})`);
-            for (let i = 0; i < numSpotsPerUser; i++) {
-                const { lat, lng } = generateRandomLatLng();
-                const timeToLeave = Math.floor(1 + Math.random() * 15); // 1 to 15 minutes
-                const isFree = Math.random() > 0.5; // 50% chance of being free
-                const price = isFree ? 0.00 : parseFloat((Math.random() * 10).toFixed(2)); // Random price between 0 and 10 for paid spots
-                const declaredCarType = generateRandomCarType(); // Generate a random car type for the spot
-
-                console.log(`    Attempting to insert spot: userId=${userId}, lat=${lat}, lng=${lng}, timeToLeave=${timeToLeave}, isFree=${isFree}, price=${price}, declaredCarType=${declaredCarType}`);
-                await client.query(
-                    'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-                    [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '']
-                );
-                console.log(`    Successfully added spot for ${username} at (${lat}, ${lng}), ${timeToLeave} min, Free: ${isFree}, Price: ${price}, Car Type: ${declaredCarType}`);
-            }
+        console.log(`Seeding 10 initial users...`);
+        for (let i = 0; i < 10; i++) {
+            const newUserId = await createRandomUser(client);
+            userIds.push(newUserId);
         }
 
-        console.log('Database seeding complete!');
+        console.log('Seeding 5 initial spots...');
+        for (let i = 0; i < 5; i++) {
+            const randomUserId = userIds[Math.floor(Math.random() * userIds.length)];
+            await createRandomSpot(client, randomUserId);
+        }
+
+        console.log('Starting random spot creation service...');
+        setInterval(async () => {
+            const randomUserId = userIds[Math.floor(Math.random() * userIds.length)];
+            await createRandomSpot(client, randomUserId);
+        }, 60000); // Create a new spot every 60 seconds
+
     } catch (error) {
-        console.error('Error during database seeding:', error);
+        console.error('Error in seeding service:', error);
     } finally {
-        if (client) {
-            client.release();
-            console.log('Database connection released.');
-        }
-        // End the pool to allow the script to exit gracefully
-        await pool.end();
-        console.log('Pool has been closed.');
+        // We don't release the client or end the pool because we want the service to run continuously
     }
 }
 
-// Execute the seeding function
-seedDatabase().catch(err => console.error('An error occurred while running the seeder:', err));
+main().catch(err => console.error('An error occurred while running the seeder service:', err));
