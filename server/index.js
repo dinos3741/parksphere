@@ -230,7 +230,7 @@ app.get('/api', (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, ps.latitude, ps.longitude, ps.time_to_leave, ps.is_free, ps.price, ps.declared_at, ps.declared_car_type, ps.comments FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Add ps.comments
+  let query = 'SELECT ps.id, ps.user_id, u.username, ps.latitude, ps.longitude, ps.time_to_leave, ps.is_free, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id';
   const queryParams = [];
   const conditions = [];
 
@@ -340,6 +340,37 @@ app.post('/api/seed-spot-notification', async (req, res) => {
 });
 
 // Protect this route with authentication middleware
+app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
+  const spotId = req.params.id;
+  const userId = req.user.userId;
+  const { timeToLeave, isFree, price, declaredCarType, comments } = req.body;
+
+  try {
+    const spot = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spot.rows.length === 0) {
+      return res.status(404).send('Parking spot not found.');
+    }
+    if (spot.rows[0].user_id !== userId) {
+      return res.status(403).send('You are not authorized to update this parking spot.');
+    }
+
+    await pool.query(
+      'UPDATE parking_spots SET time_to_leave = $1, is_free = $2, price = $3, comments = $4 WHERE id = $5',
+      [timeToLeave, isFree, price, comments, spotId]
+    );
+
+    // Fetch the updated spot to emit it
+    const updatedSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
+    const updatedSpot = updatedSpotResult.rows[0];
+
+    io.emit('spotUpdated', updatedSpot); // Emit spot updated event
+    res.status(200).json({ message: 'Parking spot updated successfully!', spot: updatedSpot });
+  } catch (error) {
+    console.error('Error updating parking spot:', error);
+    res.status(500).send('Server error updating parking spot.');
+  }
+});
+
 app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   const spotId = req.params.id;
   const userId = req.user.userId;
