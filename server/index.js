@@ -329,6 +329,16 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/api/seed-spot-notification', async (req, res) => {
+  const { spot } = req.body;
+  if (spot) {
+    io.emit('newParkingSpot', spot);
+    res.status(200).json({ message: 'Spot notification emitted.' });
+  } else {
+    res.status(400).json({ message: 'No spot data provided.' });
+  }
+});
+
 // Protect this route with authentication middleware
 app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   const spotId = req.params.id;

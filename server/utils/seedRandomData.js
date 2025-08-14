@@ -33,13 +33,13 @@ function generateRandomCarType() {
 }
 
 function generateRandomLatLng() {
-    const minLat = 40.3;
-    const maxLat = 40.4;
-    const minLng = 23.0;
-    const maxLng = 23.1;
+    const centerLat = 40.64;
+    const centerLng = 22.94;
+    const radius = 0.027; // in degrees, approximately 3km
 
-    const lat = Math.random() * (maxLat - minLat) + minLat;
-    const lng = Math.random() * (maxLng - minLng) + minLng;
+    const lat = centerLat + (Math.random() * 2 - 1) * radius;
+    const lng = centerLng + (Math.random() * 2 - 1) * radius;
+
     return { lat: lat.toFixed(8), lng: lng.toFixed(8) };
 }
 
@@ -69,11 +69,26 @@ async function createRandomSpot(client, userId) {
     const declaredCarType = generateRandomCarType();
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(parseFloat(lat), parseFloat(lng), 130);
 
-    await client.query(
-        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+    const result = await client.query(
+        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
         [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '', fuzzedLat, fuzzedLon]
     );
+    const newSpot = result.rows[0]; // Capture the new spot data
+
     console.log(`    Successfully added spot for user ${userId} at (${lat}, ${lng})`);
+
+    // Send notification to the server
+    try {
+        await fetch('http://localhost:3001/api/seed-spot-notification', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ spot: newSpot }),
+        });
+    } catch (error) {
+        console.error('Error sending seed spot notification:', error);
+    }
 }
 
 async function main() {
