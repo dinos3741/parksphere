@@ -1,5 +1,6 @@
 const { pool, createUsersTable, createParkingSpotsTable } = require('../db');
 const bcrypt = require('bcryptjs');
+const { getRandomPointInCircle } = require('./geoUtils');
 
 // --- Helper Functions for Random Data Generation ---
 
@@ -66,10 +67,11 @@ async function createRandomSpot(client, userId) {
     const isFree = Math.random() > 0.5;
     const price = isFree ? 0.00 : parseFloat((Math.random() * 10).toFixed(2));
     const declaredCarType = generateRandomCarType();
+    const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(parseFloat(lat), parseFloat(lng), 130);
 
     await client.query(
-        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-        [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '']
+        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '', fuzzedLat, fuzzedLon]
     );
     console.log(`    Successfully added spot for user ${userId} at (${lat}, ${lng})`);
 }

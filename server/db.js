@@ -80,6 +80,16 @@ async function createParkingSpotsTable() {
       ALTER TABLE parking_spots
       ADD COLUMN IF NOT EXISTS comments TEXT;
     `);
+
+    // Add fuzzed location columns if they don't exist
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS fuzzed_latitude DECIMAL(10, 8);
+    `);
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS fuzzed_longitude DECIMAL(11, 8);
+    `);
     client.release();
     console.log('Parking spots table ensured to exist.');
   } catch (err) {

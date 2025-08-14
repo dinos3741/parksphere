@@ -285,12 +285,14 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
       const shouldBeExactLocation = Boolean(spot.user_id === currentUserId || acceptedRequests[spot.id]);
 
       if (shouldBeExactLocation) {
-        // If the spot belongs to the current user OR the current user has an accepted request for it, send exact coordinates
         return { ...spot, isExactLocation: true };
       } else {
-        // If the spot does not belong to the current user, fuzz the coordinates
-        const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(parseFloat(spot.latitude), parseFloat(spot.longitude), 130); // 130 meters radius
-        return { ...spot, latitude: fuzzedLat, longitude: fuzzedLon, isExactLocation: false };
+        if (spot.fuzzed_latitude && spot.fuzzed_longitude) {
+          return { ...spot, latitude: spot.fuzzed_latitude, longitude: spot.fuzzed_longitude, isExactLocation: false };
+        } else {
+          const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(parseFloat(spot.latitude), parseFloat(spot.longitude), 130);
+          return { ...spot, latitude: fuzzedLat, longitude: fuzzedLon, isExactLocation: false };
+        }
       }
     });
 
@@ -312,9 +314,11 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
       return res.status(409).send('You have already declared a parking spot. Please delete your existing spot first.');
     }
 
+    const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
+
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, declared_at',
-      [userId, latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments] // Add comments
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, declared_at',
+      [userId, latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Add comments
     );
     const newSpot = result.rows[0];
     io.emit('newParkingSpot', newSpot); // Emit new spot event
