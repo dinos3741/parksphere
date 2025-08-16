@@ -2,6 +2,11 @@ const { pool, createUsersTable, createParkingSpotsTable } = require('../db');
 const bcrypt = require('bcryptjs');
 const { getRandomPointInCircle } = require('./geoUtils');
 
+// --- Global variables for dynamic location --- 
+let centerLat = 40.64; // Default to Thessaloniki
+let centerLng = 22.94; // Default to Thessaloniki
+const radius = 0.027; // in degrees, approximately 3km
+
 // --- Helper Functions for Random Data Generation ---
 
 function generateRandomString(length) {
@@ -32,11 +37,26 @@ function generateRandomCarType() {
     return carTypes[Math.floor(Math.random() * carTypes.length)];
 }
 
-function generateRandomLatLng() {
-    const centerLat = 40.64;
-    const centerLng = 22.94;
-    const radius = 0.027; // in degrees, approximately 3km
+async function getDynamicLocation() {
+    try {
+        const response = await fetch('http://ip-api.com/json');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        if (data.status === 'success') {
+            centerLat = data.lat;
+            centerLng = data.lon;
+            console.log(`Successfully fetched dynamic location: Lat ${centerLat}, Lng ${centerLng}`);
+        } else {
+            console.warn('IP-API.com returned status:', data.status, 'Using default location.');
+        }
+    } catch (error) {
+        console.error('Error fetching dynamic location:', error.message, 'Using default location.');
+    }
+}
 
+function generateRandomLatLng() {
     const lat = centerLat + (Math.random() * 2 - 1) * radius;
     const lng = centerLng + (Math.random() * 2 - 1) * radius;
 
@@ -96,6 +116,9 @@ async function main() {
     try {
         client = await pool.connect();
         console.log('Connected to database for seeding service.');
+
+        // Fetch dynamic location before seeding
+        await getDynamicLocation();
 
         await createUsersTable();
         await createParkingSpotsTable();
