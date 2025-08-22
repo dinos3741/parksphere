@@ -5,27 +5,17 @@ import { emitter } from './emitter';
 import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
-import DeclareSpot from './components/DeclareSpot'; // Re-import DeclareSpot
+import DeclareSpot from './components/DeclareSpot';
 import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
 import ProtectedRoute from './components/ProtectedRoute';
-import Notification from './components/Notification'; // Import Notification component
-import EditSpotModal from './components/EditSpotModal'; // NEW IMPORT
-import LeavingFab from './components/LeavingFab'; // Add this import
-import backgroundImage from './assets/images/parking_background.png'; // Import the image
+import Notification from './components/Notification';
+import EditSpotModal from './components/EditSpotModal';
+import LeavingFab from './components/LeavingFab';
+import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 import './App.css';
-
-
-
-// NEW: Log socket connection status
-
-
-// websocket flow
-// 1. An anonymous connection is made first.
-//   2. Then, once the person logs in, that anonymous connection is "upgraded" or "identified" by associating
-//      it with their userId.
 
 function MainAppContent() {
   const [selectedFilter, setSelectedFilter] = useState('all');
@@ -41,6 +31,10 @@ function MainAppContent() {
   const [notifications, setNotifications] = useState([]);
   const [requesterEta, setRequesterEta] = useState(null);
   const [requesterArrived, setRequesterArrived] = useState(null);
+
+  // Hamburger menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const navigate = useNavigate();
 
   const handleShowDeclareSpotForm = useCallback(() => {
@@ -153,68 +147,6 @@ function MainAppContent() {
     fetchParkingSpots(selectedFilter, currentUserCarType);
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
-  useEffect(() => {
-    const onNewSpot = (newSpot) => {
-      if (newSpot.user_id !== currentUserId) {
-        setFilteredParkingSpots(prevSpots => [...prevSpots, {
-          id: newSpot.id,
-          user_id: newSpot.user_id,
-          username: newSpot.username,
-          lat: parseFloat(newSpot.latitude),
-          lng: parseFloat(newSpot.longitude),
-          status: newSpot.is_free ? 'available' : 'occupied',
-          time_to_leave: newSpot.time_to_leave,
-          price: parseFloat(newSpot.price),
-          comments: newSpot.comments || '',
-          isExactLocation: newSpot.isExactLocation,
-          is_free: newSpot.is_free,
-          declared_at: newSpot.declared_at,
-        }]);
-      }
-    };
-    const onSpotDeleted = () => fetchParkingSpots(selectedFilter, currentUserCarType);
-    const onSpotUpdated = () => fetchParkingSpots(selectedFilter, currentUserCarType);
-
-    emitter.on('newParkingSpot', onNewSpot);
-    emitter.on('spotDeleted', onSpotDeleted);
-    emitter.on('spotUpdated', onSpotUpdated);
-
-    const handleSpotRequest = (data) => {
-      const { spotId, requesterId, message, requestId } = data;
-      setNotifications(prev => [...prev, { id: Date.now(), type: 'request', spotId, requesterId, ownerUsername: currentUsername, message, requestId }]);
-    };
-    const handleRequestResponse = (data) => {
-      alert(data.message);
-      if (data.message.includes('ACCEPTED')) {
-        setAcceptedSpot(data.spot);
-        setTimeout(() => fetchParkingSpots(selectedFilter, currentUserCarType), 500);
-      }
-    };
-    const handleEtaUpdate = (data) => setRequesterEta(data);
-    const handleRequesterArrived = (data) => {
-      const { spotId, requesterId } = data;
-      setNotifications(prev => [...prev, { id: Date.now(), type: 'arrival', spotId, requesterId, message: `User ${requesterId} has arrived at spot ${spotId}.` }]);
-    };
-    const handleTransactionComplete = (data) => alert(data.message);
-
-    emitter.on('spotRequest', handleSpotRequest);
-    emitter.on('requestResponse', handleRequestResponse);
-    emitter.on('etaUpdate', handleEtaUpdate);
-    emitter.on('requesterArrived', handleRequesterArrived);
-    emitter.on('transactionComplete', handleTransactionComplete);
-
-    return () => {
-      emitter.off('newParkingSpot', onNewSpot);
-      emitter.off('spotDeleted', onSpotDeleted);
-      emitter.off('spotUpdated', onSpotUpdated);
-      emitter.off('spotRequest', handleSpotRequest);
-      emitter.off('requestResponse', handleRequestResponse);
-      emitter.off('etaUpdate', handleEtaUpdate);
-      emitter.off('requesterArrived', handleRequesterArrived);
-      emitter.off('transactionComplete', handleTransactionComplete);
-    };
-  }, [selectedFilter, currentUserCarType, fetchParkingSpots, currentUsername, currentUserId]);
-
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
@@ -225,43 +157,6 @@ function MainAppContent() {
     setCurrentUserCarType(null);
     navigate('/');
   }, [currentUserId, navigate]);
-
-  const checkTokenExpiration = useCallback(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const decodedToken = jwtDecode(token);
-        const currentTime = Date.now() / 1000;
-        if (decodedToken.exp < currentTime) {
-          handleLogout();
-        }
-      } catch (error) {
-        console.error("Error decoding token during expiration check:", error);
-        handleLogout();
-      }
-    }
-  }, [handleLogout]);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const decodedToken = jwtDecode(token);
-        setCurrentUserId(decodedToken.userId);
-        setCurrentUsername(decodedToken.username);
-        setCurrentUserCarType(decodedToken.carType);
-        checkTokenExpiration();
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        localStorage.removeItem('token');
-        setCurrentUserId(null);
-        setCurrentUsername(null);
-        setCurrentUserCarType(null);
-      }
-    }
-    const interval = setInterval(checkTokenExpiration, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [checkTokenExpiration]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -290,11 +185,32 @@ function MainAppContent() {
             <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
           </div>
         </div>
+
+        <div className="hamburger-menu" onClick={() => setMenuOpen(!menuOpen)}>
+          <div className="bar"></div>
+          <div className="bar"></div>
+          <div className="bar"></div>
+        </div>
+
+        {menuOpen && (
+          <div className="hamburger-dropdown">
+            <button onClick={() => alert("Profile clicked")}>Profile</button>
+            <button onClick={() => alert("Settings clicked")}>Settings</button>
+            <button onClick={handleLogout}>Logout</button>
+          </div>
+        )}
+
       </header>
       
-      <Filter selectedFilter={selectedFilter} onFilterChange={setSelectedFilter} currentUsername={currentUsername} onLogout={handleLogout} />
+      <Filter 
+        selectedFilter={selectedFilter} 
+        onFilterChange={setSelectedFilter} 
+        currentUsername={currentUsername} 
+        onLogout={handleLogout} 
+      />
+
       <div className="map-container">
-        {userLocation && !isNaN(userLocation[0]) && !isNaN(userLocation[1]) ? (
+        {userLocation ? (
           <Map
             parkingSpots={filteredParkingSpots}
             userLocation={userLocation}
@@ -309,6 +225,7 @@ function MainAppContent() {
           <div>Loading map or getting your location...</div>
         )}
       </div>
+
       <LeavingFab
         userLocation={userLocation}
         currentUserCarType={currentUserCarType}

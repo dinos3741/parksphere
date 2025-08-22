@@ -19,16 +19,15 @@ body {
   padding: 10px; /* Adjusted padding for mobile */
   color: white;
   display: flex;
-  flex-direction: column; /* Stack items vertically on mobile */
-  justify-content: center; /* Center content vertically */
-  align-items: center; /* Center content horizontally */
+  flex-direction: row; /* Always row for header content */
+  justify-content: space-between; /* Space out logo and menu */
+  align-items: center; /* Vertically center content */
   text-align: center; /* Center text within header */
+  position: relative; /* For absolute positioning of dropdown */
 }
 
 @media (min-width: 768px) {
   .App-header {
-    flex-direction: row; /* Row layout for larger screens */
-    justify-content: space-between; /* Space out title group and nav */
     padding: 10px 20px; /* Original padding for desktop */
   }
 }
@@ -303,7 +302,7 @@ body {
   flex-direction: row;
   align-items: center; /* Aligns items to the center */
   justify-content: center;
-  width: 100%; /* Ensure the container takes full width */
+  /* width: 100%; */ /* Removed to allow flex-grow on App-header */
 }
 
 .logo {
@@ -372,18 +371,53 @@ body {
   }
 }
 
-/* Responsive adjustments for logo and titles */
-@media (max-width: 767px) { /* Apply these styles for screens smaller than 768px */
-  .logo-img {
-    width: 60px;  /* Smaller for mobile */
-    margin-right: 10px; /* Reduced margin for mobile */
-  }
+/* Hamburger menu styles */
+.hamburger-menu {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 28px;
+  height: 20px;
+  cursor: pointer;
+  z-index: 1100; /* Ensure it's above other content */
+  margin-left: auto; /* Push to the right */
+}
 
-  .main-title {
-    font-size: 2.5em; /* Smaller for mobile */
-  }
+/* The bars */
+.hamburger-menu .bar {
+  height: 3px;
+  width: 100%;
+  background: white; /* or use gradient to match background */
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
 
-  .subtitle {
-    font-size: 1em; /* Smaller for mobile */
-  }
+/* Dropdown menu container */
+.hamburger-dropdown {
+  position: absolute;
+  top: 60px; /* Adjust based on header height */
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7); /* semi-transparent */
+  color: white;
+  padding: 10px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  z-index: 1000; /* Ensure it's above other content but below menu icon */
+}
+
+/* Dropdown items */
+.hamburger-dropdown button {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hamburger-dropdown button:hover {
+  color: #ff9800; /* highlight on hover */
 }
