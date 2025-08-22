@@ -397,7 +397,7 @@ body {
   position: absolute;
   top: 60px; /* Adjust based on header height */
   right: 20px;
-  background: rgba(0, 0, 0, 0.7); /* semi-transparent */
+  background: rgba(255, 255, 255, 0.8); /* semi-transparent light background */
   color: white;
   padding: 10px;
   border-radius: 10px;
@@ -412,7 +412,7 @@ body {
 .hamburger-dropdown button {
   background: transparent;
   border: none;
-  color: white;
+  color: #333333; /* Dark grey color for contrast */
   font-size: 16px;
   cursor: pointer;
   text-align: left;

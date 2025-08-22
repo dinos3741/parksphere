@@ -206,7 +206,7 @@ function MainAppContent() {
         selectedFilter={selectedFilter} 
         onFilterChange={setSelectedFilter} 
         currentUsername={currentUsername} 
-        onLogout={handleLogout} 
+         
       />
 
       <div className="map-container">
