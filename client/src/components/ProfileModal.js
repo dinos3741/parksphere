@@ -15,11 +15,10 @@ const ProfileModal = ({ onClose, userData }) => {
           {userData ? (
             <>
               <p><strong>Username:</strong> {userData.username}</p>
-              <p><strong>Email:</strong> {userData.email}</p>
-              <p><strong>Plate Number:</strong> {userData.plateNumber}</p>
-              <p><strong>Car Color:</strong> {userData.carColor}</p>
-              <p><strong>Car Type:</strong> {userData.carType}</p>
-              <p><strong>Account Created:</strong> {userData.accountCreated}</p>
+              <p><strong>Plate Number:</strong> {userData.plate_number}</p>
+              <p><strong>Car Color:</strong> {userData.car_color}</p>
+              <p><strong>Car Type:</strong> {userData.car_type}</p>
+              <p><strong>Account Created:</strong> {new Date(userData.created_at).toLocaleDateString()}</p>
               <p><strong>Credits:</strong> {userData.credits}</p>
             </>
           ) : (

@@ -12,7 +12,7 @@
 }
 
 .profile-modal-content {
-  background: white;
+  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
   padding: 20px;
   border-radius: 10px;
   width: 90%;
@@ -39,7 +39,7 @@
 .profile-modal-title {
   margin: 0;
   font-size: 1.5em;
-  color: #333;
+  color: white;
   flex-grow: 1;
   text-align: center;
 }
@@ -58,9 +58,9 @@
 
 .profile-modal-body p {
   margin: 10px 0;
-  color: #555;
+  color: white;
 }
 
 .profile-modal-body strong {
-  color: #333;
+  color: white;
 }

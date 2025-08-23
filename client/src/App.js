@@ -21,6 +21,7 @@ import './App.css';
 function MainAppContent() {
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
+  const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
@@ -160,6 +161,27 @@ function MainAppContent() {
     navigate('/');
   }, [currentUserId, navigate]);
 
+  const fetchProfileData = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      const data = await response.json();
+      setProfileUserData(data);
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+      setProfileUserData(null); // Clear data on error
+    }
+  }, [currentUserId]);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -196,7 +218,7 @@ function MainAppContent() {
 
         {menuOpen && (
           <div className="hamburger-dropdown">
-            <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); }}>Profile</button>
+            <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); fetchProfileData(); }}>Profile</button>
             <button onClick={() => alert("Settings clicked")}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
@@ -272,15 +294,7 @@ function MainAppContent() {
       {showProfileModal && (
         <ProfileModal
           onClose={() => setShowProfileModal(false)}
-          userData={{
-            username: currentUsername,
-            email: "user@example.com", // Placeholder
-            plateNumber: "ABC 123", // Placeholder
-            carColor: "Blue", // Placeholder
-            carType: currentUserCarType,
-            accountCreated: "2023-01-01", // Placeholder
-            credits: 100 // Placeholder
-          }}
+          userData={profileUserData}
         />
       )}
     </div>
