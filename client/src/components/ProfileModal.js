@@ -3,6 +3,14 @@ import './ProfileModal.css';
 import logo from '../assets/images/logo.png'; // Assuming logo is accessible from here
 
 const ProfileModal = ({ onClose, userData }) => {
+  const getInitials = (username) => {
+    if (!username) return '';
+    const words = username.split(' ').filter(word => word.length > 0);
+    if (words.length === 0) return '';
+    if (words.length === 1) return words[0].charAt(0).toUpperCase();
+    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  };
+
   return (
     <div className="profile-modal-overlay">
       <div className="profile-modal-content">
@@ -14,8 +22,11 @@ const ProfileModal = ({ onClose, userData }) => {
         <div className="profile-modal-body">
           {userData ? (
             <>
-              <p><strong>Username:</strong> {userData.username}</p>
-              <p><strong>Plate Number:</strong> {userData.plate_number}</p>
+              <div className="user-avatar-container">
+                <div className="user-avatar">{getInitials(userData.username)}</div>
+                <span className="user-full-name">{userData.username}</span>
+              </div>
+              <p><strong>Plate Number:</strong> {userData.plate_number.toUpperCase()}</p>
               <p><strong>Car Color:</strong> {userData.car_color}</p>
               <p><strong>Car Type:</strong> {userData.car_type}</p>
               <p><strong>Account Created:</strong> {new Date(userData.created_at).toLocaleDateString()}</p>
