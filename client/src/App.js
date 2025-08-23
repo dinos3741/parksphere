@@ -15,10 +15,12 @@ import EditSpotModal from './components/EditSpotModal';
 import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
+import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import './App.css';
 
 function MainAppContent() {
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
@@ -194,7 +196,7 @@ function MainAppContent() {
 
         {menuOpen && (
           <div className="hamburger-dropdown">
-            <button onClick={() => alert("Profile clicked")}>Profile</button>
+            <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); }}>Profile</button>
             <button onClick={() => alert("Settings clicked")}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
@@ -266,6 +268,21 @@ function MainAppContent() {
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
       </footer>
+
+      {showProfileModal && (
+        <ProfileModal
+          onClose={() => setShowProfileModal(false)}
+          userData={{
+            username: currentUsername,
+            email: "user@example.com", // Placeholder
+            plateNumber: "ABC 123", // Placeholder
+            carColor: "Blue", // Placeholder
+            carType: currentUserCarType,
+            accountCreated: "2023-01-01", // Placeholder
+            credits: 100 // Placeholder
+          }}
+        />
+      )}
     </div>
   );
 }
