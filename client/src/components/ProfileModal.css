@@ -23,7 +23,6 @@
 
 .profile-modal-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
@@ -54,10 +53,17 @@
   font-size: 2em;
   cursor: pointer;
   color: #aaa;
+  position: absolute; /* Position absolutely */
+  top: 10px; /* Align to top */
+  right: 10px; /* Align to right */
 }
 
 .profile-modal-close-button:hover {
   color: #333;
+}
+
+.profile-modal-body {
+  
 }
 
 .profile-modal-body p {
@@ -118,6 +124,7 @@
   justify-content: space-around; /* Adjust as needed */
   align-items: flex-start; /* Align items to the top of the flex container */
   gap: 100px; /* Increased space between columns */
+  margin-bottom: 50px; /* Add margin below this container to push "My Stats" down */
 }
 
 .profile-left-column {
@@ -149,4 +156,15 @@
   font-weight: bold;
   color: white;
   margin-bottom: 10px; /* Space below username */
+}
+
+.my-stats-label {
+  font-size: 1.2em; /* Same as username font size */
+  font-weight: bold; /* Same as username font weight */
+  color: white; /* Same as username color */
+  
+  margin-top: 0px; /* Moved closer to avatar level */
+  text-align: left; /* Align to the left */
+  width: 100%; /* Take full width */
+  
 }
