@@ -26,17 +26,21 @@ const ProfileModal = ({ onClose, userData }) => {
         </div>
         <div className="profile-modal-body">
           {userData ? (
-            <>
-              <div className="user-avatar-container">
-                <div className="user-avatar">{getInitials(userData.username)}</div>
-                <span className="user-full-name">{userData.username}</span>
+            <div className="profile-details-two-column"> {/* Main container for two columns */}
+              <div className="profile-left-column"> {/* Left column for avatar and username */}
+                <div className="user-avatar-only"> {/* Avatar circle only */}
+                  <div className="user-avatar">{getInitials(userData.username)}</div>
+                </div>
+                <span className="user-full-name-left-column">{userData.username}</span> {/* Username in left column */}
               </div>
-              <p><strong>Plate Number:</strong> {userData.plate_number.toUpperCase()}</p>
-              <p><strong>Car Color:</strong> {userData.car_color}</p>
-              <p><strong>Car Type:</strong> {userData.car_type}</p>
-              <p><strong>Account Created:</strong> {new Date(userData.created_at).toLocaleDateString()}</p>
-              <p><strong>Credits:</strong> {userData.credits}</p>
-            </>
+              <div className="profile-right-column"> {/* Right column for details */}
+                <p><strong>Plate Number:</strong> {userData.plate_number.toUpperCase()}</p>
+                <p><strong>Car Color:</strong> {userData.car_color}</p>
+                <p><strong>Car Type:</strong> {userData.car_type}</p>
+                <p><strong>Account Created:</strong> {new Date(userData.created_at).toLocaleDateString()}</p>
+                <p><strong>Credits:</strong> {userData.credits}</p>
+              </div>
+            </div>
           ) : (
             <p>Loading profile data...</p>
           )}
