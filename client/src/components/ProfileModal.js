@@ -42,10 +42,13 @@ const ProfileModal = ({ onClose, userData }) => {
                   <p><span className="profile-label">Credits:</span> <span className="profile-value">{userData.credits}</span></p>
                 </div>
               </div>
-              <p className="my-stats-label">My Stats</p> {/* New element for "My Stats" */}
-              <p><strong>Spots Declared:</strong> <span>0</span></p>
-              <p><strong>Spots Taken:</strong> <span>0</span></p>
-              <p><strong>Average Arrival Time:</strong> <span>0 min</span></p>
+              <div className="my-stats-section">
+                <p className="my-stats-label">My Stats</p>
+                <div></div>
+                <p><strong>Spots Declared:</strong></p> <span className="my-stats-value">0</span>
+                <p><strong>Spots Taken:</strong></p> <span className="my-stats-value">0</span>
+                <p><strong>Average Arrival Time:</strong></p> <span className="my-stats-value">0 min</span>
+              </div>
             </> /* End of React.Fragment */
           ) : (
             <p>Loading profile data...</p>
