@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { jwtDecode } from 'jwt-decode';
 import { emitter } from './emitter';
 import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket } from './socket';
+import { getToken, isTokenExpired, logout } from './utils/auth';
 import Map from './components/Map';
 import Filter from './components/Filter';
 import DeclareSpot from './components/DeclareSpot';
@@ -81,7 +82,7 @@ function MainAppContent() {
       url += `?${params.toString()}`;
     }
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const headers = {};
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -116,21 +117,33 @@ function MainAppContent() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
-      try {
-        const decodedToken = jwtDecode(token);
-        setCurrentUserId(decodedToken.userId);
-        setCurrentUsername(decodedToken.username);
-        setCurrentUserCarType(decodedToken.carType);
-      } catch (error) {
-        console.error("Error decoding token:", error);
-        localStorage.removeItem('token');
-        setCurrentUserId(null);
-        setCurrentUsername(null);
-        setCurrentUserCarType(null);
+      if (isTokenExpired(token)) {
+        logout();
+      } else {
+        try {
+          const decodedToken = jwtDecode(token);
+          setCurrentUserId(decodedToken.userId);
+          setCurrentUsername(decodedToken.username);
+          setCurrentUserCarType(decodedToken.carType);
+        } catch (error) {
+          console.error("Error decoding token:", error);
+          logout();
+        }
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const token = getToken();
+      if (token && isTokenExpired(token)) {
+        logout();
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -154,10 +167,7 @@ function MainAppContent() {
     if (currentUserId) {
       emitUnregister(currentUserId);
     }
-    localStorage.removeItem('token');
-    setCurrentUserId(null);
-    setCurrentUsername(null);
-    setCurrentUserCarType(null);
+    logout();
     navigate('/');
   }, [currentUserId, navigate]);
 

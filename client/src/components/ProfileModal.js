@@ -35,14 +35,17 @@ const ProfileModal = ({ onClose, userData }) => {
                   <span className="user-full-name-left-column">{userData.username}</span> {/* Username in left column */}
                 </div>
                 <div className="profile-right-column"> {/* Right column for details */}
-                  <p><strong>Plate Number:</strong> {userData.plate_number.toUpperCase()}</p>
-                  <p><strong>Car Color:</strong> {userData.car_color}</p>
-                  <p><strong>Car Type:</strong> {userData.car_type}</p>
-                  <p><strong>Account Created:</strong> {new Date(userData.created_at).toLocaleDateString()}</p>
-                  <p><strong>Credits:</strong> {userData.credits}</p>
+                  <p><span className="profile-label">Plate Number:</span> <span className="profile-value">{userData.plate_number.toUpperCase()}</span></p>
+                  <p><span className="profile-label">Car Color:</span> <span className="profile-value">{userData.car_color}</span></p>
+                  <p><span className="profile-label">Car Type:</span> <span className="profile-value">{userData.car_type}</span></p>
+                  <p><span className="profile-label">Account Created:</span> <span className="profile-value">{new Date(userData.created_at).toLocaleDateString()}</span></p>
+                  <p><span className="profile-label">Credits:</span> <span className="profile-value">{userData.credits}</span></p>
                 </div>
               </div>
               <p className="my-stats-label">My Stats</p> {/* New element for "My Stats" */}
+              <p><strong>Spots Declared:</strong> <span>0</span></p>
+              <p><strong>Spots Taken:</strong> <span>0</span></p>
+              <p><strong>Average Arrival Time:</strong> <span>0 min</span></p>
             </> /* End of React.Fragment */
           ) : (
             <p>Loading profile data...</p>
