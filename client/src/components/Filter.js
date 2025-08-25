@@ -14,7 +14,7 @@ const Filter = ({ selectedFilter, onFilterChange, currentUsername, onLogout }) =
       </select>
       <div className="user-info">
         <span>Welcome {currentUsername}!</span>
-        <button onClick={onLogout}>Logout</button>
+        
       </div>
     </div>
   );

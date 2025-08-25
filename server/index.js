@@ -9,6 +9,7 @@ const { Server } = require('socket.io'); // Import Server from socket.io
 const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const app = express();
+
 const server = http.createServer(app); // Create http server
 const io = new Server(server, { // Initialize Socket.IO
   cors: {
@@ -226,6 +227,29 @@ function authenticateToken(req, res, next) {
 app.get('/api', (req, res) => {
   res.send('Hello from the server!');
 });
+
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+
+  try {
+    const result = await pool.query(
+      'SELECT id, username, plate_number, car_color, car_type, created_at, credits FROM users WHERE id = $1',
+      [userId]
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).send('User not found.');
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).send('Server error fetching user data.');
+  }
+});
+
+
 
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
