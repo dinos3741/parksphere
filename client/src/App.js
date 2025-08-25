@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import { emitter } from './emitter';
+
 import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket } from './socket';
 import { getToken, isTokenExpired, logout } from './utils/auth';
 import Map from './components/Map';
@@ -28,13 +28,12 @@ function MainAppContent() {
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [spotToEdit, setSpotToEdit] = useState(null);
-  const [acceptedSpot, setAcceptedSpot] = useState(null);
+  const acceptedSpot = null;
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [requesterEta, setRequesterEta] = useState(null);
-  const [requesterArrived, setRequesterArrived] = useState(null);
+  const requesterEta = null;
 
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);
