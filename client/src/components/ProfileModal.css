@@ -164,7 +164,9 @@
   margin-top: 0px; /* Moved closer to avatar level */
   text-align: left; /* Align to the left */
   width: 100%; /* Take full width */
-  
+  padding-top: 10px; /* Space above the line */
+  margin-bottom: 10px; /* Space below the line */
+  box-sizing: border-box; /* Ensure padding doesn't push the border inwards */
 }
 
 .profile-right-column p {
@@ -174,12 +176,16 @@
 .my-stats-section {
   display: grid;
   grid-template-columns: 300px auto;
-  row-gap: 5px;
+  border-top: 1px solid rgba(200, 200, 200, 0.4); /* More visible grey line */
+
+  row-gap: 0px;
   align-items: center;
+  margin-bottom: 20px;
 }
 
 .my-stats-value {
   justify-self: start;
+  font-weight: 600;
 }
 
 .profile-label {
