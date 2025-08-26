@@ -17,5 +17,6 @@ export const emitDeclineRequest = (data) => socket.emit('declineRequest', data);
 export const emitAcknowledgeArrival = (data) => socket.emit('acknowledgeArrival', data);
 export const emitRegister = (data) => socket.emit('register', data);
 export const emitUnregister = (data) => socket.emit('unregister', data);
+export const emitConfirmArrival = (data) => socket.emit('confirmArrival', data);
 
 export { socket };

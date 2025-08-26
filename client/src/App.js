@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 
-import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket } from './socket';
 import { getToken, isTokenExpired, logout } from './utils/auth';
+import { getDistance } from './utils/geoUtils';
+import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket, emitConfirmArrival } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
 import DeclareSpot from './components/DeclareSpot';
@@ -28,7 +29,7 @@ function MainAppContent() {
   const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [spotToEdit, setSpotToEdit] = useState(null);
-  const acceptedSpot = null;
+  const [acceptedSpot, setAcceptedSpot] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
@@ -49,10 +50,10 @@ function MainAppContent() {
     setShowEditModal(true);
   }, []);
 
-  const handleAccept = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
-    emitAcceptRequest({ requestId, requesterId, spotId, ownerUsername, ownerId: currentUserId });
+  const handleAccept = useCallback((notificationId, requesterId, spotId, requestId) => {
+    emitAcceptRequest({ requestId, requesterId, spotId, ownerUsername: currentUsername, ownerId: currentUserId });
     setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  }, [currentUserId]);
+  }, [currentUserId, currentUsername]);
 
   const handleDecline = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
     emitDeclineRequest({ requestId, requesterId, spotId, ownerUsername });
@@ -186,6 +187,97 @@ function MainAppContent() {
     };
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
+  useEffect(() => {
+    const handleSpotRequest = (data) => {
+      const newNotification = {
+        id: Date.now(), // Use a unique ID
+        message: data.message,
+        type: 'request',
+        requesterId: data.requesterId,
+        spotId: data.spotId,
+        requesterUsername: data.requesterUsername,
+        requestId: data.requestId,
+      };
+      setNotifications(prev => [...prev, newNotification]);
+    };
+
+    socket.on('spotRequest', handleSpotRequest);
+
+    return () => {
+      socket.off('spotRequest', handleSpotRequest);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleRequestResponse = (data) => {
+      const newNotification = {
+        id: Date.now(), // Use a unique ID
+        message: data.message,
+        type: 'response',
+        spot: data.spot,
+      };
+      setNotifications(prev => [...prev, newNotification]);
+
+      if (data.spot) {
+        setAcceptedSpot(data.spot);
+        setFilteredParkingSpots(prevSpots => {
+          const index = prevSpots.findIndex(s => s.id === data.spot.id);
+          if (index !== -1) {
+            const newSpots = [...prevSpots];
+            newSpots[index] = {
+              ...newSpots[index],
+              lat: parseFloat(data.spot.latitude),
+              lng: parseFloat(data.spot.longitude),
+              isExactLocation: true,
+            };
+            return newSpots;
+          }
+          return prevSpots;
+        });
+      }
+    };
+
+    socket.on('requestResponse', handleRequestResponse);
+
+    return () => {
+      socket.off('requestResponse', handleRequestResponse);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (acceptedSpot && userLocation) {
+      const distance = getDistance(
+        userLocation[0],
+        userLocation[1],
+        parseFloat(acceptedSpot.latitude),
+        parseFloat(acceptedSpot.longitude)
+      );
+
+      if (distance < 0.05) { // 50 meters
+        emitConfirmArrival({ spotId: acceptedSpot.id, requesterId: currentUserId });
+      }
+    }
+  }, [acceptedSpot, userLocation, currentUserId]);
+
+  useEffect(() => {
+    const handleRequesterArrived = (data) => {
+      const newNotification = {
+        id: Date.now(),
+        message: `User ${data.requesterId} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`,
+        type: 'arrival',
+        spotId: data.spotId,
+        requesterId: data.requesterId,
+      };
+      setNotifications(prev => [...prev, newNotification]);
+    };
+
+    socket.on('requesterArrived', handleRequesterArrived);
+
+    return () => {
+      socket.off('requesterArrived', handleRequesterArrived);
+    };
+  }, []);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
@@ -303,7 +395,7 @@ function MainAppContent() {
           key={notification.id}
           message={notification.message}
           type={notification.type}
-          onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
+          onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.requestId)}
           onDecline={() => handleDecline(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
           onAcknowledge={() => handleAcknowledgeArrival(notification.id, notification.spotId, notification.requesterId)}
           onClose={() => handleCloseNotification(notification.id)}

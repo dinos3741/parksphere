@@ -51,6 +51,12 @@ async function createUsersTable() {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS spots_declared INTEGER DEFAULT 0;
     `);
+
+    // Add spots_taken column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS spots_taken INTEGER DEFAULT 0;
+    `);
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
