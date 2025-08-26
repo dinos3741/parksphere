@@ -174,6 +174,18 @@ function MainAppContent() {
     };
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
+  useEffect(() => {
+    const handleSpotDeleted = () => {
+      fetchParkingSpots(selectedFilter, currentUserCarType);
+    };
+
+    socket.on('spotDeleted', handleSpotDeleted);
+
+    return () => {
+      socket.off('spotDeleted', handleSpotDeleted);
+    };
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
