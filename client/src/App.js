@@ -41,6 +41,32 @@ function MainAppContent() {
 
   const navigate = useNavigate();
 
+  const fetchProfileData = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      const data = await response.json();
+      console.log('Fetched profile data:', data);
+      setProfileUserData({
+        ...data,
+        total_arrival_time: parseFloat(data.total_arrival_time),
+        completed_transactions_count: parseInt(data.completed_transactions_count, 10),
+      });
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+      setProfileUserData(null); // Clear data on error
+    }
+  }, [currentUserId]);
+
   const handleShowDeclareSpotForm = useCallback(() => {
     setShowDeclareSpotForm(true);
   }, []);
@@ -278,6 +304,18 @@ function MainAppContent() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleTransactionComplete = () => {
+      fetchProfileData();
+    };
+
+    socket.on('transactionComplete', handleTransactionComplete);
+
+    return () => {
+      socket.off('transactionComplete', handleTransactionComplete);
+    };
+  }, [fetchProfileData]);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
@@ -285,27 +323,6 @@ function MainAppContent() {
     logout();
     navigate('/');
   }, [currentUserId, navigate]);
-
-  const fetchProfileData = useCallback(async () => {
-    if (!currentUserId) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-      }
-      const data = await response.json();
-      setProfileUserData(data);
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-      setProfileUserData(null); // Clear data on error
-    }
-  }, [currentUserId]);
 
   useEffect(() => {
     if (navigator.geolocation) {

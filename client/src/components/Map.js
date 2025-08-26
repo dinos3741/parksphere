@@ -138,7 +138,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [acceptedSpot, isConfirming]);
+  }, [acceptedSpot, isConfirming, eta]);
 
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;

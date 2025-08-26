@@ -47,7 +47,11 @@ const ProfileModal = ({ onClose, userData }) => {
                 <div></div>
                 <p>Spots Declared:</p> <span className="my-stats-value">{userData.spots_declared}</span>
                 <p>Spots Taken:</p> <span className="my-stats-value">{userData.spots_taken}</span>
-                <p>Average Arrival Time:</p> <span className="my-stats-value">0 min</span>
+                <p>Average Arrival Time:</p> <span className="my-stats-value">
+                  {userData.completed_transactions_count > 0
+                    ? `${(userData.total_arrival_time / userData.completed_transactions_count).toFixed(2)} min`
+                    : 'N/A'}
+                </span>
               </div>
             </> /* End of React.Fragment */
           ) : (

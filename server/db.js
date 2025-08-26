@@ -57,6 +57,16 @@ async function createUsersTable() {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS spots_taken INTEGER DEFAULT 0;
     `);
+
+    // Add total_arrival_time and completed_transactions_count to users table
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS total_arrival_time DECIMAL(10, 2) DEFAULT 0.00;
+    `);
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS completed_transactions_count INTEGER DEFAULT 0;
+    `);
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
@@ -123,9 +133,23 @@ async function createRequestsTable() {
         status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'rejected', 'cancelled', 'fulfilled', 'expired'
         requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         responded_at TIMESTAMP WITH TIME ZONE, -- When owner accepted/rejected
+        accepted_at TIMESTAMP WITH TIME ZONE, -- When the request was accepted
+        arrived_at TIMESTAMP WITH TIME ZONE, -- When the requester confirmed arrival
         message TEXT, -- Optional message from requester
         response_message TEXT -- Optional message from owner
       );
+    `);
+
+    // Add accepted_at column if it doesn't exist
+    await client.query(`
+      ALTER TABLE requests
+      ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP WITH TIME ZONE;
+    `);
+
+    // Add arrived_at column if it doesn't exist
+    await client.query(`
+      ALTER TABLE requests
+      ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMP WITH TIME ZONE;
     `);
     client.release();
     console.log('Requests table ensured to exist.');

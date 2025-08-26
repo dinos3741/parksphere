@@ -16,6 +16,9 @@ const Notification = ({ message, onAccept, onDecline, onAcknowledge, onClose, ty
           {type === 'arrival' && (
             <button onClick={onAcknowledge} className="notification-button acknowledge">Acknowledge</button>
           )}
+          {type === 'response' && (
+            <button onClick={onClose} className="notification-button close">Close</button>
+          )}
         </div>
         <button onClick={onClose} className="notification-close-button">X</button>
       </div>

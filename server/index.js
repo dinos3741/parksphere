@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
 
       // Update the request status in the database
       await client.query(
-        `UPDATE requests SET status = 'accepted', responded_at = NOW() WHERE id = $1 AND spot_id = $2 AND owner_id = $3`,
+        `UPDATE requests SET status = 'accepted', responded_at = NOW(), accepted_at = NOW() WHERE id = $1 AND spot_id = $2 AND owner_id = $3`,
         [requestId, spotId, ownerId]
       );
 
@@ -171,6 +171,24 @@ io.on('connection', (socket) => {
       // Increment spots_taken for the requester
       await client.query('UPDATE users SET spots_taken = spots_taken + 1 WHERE id = $1', [requesterId]);
 
+      // Record arrived_at and calculate individual arrival time
+      const requestUpdateResult = await client.query(
+        `UPDATE requests SET status = 'fulfilled', arrived_at = NOW() WHERE requester_id = $1 AND spot_id = $2 RETURNING accepted_at, arrived_at`,
+        [requesterId, spotId]
+      );
+
+      if (requestUpdateResult.rows.length > 0) {
+        const { accepted_at, arrived_at } = requestUpdateResult.rows[0];
+        const individualArrivalTimeMs = arrived_at.getTime() - accepted_at.getTime(); // in milliseconds
+        const individualArrivalTimeMinutes = individualArrivalTimeMs / (1000 * 60); // in minutes
+
+        // Update total_arrival_time and completed_transactions_count for the requester
+        await client.query(
+          `UPDATE users SET total_arrival_time = total_arrival_time + $1, completed_transactions_count = completed_transactions_count + 1 WHERE id = $2`,
+          [individualArrivalTimeMinutes, requesterId]
+        );
+      }
+
       // Delete the spot
       await client.query('DELETE FROM parking_spots WHERE id = $1', [spotId]);
       io.emit('spotDeleted', spotId);
@@ -254,7 +272,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared, spots_taken FROM users WHERE id = $1',
+      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared, spots_taken, total_arrival_time, completed_transactions_count FROM users WHERE id = $1',
       [userId]
     );
     const user = result.rows[0];
