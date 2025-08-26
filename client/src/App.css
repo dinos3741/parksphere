@@ -316,8 +316,9 @@ body {
 }
 
 .logo-img {
-  width: 80px;  /* Increased from 50px */
-  height: 80px; /* Set height equal to width for perfect circle */
+  max-width: 10vw;  /* Max width based on viewport width */
+  max-height: 10vw; /* Max height based on viewport width */
+  height: auto; /* Maintain aspect ratio */
   object-fit: cover; /* Ensure the image covers the area without distortion */
   border-radius: 50%; /* Rounded shape */
   margin-right: 20px; /* Adds space between the logo and the title */
@@ -358,7 +359,7 @@ body {
 /* Responsive adjustments for logo and titles */
 @media (max-width: 767px) { /* Apply these styles for screens smaller than 768px */
   .logo-img {
-    width: 60px;  /* Smaller for mobile */
+    /* width: 60px; */  /* Smaller for mobile */
     margin-right: 10px; /* Reduced margin for mobile */
   }
 
