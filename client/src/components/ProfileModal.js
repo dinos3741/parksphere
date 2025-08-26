@@ -45,7 +45,7 @@ const ProfileModal = ({ onClose, userData }) => {
               <div className="my-stats-section">
                 <p className="my-stats-label">My Stats</p>
                 <div></div>
-                <p>Spots Declared:</p> <span className="my-stats-value">0</span>
+                <p>Spots Declared:</p> <span className="my-stats-value">{userData.spots_declared}</span>
                 <p>Spots Taken:</p> <span className="my-stats-value">0</span>
                 <p>Average Arrival Time:</p> <span className="my-stats-value">0 min</span>
               </div>

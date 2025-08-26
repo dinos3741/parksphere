@@ -233,7 +233,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT id, username, plate_number, car_color, car_type, created_at, credits FROM users WHERE id = $1',
+      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared FROM users WHERE id = $1',
       [userId]
     );
     const user = result.rows[0];
@@ -246,6 +246,19 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error fetching user data:', error);
     res.status(500).send('Server error fetching user data.');
+  }
+});
+
+app.get('/api/user/spots-count', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await pool.query('SELECT spots_declared FROM users WHERE id = $1', [userId]);
+    const count = parseInt(result.rows[0].spots_declared, 10);
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error('Error fetching spots count:', error);
+    res.status(500).send('Server error fetching spots count.');
   }
 });
 
@@ -345,6 +358,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
       [userId, latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Add comments
     );
     const newSpot = result.rows[0];
+    await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
     io.emit('newParkingSpot', newSpot); // Emit new spot event
     res.status(201).json({ message: 'Spot declared successfully!', spotId: newSpot.id });
   } catch (error) {
