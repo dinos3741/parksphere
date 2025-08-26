@@ -162,6 +162,18 @@ function MainAppContent() {
     fetchParkingSpots(selectedFilter, currentUserCarType);
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
+  useEffect(() => {
+    const handleNewSpot = () => {
+      fetchParkingSpots(selectedFilter, currentUserCarType);
+    };
+
+    socket.on('newParkingSpot', handleNewSpot);
+
+    return () => {
+      socket.off('newParkingSpot', handleNewSpot);
+    };
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
