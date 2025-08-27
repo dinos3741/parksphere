@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 
@@ -38,8 +38,26 @@ function MainAppContent() {
 
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);
+  const dropdownRef = useRef(null); // Create a ref for the dropdown
 
   const navigate = useNavigate();
+
+  // Function to handle clicks outside the dropdown
+  const handleClickOutside = useCallback((event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target) && !event.target.closest('.hamburger-menu')) {
+      setMenuOpen(false);
+    }
+  }, []);
+
+  // Effect to add and remove the event listener
+  useEffect(() => {
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen, handleClickOutside]);
 
   const fetchProfileData = useCallback(async () => {
     if (!currentUserId) return;
@@ -359,7 +377,7 @@ function MainAppContent() {
         </div>
 
         {menuOpen && (
-          <div className="hamburger-dropdown">
+          <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
             <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); fetchProfileData(); }}>Profile</button>
             <button onClick={() => alert("Settings clicked")}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
