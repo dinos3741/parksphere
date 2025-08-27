@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import './ProfileModal.css';
 import logo from '../assets/images/logo.png'; // Assuming logo is accessible from here
 import UpdateCredentialsModal from './UpdateCredentialsModal'; // Import the new modal
+import ChangeCarTypeModal from './ChangeCarTypeModal'; // Import the new modal
 
 const ProfileModal = ({ onClose, userData }) => {
   const [showUpdateCredentialsModal, setShowUpdateCredentialsModal] = useState(false);
+  const [showChangeCarTypeModal, setShowChangeCarTypeModal] = useState(false); // New state
 
   const getInitials = (username) => {
     if (!username) return '';
@@ -20,6 +22,14 @@ const ProfileModal = ({ onClose, userData }) => {
 
   const handleCloseUpdateCredentialsModal = () => {
     setShowUpdateCredentialsModal(false);
+  };
+
+  const handleChangeCarTypeClick = () => { // New handler
+    setShowChangeCarTypeModal(true);
+  };
+
+  const handleCloseChangeCarTypeModal = () => { // New handler
+    setShowChangeCarTypeModal(false);
   };
 
   return (
@@ -71,6 +81,10 @@ const ProfileModal = ({ onClose, userData }) => {
                   <span className="menu-item-text">Update email/password</span>
                   <span className="menu-item-arrow">&gt;</span>
                 </div>
+                <div className="settings-menu-item" onClick={handleChangeCarTypeClick}>
+                  <span className="menu-item-text">Change car type</span>
+                  <span className="menu-item-arrow">&gt;</span>
+                </div>
               </div>
 
             </> /* End of React.Fragment */
@@ -80,6 +94,7 @@ const ProfileModal = ({ onClose, userData }) => {
         </div>
       </div>
       {showUpdateCredentialsModal && <UpdateCredentialsModal onClose={handleCloseUpdateCredentialsModal} />}
+      {showChangeCarTypeModal && <ChangeCarTypeModal onClose={handleCloseChangeCarTypeModal} />}
     </div>
   );
 };
