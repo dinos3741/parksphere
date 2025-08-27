@@ -1,14 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './ProfileModal.css';
 import logo from '../assets/images/logo.png'; // Assuming logo is accessible from here
+import UpdateCredentialsModal from './UpdateCredentialsModal'; // Import the new modal
 
 const ProfileModal = ({ onClose, userData }) => {
+  const [showUpdateCredentialsModal, setShowUpdateCredentialsModal] = useState(false);
+
   const getInitials = (username) => {
     if (!username) return '';
     const words = username.split(' ').filter(word => word.length > 0);
     if (words.length === 0) return '';
     if (words.length === 1) return words[0].charAt(0).toUpperCase();
     return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
+  };
+
+  const handleUpdateCredentialsClick = () => {
+    setShowUpdateCredentialsModal(true);
+  };
+
+  const handleCloseUpdateCredentialsModal = () => {
+    setShowUpdateCredentialsModal(false);
   };
 
   return (
@@ -53,12 +64,22 @@ const ProfileModal = ({ onClose, userData }) => {
                     : 'N/A'}
                 </span>
               </div>
+
+              <div className="settings-section">
+                <p className="settings-label">Settings</p>
+                <div className="settings-menu-item" onClick={handleUpdateCredentialsClick}>
+                  <span className="menu-item-text">Update email/password</span>
+                  <span className="menu-item-arrow">&gt;</span>
+                </div>
+              </div>
+
             </> /* End of React.Fragment */
           ) : (
             <p>Loading profile data...</p>
           )}
         </div>
       </div>
+      {showUpdateCredentialsModal && <UpdateCredentialsModal onClose={handleCloseUpdateCredentialsModal} />}
     </div>
   );
 };
