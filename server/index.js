@@ -513,8 +513,9 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
     console.log(`Requester username from DB: ${requesterUsername}`);
     console.log(`Requester username: ${requesterUsername}`);
 
-    // Find the owner's socket ID
+    // Find the owner's socket ID and username
     const ownerSocketInfo = userSockets[ownerId];
+    const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner'; // Get owner's username
 
     if (ownerSocketInfo && ownerSocketInfo.socketId) {
       // Send a notification to the spot owner
@@ -522,6 +523,7 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
         spotId,
         requesterId,
         requesterUsername,
+        ownerUsername, // Include ownerUsername here
         requestId, // Pass the new requestId
         message: `User ${requesterUsername} has requested your parking spot!`
       });
