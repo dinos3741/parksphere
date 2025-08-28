@@ -306,16 +306,19 @@ app.get('/api/user/spots-count', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, ps.latitude, ps.longitude, ps.time_to_leave, ps.is_free, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id';
+  let query = 'SELECT ps.id, ps.user_id, u.username, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 
   try {
     if (filter) {
-      if (filter === 'available') {
-        conditions.push('ps.is_free = TRUE');
-      } else if (filter === 'occupied') {
-        conditions.push('ps.is_free = FALSE');
+      if (filter === 'available') { // This filter now refers to spots that are not occupied by anyone
+        // We don't have an 'is_occupied' column anymore.
+        // If 'available' means not currently taken, we need a different way to determine this.
+        // For now, I'll remove this condition as it's based on the old 'is_free' meaning.
+        // conditions.push('ps.is_free = TRUE');
+      } else if (filter === 'occupied') { // This filter now refers to spots that are currently taken by someone
+        // conditions.push('ps.is_free = FALSE');
       } else if (!isNaN(parseInt(filter))) { // Check if filter is a number
         const minutes = parseInt(filter);
         // Spots that will be empty within 'minutes' from now
@@ -381,7 +384,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
 
 // Protect this route with authentication middleware
 app.post('/api/declare-spot', authenticateToken, async (req, res) => {
-  const { latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments } = req.body; // Add comments
+  const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
   const userId = req.user.userId;
 
   try {
@@ -393,8 +396,8 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
 
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, declared_at',
-      [userId, latitude, longitude, timeToLeave, isFree, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Add comments
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at', // Changed is_free to cost_type
+      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Changed isFree to costType
     );
     const newSpot = result.rows[0];
     await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
@@ -420,7 +423,7 @@ app.post('/api/seed-spot-notification', async (req, res) => {
 app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   const spotId = req.params.id;
   const userId = req.user.userId;
-  const { timeToLeave, isFree, price, declaredCarType, comments } = req.body;
+  const { timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
 
   try {
     const spot = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
@@ -432,8 +435,8 @@ app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE parking_spots SET time_to_leave = $1, is_free = $2, price = $3, comments = $4 WHERE id = $5',
-      [timeToLeave, isFree, price, comments, spotId]
+      'UPDATE parking_spots SET time_to_leave = $1, cost_type = $2, price = $3, comments = $4 WHERE id = $5', // Changed is_free to cost_type
+      [timeToLeave, costType, price, comments, spotId] // Changed isFree to costType
     );
 
     // Fetch the updated spot to emit it

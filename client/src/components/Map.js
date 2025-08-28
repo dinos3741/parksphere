@@ -304,7 +304,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                   <div>
                     Parking Spot ID: {spot.id} <br />
                     Declared by: {spot.username} <br />
-                    Status: {spot.is_free ? 'Free' : 'Charged'} <br />
+                    Cost Type: {spot.cost_type} <br /> {/* Changed from Status: is_free */}
                     Price: €{ (spot.price ?? 0).toFixed(2) } <br />
                     Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
                     Comments: {spot.comments}
@@ -340,7 +340,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                   <div>
                     Parking Spot ID: {spot.id} <br />
                     Declared by: {spot.username} <br />
-                    Status: {spot.is_free ? 'Free' : 'Charged'} <br />
+                    Cost Type: {spot.cost_type} <br /> {/* Changed from Status: is_free */}
                     Price: €{ (spot.price ?? 0).toFixed(2) } <br />
                     Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
                     Comments: {spot.comments}
