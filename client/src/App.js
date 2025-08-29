@@ -240,6 +240,7 @@ function MainAppContent() {
         requesterId: data.requesterId,
         spotId: data.spotId,
         requesterUsername: data.requesterUsername,
+        ownerUsername: data.ownerUsername, // Add ownerUsername here
         requestId: data.requestId,
       };
       setNotifications(prev => [...prev, newNotification]);

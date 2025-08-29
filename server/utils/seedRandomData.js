@@ -84,14 +84,14 @@ async function createRandomUser(client) {
 async function createRandomSpot(client, userId) {
     const { lat, lng } = generateRandomLatLng();
     const timeToLeave = Math.floor(1 + Math.random() * 15);
-    const isFree = Math.random() > 0.5;
-    const price = isFree ? 0.00 : parseFloat((Math.random() * 10).toFixed(2));
+    const costType = Math.random() > 0.5 ? 'Free' : 'Paid'; // Changed from isFree to costType (string)
+    const price = costType === 'Free' ? 0.00 : parseFloat((Math.random() * 10).toFixed(2)); // Price based on costType
     const declaredCarType = generateRandomCarType();
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(parseFloat(lat), parseFloat(lng), 130);
 
     const result = await client.query(
-        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, is_free, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-        [userId, lat, lng, timeToLeave, isFree, price, declaredCarType, '', fuzzedLat, fuzzedLon]
+        'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+        [userId, lat, lng, timeToLeave, costType, price, declaredCarType, '', fuzzedLat, fuzzedLon]
     );
     const newSpot = result.rows[0]; // Capture the new spot data
 

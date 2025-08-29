@@ -84,12 +84,36 @@ async function createParkingSpotsTable() {
         latitude DECIMAL(10, 8) NOT NULL,
         longitude DECIMAL(11, 8) NOT NULL,
         time_to_leave INTEGER NOT NULL, -- Time in minutes
-        is_free BOOLEAN NOT NULL,
+        cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
         price DECIMAL(10, 2) DEFAULT 0.00,
         comments TEXT, -- New column for comments
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // Check and alter cost_type column type if it's BOOLEAN
+    const columnTypeResult = await client.query(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'parking_spots' AND column_name = 'cost_type';
+    `);
+
+    if (columnTypeResult.rows.length > 0 && columnTypeResult.rows[0].data_type === 'boolean') {
+      console.log('cost_type column is BOOLEAN, attempting to alter to VARCHAR(255)...');
+      await client.query(`
+        ALTER TABLE parking_spots ALTER COLUMN cost_type TYPE VARCHAR(255) USING CASE
+          WHEN cost_type = TRUE THEN 'Free'
+          WHEN cost_type = FALSE THEN 'Paid'
+          ELSE 'Paid' -- Default for any other unexpected boolean value
+        END;
+      `);
+      await client.query(`ALTER TABLE parking_spots ALTER COLUMN cost_type SET DEFAULT 'Paid';`);
+      await client.query(`ALTER TABLE parking_spots ALTER COLUMN cost_type SET NOT NULL;`);
+      console.log('cost_type column successfully altered to VARCHAR(255).');
+    } else if (columnTypeResult.rows.length === 0) {
+      console.log('cost_type column does not exist, it will be created by CREATE TABLE IF NOT EXISTS.');
+    } else {
+      console.log('cost_type column is already VARCHAR(255) or another type, skipping alteration.');
+    }
 
     // Add declared_car_type column if it doesn't exist
     await client.query(`
