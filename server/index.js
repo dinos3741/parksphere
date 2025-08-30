@@ -107,6 +107,7 @@ io.on('connection', (socket) => {
         [requestId, spotId]
       );
       console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
+      console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
 
       if (requesterSocket) {
         io.to(requesterSocket).emit('requestResponse', {
@@ -634,7 +635,7 @@ app.post('/api/login', async (req, res) => {
 
     const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '1d' });
 
-    res.status(200).json({ message: 'Login successful!', token: accessToken, userId: user.id });
+    res.status(200).json({ message: 'Login successful!', token: accessToken, userId: user.id, username: user.username });
   } catch (error) {
     console.error('Error during login:', error);
     res.status(500).send('Server error during login.');
