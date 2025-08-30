@@ -58,6 +58,25 @@ export default function App() {
   const [parkingSpots, setParkingSpots] = useState([]); // New state for parking spots
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
+  const [acceptedSpot, setAcceptedSpot] = useState(null); // New state for accepted spot
+  const [arrivalConfirmed, setArrivalConfirmed] = useState(false); // To prevent multiple alerts
+
+  // Helper function to calculate distance between two coordinates (Haversine formula)
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI / 180; // φ, λ in radians
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const d = R * c; // in metres
+    return d;
+  };
 
   // Check for existing token on app start
   useEffect(() => {
@@ -141,9 +160,12 @@ export default function App() {
     socket.current.on('requestResponse', (data) => {
       console.log('Request response received:', data);
       Alert.alert('Spot Request Update', data.message);
-      // Optionally, if the request was accepted, you might want to refresh parking spots
-      // or update the UI to reflect the accepted spot.
-      // For now, just showing an alert.
+      if (data.spot) {
+        setAcceptedSpot(data.spot);
+        setArrivalConfirmed(false); // Reset for new accepted spot
+      } else {
+        setAcceptedSpot(null); // Clear accepted spot if request was declined or cancelled
+      }
     });
 
     socket.current.on('disconnect', () => {
@@ -181,6 +203,66 @@ export default function App() {
       });
     })();
   }, []);
+
+  // Function to handle arrival confirmation
+  const handleConfirmArrival = () => {
+    if (socket.current && acceptedSpot && userId) {
+      socket.current.emit('confirmArrival', {
+        spotId: acceptedSpot.id,
+        requesterId: userId,
+      });
+      Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
+      setAcceptedSpot(null); // Clear accepted spot after confirmation
+      setArrivalConfirmed(true); // Prevent re-triggering
+    }
+  };
+
+  // Effect for continuous location tracking and arrival confirmation
+  useEffect(() => {
+    let locationSubscription;
+
+    const setupLocationTracking = async () => {
+      if (locationPermissionGranted && acceptedSpot && !arrivalConfirmed) {
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            distanceInterval: 5, // Update every 5 meters
+          },
+          (newLocation) => {
+            const { latitude, longitude } = newLocation.coords;
+            setUserLocation({ ...newLocation.coords, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
+
+            const spotLat = parseFloat(acceptedSpot.latitude);
+            const spotLon = parseFloat(acceptedSpot.longitude);
+            const distance = getDistance(latitude, longitude, spotLat, spotLon);
+
+            console.log(`Distance to spot ${acceptedSpot.id}: ${distance.toFixed(2)} meters`);
+
+            if (distance <= 10 && !arrivalConfirmed) { // Within 10 meters
+              setArrivalConfirmed(true); // Set to true to prevent multiple alerts
+              Alert.alert(
+                'Confirm Arrival',
+                'You are close to your spot. Confirm your arrival to notify the owner?',
+                [
+                  { text: 'Cancel', style: 'cancel', onPress: () => setAcceptedSpot(null) }, // Option to cancel and clear spot
+                  { text: 'Confirm', onPress: handleConfirmArrival },
+                ],
+                { cancelable: false }
+              );
+            }
+          }
+        );
+      }
+    };
+
+    setupLocationTracking();
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed, userId]); // Dependencies
 
   const handleLogin = async () => {
     try {
