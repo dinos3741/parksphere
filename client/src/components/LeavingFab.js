@@ -27,7 +27,6 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
     }
 
     const timeToLeave = minutes;
-    const isFree = true; // Assuming these are free spots for now
     const price = 0; // Assuming free spots have 0 price
     const comments = ""; // No comments for now
 
@@ -42,7 +41,7 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
           latitude: userLocation[0],
           longitude: userLocation[1],
           timeToLeave,
-          isFree,
+          costType: 'free', // Changed from isFree
           price,
           declaredCarType: currentUserCarType,
           comments,

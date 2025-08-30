@@ -254,17 +254,17 @@ function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  if (token == null) return res.sendStatus(401);
+  if (token == null) return res.status(401).json({ message: 'Unauthorized: No token provided.' });
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
+    if (err) return res.status(403).json({ message: 'Forbidden: Invalid token.' });
     req.user = user;
     next();
   });
 }
 
 app.get('/api', (req, res) => {
-  res.send('Hello from the server!');
+  res.json({ message: 'Hello from the server!' });
 });
 
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
@@ -387,10 +387,13 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
   const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
   const userId = req.user.userId;
 
+  console.log("Server received declare-spot request with body:", req.body); // Add this line
+  console.log("Server extracted costType:", costType); // Add this line
+
   try {
     const existingSpot = await pool.query('SELECT id FROM parking_spots WHERE user_id = $1', [userId]);
     if (existingSpot.rows.length > 0) {
-      return res.status(409).send('You have already declared a parking spot. Please delete your existing spot first.');
+      return res.status(409).json({ message: 'You have already declared a parking spot. Please delete your existing spot first.' });
     }
 
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
@@ -405,7 +408,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     res.status(201).json({ message: 'Spot declared successfully!', spotId: newSpot.id });
   } catch (error) {
     console.error('Error declaring spot:', error);
-    res.status(500).send('Server error declaring spot.');
+    res.status(500).json({ message: 'Server error declaring spot.' });
   }
 });
 
@@ -629,7 +632,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).send('Invalid username or password.');
     }
 
-    const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '1h' });
+    const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '1d' });
 
     res.status(200).json({ message: 'Login successful!', token: accessToken, userId: user.id });
   } catch (error) {

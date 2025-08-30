@@ -5,7 +5,7 @@ import './DeclareSpot.css';
 const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEditing }) => {
   // Initialize state based on spotData if editing, otherwise empty
   const [timeToLeave, setTimeToLeave] = useState(spotData?.time_to_leave || '');
-  const [costType, setCostType] = useState(spotData?.cost_type || 'Paid'); // Changed from isFree to costType
+  const [costType, setCostType] = useState(spotData?.cost_type || 'paid'); // Changed from isFree to costType
   const [price, setPrice] = useState(spotData?.price ?? '');
   const [comments, setComments] = useState(spotData?.comments || '');
 
@@ -19,7 +19,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
     } else if (!isEditing) {
       // Clear form if switching to declare mode
       setTimeToLeave('');
-      setCostType('Paid'); // Default to Paid
+      setCostType('paid'); // Default to Paid
       setPrice('');
       setComments('');
     }
@@ -52,7 +52,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
     }
 
     const parsedPrice = parseFloat(price);
-    if (costType === 'Paid' && (isNaN(parsedPrice) || parsedPrice < 0)) {
+    if (costType === 'paid' && (isNaN(parsedPrice) || parsedPrice < 0)) {
       alert("Please enter a valid price for a Paid spot.\n");
       return;
     }
@@ -64,7 +64,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
       latitude: userLocation ? userLocation[0] : undefined, // Only send if declaring
       longitude: userLocation ? userLocation[1] : undefined, // Only send if declaring
       timeToLeave: parsedTimeToLeave,
-      price: costType === 'Free' ? 0.00 : parsedPrice, // Set price to 0 if Free
+      price: costType === 'free' ? 0.00 : parsedPrice, // Set price to 0 if Free
       declaredCarType: currentUserCarType,
       comments,
       costType, // Changed from isFree
@@ -76,7 +76,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
       // For editing, only send fields that can be updated
       body = {
         timeToLeave: parsedTimeToLeave,
-        price: costType === 'Free' ? 0.00 : parsedPrice, // Set price to 0 if Free
+        price: costType === 'free' ? 0.00 : parsedPrice, // Set price to 0 if Free
         comments,
         costType, // Changed from isFree
       };
@@ -133,12 +133,12 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
           value={costType}
           onChange={(e) => setCostType(e.target.value)}
         >
-          <option value="Paid">Paid</option>
-          <option value="Free">Free</option>
+          <option value="paid">Paid</option>
+          <option value="free">Free</option>
         </select>
       </div>
 
-      {costType === 'Paid' && ( // Show price input only if costType is Paid
+      {costType === 'paid' && ( // Show price input only if costType is Paid
         <div className="form-row">
           <label>Price:</label>
           <input
