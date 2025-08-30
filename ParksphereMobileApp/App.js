@@ -138,6 +138,14 @@ export default function App() {
       );
     });
 
+    socket.current.on('requestResponse', (data) => {
+      console.log('Request response received:', data);
+      Alert.alert('Spot Request Update', data.message);
+      // Optionally, if the request was accepted, you might want to refresh parking spots
+      // or update the UI to reflect the accepted spot.
+      // For now, just showing an alert.
+    });
+
     socket.current.on('disconnect', () => {
       console.log('Disconnected from Socket.IO server.');
     });
