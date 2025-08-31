@@ -12,12 +12,12 @@ import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
 import ProtectedRoute from './components/ProtectedRoute';
-import Notification from './components/Notification';
 import EditSpotModal from './components/EditSpotModal';
 import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
+import NotificationLog from './components/NotificationLog';
 import './App.css';
 
 function MainAppContent() {
@@ -33,8 +33,13 @@ function MainAppContent() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
-  const [notifications, setNotifications] = useState([]);
+  const [notificationLog, setNotificationLog] = useState([]);
   const requesterEta = null;
+
+  const addNotification = (message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setNotificationLog(prevLog => [`[${timestamp}] ${message}`, ...prevLog]);
+  };
 
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);
@@ -92,25 +97,6 @@ function MainAppContent() {
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
     setShowEditModal(true);
-  }, []);
-
-  const handleAccept = useCallback((notificationId, requesterId, spotId, requestId) => {
-    emitAcceptRequest({ requestId, requesterId, spotId, ownerUsername: currentUsername, ownerId: currentUserId });
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  }, [currentUserId, currentUsername]);
-
-  const handleDecline = useCallback((notificationId, requesterId, spotId, ownerUsername, requestId) => {
-    emitDeclineRequest({ requestId, requesterId, spotId, ownerUsername });
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  }, []);
-
-  const handleCloseNotification = useCallback((notificationId) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
-  }, []);
-
-  const handleAcknowledgeArrival = useCallback((notificationId, spotId, requesterId) => {
-    emitAcknowledgeArrival({ spotId, requesterId });
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
   }, []);
 
   const fetchParkingSpots = useCallback(async (filterValue, userCarType) => {
@@ -233,17 +219,7 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleSpotRequest = (data) => {
-      const newNotification = {
-        id: Date.now(), // Use a unique ID
-        message: data.message,
-        type: 'request',
-        requesterId: data.requesterId,
-        spotId: data.spotId,
-        requesterUsername: data.requesterUsername,
-        ownerUsername: data.ownerUsername, // Add ownerUsername here
-        requestId: data.requestId,
-      };
-      setNotifications(prev => [...prev, newNotification]);
+      addNotification(data.message);
     };
 
     socket.on('spotRequest', handleSpotRequest);
@@ -255,14 +231,7 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleRequestResponse = (data) => {
-      const newNotification = {
-        id: Date.now(), // Use a unique ID
-        message: data.message,
-        type: 'response',
-        spot: data.spot,
-      };
-      setNotifications(prev => [...prev, newNotification]);
-
+      addNotification(data.message);
       if (data.spot) {
         setAcceptedSpot(data.spot);
         setFilteredParkingSpots(prevSpots => {
@@ -306,14 +275,8 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleRequesterArrived = (data) => {
-      const newNotification = {
-        id: Date.now(),
-        message: `User ${data.requesterId} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`,
-        type: 'arrival',
-        spotId: data.spotId,
-        requesterId: data.requesterId,
-      };
-      setNotifications(prev => [...prev, newNotification]);
+      const message = `User ${data.requesterId} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      addNotification(message);
     };
 
     socket.on('requesterArrived', handleRequesterArrived);
@@ -402,7 +365,6 @@ function MainAppContent() {
             currentUserId={currentUserId}
             acceptedSpot={acceptedSpot}
             requesterEta={requesterEta}
-            onAcknowledgeArrival={handleAcknowledgeArrival}
             onSpotDeleted={() => {}}
             onEditSpot={handleOpenEditModal}
           />
@@ -426,17 +388,7 @@ function MainAppContent() {
         />
       )}
 
-      {notifications.map(notification => (
-        <Notification
-          key={notification.id}
-          message={notification.message}
-          type={notification.type}
-          onAccept={() => handleAccept(notification.id, notification.requesterId, notification.spotId, notification.requestId)}
-          onDecline={() => handleDecline(notification.id, notification.requesterId, notification.spotId, notification.ownerUsername, notification.requestId)}
-          onAcknowledge={() => handleAcknowledgeArrival(notification.id, notification.spotId, notification.requesterId)}
-          onClose={() => handleCloseNotification(notification.id)}
-        />
-      ))}
+      <NotificationLog messages={notificationLog} />
 
       {showEditModal && spotToEdit && (
         <EditSpotModal

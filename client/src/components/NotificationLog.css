@@ -1,0 +1,22 @@
+.notification-log-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: #f0f0f0;
+  border-top: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.notification-log {
+  padding: 10px;
+}
+
+.notification-message {
+  margin-bottom: 5px;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
