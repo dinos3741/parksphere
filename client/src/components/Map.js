@@ -62,37 +62,36 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     return distance;
   }
 
-  const handleConfirmArrival = async (spotId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      addNotification("You must be logged in to confirm arrival.");
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/confirm-arrival', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ spotId }),
-      });
-
-      if (response.ok) {
-        addNotification("Arrival confirmed! The spot owner has been notified.");
-      } else {
-        const errorData = await response.json();
-        addNotification(`Failed to confirm arrival: ${errorData.message}`);
-      }
-    } catch (error) {
-      console.error('Error confirming arrival:', error);
-      addNotification('An error occurred while confirming arrival.');
-    }
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
+    const handleConfirmArrival = async (spotId) => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        addNotification("You must be logged in to confirm arrival.");
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/confirm-arrival', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ spotId }),
+        });
+
+        if (response.ok) {
+          addNotification("Arrival confirmed! The spot owner has been notified.");
+        } else {
+          const errorData = await response.json();
+          addNotification(`Failed to confirm arrival: ${errorData.message}`);
+        }
+      } catch (error) {
+        console.error('Error confirming arrival:', error);
+        addNotification('An error occurred while confirming arrival.');
+      }
+    };
+
     if (acceptedSpot && !isConfirming) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
@@ -138,7 +137,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [acceptedSpot, isConfirming, eta]);
+  }, [acceptedSpot, isConfirming, eta, addNotification, getDistance]);
 
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
@@ -207,7 +206,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         });
 
         if (response.ok) {
-          addNotification("Parking spot deleted successfully!");
+          addNotification(`Parking spot ${spotId} deleted successfully!`);
         } else if (response.status === 401 || response.status === 403) {
           addNotification("Authentication failed or not authorized to delete this spot.");
         } else {

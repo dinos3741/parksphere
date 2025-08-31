@@ -4,7 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
 import { getDistance } from './utils/geoUtils';
-import { emitAcceptRequest, emitDeclineRequest, emitAcknowledgeArrival, emitRegister, emitUnregister, socket, emitConfirmArrival } from './socket';
+import { emitRegister, emitUnregister, socket, emitConfirmArrival } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
 import DeclareSpot from './components/DeclareSpot';
@@ -36,10 +36,10 @@ function MainAppContent() {
   const [notificationLog, setNotificationLog] = useState([]);
   const requesterEta = null;
 
-  const addNotification = (message) => {
+  const addNotification = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
     setNotificationLog(prevLog => [...prevLog, `[${timestamp}] ${message}`]);
-  };
+  }, [setNotificationLog]);
 
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);

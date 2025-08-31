@@ -93,7 +93,8 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
       });
 
       if (response.ok) {
-        addNotification(`Spot ${isEditing ? 'updated' : 'declared'} successfully!`);
+        const responseData = await response.json(); // Parse JSON response
+        addNotification(`Spot ${responseData.spotId} ${isEditing ? 'updated' : 'declared'} successfully!`);
         onClose();
       } else if (response.status === 401 || response.status === 403) {
         addNotification("Authentication failed. Please log in again.");
