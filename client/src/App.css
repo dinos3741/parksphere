@@ -311,8 +311,9 @@ body {
   flex-direction: row;
   align-items: center; /* Aligns items to the center */
   justify-content: center;
-  /* width: 100%; */ /* Removed to allow flex-grow on App-header */
+  flex-grow: 1; /* Allow it to take available space */
 }
+
 
 .logo {
   font-family: 'Advent Pro', sans-serif; /* Changed to Advent Pro */
