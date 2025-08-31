@@ -27,7 +27,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
-  const [isMenuVisible, setMenuVisible] = useState(false); // Added state for menu visibility
+  const [isMenuVisible, setMenuVisible] = useState(false);
   const socket = useRef(null);
   const mapViewRef = useRef(null);
 
@@ -144,7 +144,9 @@ export default function App() {
     });
 
     socket.current.on('newParkingSpot', (newSpot) => {
+      console.log('newSpot received:', newSpot);
       const spotWithOwnerId = { ...newSpot, ownerId: String(newSpot.user_id) }; // Map user_id to ownerId
+      console.log('spotWithOwnerId:', spotWithOwnerId);
       setParkingSpots((prevSpots) => {
         const updatedSpots = [...prevSpots, spotWithOwnerId];
         return updatedSpots;
@@ -289,7 +291,7 @@ export default function App() {
         setUserId(data.userId);
         setCurrentUsername(data.username);
         setIsLoggedIn(true);
-        setMessage('Login successful! Now fetch your profile data.');
+        addNotification(`Welcome ${data.username}!`);
         // Alert.alert('Success', 'Logged in!'); // Removed success notification
       } else {
         setMessage(`Login failed: ${data.message || 'Invalid credentials'}`);
@@ -355,6 +357,42 @@ export default function App() {
     }
 
     setSpotDetailsVisible(false);
+  };
+
+  const handleDeleteSpot = async (spotId) => {
+    if (!token) {
+      Alert.alert('Error', 'You must be logged in to delete a spot.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        addNotification(`Spot ${spotId} deleted successfully!`);
+        setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
+        setSpotDetailsVisible(false); // Close the modal after deletion
+      } else if (response.status === 401 || response.status === 403) {
+        console.error('Authentication failed for deleting spot. Logging out...');
+        handleLogout();
+      } else {
+        const data = await response.json();
+        Alert.alert('Error', `Failed to delete spot: ${data.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting spot:', error);
+      Alert.alert('Error', 'Could not connect to the server to delete spot.');
+    }
+  };
+
+  const handleEditSpot = (spotId) => {
+    Alert.alert('Edit Spot', `Editing functionality for spot ${spotId} is not yet implemented.`);
+    // In the future, this would open an edit modal or navigate to an edit screen
   };
 
   const handleCenterMap = () => {
@@ -447,8 +485,7 @@ export default function App() {
   }
 
   return (
-    <TouchableWithoutFeedback onPress={() => { if (isMenuVisible) setMenuVisible(false); }}>
-      <View style={styles.fullContainer}> 
+    <View style={styles.fullContainer}>
       <View style={styles.header}>
         <Image source={require('./assets/images/logo.png')} style={styles.logo} />
         <View style={styles.titleContainer}>
@@ -460,7 +497,10 @@ export default function App() {
           <View style={styles.hamburgerLine} />
           <View style={styles.hamburgerLine} />
         </TouchableOpacity>
-        {isMenuVisible && (
+      </View>
+
+      {isMenuVisible ? (
+        <React.Fragment>
           <View style={styles.menu}>
             <TouchableOpacity onPress={() => { /* Handle Profile */ setMenuVisible(false); }}>
               <Text style={styles.menuItem}>Profile</Text>
@@ -469,8 +509,8 @@ export default function App() {
               <Text style={styles.menuItem}>Logout</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        </React.Fragment>
+      ) : null}
 
       {isLoggedIn ? (
         <View style={styles.mapScreenContainer}> {/* New container for map screen */}
@@ -501,16 +541,18 @@ export default function App() {
               )}
 
               {/* Render parking spots */}
-              {parkingSpots.map((spot) => (
+              {parkingSpots.map((spot) => {
+                console.log('spot.id:', spot.id, 'spot.ownerId:', spot.ownerId, 'userId:', userId, 'match:', spot.ownerId === userId);
+                return (
                 <React.Fragment key={spot.id}>
-                  {String(spot.user_id) === userId ? ( // If the current user is the owner of the spot
+                  {spot.ownerId === userId ? ( // If the current user is the owner of the spot
                     <Marker
                       coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                       onPress={() => handleSpotPress(spot)}
                       pinColor="red" // Red pin for owner's spot
                     />
-                  ) : ( // Otherwise, render as a fuzzy circle
-                    <React.Fragment>
+                  ) : ( // Otherwise, render as a fuzzy circle and a transparent marker for clickability
+                    <>
                       <Circle
                         center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                         radius={200} // Example radius in meters
@@ -525,10 +567,12 @@ export default function App() {
                       >
                         <View style={{width: 20, height: 20, backgroundColor: 'transparent'}}></View>
                       </Marker>
-                    </React.Fragment>
+                    </>
                   )}
                 </React.Fragment>
-              ))}
+                );
+              })}
+                ))}
             </MapView>
           ) : (
             <Text style={styles.messageText}>Getting your location...</Text>
@@ -594,6 +638,8 @@ export default function App() {
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
         currentUserId={userId} // Pass the current user's ID
+        onDeleteSpot={handleDeleteSpot} // Pass the delete handler
+        onEditSpot={handleEditSpot} // Pass the edit handler
       />
       <View style={styles.notificationArea}>
         <ScrollView>
@@ -606,7 +652,6 @@ export default function App() {
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
       </View>
     </View>
-    </TouchableWithoutFeedback>
   );
 }
 
@@ -846,8 +891,17 @@ const styles = StyleSheet.create({
   logoutText: {
     color: 'red',
   },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent', // Transparent so content below is visible
+    zIndex: 0, // Ensure it's below the menu but above other content
+  },
   notificationArea: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: 'transparent', // Changed to transparent
     padding: 10,
     marginHorizontal: 10,
     marginBottom: 10,
