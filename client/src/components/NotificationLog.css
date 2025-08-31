@@ -5,12 +5,19 @@
   border-bottom: 1px solid #dee2e6;
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
   height: 140px;
-  overflow-y: auto;
+  overflow-y: hidden; /* Hide overflow here */
   box-sizing: border-box;
+  padding: 10px;
 }
 
 .notification-log {
-  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: .25rem;
+  background-color: #fff;
+  padding: 8px;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto; /* Make this element scrollable */
 }
 
 .notification-message {
