@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
@@ -50,6 +50,10 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState('Please log in.');
+  const [notifications, setNotifications] = useState([]); // New state for notifications
+  const addNotification = (msg) => {
+    setNotifications((prevNotifications) => [...prevNotifications, msg]);
+  };
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
 
   // Map related states
@@ -140,8 +144,9 @@ export default function App() {
     });
 
     socket.current.on('newParkingSpot', (newSpot) => {
+      const spotWithOwnerId = { ...newSpot, ownerId: String(newSpot.user_id) }; // Map user_id to ownerId
       setParkingSpots((prevSpots) => {
-        const updatedSpots = [...prevSpots, newSpot];
+        const updatedSpots = [...prevSpots, spotWithOwnerId];
         return updatedSpots;
       });
     });
@@ -423,7 +428,7 @@ export default function App() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Spot created successfully!');
+        addNotification(`Parking spot ${data.spotId} declared successfully by user ${currentUsername}`);
         setLeavingModalVisible(false); // Close the modal on success
       } else if (response.status === 401 || response.status === 403) {
         console.error('Authentication failed for creating spot. Logging out...');
@@ -495,23 +500,33 @@ export default function App() {
                 />
               )}
 
-              {/* Render parking spots as fuzzy circles */}
+              {/* Render parking spots */}
               {parkingSpots.map((spot) => (
                 <React.Fragment key={spot.id}>
-                  <Circle
-                    center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                    radius={200} // Example radius in meters
-                    fillColor="rgba(255,0,0,0.2)" // Red with more transparency
-                    strokeColor="rgba(255,0,0,0.8)"
-                    strokeWidth={2}
-                  />
-                  <Marker
-                    coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                    onPress={() => handleSpotPress(spot)}
-                    tracksViewChanges={false}
-                  >
-                    <View style={{width: 20, height: 20, backgroundColor: 'transparent'}}></View>
-                  </Marker>
+                  {String(spot.user_id) === userId ? ( // If the current user is the owner of the spot
+                    <Marker
+                      coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
+                      onPress={() => handleSpotPress(spot)}
+                      pinColor="red" // Red pin for owner's spot
+                    />
+                  ) : ( // Otherwise, render as a fuzzy circle
+                    <React.Fragment>
+                      <Circle
+                        center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
+                        radius={200} // Example radius in meters
+                        fillColor="rgba(255,0,0,0.2)" // Red with more transparency
+                        strokeColor="rgba(255,0,0,0.8)"
+                        strokeWidth={2}
+                      />
+                      <Marker
+                        coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
+                        onPress={() => handleSpotPress(spot)}
+                        tracksViewChanges={false}
+                      >
+                        <View style={{width: 20, height: 20, backgroundColor: 'transparent'}}></View>
+                      </Marker>
+                    </React.Fragment>
+                  )}
                 </React.Fragment>
               ))}
             </MapView>
@@ -578,9 +593,14 @@ export default function App() {
         spot={selectedSpot}
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
+        currentUserId={userId} // Pass the current user's ID
       />
       <View style={styles.notificationArea}>
-        <Text style={styles.notificationText}>Notifications will appear here.</Text>
+        <ScrollView>
+          {notifications.map((notification, index) => (
+            <Text key={index} style={styles.notificationText}>{notification}</Text>
+          ))}
+        </ScrollView>
       </View>
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>

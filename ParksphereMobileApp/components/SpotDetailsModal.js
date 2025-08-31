@@ -1,8 +1,10 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId }) => {
   if (!spot) return null;
+
+  const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
 
   return (
     <Modal
@@ -19,12 +21,14 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot }) => {
           <Text>Car Type: {spot.declared_car_type}</Text>
           <Text>Comments: {spot.comments}</Text>
 
-          <TouchableOpacity
-            style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
-            onPress={() => onRequestSpot(spot.id)}
-          >
-            <Text style={styles.textStyle}>Request Spot</Text>
-          </TouchableOpacity>
+          {!isOwner && ( // Only show Request Spot button if not the owner
+            <TouchableOpacity
+              style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
+              onPress={() => onRequestSpot(spot.id)}
+            >
+              <Text style={styles.textStyle}>Request Spot</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={{ ...styles.openButton, backgroundColor: '#f44336' }}
