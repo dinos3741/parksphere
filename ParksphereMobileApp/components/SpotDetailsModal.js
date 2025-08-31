@@ -1,7 +1,7 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot }) => {
   if (!spot) return null;
 
   const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
@@ -13,9 +13,10 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.centeredView}>
-        <View style={styles.modalView}>
-          <Text style={styles.modalText}>Spot Details</Text>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalText}>Spot Details</Text>
           <Text>Time to leave: {spot.time_to_leave} minutes</Text>
           <Text>Price: {spot.price} credits</Text>
           <Text>Car Type: {spot.declared_car_type}</Text>
@@ -30,14 +31,32 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={{ ...styles.openButton, backgroundColor: '#f44336' }}
-            onPress={onClose}
-          >
-            <Text style={styles.textStyle}>Close</Text>
-          </TouchableOpacity>
+          {isOwner ? (
+            <>
+              <TouchableOpacity
+                style={{ ...styles.openButton, backgroundColor: '#4CAF50' }} // Green color for Edit
+                onPress={() => onEditSpot(spot.id)} // Call onEditSpot for owner
+              >
+                <Text style={styles.textStyle}>Edit Spot</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ ...styles.openButton, backgroundColor: '#f44336' }}
+                onPress={() => onDeleteSpot(spot.id)} // Call onDeleteSpot for owner
+              >
+                <Text style={styles.textStyle}>Delete Spot</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={{ ...styles.openButton, backgroundColor: '#f44336' }}
+              onPress={onClose}
+            >
+              <Text style={styles.textStyle}>Close</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
