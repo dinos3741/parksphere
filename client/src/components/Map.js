@@ -41,6 +41,14 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [eta, setEta] = React.useState(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
 
+  const handleLocateMe = () => {
+    if (mapRef.current && userLocation) {
+      mapRef.current.flyTo(userLocation, mapRef.current.getZoom());
+    } else if (!userLocation) {
+      addNotification("Your location is not yet available.");
+    }
+  };
+
   React.useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
@@ -274,6 +282,9 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       />
+      <button className="locate-me-button" onClick={handleLocateMe}>
+        <span className="crosshair-icon"></span>
+      </button>
       <Marker position={userLocation} icon={userIcon}>
         <Popup>
           Your current location.
