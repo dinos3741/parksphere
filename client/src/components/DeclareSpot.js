@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'; // Import useEffect
 import './DeclareSpot.css';
 
 // Accept new props: spotData and isEditing
-const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEditing }) => {
+const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEditing, addNotification }) => {
   // Initialize state based on spotData if editing, otherwise empty
   const [timeToLeave, setTimeToLeave] = useState(spotData?.time_to_leave || '');
   const [costType, setCostType] = useState(spotData?.cost_type || 'paid'); // Changed from isFree to costType
@@ -28,32 +28,32 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
 
   const handleSubmit = async () => {
     if (!userLocation && !isEditing) { // userLocation is not needed for editing existing spot
-      alert("Cannot declare spot: User location not available.");
+      addNotification("Cannot declare spot: User location not available.");
       return;
     }
 
     if (!currentUserCarType) {
-      alert("Cannot declare spot: User car type not available. Please log in again.");
+      addNotification("Cannot declare spot: User car type not available. Please log in again.");
       onClose();
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert("You must be logged in to declare a spot.");
+      addNotification("You must be logged in to declare a spot.");
       onClose();
       return;
     }
 
     const parsedTimeToLeave = parseInt(timeToLeave, 10);
     if (isNaN(parsedTimeToLeave) || parsedTimeToLeave < 1) {
-      alert("Please enter a valid number of minutes to leave (at least 1).\n");
+      addNotification("Please enter a valid number of minutes to leave (at least 1).\n");
       return;
     }
 
     const parsedPrice = parseFloat(price);
     if (costType === 'paid' && (isNaN(parsedPrice) || parsedPrice < 0)) {
-      alert("Please enter a valid price for a Paid spot.\n");
+      addNotification("Please enter a valid price for a Paid spot.\n");
       return;
     }
 
@@ -93,18 +93,19 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
       });
 
       if (response.ok) {
+        addNotification(`Spot ${isEditing ? 'updated' : 'declared'} successfully!`);
         onClose();
       } else if (response.status === 401 || response.status === 403) {
-        alert("Authentication failed. Please log in again.");
+        addNotification("Authentication failed. Please log in again.");
         localStorage.removeItem('token');
         onClose();
       } else {
         const errorText = await response.text();
-        alert(`Failed to ${isEditing ? 'update' : 'declare'} spot: ${errorText}`);
+        addNotification(`Failed to ${isEditing ? 'update' : 'declare'} spot: ${errorText}`);
       }
     } catch (error) {
       console.error(`Error ${isEditing ? 'updating' : 'declaring'} spot:`, error);
-      alert(`An error occurred while ${isEditing ? 'updating' : 'declaring'} the spot.`);
+      addNotification(`An error occurred while ${isEditing ? 'updating' : 'declaring'} the spot.`);
     }
   };
 

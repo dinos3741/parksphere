@@ -4,25 +4,25 @@ import './LeavingFab.css';
 const presets = [2, 5, 10, 0]; // minutes, 0 = now
 
 // Accept new props: userLocation, currentUserCarType, currentUserId, onCustomDeclare
-const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomDeclare }) => {
+const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomDeclare, addNotification }) => {
   const [showOverlay, setShowOverlay] = useState(false);
 
   const handlePresetClick = async (minutes) => {
     setShowOverlay(false); // Close overlay immediately
 
     if (!userLocation) {
-      alert("Cannot declare spot: User location not available.");
+      addNotification("Cannot declare spot: User location not available.");
       return;
     }
 
     if (!currentUserCarType) {
-      alert("Cannot declare spot: User car type not available. Please log in again.");
+      addNotification("Cannot declare spot: User car type not available. Please log in again.");
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert("You must be logged in to declare a spot.");
+      addNotification("You must be logged in to declare a spot.");
       return;
     }
 
@@ -49,15 +49,15 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
       });
 
       if (response.ok) {
-        console.log(`Parking spot declared successfully for ${minutes === 0 ? 'Now' : `${minutes} minutes`}!`);
+        addNotification(`Parking spot declared successfully! You are leaving in ${minutes === 0 ? 'Now' : `${minutes} minutes`}.`);
         // The socket.io 'newParkingSpot' event on the server will handle map updates
       } else {
         const errorText = await response.text();
-        alert(`Failed to declare spot: ${errorText}`);
+        addNotification(`Failed to declare spot: ${errorText}`);
       }
     } catch (error) {
       console.error('Error declaring spot:', error);
-      alert('An error occurred while declaring the spot.');
+      addNotification('An error occurred while declaring the spot.');
     }
   };
 

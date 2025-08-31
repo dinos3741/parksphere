@@ -4,7 +4,6 @@
   border-bottom: 1px solid #dee2e6;
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
   height: 140px;
-  overflow-y: hidden; /* Hide overflow here */
   box-sizing: border-box;
   padding: 10px;
   margin: 0 10px 10px 10px; /* Match map container margin */
@@ -25,4 +24,6 @@
   font-family: monospace;
   font-size: 12px;
   white-space: pre-wrap;
+  color: #000; /* Explicitly set text color to black */
+  text-align: left;
 }

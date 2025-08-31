@@ -379,6 +379,7 @@ function MainAppContent() {
           currentUserCarType={currentUserCarType}
           currentUserId={currentUserId}
           onCustomDeclare={handleShowDeclareSpotForm}
+          addNotification={addNotification}
         />
 
         {showDeclareSpotForm && (
@@ -386,6 +387,7 @@ function MainAppContent() {
             userLocation={userLocation}
             currentUserCarType={currentUserCarType}
             onClose={() => setShowDeclareSpotForm(false)}
+            addNotification={addNotification}
           />
         )}
 
