@@ -38,7 +38,7 @@ function MainAppContent() {
 
   const addNotification = (message) => {
     const timestamp = new Date().toLocaleTimeString();
-    setNotificationLog(prevLog => [`[${timestamp}] ${message}`, ...prevLog]);
+    setNotificationLog(prevLog => [...prevLog, `[${timestamp}] ${message}`]);
   };
 
   // Hamburger menu state
@@ -368,6 +368,7 @@ function MainAppContent() {
               requesterEta={requesterEta}
               onSpotDeleted={() => {}}
               onEditSpot={handleOpenEditModal}
+              addNotification={addNotification}
             />
           ) : (
             <div>Loading map or getting your location...</div>

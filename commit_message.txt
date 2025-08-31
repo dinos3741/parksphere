@@ -1,0 +1,4 @@
+feat: Add pop-up for 'already declared spot' message
+
+- Modified DeclareSpot.js and LeavingFab.js to display a browser alert for the 'You have already declared a parking spot' message (HTTP 409 Conflict).
+- The message is also still added to the persistent notification log.

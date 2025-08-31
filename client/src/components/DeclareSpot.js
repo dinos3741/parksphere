@@ -99,9 +99,14 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
         addNotification("Authentication failed. Please log in again.");
         localStorage.removeItem('token');
         onClose();
+      } else if (response.status === 409) { // Handle 409 Conflict specifically
+        const errorData = await response.json();
+        alert(errorData.message); // Show as pop-up
+        addNotification(errorData.message); // Also add to log
+        onClose(); // Close the form
       } else {
-        const errorText = await response.text();
-        addNotification(`Failed to ${isEditing ? 'update' : 'declare'} spot: ${errorText}`);
+        const errorData = await response.json();
+        addNotification(`Failed to ${isEditing ? 'update' : 'declare'} spot: ${errorData.message}`);
       }
     } catch (error) {
       console.error(`Error ${isEditing ? 'updating' : 'declaring'} spot:`, error);

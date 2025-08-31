@@ -51,9 +51,13 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
       if (response.ok) {
         addNotification(`Parking spot declared successfully! You are leaving in ${minutes === 0 ? 'Now' : `${minutes} minutes`}.`);
         // The socket.io 'newParkingSpot' event on the server will handle map updates
+      } else if (response.status === 409) { // Handle 409 Conflict specifically
+        const errorData = await response.json();
+        alert(errorData.message); // Show as pop-up
+        addNotification(errorData.message); // Also add to log
       } else {
-        const errorText = await response.text();
-        addNotification(`Failed to declare spot: ${errorText}`);
+        const errorData = await response.json();
+        addNotification(`Failed to declare spot: ${errorData.message}`);
       }
     } catch (error) {
       console.error('Error declaring spot:', error);

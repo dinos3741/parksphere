@@ -34,7 +34,7 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot }) => { // NEW PROP
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification }) => { // NEW PROP
   const mapRef = React.useRef(null);
 
   const [currentTime, setCurrentTime] = React.useState(Date.now());
@@ -65,7 +65,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleConfirmArrival = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      alert("You must be logged in to confirm arrival.");
+      addNotification("You must be logged in to confirm arrival.");
       return;
     }
 
@@ -80,14 +80,14 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       });
 
       if (response.ok) {
-        alert("Arrival confirmed! The spot owner has been notified.");
+        addNotification("Arrival confirmed! The spot owner has been notified.");
       } else {
-        const errorText = await response.text();
-        alert(`Failed to confirm arrival: ${errorText}`);
+        const errorData = await response.json();
+        addNotification(`Failed to confirm arrival: ${errorData.message}`);
       }
     } catch (error) {
       console.error('Error confirming arrival:', error);
-      alert('An error occurred while confirming arrival.');
+      addNotification('An error occurred while confirming arrival.');
     }
   };
 
@@ -193,7 +193,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleDelete = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      alert("You must be logged in to delete a spot.");
+      addNotification("You must be logged in to delete a spot.");
       return;
     }
 
@@ -207,16 +207,16 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         });
 
         if (response.ok) {
-          // alert("Parking spot deleted successfully!"); // Removed alert
+          addNotification("Parking spot deleted successfully!");
         } else if (response.status === 401 || response.status === 403) {
-          alert("Authentication failed or not authorized to delete this spot.");
+          addNotification("Authentication failed or not authorized to delete this spot.");
         } else {
-          const errorText = await response.text();
-          alert(`Failed to delete spot: ${errorText}`);
+          const errorData = await response.json();
+          addNotification(`Failed to delete spot: ${errorData.message}`);
         }
       } catch (error) {
         console.error('Error deleting spot:', error);
-        alert('An error occurred while deleting the spot.');
+        addNotification('An error occurred while deleting the spot.');
       }
     }
   };
@@ -236,7 +236,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      alert("You must be logged in to request a spot.");
+      addNotification("You must be logged in to request a spot.");
       return;
     }
 
@@ -255,16 +255,17 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
+        addNotification("Request sent successfully.");
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
       } else {
-        const errorText = await response.text();
-        alert(`Failed to send request: ${errorText}`);
+        const errorData = await response.json();
+        addNotification(`Failed to send request: ${errorData.message}`);
       }
     } catch (error) {
       console.error('Error requesting spot:', error);
-      alert('An error occurred while sending the request.');
+      addNotification('An error occurred while sending the request.');
     }
   };
 

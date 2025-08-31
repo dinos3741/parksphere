@@ -388,7 +388,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
   const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
   const userId = req.user.userId;
 
-  console.log("Server received declare-spot request with body:", req.body); // Add this line
+  
   
 
   try {
