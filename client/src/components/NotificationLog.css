@@ -1,5 +1,4 @@
 .notification-log-container {
-  width: 100%;
   background-color: #f8f9fa;
   border-top: 1px solid #dee2e6;
   border-bottom: 1px solid #dee2e6;
@@ -8,6 +7,7 @@
   overflow-y: hidden; /* Hide overflow here */
   box-sizing: border-box;
   padding: 10px;
+  margin: 0 10px 10px 10px; /* Match map container margin */
 }
 
 .notification-log {
