@@ -388,8 +388,6 @@ function MainAppContent() {
         />
       )}
 
-      <NotificationLog messages={notificationLog} />
-
       {showEditModal && spotToEdit && (
         <EditSpotModal
           spotData={spotToEdit}
@@ -399,6 +397,8 @@ function MainAppContent() {
           }}
         />
       )}
+
+      <NotificationLog messages={notificationLog} />
 
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
