@@ -6,13 +6,22 @@ body {
 }
 
 .App {
-  background-color: transparent; /* Make App background transparent to show body image */
+  text-align: center;
+  background-color: var(--background-color, #f0f2f5);
+  background-image: var(--background-image-url);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* Use min-height to allow scrolling */
-  overflow-y: auto; /* Enable vertical scrolling */
-  padding-bottom: 110px; /* Add space for the FAB */
 }
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
 
 .App-header {
   background: linear-gradient(to right, #512da8, #1976d2);

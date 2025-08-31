@@ -389,7 +389,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
 
   console.log("Server received declare-spot request with body:", req.body); // Add this line
-  console.log("Server extracted costType:", costType); // Add this line
+  
 
   try {
     const existingSpot = await pool.query('SELECT id FROM parking_spots WHERE user_id = $1', [userId]);

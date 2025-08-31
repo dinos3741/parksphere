@@ -350,53 +350,55 @@ function MainAppContent() {
 
       </header>
       
-      <Filter 
-        selectedFilter={selectedFilter} 
-        onFilterChange={setSelectedFilter} 
-        currentUsername={currentUsername} 
-         
-      />
+      <div className="main-content">
+        <Filter 
+          selectedFilter={selectedFilter} 
+          onFilterChange={setSelectedFilter} 
+          currentUsername={currentUsername} 
+          
+        />
 
-      <div className="map-container">
-        {userLocation ? (
-          <Map
-            parkingSpots={filteredParkingSpots}
-            userLocation={userLocation}
-            currentUserId={currentUserId}
-            acceptedSpot={acceptedSpot}
-            requesterEta={requesterEta}
-            onSpotDeleted={() => {}}
-            onEditSpot={handleOpenEditModal}
-          />
-        ) : (
-          <div>Loading map or getting your location...</div>
-        )}
-      </div>
+        <div className="map-container">
+          {userLocation ? (
+            <Map
+              parkingSpots={filteredParkingSpots}
+              userLocation={userLocation}
+              currentUserId={currentUserId}
+              acceptedSpot={acceptedSpot}
+              requesterEta={requesterEta}
+              onSpotDeleted={() => {}}
+              onEditSpot={handleOpenEditModal}
+            />
+          ) : (
+            <div>Loading map or getting your location...</div>
+          )}
+        </div>
 
-      <LeavingFab
-        userLocation={userLocation}
-        currentUserCarType={currentUserCarType}
-        currentUserId={currentUserId}
-        onCustomDeclare={handleShowDeclareSpotForm}
-      />
-
-      {showDeclareSpotForm && (
-        <DeclareSpot
+        <LeavingFab
           userLocation={userLocation}
           currentUserCarType={currentUserCarType}
-          onClose={() => setShowDeclareSpotForm(false)}
+          currentUserId={currentUserId}
+          onCustomDeclare={handleShowDeclareSpotForm}
         />
-      )}
 
-      {showEditModal && spotToEdit && (
-        <EditSpotModal
-          spotData={spotToEdit}
-          onClose={() => {
-            setShowEditModal(false);
-            setSpotToEdit(null);
-          }}
-        />
-      )}
+        {showDeclareSpotForm && (
+          <DeclareSpot
+            userLocation={userLocation}
+            currentUserCarType={currentUserCarType}
+            onClose={() => setShowDeclareSpotForm(false)}
+          />
+        )}
+
+        {showEditModal && spotToEdit && (
+          <EditSpotModal
+            spotData={spotToEdit}
+            onClose={() => {
+              setShowEditModal(false);
+              setSpotToEdit(null);
+            }}
+          />
+        )}
+      </div>
 
       <NotificationLog messages={notificationLog} />
 

@@ -1,13 +1,12 @@
 .notification-log-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
   width: 100%;
-  background-color: #f0f0f0;
-  border-top: 1px solid #ccc;
-  max-height: 150px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  border-bottom: 1px solid #dee2e6;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
+  height: 140px;
   overflow-y: auto;
-  z-index: 1000;
+  box-sizing: border-box;
 }
 
 .notification-log {
