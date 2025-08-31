@@ -35,3 +35,13 @@
 .highlight {
   color: #4dd0e1;
 }
+
+.App-footer {
+  text-align: center;
+  font-size: 1rem;
+  color: blue;
+  background-color: #547abb; /* Blue Ciel */
+  width: 100%; /* Full width */
+  /* margin-top: 10px; */ /* Remove this line */
+  border-radius: 10px; /* Rounded corners */
+}

@@ -317,6 +317,7 @@ export default function App() {
       setCurrentUsername(null);
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
+      setNotifications([]); // Clear notifications on logout
       // Alert.alert('Logged Out', 'You have been logged out.'); // Removed logout notification
     } catch (error) {
       console.error('Error during logout:', error);
@@ -641,13 +642,15 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      <View style={styles.notificationArea}>
-        <ScrollView>
-          {notifications.map((notification, index) => (
-            <Text key={index} style={styles.notificationText}>{notification}</Text>
-          ))}
-        </ScrollView>
-      </View>
+      {isLoggedIn && (
+        <View style={styles.notificationArea}>
+          <ScrollView>
+            {notifications.map((notification, index) => (
+              <Text key={index} style={styles.notificationText}>{notification}</Text>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
       </View>

@@ -72,6 +72,9 @@ const Login = () => {
           Don't have an account? <Link to="/register">Register here</Link>
         </p>
       </div>
+    <footer className="App-footer">
+        <p>Konstantinos Dimou &copy; 2025</p>
+      </footer>
     </div>
     </>
   );
