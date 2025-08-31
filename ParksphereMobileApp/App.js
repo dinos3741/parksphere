@@ -579,6 +579,9 @@ export default function App() {
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
       />
+      <View style={styles.notificationArea}>
+        <Text style={styles.notificationText}>Notifications will appear here.</Text>
+      </View>
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
       </View>
@@ -822,5 +825,18 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: 'red',
+  },
+  notificationArea: {
+    backgroundColor: '#e0e0e0',
+    padding: 10,
+    marginHorizontal: 10,
+    marginBottom: 10,
+    borderRadius: 8,
+    height: 100, // Fixed height
+    overflow: 'hidden', // Hide overflow content
+  },
+  notificationText: {
+    fontSize: 14,
+    color: '#333',
   },
 });
