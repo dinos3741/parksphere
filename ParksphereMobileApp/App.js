@@ -52,7 +52,8 @@ export default function App() {
   const [message, setMessage] = useState('Please log in.');
   const [notifications, setNotifications] = useState([]); // New state for notifications
   const addNotification = (msg) => {
-    setNotifications((prevNotifications) => [...prevNotifications, msg]);
+    const timestamp = new Date().toLocaleTimeString();
+    setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
   };
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
 
@@ -646,7 +647,7 @@ export default function App() {
         <View style={styles.notificationArea}>
           <ScrollView>
             {notifications.map((notification, index) => (
-              <Text key={index} style={styles.notificationText}>{notification}</Text>
+              <Text key={index} style={styles.notificationText}>[{notification.timestamp}] {notification.msg}</Text>
             ))}
           </ScrollView>
         </View>
