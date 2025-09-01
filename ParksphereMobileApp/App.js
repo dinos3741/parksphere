@@ -92,7 +92,7 @@ export default function App() {
         const storedUsername = await AsyncStorage.getItem('username');
         if (storedToken && storedUserId && storedUsername) {
           setToken(storedToken);
-          setUserId(storedUserId);
+          setUserId(parseInt(storedUserId, 10));
           setCurrentUsername(storedUsername);
           setIsLoggedIn(true);
           setMessage('Logged in! Fetch your profile data.');
@@ -118,7 +118,7 @@ export default function App() {
         });
         if (response.ok) {
           const data = await response.json();
-          const transformedData = data.map(spot => ({ ...spot, ownerId: String(spot.user_id) }));
+          const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
           setParkingSpots(transformedData);
         } else if (response.status === 401 || response.status === 403) {
           console.error('Authentication failed. Logging out...', response.status);
@@ -147,7 +147,7 @@ export default function App() {
 
     socket.current.on('newParkingSpot', (newSpot) => {
       console.log('newSpot received:', newSpot);
-      const spotWithOwnerId = { ...newSpot, ownerId: String(newSpot.user_id) }; // Map user_id to ownerId
+      const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id }; // Map user_id to ownerId
       console.log('spotWithOwnerId:', spotWithOwnerId);
       setParkingSpots((prevSpots) => {
         const updatedSpots = [...prevSpots, spotWithOwnerId];
@@ -548,7 +548,7 @@ export default function App() {
                 console.log('spot.id:', spot.id, 'spot.ownerId:', spot.ownerId, 'userId:', userId, 'match:', spot.ownerId == userId);
                 return (
                 <React.Fragment key={spot.id}>
-                  {spot.ownerId == userId ? ( // If the current user is the owner of the spot
+                  {spot.ownerId === userId ? ( // If the current user is the owner of the spot
                     <Marker
                       coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                       onPress={() => handleSpotPress(spot)}
