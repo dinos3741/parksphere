@@ -18,6 +18,7 @@ import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
+import { emitter } from './emitter';
 import './App.css';
 
 function MainAppContent() {
@@ -297,6 +298,27 @@ function MainAppContent() {
       socket.off('transactionComplete', handleTransactionComplete);
     };
   }, [fetchProfileData]);
+
+  // Effect to handle welcome message from sessionStorage and emitter
+  useEffect(() => {
+    const checkAndDisplayWelcomeMessage = () => {
+      const welcomeMessage = sessionStorage.getItem('welcomeMessage');
+      if (welcomeMessage) {
+        addNotification(welcomeMessage);
+        sessionStorage.removeItem('welcomeMessage');
+      }
+    };
+
+    // Check on mount
+    checkAndDisplayWelcomeMessage();
+
+    // Listen for login-success event
+    emitter.on('login-success', checkAndDisplayWelcomeMessage);
+
+    return () => {
+      emitter.off('login-success', checkAndDisplayWelcomeMessage);
+    };
+  }, [addNotification]);
 
   const handleLogout = useCallback(() => {
     if (currentUserId) {

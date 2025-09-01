@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { emitter } from '../emitter';
 import './Login.css';
 
 const Login = () => {
@@ -21,6 +22,8 @@ const Login = () => {
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('token', data.token);
+        sessionStorage.setItem('welcomeMessage', `Welcome, ${username}!`);
+        emitter.emit('login-success');
         navigate('/dashboard'); // Redirect to dashboard on successful login
       } else {
         const errorData = await response.text();
