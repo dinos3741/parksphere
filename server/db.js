@@ -111,8 +111,6 @@ async function createParkingSpotsTable() {
       console.log('cost_type column successfully altered to VARCHAR(255).');
     } else if (columnTypeResult.rows.length === 0) {
       console.log('cost_type column does not exist, it will be created by CREATE TABLE IF NOT EXISTS.');
-    } else {
-      console.log('cost_type column is already VARCHAR(255) or another type, skipping alteration.');
     }
 
     // Add declared_car_type column if it doesn't exist
