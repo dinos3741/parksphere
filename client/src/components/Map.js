@@ -34,7 +34,7 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification }) => { // NEW PROP
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, pendingRequests, onRequestStatusChange }) => { // NEW PROP
   const mapRef = React.useRef(null);
 
   const [currentTime, setCurrentTime] = React.useState(Date.now());
@@ -263,6 +263,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
       if (response.ok) {
         addNotification("Request sent successfully.");
+        onRequestStatusChange(spotId, 'requested'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
@@ -273,6 +274,43 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     } catch (error) {
       console.error('Error requesting spot:', error);
       addNotification('An error occurred while sending the request.');
+    }
+  };
+
+  const handleCancelRequest = async (spotId) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      addNotification("You must be logged in to cancel a request.");
+      return;
+    }
+
+    console.log(`Attempting to send cancel request for spot ID: ${spotId}`);
+
+    try {
+      const response = await fetch('/api/cancel-request', { // This endpoint needs to be created
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ spotId }),
+      });
+
+      console.log('Response from /api/cancel-request:', response);
+
+      if (response.ok) {
+        addNotification("Request cancelled successfully.");
+        onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
+        if (mapRef.current) {
+          mapRef.current.closePopup();
+        }
+      } else {
+        const errorData = await response.json();
+        addNotification(`Failed to cancel request: ${errorData.message}`);
+      }
+    } catch (error) {
+      console.error('Error cancelling request:', error);
+      addNotification('An error occurred while cancelling the request.');
     }
   };
 
@@ -302,6 +340,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
         const isOwner = spot.user_id === currentUserId;
         const isExactLocation = spot.isExactLocation; // Use the flag from the backend
+        const isPending = pendingRequests.includes(spot.id);
 
         if (acceptedSpot) {
           console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
@@ -357,9 +396,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                     Comments: {spot.comments}
                     <div className="request-button-container">
                       <hr />
-                      <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
-                        Request
-                      </button>
+                      {isPending ? (
+                        <button onClick={() => handleCancelRequest(spot.id)} className="cancel-request-button delete-spot-button">
+                          Cancel Request
+                        </button>
+                      ) : (
+                        <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
+                          Request
+                        </button>
+                      )}
                     </div>
                   </div>
                 </Popup>

@@ -302,6 +302,22 @@ app.get('/api/user/spots-count', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/user/pending-requests', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await pool.query(
+      `SELECT spot_id FROM requests WHERE requester_id = $1 AND status = 'pending'`,
+      [userId]
+    );
+    const pendingSpotIds = result.rows.map(row => row.spot_id);
+    res.status(200).json(pendingSpotIds);
+  } catch (error) {
+    console.error('Error fetching pending requests:', error);
+    res.status(500).send('Server error fetching pending requests.');
+  }
+});
+
 
 
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
@@ -494,16 +510,41 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
     const ownerId = spotResult.rows[0].user_id;
     console.log(`Request for spot ${spotId}: Owner ID is ${ownerId}`);
 
-    // Check if a pending request already exists for this spot by this requester
+    // Check if a request already exists for this spot by this requester (any status)
     const existingRequest = await pool.query(
-      `SELECT id FROM requests WHERE spot_id = $1 AND requester_id = $2 AND status = 'pending'`,
+      `SELECT id, status FROM requests WHERE spot_id = $1 AND requester_id = $2`,
       [spotId, requesterId]
     );
+
     if (existingRequest.rows.length > 0) {
-      return res.status(409).send('You already have a pending request for this spot.');
+      const currentRequest = existingRequest.rows[0];
+      if (currentRequest.status === 'cancelled' || currentRequest.status === 'rejected') {
+        // Reactivate the request
+        await pool.query(
+          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL WHERE id = $1 RETURNING id`,
+          [currentRequest.id]
+        );
+        const requestId = currentRequest.id; // Use the existing request ID
+        // Re-send notification to owner if they are connected
+        const ownerSocketInfo = userSockets[ownerId];
+        const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner';
+        if (ownerSocketInfo && ownerSocketInfo.socketId) {
+          io.to(ownerSocketInfo.socketId).emit('spotRequest', {
+            spotId,
+            requesterId,
+            requesterUsername,
+            ownerUsername,
+            requestId,
+            message: `User ${requesterUsername} has re-requested your parking spot!`
+          });
+        }
+        return res.status(200).json({ message: 'Your request has been reactivated!', requestId });
+      } else if (currentRequest.status === 'pending' || currentRequest.status === 'accepted') {
+        return res.status(409).json({ message: 'You already have an active request for this spot.' });
+      }
     }
 
-    // Insert the new request into the requests table with 'pending' status
+    // If no existing request or if it was not active, create a new one (original logic)
     const requestResult = await pool.query(
       `INSERT INTO requests (spot_id, requester_id, owner_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id`,
       [spotId, requesterId, ownerId]
@@ -543,6 +584,51 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error requesting spot:', error);
     res.status(500).send('Server error requesting spot.');
+  }
+});
+
+app.post('/api/cancel-request', authenticateToken, async (req, res) => {
+  const { spotId } = req.body;
+  const requesterId = req.user.userId;
+
+  try {
+    // Find the pending request
+    const requestResult = await pool.query(
+      `SELECT id, owner_id FROM requests WHERE spot_id = $1 AND requester_id = $2 AND status = 'pending'`,
+      [spotId, requesterId]
+    );
+
+    if (requestResult.rows.length === 0) {
+      return res.status(404).json({ message: 'No pending request found for this spot and user.' });
+    }
+
+    const { id: requestId, owner_id: ownerId } = requestResult.rows[0];
+
+    // Update the request status to 'cancelled'
+    await pool.query(
+      `UPDATE requests SET status = 'cancelled', responded_at = NOW() WHERE id = $1`,
+      [requestId]
+    );
+
+    // Get requester's username for notification
+    const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
+    const requesterUsername = requesterResult.rows[0].username;
+
+    // Notify the spot owner
+    const ownerSocketInfo = userSockets[ownerId];
+    if (ownerSocketInfo && ownerSocketInfo.socketId) {
+      io.to(ownerSocketInfo.socketId).emit('requestCancelled', {
+        spotId,
+        requesterId,
+        requesterUsername,
+        message: `User ${requesterUsername} has cancelled their request for your spot ${spotId}.`
+      });
+    }
+
+    res.status(200).json({ message: 'Request cancelled successfully.' });
+  } catch (error) {
+    console.error('Error cancelling request:', error);
+    res.status(500).json({ message: 'Server error cancelling request.' });
   }
 });
 

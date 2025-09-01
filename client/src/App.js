@@ -35,6 +35,7 @@ function MainAppContent() {
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [notificationLog, setNotificationLog] = useState([]);
+  const [pendingRequests, setPendingRequests] = useState([]); // New state for pending requests
   const requesterEta = null;
 
   const addNotification = useCallback((message) => {
@@ -91,6 +92,25 @@ function MainAppContent() {
     }
   }, [currentUserId]);
 
+  const fetchPendingRequests = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/user/pending-requests`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setPendingRequests(data);
+    } catch (error) {
+      console.error('Error fetching pending requests:', error);
+    }
+  }, [currentUserId]);
+
   const handleShowDeclareSpotForm = useCallback(() => {
     setShowDeclareSpotForm(true);
   }, []);
@@ -98,6 +118,17 @@ function MainAppContent() {
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
     setShowEditModal(true);
+  }, []);
+
+  const handleRequestStatusChange = useCallback((spotId, status) => {
+    setPendingRequests(prevRequests => {
+      if (status === 'requested') {
+        return [...prevRequests, spotId];
+      } else if (status === 'cancelled') {
+        return prevRequests.filter(id => id !== spotId);
+      }
+      return prevRequests;
+    });
   }, []);
 
   const fetchParkingSpots = useCallback(async (filterValue, userCarType) => {
@@ -195,6 +226,10 @@ function MainAppContent() {
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
   useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
+
+  useEffect(() => {
     const handleNewSpot = () => {
       fetchParkingSpots(selectedFilter, currentUserCarType);
     };
@@ -249,6 +284,15 @@ function MainAppContent() {
           }
           return prevSpots;
         });
+      }
+      // New logic to update pendingRequests based on request status
+      if (data.requestId) { // Assuming requestId is present for relevant responses
+        // If the message indicates reactivation or acceptance, add to pending
+        if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
+          setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]); // Use spotId or spot.id
+        } else if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
+          setPendingRequests(prevRequests => prevRequests.filter(id => id !== (data.spotId || data.spot.id)));
+        }
       }
     };
 
@@ -391,6 +435,8 @@ function MainAppContent() {
               onSpotDeleted={() => {}}
               onEditSpot={handleOpenEditModal}
               addNotification={addNotification}
+              pendingRequests={pendingRequests}
+              onRequestStatusChange={handleRequestStatusChange}
             />
           ) : (
             <div>Loading map or getting your location...</div>
