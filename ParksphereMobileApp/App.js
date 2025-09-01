@@ -41,7 +41,7 @@ export default function App() {
     loadFont();
   }, []);
 
-  const serverUrl = 'http://192.168.1.136:3001'; // Your laptop's local IP here
+  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
 
   const [username, setUsername] = useState('');
   const [currentUsername, setCurrentUsername] = useState(null);
@@ -117,7 +117,8 @@ export default function App() {
         });
         if (response.ok) {
           const data = await response.json();
-          setParkingSpots(data);
+          const transformedData = data.map(spot => ({ ...spot, ownerId: String(spot.user_id) }));
+          setParkingSpots(transformedData);
         } else if (response.status === 401 || response.status === 403) {
           console.error('Authentication failed. Logging out...', response.status);
           handleLogout(); // Log out user if token is invalid or expired
@@ -543,10 +544,10 @@ export default function App() {
 
               {/* Render parking spots */}
               {parkingSpots.map((spot) => {
-                console.log('spot.id:', spot.id, 'spot.ownerId:', spot.ownerId, 'userId:', userId, 'match:', spot.ownerId === userId);
+                console.log('spot.id:', spot.id, 'spot.ownerId:', spot.ownerId, 'userId:', userId, 'match:', spot.ownerId == userId);
                 return (
                 <React.Fragment key={spot.id}>
-                  {spot.ownerId === userId ? ( // If the current user is the owner of the spot
+                  {spot.ownerId == userId ? ( // If the current user is the owner of the spot
                     <Marker
                       coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                       onPress={() => handleSpotPress(spot)}
@@ -573,7 +574,6 @@ export default function App() {
                 </React.Fragment>
                 );
               })}
-                ))}
             </MapView>
           ) : (
             <Text style={styles.messageText}>Getting your location...</Text>
