@@ -634,9 +634,9 @@ app.post('/api/cancel-request', authenticateToken, async (req, res) => {
 
     const { id: requestId, owner_id: ownerId } = requestResult.rows[0];
 
-    // Update the request status to 'cancelled'
+    // Delete the request
     await pool.query(
-      `UPDATE requests SET status = 'cancelled', responded_at = NOW() WHERE id = $1`,
+      `DELETE FROM requests WHERE id = $1`,
       [requestId]
     );
 
