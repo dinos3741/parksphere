@@ -54,3 +54,37 @@
 .edit-button-color {
     background-color: #4CAF50; /* Green */
 }
+
+.requests-table-container {
+    max-height: 150px; /* Adjust as needed */
+    overflow-y: auto;
+    margin-top: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.requests-table-container table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.requests-table-container th,
+.requests-table-container td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    font-size: 12px;
+}
+
+.requests-table-container th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+.requests-table-container tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.requests-table-container tr:hover {
+    background-color: #f1f1f1;
+}

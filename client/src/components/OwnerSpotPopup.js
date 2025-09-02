@@ -103,7 +103,7 @@ const OwnerSpotPopup = ({ spot, onEdit, onDelete, formatRemainingTime }) => {
                       <tr key={request.id}>
                         <td>{request.requester_username}</td>
                         <td>{request.requester_car_type}</td>
-                        <td>{new Date(request.requested_at).toLocaleString()}</td>
+                        <td>{new Date(request.requested_at).toLocaleTimeString()}</td>
                       </tr>
                     ))}
                   </tbody>
