@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css'; // Import the new CSS file
@@ -8,6 +8,8 @@ import markerGreen2x from './icons/marker-icon-green-2x.png';
 import markerRed from './icons/marker-icon-red.png';
 import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { getDistance } from '../utils/geoUtils';
+
 
 // Fix for default marker icon not showing
 delete L.Icon.Default.prototype._getIconUrl;
@@ -35,42 +37,27 @@ const parkingSpotIcon = new L.Icon({
 });
 
 const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, pendingRequests, onRequestStatusChange }) => { // NEW PROP
-  const mapRef = React.useRef(null);
+  const mapRef = useRef(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [eta, setEta] = useState(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
-  const [currentTime, setCurrentTime] = React.useState(Date.now());
-  const [eta, setEta] = React.useState(null);
-  const [isConfirming, setIsConfirming] = React.useState(false);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000); // Update every second
+    return () => clearInterval(timer);
+  }, []);
+
 
   const handleLocateMe = () => {
     if (mapRef.current && userLocation) {
-      mapRef.current.flyTo(userLocation, mapRef.current.getZoom());
-    } else if (!userLocation) {
-      addNotification("Your location is not yet available.");
+      mapRef.current.flyTo(userLocation, 15); // Adjust zoom level as needed
     }
   };
 
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 5000); // Update every 5 seconds
 
-    return () => clearInterval(interval);
-  }, []);
-
-  const getDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of the Earth in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in km
-    return distance;
-  }
-
-  React.useEffect(() => {
+  useEffect(() => {
     const handleConfirmArrival = async (spotId) => {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -145,7 +132,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [acceptedSpot, isConfirming, eta, addNotification, getDistance]);
+  }, [acceptedSpot, isConfirming, eta, addNotification]);
 
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;

@@ -34,9 +34,16 @@ function MainAppContent() {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUsername, setCurrentUsername] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
-  const [notificationLog, setNotificationLog] = useState([]);
+  const [notificationLog, setNotificationLog] = useState(() => {
+    const savedLog = sessionStorage.getItem('notificationLog');
+    return savedLog ? JSON.parse(savedLog) : [];
+  });
   const [pendingRequests, setPendingRequests] = useState([]); // New state for pending requests
   const requesterEta = null;
+
+  useEffect(() => {
+    sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
+  }, [notificationLog]);
 
   const addNotification = useCallback((message) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -301,7 +308,7 @@ function MainAppContent() {
     return () => {
       socket.off('requestResponse', handleRequestResponse);
     };
-  }, []);
+  }, [addNotification]);
 
   useEffect(() => {
     if (acceptedSpot && userLocation) {
@@ -329,7 +336,7 @@ function MainAppContent() {
     return () => {
       socket.off('requesterArrived', handleRequesterArrived);
     };
-  }, []);
+  }, [addNotification]);
 
   useEffect(() => {
     const handleTransactionComplete = () => {
