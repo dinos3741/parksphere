@@ -508,7 +508,7 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       return res.status(404).send('Parking spot not found.');
     }
     const ownerId = spotResult.rows[0].user_id;
-    console.log(`Request for spot ${spotId}: Owner ID is ${ownerId}`);
+    
 
     // Check if a request already exists for this spot by this requester (any status)
     const existingRequest = await pool.query(
@@ -558,8 +558,8 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       return res.status(404).send('Requester not found.');
     }
     const requesterUsername = requesterResult.rows[0].username;
-    console.log(`Requester username from DB: ${requesterUsername}`);
-    console.log(`Requester username: ${requesterUsername}`);
+    
+    
 
     // Find the owner's socket ID and username
     const ownerSocketInfo = userSockets[ownerId];
