@@ -270,7 +270,7 @@ function MainAppContent() {
     return () => {
       socket.off('spotRequest', handleSpotRequest);
     };
-  }, []);
+  }, [addNotification]);
 
   useEffect(() => {
     const handleRequestResponse = (data) => {
