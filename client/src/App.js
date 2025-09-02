@@ -371,6 +371,19 @@ function MainAppContent() {
     };
   }, [addNotification]);
 
+  // Effect to clear notifications on logout
+  useEffect(() => {
+    const handleClearNotifications = () => {
+      setNotificationLog([]);
+    };
+
+    emitter.on('clear-notifications', handleClearNotifications);
+
+    return () => {
+      emitter.off('clear-notifications', handleClearNotifications);
+    };
+  }, [setNotificationLog]);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
