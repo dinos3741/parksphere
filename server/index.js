@@ -493,9 +493,39 @@ app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, res) => {
+  const { spotId } = req.params;
+  const ownerId = req.user.userId; // The authenticated user should be the owner
 
+  try {
+    // Verify that the authenticated user is indeed the owner of the spot
+    const spotCheck = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spotCheck.rows.length === 0 || spotCheck.rows[0].user_id !== ownerId) {
+      return res.status(403).json({ message: 'Forbidden: You do not own this spot or it does not exist.' });
+    }
 
-
+    const result = await pool.query(
+      `SELECT
+          r.id,
+          r.requested_at,
+          u.username AS requester_username,
+          u.car_type AS requester_car_type
+       FROM
+          requests r
+       JOIN
+          users u ON r.requester_id = u.id
+       WHERE
+          r.spot_id = $1
+       ORDER BY
+          r.requested_at DESC`,
+      [spotId]
+    );
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching requests details:', error);
+    res.status(500).send('Server error fetching requests details.');
+  }
+});
 
 app.post('/api/request-spot', authenticateToken, async (req, res) => {
   const { spotId } = req.body;
