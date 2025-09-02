@@ -265,42 +265,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
-  const handleCancelRequest = async (spotId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      addNotification("You must be logged in to cancel a request.");
-      return;
-    }
-
-    console.log(`Attempting to send cancel request for spot ID: ${spotId}`);
-
-    try {
-      const response = await fetch('/api/cancel-request', { // This endpoint needs to be created
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ spotId }),
-      });
-
-      console.log('Response from /api/cancel-request:', response);
-
-      if (response.ok) {
-        addNotification("Request cancelled successfully.");
-        onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
-        if (mapRef.current) {
-          mapRef.current.closePopup();
-        }
-      } else {
-        const errorData = await response.json();
-        addNotification(`Failed to cancel request: ${errorData.message}`);
-      }
-    } catch (error) {
-      console.error('Error cancelling request:', error);
-      addNotification('An error occurred while cancelling the request.');
-    }
-  };
+  
 
   return (
     <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -328,7 +293,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
         const isOwner = spot.user_id === currentUserId;
         const isExactLocation = spot.isExactLocation; // Use the flag from the backend
-        const isPending = pendingRequests.includes(spot.id);
+        
 
         if (acceptedSpot) {
           console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
