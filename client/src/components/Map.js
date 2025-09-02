@@ -9,6 +9,7 @@ import markerRed from './icons/marker-icon-red.png';
 import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
+import OwnerSpotPopup from './OwnerSpotPopup';
 
 
 // Fix for default marker icon not showing
@@ -339,23 +340,13 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
               <Marker position={[lat, lng]} icon={parkingSpotIcon}>
                 <Popup>
                   <div>
-                    Parking Spot ID: {spot.id} <br />
-                    Declared by: {spot.username} <br />
-                    Cost Type: {spot.cost_type} <br /> {/* Changed from Status: is_free */}
-                    Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                    Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
-                    Comments: {spot.comments}
-                    {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
                     {isOwner ? (
-                      <div className="owner-actions-container">
-                        {/* New button, identical to delete button */}
-                        <button onClick={() => handleNewButtonClick(spot.id)} className="delete-spot-button edit-button-color">
-                          Edit
-                        </button>
-                        <button onClick={() => handleDelete(spot.id)} className="delete-spot-button">
-                          Delete
-                        </button>
-                      </div>
+                      <OwnerSpotPopup 
+                        spot={spot} 
+                        onEdit={handleNewButtonClick} 
+                        onDelete={handleDelete} 
+                        formatRemainingTime={formatRemainingTime} 
+                      />
                     ) : (
                       // This is a revealed spot, but not owned by current user
                       // Hide the request button if this spot is the accepted one
@@ -375,24 +366,34 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
               <Circle center={[lat, lng]} radius={200} pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }} className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}>
                 <Popup>
                   <div>
-                    Parking Spot ID: {spot.id} <br />
-                    Declared by: {spot.username} <br />
-                    Cost Type: {spot.cost_type} <br /> {/* Changed from Status: is_free */}
-                    Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                    Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
-                    Comments: {spot.comments}
-                    <div className="request-button-container">
-                      <hr />
-                      {isPending ? (
-                        <button onClick={() => handleCancelRequest(spot.id)} className="cancel-request-button delete-spot-button">
-                          Cancel Request
-                        </button>
-                      ) : (
-                        <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
-                          Request
-                        </button>
-                      )}
-                    </div>
+                    {isOwner ? (
+                      <OwnerSpotPopup 
+                        spot={spot} 
+                        onEdit={handleNewButtonClick} 
+                        onDelete={handleDelete} 
+                        formatRemainingTime={formatRemainingTime} 
+                      />
+                    ) : (
+                      <>
+                        Parking Spot ID: {spot.id} <br />
+                        Declared by: {spot.username} <br />
+                        Cost Type: {spot.cost_type} <br />
+                        Price: €{ (spot.price ?? 0).toFixed(2) } <br />
+                        Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
+                        Comments: {spot.comments}
+                        {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
+                        {/* This is a revealed spot, but not owned by current user */}
+                        {/* Hide the request button if this spot is the accepted one */}
+                        {acceptedSpot && acceptedSpot.id === spot.id ? null : (
+                          <div className="request-button-container">
+                            <hr />
+                            <button onClick={() => handleRequest(spot.id)} className="request-spot-button delete-spot-button">
+                              Request
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </Popup>
               </Circle>

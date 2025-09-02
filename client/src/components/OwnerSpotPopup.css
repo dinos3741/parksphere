@@ -1,0 +1,56 @@
+.popup-content-container {
+  width: 250px; /* Adjust as needed */
+  height: 216px; /* Adjust as needed */
+}
+
+.tab-buttons {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.tab-buttons button {
+  background-color: #f1f1f1;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 10px 15px;
+  transition: background-color 0.3s;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tab-buttons button:hover {
+  background-color: #ddd;
+}
+
+.tab-buttons button.active {
+  background-color: #ccc;
+}
+
+.tab-content {
+  padding: 10px;
+}
+
+.owner-actions-container {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 10px;
+}
+
+.delete-spot-button {
+    background-color: #f44336; /* Red */
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 14px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.edit-button-color {
+    background-color: #4CAF50; /* Green */
+}
