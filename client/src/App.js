@@ -45,9 +45,9 @@ function MainAppContent() {
     sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
   }, [notificationLog]);
 
-  const addNotification = useCallback((message) => {
+  const addNotification = useCallback((message, color = 'default') => {
     const timestamp = new Date().toLocaleTimeString();
-    setNotificationLog(prevLog => [...prevLog, `[${timestamp}] ${message}`]);
+    setNotificationLog(prevLog => [...prevLog, { id: Date.now(), timestamp, message, color }]);
   }, [setNotificationLog]);
 
   // Hamburger menu state
@@ -262,7 +262,7 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleSpotRequest = (data) => {
-      addNotification(data.message);
+      addNotification(data.message, 'blue');
     };
 
     socket.on('spotRequest', handleSpotRequest);
@@ -274,7 +274,7 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleRequestResponse = (data) => {
-      addNotification(data.message);
+      addNotification(data.message, 'default');
       if (data.spot) {
         setAcceptedSpot(data.spot);
         setFilteredParkingSpots(prevSpots => {
@@ -328,7 +328,7 @@ function MainAppContent() {
   useEffect(() => {
     const handleRequesterArrived = (data) => {
       const message = `User ${data.requesterId} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-      addNotification(message);
+      addNotification(message, 'default');
     };
 
     socket.on('requesterArrived', handleRequesterArrived);
@@ -355,7 +355,7 @@ function MainAppContent() {
     const checkAndDisplayWelcomeMessage = () => {
       const welcomeMessage = sessionStorage.getItem('welcomeMessage');
       if (welcomeMessage) {
-        addNotification(welcomeMessage);
+        addNotification(welcomeMessage, 'default');
         sessionStorage.removeItem('welcomeMessage');
       }
     };

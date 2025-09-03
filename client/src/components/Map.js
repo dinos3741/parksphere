@@ -62,7 +62,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     const handleConfirmArrival = async (spotId) => {
       const token = localStorage.getItem('token');
       if (!token) {
-        addNotification("You must be logged in to confirm arrival.");
+        addNotification("You must be logged in to confirm arrival.", 'default');
         return;
       }
 
@@ -77,14 +77,14 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         });
 
         if (response.ok) {
-          addNotification("Arrival confirmed! The spot owner has been notified.");
+          addNotification("Arrival confirmed! The spot owner has been notified.", 'default');
         } else {
           const errorData = await response.json();
-          addNotification(`Failed to confirm arrival: ${errorData.message}`);
+          addNotification(`Failed to confirm arrival: ${errorData.message}`, 'default');
         }
       } catch (error) {
         console.error('Error confirming arrival:', error);
-        addNotification('An error occurred while confirming arrival.');
+        addNotification('An error occurred while confirming arrival.', 'default');
       }
     };
 
@@ -188,7 +188,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleDelete = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to delete a spot.");
+      addNotification("You must be logged in to delete a spot.", 'default');
       return;
     }
 
@@ -202,16 +202,16 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         });
 
         if (response.ok) {
-          addNotification(`Parking spot ${spotId} deleted successfully!`);
+          addNotification(`Parking spot ${spotId} deleted successfully!`, 'default');
         } else if (response.status === 401 || response.status === 403) {
-          addNotification("Authentication failed or not authorized to delete this spot.");
+          addNotification("Authentication failed or not authorized to delete this spot.", 'default');
         } else {
           const errorData = await response.json();
-          addNotification(`Failed to delete spot: ${errorData.message}`);
+          addNotification(`Failed to delete spot: ${errorData.message}`, 'default');
         }
       } catch (error) {
         console.error('Error deleting spot:', error);
-        addNotification('An error occurred while deleting the spot.');
+        addNotification('An error occurred while deleting the spot.', 'default');
       }
     }
   };
@@ -231,7 +231,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to request a spot.");
+      addNotification("You must be logged in to request a spot.", 'default');
       return;
     }
 
@@ -250,25 +250,25 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
-        addNotification("Request sent successfully.");
+        addNotification("Request sent successfully.", 'default');
         onRequestStatusChange(spotId, 'requested'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
       } else {
         const errorData = await response.json();
-        addNotification(`Failed to send request: ${errorData.message}`);
+        addNotification(`Failed to send request: ${errorData.message}`, 'default');
       }
     } catch (error) {
       console.error('Error requesting spot:', error);
-      addNotification('An error occurred while sending the request.');
+      addNotification('An error occurred while sending the request.', 'default');
     }
   };
 
   const handleCancelRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to cancel a request.");
+      addNotification("You must be logged in to cancel a request.", 'default');
       return;
     }
 
@@ -287,18 +287,18 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/cancel-request:', response);
 
       if (response.ok) {
-        addNotification("Request cancelled successfully.");
+        addNotification("Request cancelled successfully.", 'default');
         onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
       } else {
         const errorData = await response.json();
-        addNotification(`Failed to cancel request: ${errorData.message}`);
+        addNotification(`Failed to cancel request: ${errorData.message}`, 'default');
       }
     } catch (error) {
       console.error('Error cancelling request:', error);
-      addNotification('An error occurred while cancelling the request.');
+      addNotification('An error occurred while cancelling the request.', 'default');
     }
   };
 

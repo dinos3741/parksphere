@@ -11,18 +11,18 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
     setShowOverlay(false); // Close overlay immediately
 
     if (!userLocation) {
-      addNotification("Cannot declare spot: User location not available.");
+      addNotification("Cannot declare spot: User location not available.", 'default');
       return;
     }
 
     if (!currentUserCarType) {
-      addNotification("Cannot declare spot: User car type not available. Please log in again.");
+      addNotification("Cannot declare spot: User car type not available. Please log in again.", 'default');
       return;
     }
 
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to declare a spot.");
+      addNotification("You must be logged in to declare a spot.", 'default');
       return;
     }
 
@@ -50,19 +50,19 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
 
       if (response.ok) {
         const responseData = await response.json(); // Parse JSON response
-        addNotification(`Parking spot ${responseData.spotId} declared successfully! You are leaving in ${minutes === 0 ? 'Now' : `${minutes} minutes`}.`);
+        addNotification(`Parking spot ${responseData.spotId} declared successfully! You are leaving in ${minutes === 0 ? 'Now' : `${minutes} minutes`}.`, 'default');
         // The socket.io 'newParkingSpot' event on the server will handle map updates
       } else if (response.status === 409) { // Handle 409 Conflict specifically
         const errorData = await response.json();
         alert(errorData.message); // Show as pop-up
-        addNotification(errorData.message); // Also add to log
+        addNotification(errorData.message, 'default'); // Also add to log
       } else {
         const errorData = await response.json();
-        addNotification(`Failed to declare spot: ${errorData.message}`);
+        addNotification(`Failed to declare spot: ${errorData.message}`, 'default');
       }
     } catch (error) {
       console.error('Error declaring spot:', error);
-      addNotification('An error occurred while declaring the spot.');
+      addNotification('An error occurred while declaring the spot.', 'default');
     }
   };
 

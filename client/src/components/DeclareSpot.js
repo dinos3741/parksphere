@@ -28,7 +28,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
 
   const handleSubmit = async () => {
     if (!userLocation && !isEditing) { // userLocation is not needed for editing existing spot
-      addNotification("Cannot declare spot: User location not available.");
+      addNotification("Cannot declare spot: User location not available.", 'default');
       return;
     }
 
