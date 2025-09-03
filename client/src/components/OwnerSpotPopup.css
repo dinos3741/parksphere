@@ -1,5 +1,5 @@
 .popup-content-container {
-  width: 250px; /* Adjust as needed */
+  width: 280px; /* Reduced by 20% */
   height: 216px; /* Adjust as needed */
 }
 
@@ -33,7 +33,7 @@
 
 .owner-actions-container {
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
     margin-top: 10px;
 }
 
@@ -46,7 +46,7 @@
     text-decoration: none;
     display: inline-block;
     font-size: 14px;
-    margin: 4px 2px;
+    margin: 4px 4px;
     cursor: pointer;
     border-radius: 4px;
 }
@@ -65,15 +65,17 @@
 
 .requests-table-container table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
 }
 
 .requests-table-container th,
 .requests-table-container td {
-    padding: 8px;
+    width: 25%;
+    padding: 5px; /* Compressed padding */
     text-align: left;
     border-bottom: 1px solid #ddd;
-    font-size: 12px;
+    font-size: 12px; /* Increased font size */
 }
 
 .requests-table-container th {

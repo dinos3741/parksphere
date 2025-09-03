@@ -130,6 +130,7 @@ import { emitter } from '../emitter';
                       <th>Requester</th>
                       <th>Car Type</th>
                       <th>Time</th>
+                      <th>Distance</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -138,6 +139,7 @@ import { emitter } from '../emitter';
                         <td>{request.requester_username}</td>
                         <td>{request.requester_car_type}</td>
                         <td>{new Date(request.requested_at).toLocaleTimeString()}</td>
+                        <td>{request.distance ? `${request.distance.toFixed(2)} km` : 'N/A'}</td>
                       </tr>
                     ))}
                   </tbody>
