@@ -19,6 +19,7 @@ import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
 import { emitter } from './emitter';
+import newRequestSound from './assets/sounds/new-request.wav';
 import './App.css';
 
 function MainAppContent() {
@@ -263,6 +264,8 @@ function MainAppContent() {
   useEffect(() => {
     const handleSpotRequest = (data) => {
       addNotification(data.message, 'blue');
+      const audio = new Audio(newRequestSound);
+      audio.play();
     };
 
     socket.on('spotRequest', handleSpotRequest);
