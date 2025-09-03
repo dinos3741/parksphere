@@ -23,7 +23,50 @@ import newRequestSound from './assets/sounds/new-request.wav';
 import './App.css';
 
 function MainAppContent() {
+  const audioContextRef = useRef(null);
+  const audioBufferRef = useRef(null);
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        const response = await fetch(newRequestSound);
+        const arrayBuffer = await response.arrayBuffer();
+        audioBufferRef.current = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      } catch (error) {
+        console.error("Error initializing audio:", error);
+      }
+    };
+    initAudio();
+  }, []);
+
+  const playSound = useCallback(() => {
+    if (audioContextRef.current && audioBufferRef.current) {
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBufferRef.current;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+    }
+  }, []);
+
   const [selectedFilter, setSelectedFilter] = useState('all');
+
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      document.body.removeEventListener('click', unlockAudio);
+    };
+
+    document.body.addEventListener('click', unlockAudio);
+
+    return () => {
+      document.body.removeEventListener('click', unlockAudio);
+    };
+  }, []);
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
   const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
@@ -264,8 +307,7 @@ function MainAppContent() {
   useEffect(() => {
     const handleSpotRequest = (data) => {
       addNotification(data.message, 'blue');
-      const audio = new Audio(newRequestSound);
-      audio.play();
+      playSound();
     };
 
     socket.on('spotRequest', handleSpotRequest);
@@ -273,7 +315,7 @@ function MainAppContent() {
     return () => {
       socket.off('spotRequest', handleSpotRequest);
     };
-  }, [addNotification]);
+  }, [addNotification, playSound]);
 
   useEffect(() => {
     const handleRequestResponse = (data) => {

@@ -37,11 +37,28 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const invisibleIcon = new L.Icon({
+    iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+    iconSize: [1, 1],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, 0],
+    shadowUrl: null,
+    shadowSize: null,
+    shadowAnchor: null
+});
+
 const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, pendingRequests, onRequestStatusChange }) => { // NEW PROP
   const mapRef = useRef(null);
+  const popupRef = useRef(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [eta, setEta] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [popup, setPopup] = useState(null);
+  useEffect(() => {
+    if (popup && popupRef.current) {
+      popupRef.current.openPopup();
+    }
+  }, [popup]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -369,47 +386,64 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                 </Popup>
               </Marker>
             ) : (
-              <Circle center={[lat, lng]} radius={200} pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }} className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}>
-                <Popup>
-                  <div>
-                    {isOwner ? (
-                      <OwnerSpotPopup 
-                        spot={spot} 
-                        onEdit={handleNewButtonClick} 
-                        onDelete={handleDelete} 
-                        formatRemainingTime={formatRemainingTime} 
-                      />
-                    ) : (
-                      <>
-                        Parking Spot ID: {spot.id} <br />
-                        Declared by: {spot.username} <br />
-                        Cost Type: {spot.cost_type} <br />
-                        Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                        Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
-                        Comments: {spot.comments}
-                        {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
-                        {/* This is a revealed spot, but not owned by current user */}
-                        {/* Hide the request button if this spot is the accepted one */}
-                        {acceptedSpot && acceptedSpot.id === spot.id ? null : (
-                          <div className="request-button-container">
-                            <hr />
-                            <button
-                              onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                              className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
-                            >
-                              {isPending ? 'Cancel Request' : 'Request'}
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </Popup>
-              </Circle>
+              <Circle
+                center={[lat, lng]}
+                radius={200}
+                pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}
+                className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}
+                eventHandlers={{
+                  click: () => {
+                    setPopup({
+                      position: [lat, lng],
+                      content: (
+                        <div>
+                          {isOwner ? (
+                            <OwnerSpotPopup
+                              spot={spot}
+                              onEdit={handleNewButtonClick}
+                              onDelete={handleDelete}
+                              formatRemainingTime={formatRemainingTime}
+                            />
+                          ) : (
+                            <>
+                              Parking Spot ID: {spot.id} <br />
+                              Declared by: {spot.username} <br />
+                              Cost Type: {spot.cost_type} <br />
+                              Price: €{ (spot.price ?? 0).toFixed(2) } <br />
+                              Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
+                              Comments: {spot.comments}
+                              {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
+                              {acceptedSpot && acceptedSpot.id === spot.id ? null : (
+                                <div className="request-button-container">
+                                  <hr />
+                                  <button
+                                    onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
+                                    className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
+                                  >
+                                    {isPending ? 'Cancel Request' : 'Request'}
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )
+                    });
+                  }
+                }}
+              />
             )}
           </React.Fragment>
         );
       })}
+
+      {popup && (
+        <Marker ref={popupRef} position={popup.position} icon={invisibleIcon}>
+          <Popup onClose={() => setPopup(null)}>
+            {popup.content}
+          </Popup>
+        </Marker>
+      )}
     </MapContainer>
   );
 };
