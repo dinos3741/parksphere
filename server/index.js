@@ -515,7 +515,7 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
        JOIN
           users u ON r.requester_id = u.id
        WHERE
-          r.spot_id = $1
+          r.spot_id = $1 AND (r.status = 'pending' OR r.status = 'accepted')
        ORDER BY
           r.requested_at DESC`,
       [spotId]

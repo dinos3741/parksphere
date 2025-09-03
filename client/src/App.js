@@ -172,13 +172,18 @@ function MainAppContent() {
   }, []);
 
   const handleRequestStatusChange = useCallback((spotId, status) => {
-    setPendingRequests(prevRequests => {
-      if (status === 'requested') {
-        return [...prevRequests, spotId];
-      } else if (status === 'cancelled') {
-        return prevRequests.filter(id => id !== spotId);
-      }
-      return prevRequests;
+    return new Promise(resolve => {
+      setPendingRequests(prevRequests => {
+        if (status === 'requested') {
+          resolve(spotId);
+          return [...prevRequests, spotId];
+        } else if (status === 'cancelled') {
+          resolve(spotId);
+          return prevRequests.filter(id => id !== spotId);
+        }
+        resolve(null);
+        return prevRequests;
+      });
     });
   }, []);
 
@@ -308,6 +313,8 @@ function MainAppContent() {
     const handleSpotRequest = (data) => {
       addNotification(data.message, 'blue');
       playSound();
+      fetchPendingRequests();
+      emitter.emit('new-request');
     };
 
     socket.on('spotRequest', handleSpotRequest);
@@ -315,7 +322,7 @@ function MainAppContent() {
     return () => {
       socket.off('spotRequest', handleSpotRequest);
     };
-  }, [addNotification, playSound]);
+  }, [addNotification, playSound, fetchPendingRequests]);
 
   useEffect(() => {
     const handleRequestResponse = (data) => {

@@ -1,50 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './OwnerSpotPopup.css';
 import { getToken } from '../utils/auth';
+import { emitter } from '../emitter';
 
-const OwnerSpotPopup = ({ spot, onEdit, onDelete, formatRemainingTime }) => {
+  const OwnerSpotPopup = ({ spot, onEdit, onDelete, formatRemainingTime, onClose }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [requests, setRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState(null);
 
-  useEffect(() => {
-    if (activeTab === 'requests' && spot && spot.id) {
-      const fetchRequests = async () => {
-        setLoadingRequests(true);
-        setRequestsError(null);
-        try {
-          const token = getToken();
-          if (!token) {
-            setRequestsError('Authentication required to view requests.');
-            setLoadingRequests(false);
-            return;
-          }
-
-          const response = await fetch(`/api/spots/${spot.id}/requests-details`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-          }
-
-          const data = await response.json();
-          setRequests(data);
-        } catch (error) {
-          console.error('Error fetching requests:', error);
-          setRequestsError(`Failed to load requests: ${error.message}`);
-        } finally {
+  const fetchRequests = useCallback(async () => {
+    if (spot && spot.id) {
+      setLoadingRequests(true);
+      setRequestsError(null);
+      try {
+        const token = getToken();
+        if (!token) {
+          setRequestsError('Authentication required to view requests.');
           setLoadingRequests(false);
+          return;
         }
-      };
 
+        const response = await fetch(`/api/spots/${spot.id}/requests-details`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        }
+
+        const data = await response.json();
+        setRequests(data);
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+        setRequestsError(`Failed to load requests: ${error.message}`);
+      } finally {
+        setLoadingRequests(false);
+      }
+    }
+  }, [spot]);
+
+  useEffect(() => {
+    if (activeTab === 'requests') {
       fetchRequests();
     }
-  }, [activeTab, spot]);
+  }, [activeTab, fetchRequests]);
+
+  useEffect(() => {
+    const handleNewRequest = () => {
+      if (activeTab === 'requests') {
+        fetchRequests();
+      }
+    };
+
+    emitter.on('new-request', handleNewRequest);
+
+    return () => {
+      emitter.off('new-request', handleNewRequest);
+    };
+  }, [activeTab, fetchRequests]);
+
+  useEffect(() => {
+    const handleSpotRequestUpdated = async (updatedSpotId) => {
+      if (spot && spot.id === updatedSpotId) {
+        await fetchRequests();
+        if (onClose) {
+          onClose();
+        }
+      }
+    };
+
+    emitter.on('spot-request-updated', handleSpotRequestUpdated);
+
+    return () => {
+      emitter.off('spot-request-updated', handleSpotRequestUpdated);
+    };
+  }, [spot, onClose]);
 
   return (
     <div className="popup-content-container">

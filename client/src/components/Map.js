@@ -10,6 +10,7 @@ import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
 import OwnerSpotPopup from './OwnerSpotPopup';
+import { emitter } from '../emitter';
 
 
 // Fix for default marker icon not showing
@@ -267,7 +268,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
-        addNotification("Request sent successfully.", 'default');
+        addNotification(`Request for spot #${spotId} sent successfully.`, 'default');
         onRequestStatusChange(spotId, 'requested'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
@@ -304,8 +305,9 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/cancel-request:', response);
 
       if (response.ok) {
-        addNotification("Request cancelled successfully.", 'default');
-        onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
+        addNotification(`Request for spot #${spotId} cancelled successfully.`, 'default');
+        await onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
+        emitter.emit('spot-request-updated', spotId);
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
@@ -403,6 +405,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                               onEdit={handleNewButtonClick}
                               onDelete={handleDelete}
                               formatRemainingTime={formatRemainingTime}
+                              onClose={() => setPopup(null)}
                             />
                           ) : (
                             <>
