@@ -51,10 +51,10 @@ import RequestDetailsModal from './RequestDetailsModal';
     setShowRequestDetailsModal(true);
   };
 
-  const handleCloseRequestDetailsModal = () => {
+  const handleCloseRequestDetailsModal = useCallback(() => {
     setShowRequestDetailsModal(false);
     setSelectedRequest(null);
-  };
+  }, []);
 
   const handleAcceptRequest = useCallback(async (requestId) => {
     try {
