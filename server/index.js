@@ -523,7 +523,7 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
     );
     const formattedRows = result.rows.map(row => ({
       ...row,
-      distance: row.distance // Keep as string
+      distance: parseFloat(row.distance) // Convert to number
     }));
     res.status(200).json(formattedRows);
   } catch (error) {
