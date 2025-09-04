@@ -6,7 +6,7 @@ const NotificationLog = ({ messages }) => {
     <div className="notification-log-container">
       <div className="notification-log">
         {messages.map(notification => (
-          <div key={notification.id} className="notification-message" style={{ color: notification.color === 'blue' ? 'blue' : notification.color === 'purple' ? 'purple' : 'black' }}>
+          <div key={notification.id} className="notification-message" style={{ color: notification.color === 'blue' ? 'blue' : notification.color === 'purple' ? 'purple' : notification.color === 'green' ? 'green' : 'black' }}>
             [{notification.timestamp}] {notification.message}
           </div>
         ))}

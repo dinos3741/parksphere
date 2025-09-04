@@ -271,7 +271,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
-        addNotification(`Request for spot #${spotId} sent successfully.`, 'default');
+        addNotification(`Request for spot #${spotId} sent successfully.`, 'green');
         onRequestStatusChange(spotId, 'requested'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
