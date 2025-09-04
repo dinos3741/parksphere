@@ -391,6 +391,19 @@ function MainAppContent() {
   }, [addNotification]);
 
   useEffect(() => {
+    const handleRequestCancelled = (data) => {
+      const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
+      addNotification(message, 'purple');
+    };
+
+    socket.on('requestCancelled', handleRequestCancelled);
+
+    return () => {
+      socket.off('requestCancelled', handleRequestCancelled);
+    };
+  }, [addNotification]);
+
+  useEffect(() => {
     const handleTransactionComplete = () => {
       fetchProfileData();
     };
