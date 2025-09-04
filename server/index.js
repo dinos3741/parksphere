@@ -509,7 +509,8 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
           r.id,
           r.requested_at,
           u.username AS requester_username,
-          u.car_type AS requester_car_type
+          u.car_type AS requester_car_type,
+          r.distance::NUMERIC AS distance
        FROM
           requests r
        JOIN
@@ -520,7 +521,11 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
           r.requested_at DESC`,
       [spotId]
     );
-    res.status(200).json(result.rows);
+    const formattedRows = result.rows.map(row => ({
+      ...row,
+      distance: parseFloat(row.distance) // Convert distance to a number
+    }));
+    res.status(200).json(formattedRows);
   } catch (error) {
     console.error('Error fetching requests details:', error);
     res.status(500).send('Server error fetching requests details.');
@@ -528,16 +533,19 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
 });
 
 app.post('/api/request-spot', authenticateToken, async (req, res) => {
-  const { spotId } = req.body;
+  const { spotId, requesterLat, requesterLon } = req.body;
   const requesterId = req.user.userId;
 
   try {
-    // Get the user ID of the spot owner
-    const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    // Get the user ID of the spot owner and spot's coordinates
+    const spotResult = await pool.query('SELECT user_id, latitude, longitude FROM parking_spots WHERE id = $1', [spotId]);
     if (spotResult.rows.length === 0) {
       return res.status(404).send('Parking spot not found.');
     }
-    const ownerId = spotResult.rows[0].user_id;
+    const { user_id: ownerId, latitude: spotLat, longitude: spotLon } = spotResult.rows[0];
+
+    // Calculate distance
+    const distance = getDistance(requesterLat, requesterLon, parseFloat(spotLat), parseFloat(spotLon));
     
 
     // Check if a request already exists for this spot by this requester (any status)
@@ -551,9 +559,10 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       if (currentRequest.status === 'cancelled' || currentRequest.status === 'rejected') {
         // Reactivate the request
         await pool.query(
-          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL WHERE id = $1 RETURNING id`,
-          [currentRequest.id]
+          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL, distance = $4 WHERE id = $1 RETURNING id`,
+          [currentRequest.id, spotId, requesterId, distance]
         );
+        console.log(`Updating request ${currentRequest.id} with distance: ${distance}`);
         const requestId = currentRequest.id; // Use the existing request ID
         // Re-send notification to owner if they are connected
         const ownerSocketInfo = userSockets[ownerId];
@@ -576,9 +585,10 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
 
     // If no existing request or if it was not active, create a new one (original logic)
     const requestResult = await pool.query(
-      `INSERT INTO requests (spot_id, requester_id, owner_id, status) VALUES ($1, $2, $3, 'pending') RETURNING id`,
-      [spotId, requesterId, ownerId]
+      `INSERT INTO requests (spot_id, requester_id, owner_id, status, distance) VALUES ($1, $2, $3, 'pending', $4) RETURNING id`,
+      [spotId, requesterId, ownerId, distance]
     );
+    console.log(`Inserting new request with ID ${requestResult.rows[0].id} and distance: ${distance}`);
     const requestId = requestResult.rows[0].id;
 
     // Get the requester's username

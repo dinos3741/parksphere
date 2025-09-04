@@ -162,6 +162,12 @@ async function createRequestsTable() {
       );
     `);
 
+    // Add distance column if it doesn't exist
+    await client.query(`
+      ALTER TABLE requests
+      ADD COLUMN IF NOT EXISTS distance DECIMAL(10, 2);
+    `);
+
     // Add accepted_at column if it doesn't exist
     await client.query(`
       ALTER TABLE requests

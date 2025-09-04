@@ -253,6 +253,9 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       return;
     }
 
+    const requesterLat = userLocation[0];
+    const requesterLon = userLocation[1];
+
     console.log(`Attempting to send request for spot ID: ${spotId}`);
 
     try {
@@ -262,7 +265,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ spotId }),
+        body: JSON.stringify({ spotId, requesterLat, requesterLon }), // Add requesterLat and requesterLon
       });
 
       console.log('Response from /api/request-spot:', response);

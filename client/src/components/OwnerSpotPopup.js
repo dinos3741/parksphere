@@ -134,14 +134,16 @@ import { emitter } from '../emitter';
                     </tr>
                   </thead>
                   <tbody>
-                    {requests.map(request => (
+                    {requests.map(request => {
+                      console.log(`Client - Request ID: ${request.id}, Distance: ${request.distance}, Type: ${typeof request.distance}`);
+                      return (
                       <tr key={request.id}>
                         <td>{request.requester_username}</td>
                         <td>{request.requester_car_type}</td>
                         <td>{new Date(request.requested_at).toLocaleTimeString()}</td>
-                        <td>{request.distance ? `${request.distance.toFixed(2)} km` : 'N/A'}</td>
+                        <td>{typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}</td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
