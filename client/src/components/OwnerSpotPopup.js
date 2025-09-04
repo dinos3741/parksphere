@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './OwnerSpotPopup.css';
 import { getToken } from '../utils/auth';
 import { emitter } from '../emitter';
+import { emitAcceptRequest, emitDeclineRequest } from '../socket';
 import RequestDetailsModal from './RequestDetailsModal';
 
   const OwnerSpotPopup = ({ spot, onEdit, onDelete, formatRemainingTime, onClose }) => {
@@ -58,57 +59,46 @@ import RequestDetailsModal from './RequestDetailsModal';
 
   const handleAcceptRequest = useCallback(async (requestId) => {
     try {
-      const token = getToken();
-      if (!token) {
-        // Handle not authenticated
-        return;
-      }
-      const response = await fetch('/api/accept-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ requestId, spotId: spot.id }),
+      // No need for token here, as socket.io handles authentication implicitly or separately
+      // and the server-side socket handler will verify ownership.
+
+      // Emit the acceptRequest event via socket.io
+      emitAcceptRequest({
+        requestId,
+        requesterId: selectedRequest.requester_id,
+        spotId: spot.id,
+        ownerUsername: spot.username,
+        ownerId: spot.user_id
       });
-      if (response.ok) {
-        // Handle success (e.g., close modal, refresh requests)
-        handleCloseRequestDetailsModal();
-        fetchRequests();
-      } else {
-        // Handle error
-      }
+
+      console.log(`Request ${requestId} accepted. Sending notification.`);
+      // Handle success (e.g., close modal, refresh requests)
+      handleCloseRequestDetailsModal();
+      fetchRequests();
     } catch (error) {
-      // Handle network error
+      console.error('Error accepting request via socket:', error);
+      // Handle network error or other issues with emitting
     }
-  }, [spot, fetchRequests, handleCloseRequestDetailsModal]);
+  }, [spot, fetchRequests, handleCloseRequestDetailsModal, selectedRequest]);
 
   const handleDeclineRequest = useCallback(async (requestId) => {
     try {
-      const token = getToken();
-      if (!token) {
-        // Handle not authenticated
-        return;
-      }
-      const response = await fetch('/api/decline-request', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ requestId, spotId: spot.id }),
+      // Emit the declineRequest event via socket.io
+      emitDeclineRequest({
+        requestId,
+        requesterId: selectedRequest.requester_id,
+        spotId: spot.id,
+        ownerUsername: spot.username
       });
-      if (response.ok) {
-        // Handle success (e.g., close modal, refresh requests)
-        handleCloseRequestDetailsModal();
-        fetchRequests();
-      } else {
-        // Handle error
-      }
+
+      // Handle success (e.g., close modal, refresh requests)
+      handleCloseRequestDetailsModal();
+      fetchRequests();
     } catch (error) {
-      // Handle network error
+      console.error('Error declining request via socket:', error);
+      // Handle network error or other issues with emitting
     }
-  }, [spot, fetchRequests, handleCloseRequestDetailsModal]);
+  }, [spot, fetchRequests, handleCloseRequestDetailsModal, selectedRequest]);
 
   useEffect(() => {
     if (activeTab === 'requests') {
