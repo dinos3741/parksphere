@@ -20,11 +20,13 @@ import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
+import removeRequestSound from './assets/sounds/remove-request.wav';
 import './App.css';
 
 function MainAppContent() {
   const audioContextRef = useRef(null);
   const audioBufferRef = useRef(null);
+  const removeRequestAudioBufferRef = useRef(null);
   useEffect(() => {
     const initAudio = async () => {
       try {
@@ -32,6 +34,10 @@ function MainAppContent() {
         const response = await fetch(newRequestSound);
         const arrayBuffer = await response.arrayBuffer();
         audioBufferRef.current = await audioContextRef.current.decodeAudioData(arrayBuffer);
+
+        const removeRequestResponse = await fetch(removeRequestSound);
+        const removeRequestArrayBuffer = await removeRequestResponse.arrayBuffer();
+        removeRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(removeRequestArrayBuffer);
       } catch (error) {
         console.error("Error initializing audio:", error);
       }
@@ -46,6 +52,18 @@ function MainAppContent() {
       }
       const source = audioContextRef.current.createBufferSource();
       source.buffer = audioBufferRef.current;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+    }
+  }, []);
+
+  const playSoundRemoveRequest = useCallback(() => {
+    if (audioContextRef.current && removeRequestAudioBufferRef.current) {
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = removeRequestAudioBufferRef.current;
       source.connect(audioContextRef.current.destination);
       source.start(0);
     }
@@ -394,6 +412,7 @@ function MainAppContent() {
     const handleRequestCancelled = (data) => {
       const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
       addNotification(message, 'purple');
+      playSoundRemoveRequest();
     };
 
     socket.on('requestCancelled', handleRequestCancelled);
