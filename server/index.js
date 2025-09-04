@@ -523,7 +523,7 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
     );
     const formattedRows = result.rows.map(row => ({
       ...row,
-      distance: parseFloat(row.distance) // Convert distance to a number
+      distance: row.distance // Keep as string
     }));
     res.status(200).json(formattedRows);
   } catch (error) {
@@ -562,7 +562,6 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
           `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL, distance = $4 WHERE id = $1 RETURNING id`,
           [currentRequest.id, spotId, requesterId, distance]
         );
-        console.log(`Updating request ${currentRequest.id} with distance: ${distance}`);
         const requestId = currentRequest.id; // Use the existing request ID
         // Re-send notification to owner if they are connected
         const ownerSocketInfo = userSockets[ownerId];
@@ -588,7 +587,6 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       `INSERT INTO requests (spot_id, requester_id, owner_id, status, distance) VALUES ($1, $2, $3, 'pending', $4) RETURNING id`,
       [spotId, requesterId, ownerId, distance]
     );
-    console.log(`Inserting new request with ID ${requestResult.rows[0].id} and distance: ${distance}`);
     const requestId = requestResult.rows[0].id;
 
     // Get the requester's username

@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './OwnerSpotPopup.css';
 import { getToken } from '../utils/auth';
 import { emitter } from '../emitter';
+import RequestDetailsModal from './RequestDetailsModal';
 
   const OwnerSpotPopup = ({ spot, onEdit, onDelete, formatRemainingTime, onClose }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [requests, setRequests] = useState([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState(null);
+  const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   const fetchRequests = useCallback(async () => {
     if (spot && spot.id) {
@@ -42,6 +45,70 @@ import { emitter } from '../emitter';
       }
     }
   }, [spot]);
+
+  const handleRowClick = (request) => {
+    setSelectedRequest(request);
+    setShowRequestDetailsModal(true);
+  };
+
+  const handleCloseRequestDetailsModal = () => {
+    setShowRequestDetailsModal(false);
+    setSelectedRequest(null);
+  };
+
+  const handleAcceptRequest = useCallback(async (requestId) => {
+    try {
+      const token = getToken();
+      if (!token) {
+        // Handle not authenticated
+        return;
+      }
+      const response = await fetch('/api/accept-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ requestId, spotId: spot.id }),
+      });
+      if (response.ok) {
+        // Handle success (e.g., close modal, refresh requests)
+        handleCloseRequestDetailsModal();
+        fetchRequests();
+      } else {
+        // Handle error
+      }
+    } catch (error) {
+      // Handle network error
+    }
+  }, [spot, fetchRequests, handleCloseRequestDetailsModal]);
+
+  const handleDeclineRequest = useCallback(async (requestId) => {
+    try {
+      const token = getToken();
+      if (!token) {
+        // Handle not authenticated
+        return;
+      }
+      const response = await fetch('/api/decline-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ requestId, spotId: spot.id }),
+      });
+      if (response.ok) {
+        // Handle success (e.g., close modal, refresh requests)
+        handleCloseRequestDetailsModal();
+        fetchRequests();
+      } else {
+        // Handle error
+      }
+    } catch (error) {
+      // Handle network error
+    }
+  }, [spot, fetchRequests, handleCloseRequestDetailsModal]);
 
   useEffect(() => {
     if (activeTab === 'requests') {
@@ -81,7 +148,8 @@ import { emitter } from '../emitter';
   }, [spot, onClose]);
 
   return (
-    <div className="popup-content-container">
+    <React.Fragment>
+      <div className="popup-content-container">
       <div className="tab-buttons">
         <button
           className={activeTab === 'details' ? 'active' : ''}
@@ -134,16 +202,14 @@ import { emitter } from '../emitter';
                     </tr>
                   </thead>
                   <tbody>
-                    {requests.map(request => {
-                      console.log(`Client - Request ID: ${request.id}, Distance: ${request.distance}, Type: ${typeof request.distance}`);
-                      return (
-                      <tr key={request.id}>
+                    {requests.map(request => (
+                      <tr key={request.id} onClick={() => handleRowClick(request)}>
                         <td>{request.requester_username}</td>
                         <td>{request.requester_car_type}</td>
                         <td>{new Date(request.requested_at).toLocaleTimeString()}</td>
                         <td>{typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}</td>
                       </tr>
-                    );})}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -152,6 +218,15 @@ import { emitter } from '../emitter';
         )}
       </div>
     </div>
+    {showRequestDetailsModal && selectedRequest && (
+      <RequestDetailsModal
+          request={selectedRequest}
+          onClose={handleCloseRequestDetailsModal}
+          onAccept={handleAcceptRequest}
+          onDecline={handleDeclineRequest}
+        />
+    )}
+    </React.Fragment>
   );
 };
 
