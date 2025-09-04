@@ -11,7 +11,7 @@ const RequestDetailsModal = ({ request, onClose, onAccept, onDecline }) => {
     <div className="modal-overlay">
       <div className="modal-content">
         <span className="close-modal-x" onClick={handleClose}>&times;</span>
-        <h2>Request Details</h2>
+        <h2 className="title">Request Details</h2>
         <p><strong>Requester:</strong> {request.requester_username}</p>
         <p><strong>Car Type:</strong> {request.requester_car_type}</p>
         <p><strong>Requested At:</strong> {new Date(request.requested_at).toLocaleTimeString()}</p>
