@@ -142,7 +142,7 @@ import RequestDetailsModal from './RequestDetailsModal';
     return () => {
       emitter.off('spot-request-updated', handleSpotRequestUpdated);
     };
-  }, [spot, onClose]);
+  }, [spot, fetchRequests]);
 
   return (
     <React.Fragment>
