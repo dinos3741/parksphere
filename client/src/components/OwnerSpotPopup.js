@@ -134,9 +134,6 @@ import RequestDetailsModal from './RequestDetailsModal';
     const handleSpotRequestUpdated = async (updatedSpotId) => {
       if (spot && spot.id === updatedSpotId) {
         await fetchRequests();
-        if (onClose) {
-          onClose();
-        }
       }
     };
 

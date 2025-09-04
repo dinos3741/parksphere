@@ -2,10 +2,15 @@ import React from 'react';
 import './RequestDetailsModal.css';
 
 const RequestDetailsModal = ({ request, onClose, onAccept, onDecline }) => {
+  const handleClose = (e) => {
+    e.stopPropagation();
+    onClose();
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <span className="close-modal-x" onClick={onClose}>&times;</span>
+        <span className="close-modal-x" onClick={handleClose}>&times;</span>
         <h2>Request Details</h2>
         <p><strong>Requester:</strong> {request.requester_username}</p>
         <p><strong>Car Type:</strong> {request.requester_car_type}</p>
