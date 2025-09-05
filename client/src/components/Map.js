@@ -112,7 +112,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           const { latitude, longitude } = position.coords;
           const distance = getDistance(latitude, longitude, acceptedSpot.latitude, acceptedSpot.longitude);
 
-          if (distance < 0.02) { // 20 meters
+          if (distance < 0.05) { // 50 meters
             setIsConfirming(true);
             if (window.confirm("It looks like you've arrived. Confirm your arrival?")) {
               handleConfirmArrival(acceptedSpot.id);
@@ -356,7 +356,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         
 
         if (acceptedSpot) {
-          console.log(`Map.js - Comparing spot ${spot.id} with accepted spot ${acceptedSpot.id}. Match: ${acceptedSpot.id === spot.id}`);
         }
 
         return (
