@@ -76,7 +76,6 @@ io.on('connection', (socket) => {
       await client.query('UPDATE users SET reserved_amount = $1 WHERE id = $2', [price, requesterId]);
 
       await client.query('COMMIT');
-      console.log(`Request ${requestId} for spot ${spotId} was ACCEPTED by owner ${ownerId}.`);
 
       const fullSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
       const spot = fullSpotResult.rows[0];

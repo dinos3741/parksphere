@@ -18,6 +18,7 @@ import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
+import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
@@ -86,6 +87,7 @@ function MainAppContent() {
     };
   }, []);
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
+  const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false); // State for AcceptedRequestModal
   const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
@@ -344,6 +346,9 @@ function MainAppContent() {
 
   useEffect(() => {
     const handleRequestResponse = (data) => {
+      if (data.message.includes('ACCEPTED')) {
+        setShowAcceptedRequestModal(true);
+      }
       addNotification(data.message, 'default');
       if (data.spot) {
         setAcceptedSpot(data.spot);
@@ -580,6 +585,10 @@ function MainAppContent() {
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
       </footer>
+
+      {showAcceptedRequestModal && (
+        <AcceptedRequestModal onClose={() => setShowAcceptedRequestModal(false)} />
+      )}
 
       {showProfileModal && (
         <ProfileModal
