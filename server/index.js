@@ -507,6 +507,7 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
     const result = await pool.query(
       `SELECT
           r.id,
+          r.requester_id,
           r.requested_at,
           u.username AS requester_username,
           u.car_type AS requester_car_type,
