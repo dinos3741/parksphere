@@ -88,6 +88,7 @@ function MainAppContent() {
   }, []);
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
   const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false); // State for AcceptedRequestModal
+  const [acceptedRequestOwnerUsername, setAcceptedRequestOwnerUsername] = useState(''); // State for the username of the owner who accepted the request
   const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
@@ -347,6 +348,7 @@ function MainAppContent() {
   useEffect(() => {
     const handleRequestResponse = (data) => {
       if (data.message.includes('ACCEPTED')) {
+        setAcceptedRequestOwnerUsername(data.ownerUsername);
         setShowAcceptedRequestModal(true);
       }
       addNotification(data.message, 'default');
@@ -587,7 +589,10 @@ function MainAppContent() {
       </footer>
 
       {showAcceptedRequestModal && (
-        <AcceptedRequestModal onClose={() => setShowAcceptedRequestModal(false)} />
+        <AcceptedRequestModal 
+          onClose={() => setShowAcceptedRequestModal(false)} 
+          ownerUsername={acceptedRequestOwnerUsername} 
+        />
       )}
 
       {showProfileModal && (

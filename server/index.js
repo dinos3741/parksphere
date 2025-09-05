@@ -83,7 +83,8 @@ io.on('connection', (socket) => {
       if (requesterSocketId) {
         io.to(requesterSocketId).emit('requestResponse', {
           message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}! Please get to the spot before the expiration time.`,
-          spot: spot // Include the full spot object
+          spot: spot, // Include the full spot object
+          ownerUsername: ownerUsername
         });
       }
     } catch (error) {
