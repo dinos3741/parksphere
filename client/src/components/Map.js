@@ -10,6 +10,7 @@ import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
 import OwnerSpotPopup from './OwnerSpotPopup';
+import AcceptedSpotDetailsModal from './AcceptedSpotDetailsModal'; // Import AcceptedSpotDetailsModal
 import { emitter } from '../emitter';
 
 
@@ -55,6 +56,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [eta, setEta] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
+  const [showAcceptedSpotDetailsModal, setShowAcceptedSpotDetailsModal] = useState(false);
+  const [selectedAcceptedSpot, setSelectedAcceptedSpot] = useState(null);
   useEffect(() => {
     if (popup && popupRef.current) {
       popupRef.current.openPopup();
@@ -112,15 +115,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           const { latitude, longitude } = position.coords;
           const distance = getDistance(latitude, longitude, acceptedSpot.latitude, acceptedSpot.longitude);
 
-          if (distance < 0.05) { // 50 meters
-            setIsConfirming(true);
-            if (window.confirm("It looks like you've arrived. Confirm your arrival?")) {
-              handleConfirmArrival(acceptedSpot.id);
-              navigator.geolocation.clearWatch(watchId);
-            } else {
-              setIsConfirming(false); // Allow the dialog to reappear if the user cancels
-            }
-          }
+          // if (distance < 0.05) { // 50 meters
+          //   setIsConfirming(true);
+          //   if (window.confirm("It looks like you've arrived. Confirm your arrival?")) {
+          //     handleConfirmArrival(acceptedSpot.id);
+          //     navigator.geolocation.clearWatch(watchId);
+          //   } else {
+          //     setIsConfirming(false); // Allow the dialog to reappear if the user cancels
+          //   }
+          // }
 
           // Fetch ETA every 10 seconds
           const now = Date.now();
@@ -361,20 +364,35 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         return (
           <React.Fragment key={spot.id}>
             {isExactLocation ? (
-              <Marker position={[lat, lng]} icon={parkingSpotIcon}>
-                <Popup>
-                  <div>
-                    {isOwner ? (
-                      <OwnerSpotPopup 
-                        spot={spot} 
-                        onEdit={handleNewButtonClick} 
-                        onDelete={handleDelete} 
-                        formatRemainingTime={formatRemainingTime} 
-                      />
-                    ) : (
-                      // This is a revealed spot, but not owned by current user
-                      // Hide the request button if this spot is the accepted one
-                      acceptedSpot && acceptedSpot.id === spot.id ? null : (
+              <Marker 
+                position={[lat, lng]} 
+                icon={parkingSpotIcon}
+                eventHandlers={{
+                  click: () => {
+                    if (acceptedSpot && acceptedSpot.id === spot.id) {
+                      setSelectedAcceptedSpot(spot);
+                      setShowAcceptedSpotDetailsModal(true);
+                    } else if (isOwner) {
+                      // This is the owner of the spot, let the popup handle it
+                    } else {
+                      // This is a spot that is not the accepted one, let the popup handle it
+                    }
+                  },
+                }}
+              >
+                {! (acceptedSpot && acceptedSpot.id === spot.id) &&
+                  <Popup>
+                    <div>
+                      {isOwner ? (
+                        <OwnerSpotPopup 
+                          spot={spot} 
+                          onEdit={handleNewButtonClick} 
+                          onDelete={handleDelete} 
+                          formatRemainingTime={formatRemainingTime} 
+                        />
+                      ) : (
+                        // This is a revealed spot, but not owned by current user
+                        // Hide the request button if this spot is the accepted one
                         <div className="request-button-container">
                           <hr />
                           <button
@@ -384,10 +402,10 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                             {isPending ? 'Cancel Request' : 'Request'}
                           </button>
                         </div>
-                      )
-                    )}
-                  </div>
-                </Popup>
+                      )}
+                    </div>
+                  </Popup>
+                }
               </Marker>
             ) : (
               <Circle
@@ -448,6 +466,18 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
             {popup.content}
           </Popup>
         </Marker>
+      )}
+
+      {showAcceptedSpotDetailsModal && selectedAcceptedSpot && (
+        <AcceptedSpotDetailsModal
+          spot={selectedAcceptedSpot}
+          onClose={() => setShowAcceptedSpotDetailsModal(false)}
+          onArrived={(spotId) => {
+            // We will implement this in the next step
+            console.log(`Arrived at spot ${spotId}`);
+            setShowAcceptedSpotDetailsModal(false);
+          }}
+        />
       )}
     </MapContainer>
   );
