@@ -781,7 +781,6 @@ async function checkAndRemoveExpiredSpots() {
     for (const spot of expiredSpots.rows) {
       await pool.query('DELETE FROM parking_spots WHERE id = $1', [spot.id]);
       io.emit('spotDeleted', spot.id); // Emit event for real-time update
-      console.log(`Expired spot ${spot.id} removed.`);
     }
   } catch (error) {
     console.error('Error checking and removing expired spots:', error);
