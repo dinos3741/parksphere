@@ -110,8 +110,9 @@ io.on('connection', (socket) => {
       console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
 
       if (requesterSocket) {
-        io.to(requesterSocket).emit('requestResponse', {
-          message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`
+        io.to(requesterSocket).emit('requestDeclined', {
+          spotId,
+          message: `The spot owner accepted another request... keep looking!`
         });
       }
     } catch (error) {
