@@ -12,6 +12,7 @@ import { getDistance } from '../utils/geoUtils';
 import OwnerSpotPopup from './OwnerSpotPopup';
 import RequesterSpotPopup from './RequesterSpotPopup';
 import { emitter } from '../emitter';
+import { socket } from '../socket';
 
 
 // Fix for default marker icon not showing
@@ -327,8 +328,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   };
 
   const handleArrived = (spotId) => {
-    // We will implement this in the next step
-    console.log(`Arrived at spot ${spotId}`);
+    socket.emit('requester-arrived', { spotId });
+    addNotification(`You have arrived at spot ${spotId}. The owner has been notified.`, 'default');
     if (mapRef.current) {
       mapRef.current.closePopup();
     }

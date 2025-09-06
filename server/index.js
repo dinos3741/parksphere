@@ -119,8 +119,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('confirmArrival', async (data) => {
-    const { spotId, requesterId } = data;
+  socket.on('requester-arrived', async (data) => {
+    const { spotId } = data;
+    const requesterId = Object.keys(userSockets).find(key => userSockets[key].socketId === socket.id);
+    if (!requesterId) return;
+
     try {
       const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
       if (spotResult.rows.length === 0) {
@@ -128,16 +131,26 @@ io.on('connection', (socket) => {
       }
       const ownerId = spotResult.rows[0].user_id;
 
+      const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
+      if (requesterResult.rows.length === 0) {
+        return; // Requester not found
+      }
+      const requesterUsername = requesterResult.rows[0].username;
+
       const ownerSocketInfo = userSockets[ownerId];
       if (ownerSocketInfo && ownerSocketInfo.socketId) {
-        io.to(ownerSocketInfo.socketId).emit('requesterArrived', { spotId, requesterId });
+        io.to(ownerSocketInfo.socketId).emit('requesterArrived', { 
+          spotId, 
+          requesterId, 
+          requesterUsername 
+        });
       }
     } catch (error) {
-      console.error('Error confirming arrival:', error);
+      console.error('Error handling requester arrival:', error);
     }
   });
 
-  socket.on('acknowledgeArrival', async (data) => {
+  socket.on('confirm-transaction', async (data) => {
     const { spotId, requesterId } = data;
     const client = await pool.connect();
 

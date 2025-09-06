@@ -4,7 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
 import { getDistance } from './utils/geoUtils';
-import { emitRegister, emitUnregister, socket, emitConfirmArrival } from './socket';
+import { emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
 import DeclareSpot from './components/DeclareSpot';
@@ -19,6 +19,7 @@ import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
+import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
@@ -106,6 +107,8 @@ function MainAppContent() {
   }, []);
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
   const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false); // State for AcceptedRequestModal
+  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
+  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
   const [acceptedRequestOwnerUsername, setAcceptedRequestOwnerUsername] = useState(''); // State for the username of the owner who accepted the request
   const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
@@ -407,24 +410,11 @@ function MainAppContent() {
   }, [addNotification, playSoundAcceptedRequest]);
 
   useEffect(() => {
-    if (acceptedSpot && userLocation) {
-      const distance = getDistance(
-        userLocation[0],
-        userLocation[1],
-        parseFloat(acceptedSpot.latitude),
-        parseFloat(acceptedSpot.longitude)
-      );
-
-      if (distance < 0.05) { // 50 meters
-        emitConfirmArrival({ spotId: acceptedSpot.id, requesterId: currentUserId });
-      }
-    }
-  }, [acceptedSpot, userLocation, currentUserId]);
-
-  useEffect(() => {
     const handleRequesterArrived = (data) => {
-      const message = `User ${data.requesterId} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
       addNotification(message, 'default');
+      setArrivalConfirmationData(data);
+      setArrivalConfirmationModalOpen(true);
     };
 
     socket.on('requesterArrived', handleRequesterArrived);
@@ -433,6 +423,22 @@ function MainAppContent() {
       socket.off('requesterArrived', handleRequesterArrived);
     };
   }, [addNotification]);
+
+  const handleConfirmArrival = () => {
+    if (arrivalConfirmationData) {
+      socket.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      setArrivalConfirmationData(null);
+    }
+  };
+
+  const handleCloseArrivalModal = () => {
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
 
   useEffect(() => {
     const handleRequestCancelled = (data) => {
@@ -620,6 +626,14 @@ function MainAppContent() {
           userData={profileUserData}
         />
       )}
+
+      <ArrivalConfirmationModal
+        isOpen={isArrivalConfirmationModalOpen}
+        onClose={handleCloseArrivalModal}
+        onConfirm={handleConfirmArrival}
+        requesterUsername={arrivalConfirmationData?.requesterUsername}
+        spotId={arrivalConfirmationData?.spotId}
+      />
     </div>
   );
 }
