@@ -427,13 +427,37 @@ function MainAppContent() {
   }, [addNotification]);
 
   const handleConfirmArrival = () => {
-    if (arrivalConfirmationData) {
-      socket.emit('confirm-transaction', {
-        spotId: arrivalConfirmationData.spotId,
-        requesterId: arrivalConfirmationData.requesterId,
-      });
-      setArrivalConfirmationModalOpen(false);
-      setArrivalConfirmationData(null);
+    if (arrivalConfirmationData && userLocation) {
+      const spot = filteredParkingSpots.find(s => s.id === arrivalConfirmationData.spotId);
+
+      if (spot) {
+        const distance = getDistance(
+          userLocation[0],
+          userLocation[1],
+          spot.lat,
+          spot.lng
+        );
+
+        const distanceThreshold = 0.02; // 20 meters in kilometers
+
+        if (distance < distanceThreshold) {
+          socket.emit('confirm-transaction', {
+            spotId: arrivalConfirmationData.spotId,
+            requesterId: arrivalConfirmationData.requesterId,
+          });
+          setArrivalConfirmationModalOpen(false);
+          setArrivalConfirmationData(null);
+          addNotification('Arrival confirmed!', 'green');
+        } else {
+          addNotification('You are too far from the spot to confirm arrival. Please get closer (within 20 meters).', 'red');
+          setArrivalConfirmationModalOpen(false);
+          setArrivalConfirmationData(null);
+        }
+      } else {
+        addNotification('Spot data not found for arrival confirmation.', 'red');
+        setArrivalConfirmationModalOpen(false);
+        setArrivalConfirmationData(null);
+      }
     }
   };
 
