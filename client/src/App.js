@@ -22,12 +22,14 @@ import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import 
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
+import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import './App.css';
 
 function MainAppContent() {
   const audioContextRef = useRef(null);
   const audioBufferRef = useRef(null);
   const removeRequestAudioBufferRef = useRef(null);
+  const acceptedRequestAudioBufferRef = useRef(null);
   useEffect(() => {
     const initAudio = async () => {
       try {
@@ -39,6 +41,10 @@ function MainAppContent() {
         const removeRequestResponse = await fetch(removeRequestSound);
         const removeRequestArrayBuffer = await removeRequestResponse.arrayBuffer();
         removeRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(removeRequestArrayBuffer);
+
+        const acceptedRequestResponse = await fetch(acceptedRequestSound);
+        const acceptedRequestArrayBuffer = await acceptedRequestResponse.arrayBuffer();
+        acceptedRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(acceptedRequestArrayBuffer);
       } catch (error) {
         console.error("Error initializing audio:", error);
       }
@@ -65,6 +71,18 @@ function MainAppContent() {
       }
       const source = audioContextRef.current.createBufferSource();
       source.buffer = removeRequestAudioBufferRef.current;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+    }
+  }, []);
+
+  const playSoundAcceptedRequest = useCallback(() => {
+    if (audioContextRef.current && acceptedRequestAudioBufferRef.current) {
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = acceptedRequestAudioBufferRef.current;
       source.connect(audioContextRef.current.destination);
       source.start(0);
     }
@@ -350,6 +368,7 @@ function MainAppContent() {
       if (data.message.includes('ACCEPTED')) {
         setAcceptedRequestOwnerUsername(data.ownerUsername);
         setShowAcceptedRequestModal(true);
+        playSoundAcceptedRequest();
       }
       addNotification(data.message, 'default');
       if (data.spot) {
@@ -385,7 +404,7 @@ function MainAppContent() {
     return () => {
       socket.off('requestResponse', handleRequestResponse);
     };
-  }, [addNotification]);
+  }, [addNotification, playSoundAcceptedRequest]);
 
   useEffect(() => {
     if (acceptedSpot && userLocation) {
