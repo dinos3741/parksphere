@@ -1,0 +1,60 @@
+/* From OwnerSpotPopup.css */
+.leaflet-popup-content-wrapper {
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.leaflet-popup-content {
+    margin: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.leaflet-popup-tip-container {
+    visibility: visible;
+}
+
+.leaflet-popup-tip {
+    background: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.leaflet-popup-close-button {
+    color: #555;
+    font-size: 20px;
+}
+
+.leaflet-popup-close-button:hover {
+    color: #000;
+}
+
+/* From AcceptedSpotDetailsModal.css, adapted for the popup */
+.requester-spot-popup {
+  width: 280px;
+  text-align: center;
+}
+
+.requester-spot-popup .title {
+  font-size: 20px;
+  color: #252c7e;
+  margin-bottom: 12px;
+}
+
+.requester-spot-popup .modal-actions button {
+  margin: 5px;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.requester-spot-popup .accept-button {
+  background-color: #4CAF50; /* Green */
+  color: white;
+}
+
+.requester-spot-popup .decline-button {
+  background-color: #f44336; /* Red */
+  color: white;
+}

@@ -10,7 +10,7 @@ import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
 import OwnerSpotPopup from './OwnerSpotPopup';
-import AcceptedSpotDetailsModal from './AcceptedSpotDetailsModal'; // Import AcceptedSpotDetailsModal
+import RequesterSpotPopup from './RequesterSpotPopup';
 import { emitter } from '../emitter';
 
 
@@ -56,8 +56,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [eta, setEta] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
-  const [showAcceptedSpotDetailsModal, setShowAcceptedSpotDetailsModal] = useState(false);
-  const [selectedAcceptedSpot, setSelectedAcceptedSpot] = useState(null);
+
   useEffect(() => {
     if (popup && popupRef.current) {
       popupRef.current.openPopup();
@@ -327,6 +326,14 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
+  const handleArrived = (spotId) => {
+    // We will implement this in the next step
+    console.log(`Arrived at spot ${spotId}`);
+    if (mapRef.current) {
+      mapRef.current.closePopup();
+    }
+  };
+
   
 
   return (
@@ -367,45 +374,37 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
               <Marker 
                 position={[lat, lng]} 
                 icon={parkingSpotIcon}
-                eventHandlers={{
-                  click: () => {
-                    if (acceptedSpot && acceptedSpot.id === spot.id) {
-                      setSelectedAcceptedSpot(spot);
-                      setShowAcceptedSpotDetailsModal(true);
-                    } else if (isOwner) {
-                      // This is the owner of the spot, let the popup handle it
-                    } else {
-                      // This is a spot that is not the accepted one, let the popup handle it
-                    }
-                  },
-                }}
               >
-                {! (acceptedSpot && acceptedSpot.id === spot.id) &&
-                  <Popup>
-                    <div>
-                      {isOwner ? (
-                        <OwnerSpotPopup 
-                          spot={spot} 
-                          onEdit={handleNewButtonClick} 
-                          onDelete={handleDelete} 
-                          formatRemainingTime={formatRemainingTime} 
-                        />
-                      ) : (
-                        // This is a revealed spot, but not owned by current user
-                        // Hide the request button if this spot is the accepted one
-                        <div className="request-button-container">
-                          <hr />
-                          <button
-                            onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                            className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
-                          >
-                            {isPending ? 'Cancel Request' : 'Request'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </Popup>
-                }
+                <Popup>
+                  <div>
+                    {isOwner ? (
+                      <OwnerSpotPopup 
+                        spot={spot} 
+                        onEdit={handleNewButtonClick} 
+                        onDelete={handleDelete} 
+                        formatRemainingTime={formatRemainingTime} 
+                      />
+                    ) : (acceptedSpot && acceptedSpot.id === spot.id) ? (
+                      <RequesterSpotPopup
+                        spot={spot}
+                        onClose={() => mapRef.current.closePopup()}
+                        onArrived={handleArrived}
+                      />
+                    ) : (
+                      // This is a revealed spot, but not owned by current user
+                      // Hide the request button if this spot is the accepted one
+                      <div className="request-button-container">
+                        <hr />
+                        <button
+                          onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
+                          className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
+                        >
+                          {isPending ? 'Cancel Request' : 'Request'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </Popup>
               </Marker>
             ) : (
               <Circle
@@ -466,18 +465,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
             {popup.content}
           </Popup>
         </Marker>
-      )}
-
-      {showAcceptedSpotDetailsModal && selectedAcceptedSpot && (
-        <AcceptedSpotDetailsModal
-          spot={selectedAcceptedSpot}
-          onClose={() => setShowAcceptedSpotDetailsModal(false)}
-          onArrived={(spotId) => {
-            // We will implement this in the next step
-            console.log(`Arrived at spot ${spotId}`);
-            setShowAcceptedSpotDetailsModal(false);
-          }}
-        />
       )}
     </MapContainer>
   );
