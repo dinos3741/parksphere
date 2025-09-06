@@ -1,9 +1,0 @@
-feat: Implement request declined notification
-
-This commit introduces a new feature that notifies the requester when a spot owner declines their parking spot request.
-
-Changes include:
-- Server-side: Modified the `declineRequest` socket handler in `server/index.js` to emit a `requestDeclined` event to the requester with a specific message.
-- Client-side:
-  - Added a new `SpotDeclinedModal` component (`client/src/components/SpotDeclinedModal.js` and `.css`) to display the notification.
-  - Updated `client/src/App.js` to import and render the new modal, and to listen for the `requestDeclined` socket event to trigger the modal display.
