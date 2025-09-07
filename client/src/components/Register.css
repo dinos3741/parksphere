@@ -33,7 +33,7 @@
 }
 
 .spacer {
-  height: 0px; /* Adjust this value to control the vertical position */
+  height: 30px; /* Adjust this value to control the vertical position */
 }
 
 .auth-container {
@@ -44,7 +44,7 @@
   padding: 20px;
   position: relative;
   z-index: 1;
-  margin-top: -20px; /* Pushes the form up */
+  margin-top: 0px; /* Pushes the form up */
 }
 
 .auth-container h2 {
@@ -138,4 +138,28 @@
   .auth-container {
     margin-top: 10px; /* Space below tagline */
   }
+}
+
+@media (max-width: 480px) {
+  .register-header .logo {
+    font-size: 2rem;
+  }
+
+  .register-header .tagline {
+    font-size: 1rem;
+  }
+
+  .auth-container form {
+    padding: 20px;
+  }
+}
+
+.App-footer {
+  text-align: center;
+  font-size: 1rem;
+  color: blue;
+  background-color: #547abb; /* Blue Ciel */
+  width: 100%; /* Full width */
+  /* margin-top: 10px; */ /* Remove this line */
+  border-radius: 10px; /* Rounded corners */
 }
