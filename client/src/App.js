@@ -19,7 +19,6 @@ import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
-import SpotDeclinedModal from './components/SpotDeclinedModal';
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
@@ -108,7 +107,6 @@ function MainAppContent() {
   }, []);
   const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
   const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false); // State for AcceptedRequestModal
-  const [showSpotDeclinedModal, setShowSpotDeclinedModal] = useState(false);
   const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
   const [acceptedRequestOwnerUsername, setAcceptedRequestOwnerUsername] = useState(''); // State for the username of the owner who accepted the request
@@ -481,19 +479,6 @@ function MainAppContent() {
   }, [addNotification]);
 
   useEffect(() => {
-    const handleRequestDeclined = (data) => {
-      setShowSpotDeclinedModal(true);
-      addNotification(data.message, 'red');
-    };
-
-    socket.on('requestDeclined', handleRequestDeclined);
-
-    return () => {
-      socket.off('requestDeclined', handleRequestDeclined);
-    };
-  }, [addNotification]);
-
-  useEffect(() => {
     const handleTransactionComplete = () => {
       fetchProfileData();
     };
@@ -656,13 +641,6 @@ function MainAppContent() {
         <AcceptedRequestModal 
           onClose={() => setShowAcceptedRequestModal(false)} 
           ownerUsername={acceptedRequestOwnerUsername} 
-        />
-      )}
-
-      {showSpotDeclinedModal && (
-        <SpotDeclinedModal 
-          isOpen={showSpotDeclinedModal} 
-          onClose={() => setShowSpotDeclinedModal(false)} 
         />
       )}
 
