@@ -337,7 +337,7 @@ app.get('/api/user/pending-requests', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
+  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 

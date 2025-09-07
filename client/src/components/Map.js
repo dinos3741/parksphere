@@ -60,6 +60,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [popup, setPopup] = useState(null);
   const [drawerSpot, setDrawerSpot] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
+  const [currentUserCarType, setCurrentUserCarType] = useState(null);
 
   useEffect(() => {
     if (popup && popupRef.current) {
@@ -92,10 +93,35 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
+  const fetchUserCarType = async (userId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.car_type;
+      } else {
+        console.error('Error fetching user car type:', response.statusText);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error fetching user car type:', error);
+      return null;
+    }
+  };
+
   const handleUserMarkerClick = async () => {
     setDrawerSpot(null);
     const address = await fetchUserAddress(userLocation[0], userLocation[1]);
     setUserAddress(address);
+    if (currentUserId) {
+      const carType = await fetchUserCarType(currentUserId);
+      setCurrentUserCarType(carType);
+    }
   };
 
 
@@ -494,9 +520,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       <SideDrawer 
         spot={drawerSpot} 
         userAddress={userAddress}
+        currentUserCarType={currentUserCarType}
         onClose={() => {
           setDrawerSpot(null);
           setUserAddress(null);
+          setCurrentUserCarType(null);
         }}
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}

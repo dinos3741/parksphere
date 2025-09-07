@@ -50,6 +50,7 @@
 .side-drawer-content p {
   margin: 0 0 0.5rem 0;
   color: blue;
+  text-align: left;
 }
 
 .side-drawer-footer {
