@@ -9,10 +9,11 @@ import markerRed from './icons/marker-icon-red.png';
 import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
-import OwnerSpotPopup from './OwnerSpotPopup';
+
 import RequesterSpotPopup from './RequesterSpotPopup';
 import { emitter } from '../emitter';
 import { socket } from '../socket';
+import SideDrawer from './SideDrawer';
 
 
 // Fix for default marker icon not showing
@@ -57,6 +58,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [eta, setEta] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
+  const [drawerSpot, setDrawerSpot] = useState(null);
 
   useEffect(() => {
     if (popup && popupRef.current) {
@@ -224,6 +226,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
         if (response.ok) {
           addNotification(`Parking spot ${spotId} deleted successfully!`, 'default');
+          setDrawerSpot(null);
         } else if (response.status === 401 || response.status === 403) {
           addNotification("Authentication failed or not authorized to delete this spot.", 'default');
         } else {
@@ -237,15 +240,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
-  const handleNewButtonClick = (spotId) => {
-    console.log(`Edit button clicked for spot ID: ${spotId}`);
-    // Find the full spot object from parkingSpots to pass to the modal
-    const spot = parkingSpots.find(s => s.id === spotId);
+  const handleNewButtonClick = (spot) => {
+    console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
       onEditSpot(spot); // Call the callback from App.js
-      if (mapRef.current) {
-        mapRef.current.closePopup(); // Close the map popup
-      }
+      setDrawerSpot(null); // Close the drawer
     }
   };
 
@@ -335,139 +334,146 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
-  
+  const handleOwnerSpotClick = (spot) => {
+    setDrawerSpot(spot);
+  };
 
   return (
-    <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
-      <button className="locate-me-button" onClick={handleLocateMe}>
-        <span className="crosshair-icon"></span>
-      </button>
-      <Marker position={userLocation} icon={userIcon}>
-        <Popup>
-          Your current location.
-        </Popup>
-      </Marker>
-
-      {parkingSpots.map(spot => {
-        const lat = spot.lat;
-        const lng = spot.lng;
-
-        if (isNaN(lat) || isNaN(lng)) {
-          console.warn(`Skipping invalid parking spot coordinates for ID: ${spot.id}. Lat: ${lat}, Lng: ${lng}`);
-          return null;
-        }
-
-        const isOwner = spot.user_id === currentUserId;
-        const isExactLocation = spot.isExactLocation; // Use the flag from the backend
-        const isPending = pendingRequests.includes(spot.id);
-        
-
-        if (acceptedSpot) {
-        }
-
-        return (
-          <React.Fragment key={spot.id}>
-            {isExactLocation ? (
-              <Marker 
-                position={[lat, lng]} 
-                icon={parkingSpotIcon}
-              >
-                <Popup>
-                  <div>
-                    {isOwner ? (
-                      <OwnerSpotPopup 
-                        spot={spot} 
-                        onEdit={handleNewButtonClick} 
-                        onDelete={handleDelete} 
-                        formatRemainingTime={formatRemainingTime} 
-                      />
-                    ) : (acceptedSpot && acceptedSpot.id === spot.id) ? (
-                      <RequesterSpotPopup
-                        spot={spot}
-                        onClose={() => mapRef.current.closePopup()}
-                        onArrived={handleArrived}
-                      />
-                    ) : (
-                      // This is a revealed spot, but not owned by current user
-                      // Hide the request button if this spot is the accepted one
-                      <div className="request-button-container">
-                        <hr />
-                        <button
-                          onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                          className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
-                        >
-                          {isPending ? 'Cancel Request' : 'Request'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ) : (
-              <Circle
-                center={[lat, lng]}
-                radius={200}
-                pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}
-                className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}
-                eventHandlers={{
-                  click: () => {
-                    setPopup({
-                      position: [lat, lng],
-                      content: (
-                        <div>
-                          {isOwner ? (
-                            <OwnerSpotPopup
-                              spot={spot}
-                              onEdit={handleNewButtonClick}
-                              onDelete={handleDelete}
-                              formatRemainingTime={formatRemainingTime}
-                              onClose={() => setPopup(null)}
-                            />
-                          ) : (
-                            <>
-                              Parking Spot ID: {spot.id} <br />
-                              Declared by: {spot.username} <br />
-                              Cost Type: {spot.cost_type} <br />
-                              Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                              Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
-                              Comments: {spot.comments}
-                              {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
-                              {acceptedSpot && acceptedSpot.id === spot.id ? null : (
-                                <div className="request-button-container">
-                                  <hr />
-                                  <button
-                                    onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                                    className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
-                                  >
-                                    {isPending ? 'Cancel Request' : 'Request'}
-                                  </button>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )
-                    });
-                  }
-                }}
-              />
-            )}
-          </React.Fragment>
-        );
-      })}
-
-      {popup && (
-        <Marker ref={popupRef} position={popup.position} icon={invisibleIcon}>
-          <Popup onClose={() => setPopup(null)}>
-            {popup.content}
+    <>
+      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <button className="locate-me-button" onClick={handleLocateMe}>
+          <span className="crosshair-icon"></span>
+        </button>
+        <Marker position={userLocation} icon={userIcon}>
+          <Popup>
+            Your current location.
           </Popup>
         </Marker>
-      )}
-    </MapContainer>
+
+        {parkingSpots.map(spot => {
+          const lat = spot.lat;
+          const lng = spot.lng;
+
+          if (isNaN(lat) || isNaN(lng)) {
+            console.warn(`Skipping invalid parking spot coordinates for ID: ${spot.id}. Lat: ${lat}, Lng: ${lng}`);
+            return null;
+          }
+
+          const isOwner = spot.user_id === currentUserId;
+          const isExactLocation = spot.isExactLocation; // Use the flag from the backend
+          const isPending = pendingRequests.includes(spot.id);
+          
+
+          if (acceptedSpot) {
+          }
+
+          return (
+            <React.Fragment key={spot.id}>
+              {isExactLocation ? (
+                <Marker
+                  position={[lat, lng]}
+                  icon={parkingSpotIcon}
+                  eventHandlers={{
+                    click: () => {
+                      if (isOwner) {
+                        handleOwnerSpotClick(spot);
+                      }
+                    },
+                  }}
+                >
+                  {!isOwner && (
+                    <Popup>
+                      <div>
+                        {(acceptedSpot && acceptedSpot.id === spot.id) ? (
+                          <RequesterSpotPopup
+                            spot={spot}
+                            onClose={() => mapRef.current.closePopup()}
+                            onArrived={handleArrived}
+                          />
+                        ) : (
+                          // This is a revealed spot, but not owned by current user
+                          // Hide the request button if this spot is the accepted one
+                          <div className="request-button-container">
+                            <hr />
+                            <button
+                              onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
+                              className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
+                            >
+                              {isPending ? 'Cancel Request' : 'Request'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </Popup>
+                  )}
+                </Marker>
+              ) : (
+                <Circle
+                  center={[lat, lng]}
+                  radius={200}
+                  pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}
+                  className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}
+                  eventHandlers={{
+                    click: () => {
+                      if (isOwner) {
+                        handleOwnerSpotClick(spot);
+                      } else {
+                        setPopup({
+                          position: [lat, lng],
+                          content: (
+                            <div>
+                              <>
+                                Parking Spot ID: {spot.id} <br />
+                                Declared by: {spot.username} <br />
+                                Cost Type: {spot.cost_type} <br />
+                                Price: €{ (spot.price ?? 0).toFixed(2) } <br />
+                                Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
+                                Comments: {spot.comments}
+                                {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
+                                {acceptedSpot && acceptedSpot.id === spot.id ? null : (
+                                  <div className="request-button-container">
+                                    <hr />
+                                    <button
+                                      onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
+                                      className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
+                                    >
+                                      {isPending ? 'Cancel Request' : 'Request'}
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            </div>
+                          )
+                        });
+                      }
+                    }
+                  }}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+
+        {popup && (
+          <Marker ref={popupRef} position={popup.position} icon={invisibleIcon}>
+            <Popup onClose={() => setPopup(null)}>
+              {popup.content}
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
+      <SideDrawer 
+        spot={drawerSpot} 
+        onClose={() => setDrawerSpot(null)}
+        onEdit={handleNewButtonClick}
+        onDelete={handleDelete}
+        formatRemainingTime={formatRemainingTime}
+      />
+    </>
   );
 };
 
