@@ -1,4 +1,5 @@
 import locationIcon from '../assets/images/location.png';
+import carIcon from '../assets/images/car.png';
 import React, { useEffect, useRef } from 'react';
 import './SideDrawer.css';
 
@@ -31,8 +32,8 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       </div>
       {userAddress ? (
         <div className="side-drawer-content">
-          <p><span style={{ display: 'flex', alignItems: 'flex-start' }}><img src={locationIcon} alt="Location" style={{ width: '28px', height: '28px', marginRight: '10px' }} /> {userAddress}</span></p>
-          {currentUserCarType && <p><span style={{ color: '#333', display: 'flex', alignItems: 'center' }}><strong>🚗</strong> {currentUserCarType.charAt(0).toUpperCase() + currentUserCarType.slice(1)}</span></p>}
+          <p style={{ paddingBottom: '20px' }}><span style={{ display: 'flex', alignItems: 'flex-start' }}><img src={locationIcon} alt="Location" style={{ width: '28px', height: '28px', marginRight: '10px' }} /> {userAddress}</span></p>
+          {currentUserCarType && <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px', marginRight: '8px' }} /> {currentUserCarType.charAt(0).toUpperCase() + currentUserCarType.slice(1)}</span></p>}
         </div>
       ) : spot && (
         <>
@@ -42,7 +43,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             <p><strong>Cost Type:</strong> {spot.cost_type}</p>
             <p><strong>Price:</strong> €{(spot.price ?? 0).toFixed(2)}</p>
             <p><strong>Comments:</strong> {spot.comments}</p>
-            <p><span style={{ color: '#333', display: 'flex', alignItems: 'center' }}><strong>🚗</strong> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
+            <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px', marginRight: '8px' }} /> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
           </div>
           <div className="side-drawer-footer">
             <button onClick={() => onEdit(spot)} className="edit-button">Edit</button>
