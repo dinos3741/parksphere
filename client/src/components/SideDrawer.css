@@ -29,7 +29,7 @@
 
 .side-drawer-header h3 {
   margin: 0;
-  color: blue;
+  color: #7A1BE0;
   font-weight: bold;
 }
 
@@ -49,7 +49,7 @@
 
 .side-drawer-content p {
   margin: 0;
-  color: blue;
+  color: #7A1BE0;
   text-align: left;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .spot-detail-text {
-  color: blue; /* Dark gray color for better visibility */
+  color: #7A1BE0; /* Dark gray color for better visibility */
   text-align: left;
   line-height: 1.5;
 }

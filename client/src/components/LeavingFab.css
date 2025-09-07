@@ -6,7 +6,7 @@
   width: 88px; /* Make it big */
   height: 88px; /* Make it round */
   border-radius: 50%; /* Make it round */
-  background-color: #4CAF50; /* Green background */
+  background-color: #8A2BE2; /* Light blue-purple background */
   color: white;
   font-size: 1.1em;
   border: none;
@@ -20,7 +20,7 @@
 }
 
 .leaving-fab:hover {
-  background-color: #45a049;
+  background-color: #7A1BE0;
 }
 
 /* Overlay styles */
