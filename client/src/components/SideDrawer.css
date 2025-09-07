@@ -25,11 +25,13 @@
   padding: 1rem;
   border-bottom: 1px solid #eee;
   position: relative;
+  background-color: #7A1BE0; /* Light blue-purple background */
+  border-top-left-radius: 15px;
 }
 
 .side-drawer-header h3 {
   margin: 0;
-  color: #7A1BE0;
+  color: white;
   font-weight: bold;
 }
 
