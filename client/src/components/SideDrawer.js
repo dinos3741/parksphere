@@ -1,5 +1,10 @@
 import locationIcon from '../assets/images/location.png';
 import carIcon from '../assets/images/car.png';
+import spotIcon from '../assets/images/spot.png';
+import timeIcon from '../assets/images/time.png';
+import costIcon from '../assets/images/cost.png';
+import priceIcon from '../assets/images/price.png';
+import commentsIcon from '../assets/images/comments.png';
 import React, { useEffect, useRef } from 'react';
 import './SideDrawer.css';
 
@@ -38,12 +43,12 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       ) : spot && (
         <>
           <div className="side-drawer-content">
-            <p><strong>Spot ID:</strong> {spot.id}</p>
-            <p><strong>Time until expiration:</strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</p>
-            <p><strong>Cost Type:</strong> {spot.cost_type}</p>
-            <p><strong>Price:</strong> €{(spot.price ?? 0).toFixed(2)}</p>
-            <p><strong>Comments:</strong> {spot.comments}</p>
-            <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px', marginRight: '8px' }} /> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
+            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Spot ID: &nbsp;</strong> {spot.id}</span></p>
+            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Time to Expire: &nbsp;</strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</span></p>
+            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px', marginRight: '8px' }} /><strong>Cost Type: &nbsp;</strong> {spot.cost_type}</span></p>
+            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Price: &nbsp;</strong> €{(spot.price ?? 0).toFixed(2)}</span></p>
+            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Comments:</strong> {spot.comments}</span></p>
+            <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
           </div>
           <div className="side-drawer-footer">
             <button onClick={() => onEdit(spot)} className="edit-button">Edit</button>
