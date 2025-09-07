@@ -42,12 +42,12 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
         </div>
       ) : spot && (
         <>
-          <div className="side-drawer-content">
-            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Spot ID: &nbsp;</strong> {spot.id}</span></p>
-            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Time to Expire: &nbsp;</strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</span></p>
-            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px', marginRight: '8px' }} /><strong>Cost Type: &nbsp;</strong> {spot.cost_type}</span></p>
-            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Price: &nbsp;</strong> €{(spot.price ?? 0).toFixed(2)}</span></p>
-            <p><span style={{ display: 'flex', alignItems: 'center' }}><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px', marginRight: '8px' }} /><strong>Comments:</strong> {spot.comments}</span></p>
+          <div className="side-drawer-content spot-details-grid">
+            <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Spot ID: </strong> {spot.id}</div>
+            <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
+            <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
+            <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
+            <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments}</div>
             <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
           </div>
           <div className="side-drawer-footer">

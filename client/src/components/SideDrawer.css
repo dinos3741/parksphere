@@ -29,7 +29,7 @@
 
 .side-drawer-header h3 {
   margin: 0;
-  color: black;
+  color: blue;
   font-weight: bold;
 }
 
@@ -48,9 +48,17 @@
 }
 
 .side-drawer-content p {
-  margin: 0 0 0.5rem 0;
+  margin: 0;
   color: blue;
   text-align: left;
+}
+
+.spot-details-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 10px; /* Row gap, Column gap */
+  grid-auto-rows: 35px;
+  align-items: start;
 }
 
 .side-drawer-footer {
@@ -58,6 +66,12 @@
   border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
+}
+
+.spot-detail-text {
+  color: blue; /* Dark gray color for better visibility */
+  text-align: left;
+  line-height: 1.5;
 }
 
 .edit-button, .delete-button {
