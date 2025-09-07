@@ -33,7 +33,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
     <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
       <div className="side-drawer-header">
         <h3>{userAddress ? 'User Details' : 'Spot Details'}</h3>
-        <button onClick={onClose} className="close-button">&times;</button>
       </div>
       {userAddress ? (
         <div className="side-drawer-content">
@@ -48,7 +47,12 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
             <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
             <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
+            <hr style={{ gridColumn: '1 / -1', margin: '10px 0 0 0', borderColor: '#eee' }} />
             <p><span style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '5px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</span></p>
+          </div>
+          <div className="requests-section">
+            <h3>Requests</h3>
+            {/* Requests will be rendered here */}
           </div>
           <div className="side-drawer-footer">
             <button onClick={() => onEdit(spot)} className="edit-button">Edit</button>
