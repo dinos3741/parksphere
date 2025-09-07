@@ -59,6 +59,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
   const [drawerSpot, setDrawerSpot] = useState(null);
+  const [userAddress, setUserAddress] = useState(null);
 
   useEffect(() => {
     if (popup && popupRef.current) {
@@ -78,6 +79,23 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     if (mapRef.current && userLocation) {
       mapRef.current.flyTo(userLocation, 15); // Adjust zoom level as needed
     }
+  };
+
+  const fetchUserAddress = async (lat, lng) => {
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const data = await response.json();
+      return data.display_name;
+    } catch (error) {
+      console.error('Error fetching address:', error);
+      return 'Could not fetch address.';
+    }
+  };
+
+  const handleUserMarkerClick = async () => {
+    setDrawerSpot(null);
+    const address = await fetchUserAddress(userLocation[0], userLocation[1]);
+    setUserAddress(address);
   };
 
 
@@ -335,8 +353,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   };
 
   const handleOwnerSpotClick = (spot) => {
+    setUserAddress(null);
     setDrawerSpot(spot);
   };
+
+  
 
   return (
     <>
@@ -348,11 +369,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         <button className="locate-me-button" onClick={handleLocateMe}>
           <span className="crosshair-icon"></span>
         </button>
-        <Marker position={userLocation} icon={userIcon}>
-          <Popup>
-            Your current location.
-          </Popup>
-        </Marker>
+        <Marker 
+          position={userLocation} 
+          icon={userIcon}
+          eventHandlers={{
+            click: () => {
+              handleUserMarkerClick();
+            },
+          }}
+        />
 
         {parkingSpots.map(spot => {
           const lat = spot.lat;
@@ -468,7 +493,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       </MapContainer>
       <SideDrawer 
         spot={drawerSpot} 
-        onClose={() => setDrawerSpot(null)}
+        userAddress={userAddress}
+        onClose={() => {
+          setDrawerSpot(null);
+          setUserAddress(null);
+        }}
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}
         formatRemainingTime={formatRemainingTime}

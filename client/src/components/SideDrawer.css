@@ -20,14 +20,17 @@
 
 .side-drawer-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid #eee;
+  position: relative;
 }
 
 .side-drawer-header h3 {
   margin: 0;
+  color: black;
+  font-weight: bold;
 }
 
 .close-button {
@@ -35,6 +38,8 @@
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
+  position: absolute;
+  right: 1rem;
 }
 
 .side-drawer-content {
@@ -44,6 +49,7 @@
 
 .side-drawer-content p {
   margin: 0 0 0.5rem 0;
+  color: blue;
 }
 
 .side-drawer-footer {

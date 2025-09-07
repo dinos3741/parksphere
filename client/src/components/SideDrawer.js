@@ -1,14 +1,39 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import './SideDrawer.css';
 
-const SideDrawer = ({ spot, onClose, onEdit, onDelete, formatRemainingTime }) => {
+const SideDrawer = ({ spot, userAddress, onClose, onEdit, onDelete, formatRemainingTime }) => {
+  const drawerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (drawerRef.current && !drawerRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    if (spot || userAddress) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [spot, userAddress, onClose]);
+
   return (
-    <div className={`side-drawer ${spot ? 'open' : ''}`}>
+    <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
       <div className="side-drawer-header">
-        <h3>Spot Details</h3>
+        <h3>{userAddress ? 'User Location' : 'Spot Details'}</h3>
         <button onClick={onClose} className="close-button">&times;</button>
       </div>
-      {spot && (
+      {userAddress ? (
+        <div className="side-drawer-content">
+          <p><strong>Current Address:</strong></p>
+          <p>{userAddress}</p>
+        </div>
+      ) : spot && (
         <>
           <div className="side-drawer-content">
             <p><strong>Spot ID:</strong> {spot.id}</p>
