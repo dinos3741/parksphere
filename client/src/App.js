@@ -269,6 +269,7 @@ function MainAppContent() {
         isExactLocation: spot.isExactLocation,
         is_free: spot.is_free,
         declared_at: spot.declared_at,
+        cost_type: spot.cost_type,
       }));
       setFilteredParkingSpots(formattedSpots);
     } catch (error) {
