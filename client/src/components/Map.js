@@ -529,6 +529,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}
         formatRemainingTime={formatRemainingTime}
+        pendingRequests={pendingRequests}
+        currentUserId={currentUserId}
       />
     </>
   );

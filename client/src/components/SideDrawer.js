@@ -8,7 +8,7 @@ import commentsIcon from '../assets/images/comments.png';
 import React, { useEffect, useRef } from 'react';
 import './SideDrawer.css';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, pendingRequests, currentUserId }) => {
   const drawerRef = useRef(null);
 
   useEffect(() => {
@@ -28,6 +28,8 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [spot, userAddress, onClose]);
+
+  const relevantRequests = spot ? pendingRequests.filter(request => request.spotId === spot.id) : [];
 
   return (
     <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
@@ -52,7 +54,15 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             </div>
             <div className="requests-section">
               <h3>Requests</h3>
-              {/* Requests will be rendered here */}
+              {relevantRequests.length > 0 ? (
+                relevantRequests.map((request, index) => (
+                  <div key={index} className="request-item">
+                    <p>Requester: {request.requesterUsername}</p>
+                  </div>
+                ))
+              ) : (
+                <p style={{ color: '#7A1BE0', textAlign: 'left' }}>No requests until now</p>
+              )}
             </div>
             <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
           </div>
