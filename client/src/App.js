@@ -484,7 +484,6 @@ function MainAppContent() {
     const handleRequestDeclined = (data) => {
       setShowSpotDeclinedModal(true);
       addNotification(data.message, 'red');
-      setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
     };
 
     socket.on('requestDeclined', handleRequestDeclined);

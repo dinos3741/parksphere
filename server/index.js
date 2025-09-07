@@ -101,10 +101,10 @@ io.on('connection', (socket) => {
     const requesterSocket = userSockets[requesterId]?.socketId;
 
     try {
-      // Delete the request from the database
+      // Update the request status in the database
       await pool.query(
-        `DELETE FROM requests WHERE id = $1`,
-        [requestId]
+        `UPDATE requests SET status = 'rejected', responded_at = NOW() WHERE id = $1 AND spot_id = $2`,
+        [requestId, spotId]
       );
       console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
       console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
