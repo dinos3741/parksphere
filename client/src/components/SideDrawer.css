@@ -25,7 +25,7 @@
   padding: 1rem;
   border-bottom: 1px solid #eee;
   position: relative;
-  background-color: #4242AB; /* Light blue-purple background */
+  background-color: #603aac; /* Light blue-purple background */
   border-top-left-radius: 15px;
 }
 
@@ -46,7 +46,6 @@
 
 .side-drawer-content {
   padding: 1rem;
-  flex-grow: 1;
 }
 
 .side-drawer-content p {
@@ -79,7 +78,7 @@
 .edit-button, .delete-button {
     padding: 8px 12px;
     border: none;
-    border-radius: 15px;
+    border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
     margin: 0 5px;
@@ -87,23 +86,23 @@
 }
 
 .edit-button {
-    background-color: #4242AB; /* Purple-blue */
+    background-color: #3454bd; /* Purple-blue */
     color: white;
 }
 
 .delete-button {
-    background-color: #C70039; /* Purple-red */
+    background-color: #a5387b; /* Purple-red */
     color: white;
 }
 
 .requests-section {
   padding: 0 1rem; /* Match side-drawer-content padding */
-  margin-top: 10px;
+  margin-top: -20px;
 }
 
 .requests-section h3 {
   margin-top: 0;
   margin-bottom: 15px;
   color: #333; /* Darker color for heading */
-  text-align: center;
+  text-align: left;
 }
