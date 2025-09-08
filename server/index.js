@@ -368,13 +368,11 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     }
 
     // Add car type filtering
-    if (userCarType && CAR_SIZE_HIERARCHY[userCarType] !== undefined) {
-      const userCarSize = CAR_SIZE_HIERARCHY[userCarType];
+    if (userCarType && CAR_SIZE_HIERARCHY[userCarType.toLowerCase()] !== undefined) {
+      const userCarSize = CAR_SIZE_HIERARCHY[userCarType.toLowerCase()];
       const suitableCarTypes = Object.keys(CAR_SIZE_HIERARCHY).filter(type => CAR_SIZE_HIERARCHY[type] >= userCarSize);
       if (suitableCarTypes.length > 0) {
-        //const placeholders = suitableCarTypes.map((_, i) => `${queryParams.length + 1 + i}`).join(',');
-        const placeholders = suitableCarTypes.map((_, i) => `$${queryParams.length + 1 + i}`).join(',');
-
+        const placeholders = suitableCarTypes.map((_, i) => `${queryParams.length + 1 + i}`).join(',');
         conditions.push(`ps.declared_car_type IN (${placeholders})`);
         queryParams.push(...suitableCarTypes);
       }
