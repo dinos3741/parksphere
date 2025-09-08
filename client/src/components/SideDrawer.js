@@ -65,7 +65,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                         <div className="requester-car-type">{request.requester_car_type || 'N/A'}</div>
                       </div>
                       <div className="request-distance">
-                        {request.distance ? `${request.distance.toFixed(2)} km` : 'N/A'}
+                        {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                       </div>
                     </div>
                   ))}

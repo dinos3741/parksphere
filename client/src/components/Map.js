@@ -391,7 +391,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       });
       if (response.ok) {
         const data = await response.json();
-        setSpotRequests(data);
+        const formattedData = data.map(req => ({...req, distance: parseFloat(req.distance)}));
+        setSpotRequests(formattedData);
       } else {
         console.error('Error fetching spot requests:', response.statusText);
       }
