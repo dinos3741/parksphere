@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import './ChangeCarTypeModal.css';
 
+const CAR_TYPES = ['Sedan', 'SUV', 'Truck', 'Van', 'Motorcycle', 'Coupe', 'Hatchback', 'Convertible', 'Wagon', 'Minivan', 'Pickup'];
+
 const ChangeCarTypeModal = ({ onClose }) => {
   const [carType, setCarType] = useState('');
   const [carColor, setCarColor] = useState('');
@@ -23,14 +25,19 @@ const ChangeCarTypeModal = ({ onClose }) => {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="car-type">New Car Type:</label>
-              <input
-                type="text"
+              <select
                 id="car-type"
                 value={carType}
                 onChange={(e) => setCarType(e.target.value)}
-                placeholder="e.g., Sedan, SUV, Truck"
                 required
-              />
+              >
+                <option value="">Select Car Type</option>
+                {CAR_TYPES.map((type) => (
+                  <option key={type} value={type.toLowerCase()}>
+                    {type}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="form-group">
               <label htmlFor="car-color">New Car Color:</label>
