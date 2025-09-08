@@ -519,6 +519,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         formatRemainingTime={formatRemainingTime}
         spotRequests={spotRequests}
         currentUserId={currentUserId}
+        addNotification={addNotification}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}

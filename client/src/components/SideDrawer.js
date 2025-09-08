@@ -5,11 +5,36 @@ import timeIcon from '../assets/images/time.png';
 import costIcon from '../assets/images/cost.png';
 import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import './SideDrawer.css';
+import RequestActionModal from './RequestActionModal';
+import { socket } from '../socket';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification }) => {
   const drawerRef = useRef(null);
+  const [showRequestActionModal, setShowRequestActionModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+
+  const handleRequestItemClick = (request) => {
+    setSelectedRequest(request);
+    setShowRequestActionModal(true);
+  };
+
+  const handleConfirmRequest = (request) => {
+    // Emit socket event to backend to accept the request
+    console.log('Confirming request:', request);
+    // Example: socket.emit('acceptRequest', { requestId: request.id, requesterId: request.requester_id, spotId: spot.id });
+    addNotification(`Request from ${request.requester_username} confirmed! (Action not yet sent to backend)`, 'green');
+    setShowRequestActionModal(false);
+  };
+
+  const handleRejectRequest = (request) => {
+    // Emit socket event to backend to reject the request
+    console.log('Rejecting request:', request);
+    // Example: socket.emit('declineRequest', { requestId: request.id, requesterId: request.requester_id, spotId: spot.id });
+    addNotification(`Request from ${request.requester_username} rejected! (Action not yet sent to backend)`, 'red');
+    setShowRequestActionModal(false);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -55,7 +80,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
               {spotRequests && spotRequests.length > 0 ? (
                 <div className="requests-list">
                   {spotRequests.map((request, index) => (
-                    <div key={index} className="request-item">
+                    <div key={index} className="request-item" onClick={() => handleRequestItemClick(request)}>
                       <div className="requester-avatar">
                         {/* Placeholder for avatar */}
                         <i className="fas fa-user-circle"></i>
@@ -81,6 +106,14 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             <button onClick={() => onDelete(spot.id)} className="delete-button">Delete</button>
           </div>
         </>
+      )}
+      {showRequestActionModal && (
+        <RequestActionModal
+          request={selectedRequest}
+          onConfirm={handleConfirmRequest}
+          onReject={handleRejectRequest}
+          onClose={() => setShowRequestActionModal(false)}
+        />
       )}
     </div>
   );
