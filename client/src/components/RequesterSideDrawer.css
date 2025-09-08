@@ -20,11 +20,11 @@
 }
 
 .requester-side-drawer-header {
-  padding: 20px;
+  padding: 1rem;
   background-color: #603aac;
   border-bottom: 1px solid #eee;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   border-top-left-radius: 15px;
 }
@@ -32,6 +32,7 @@
 .requester-side-drawer-header h3 {
   margin: 0;
   color: white;
+  font-weight: bold;
 }
 
 .requester-side-drawer-content {
