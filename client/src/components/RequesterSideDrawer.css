@@ -57,7 +57,7 @@
 .requester-side-drawer-footer button {
   padding: 10px 15px;
   border: none;
-  border-radius: 5px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 16px;
   transition: background-color 0.3s ease;
@@ -78,6 +78,7 @@
   display: grid;
   grid-template-columns: auto 1fr; /* Icon column and text column */
   gap: 10px 15px; /* Row gap, column gap */
+  grid-auto-rows: 28px;
   align-items: center;
 }
 
