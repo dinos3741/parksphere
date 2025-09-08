@@ -15,6 +15,33 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
   const [showRequestActionModal, setShowRequestActionModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
+  useEffect(() => {
+    let timeoutId;
+    if (spot && spot.declared_at && spot.time_to_leave) {
+      const declaredAtMs = new Date(spot.declared_at).getTime();
+      const timeToLeaveMs = spot.time_to_leave * 60 * 1000; // Convert minutes to milliseconds
+      const expirationTimeMs = declaredAtMs + timeToLeaveMs;
+      const currentTimeMs = new Date().getTime();
+
+      const timeUntilExpiration = expirationTimeMs - currentTimeMs;
+
+      if (timeUntilExpiration <= 0) {
+        // Already expired, close immediately
+        onClose();
+      } else {
+        timeoutId = setTimeout(() => {
+          onClose();
+        }, timeUntilExpiration);
+      }
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [spot, onClose]);
+
   const handleRequestItemClick = (request) => {
     setSelectedRequest(request);
     setShowRequestActionModal(true);
@@ -79,11 +106,11 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
         <> 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div className="side-drawer-content spot-details-grid">
-              <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Spot ID: </strong> {spot.id}</div>
-              <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
-              <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
-              <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
-              <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
+              <div><img src={spotIcon} alt="Spot" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Spot ID: </strong> {spot.id}</div>
+              <div><img src={timeIcon} alt="Time" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
+              <div><img src={costIcon} alt="Cost" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
+              <div><img src={priceIcon} alt="Price" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
+              <div><img src={commentsIcon} alt="Comments" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
               <hr style={{ gridColumn: '1 / -1', margin: '10px 0 0 0', borderColor: '#eee' }} />
             </div>
             <div className="requests-section">
