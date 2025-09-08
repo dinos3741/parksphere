@@ -52,7 +52,7 @@ const invisibleIcon = new L.Icon({
     shadowAnchor: null
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -520,6 +520,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         spotRequests={spotRequests}
         currentUserId={currentUserId}
         addNotification={addNotification}
+        currentUsername={currentUsername}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}

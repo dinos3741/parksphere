@@ -10,7 +10,7 @@ import './SideDrawer.css';
 import RequestActionModal from './RequestActionModal';
 import { socket } from '../socket';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername }) => {
   const drawerRef = useRef(null);
   const [showRequestActionModal, setShowRequestActionModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -21,19 +21,30 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
   };
 
   const handleConfirmRequest = (request) => {
-    // Emit socket event to backend to accept the request
-    console.log('Confirming request:', request);
-    // Example: socket.emit('acceptRequest', { requestId: request.id, requesterId: request.requester_id, spotId: spot.id });
-    addNotification(`Request from ${request.requester_username} confirmed! (Action not yet sent to backend)`, 'green');
+    socket.emit('acceptRequest', {
+      requestId: request.id,
+      requesterId: request.requester_id,
+      spotId: spot.id,
+      ownerUsername: currentUsername, // Pass owner's username
+      ownerId: currentUserId, // Pass owner's ID
+    });
+    addNotification(`Request from ${request.requester_username} confirmed!`, 'green');
     setShowRequestActionModal(false);
+    // Remove the accepted request from the list
+    // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
   };
 
   const handleRejectRequest = (request) => {
-    // Emit socket event to backend to reject the request
-    console.log('Rejecting request:', request);
-    // Example: socket.emit('declineRequest', { requestId: request.id, requesterId: request.requester_id, spotId: spot.id });
-    addNotification(`Request from ${request.requester_username} rejected! (Action not yet sent to backend)`, 'red');
+    socket.emit('declineRequest', {
+      requestId: request.id,
+      requesterId: request.requester_id,
+      spotId: spot.id,
+      ownerUsername: currentUsername, // Pass owner's username
+    });
+    addNotification(`Request from ${request.requester_username} rejected!`, 'red');
     setShowRequestActionModal(false);
+    // Remove the rejected request from the list
+    // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
   };
 
   useEffect(() => {

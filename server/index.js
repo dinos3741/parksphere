@@ -87,6 +87,11 @@ io.on('connection', (socket) => {
           ownerUsername: ownerUsername
         });
       }
+      // Emit to owner to update their requests list
+      const ownerSocketId = userSockets[ownerId]?.socketId;
+      if (ownerSocketId) {
+        io.to(ownerSocketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
+      }
     } catch (error) {
       await client.query('ROLLBACK');
       console.error('Error accepting request and updating DB:', error);
@@ -113,6 +118,11 @@ io.on('connection', (socket) => {
         io.to(requesterSocket).emit('requestResponse', {
           message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`
         });
+      }
+      // Emit to owner to update their requests list
+      const ownerSocketId = userSockets[ownerId]?.socketId;
+      if (ownerSocketId) {
+        io.to(ownerSocketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
       }
     } catch (error) {
       console.error('Error declining request and updating DB:', error);

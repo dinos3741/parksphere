@@ -507,6 +507,24 @@ function MainAppContent() {
     };
   }, [fetchProfileData]);
 
+  useEffect(() => {
+    const handleRequestAcceptedOrDeclined = (data) => {
+      // Re-fetch spot requests for the currently open spot (if any)
+      // This assumes that when a request is accepted/declined, the owner's drawer is open
+      // and we need to update the requests list for that specific spot.
+      // The spotRequests are fetched in handleOwnerSpotClick in Map.js
+      // We need a way to trigger that fetch again or update the state directly.
+      // For simplicity, let's re-fetch all parking spots, which will also update the requests for the open drawer.
+      fetchParkingSpots(selectedFilter, currentUserCarType); // This will re-fetch all spots and their requests
+    };
+
+    socket.on('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
+
+    return () => {
+      socket.off('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
+    };
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
+
   // Effect to handle welcome message from sessionStorage and emitter
   useEffect(() => {
     const checkAndDisplayWelcomeMessage = () => {
@@ -613,6 +631,7 @@ function MainAppContent() {
               onEditSpot={handleOpenEditModal}
               addNotification={addNotification}
               onRequestStatusChange={handleRequestStatusChange}
+              currentUsername={currentUsername}
             />
           ) : (
             <div>Loading map or getting your location...</div>
