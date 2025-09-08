@@ -405,6 +405,12 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   
 
+  const isSpotExpired = (spot) => {
+    const declaredTime = new Date(spot.declared_at).getTime();
+    const expirationTime = declaredTime + (spot.time_to_leave * 60 * 1000);
+    return currentTime >= expirationTime;
+  };
+
   return (
     <>
       <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
@@ -425,7 +431,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           }}
         />
 
-        {parkingSpots.map(spot => {
+        {parkingSpots.filter(spot => !isSpotExpired(spot)).map(spot => {
           const lat = spot.lat;
           const lng = spot.lng;
 
