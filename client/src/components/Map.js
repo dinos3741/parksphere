@@ -52,7 +52,7 @@ const invisibleIcon = new L.Icon({
     shadowAnchor: null
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -532,6 +532,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         spot={requesterDrawerSpot}
         formatRemainingTime={formatRemainingTime}
         onRequest={handleRequest}
+        onCancelRequest={handleCancelRequest}
+        hasPendingRequest={requesterDrawerSpot && pendingRequests.includes(requesterDrawerSpot.id)}
         onClose={() => setRequesterDrawerSpot(null)}
       />
     </>

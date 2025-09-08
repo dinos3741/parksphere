@@ -632,6 +632,7 @@ function MainAppContent() {
               addNotification={addNotification}
               onRequestStatusChange={handleRequestStatusChange}
               currentUsername={currentUsername}
+              pendingRequests={pendingRequests}
             />
           ) : (
             <div>Loading map or getting your location...</div>

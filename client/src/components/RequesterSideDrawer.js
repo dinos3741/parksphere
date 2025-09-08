@@ -6,7 +6,7 @@ import costIcon from '../assets/images/cost.png';
 import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onClose }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, onClose }) => {
   const drawerRef = useRef(null);
 
   useEffect(() => {
@@ -45,7 +45,11 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onClose }) 
             <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
           </div>
           <div className="requester-side-drawer-footer">
-            <button onClick={() => onRequest(spot.id)} className="request-button">Request</button>
+            {hasPendingRequest ? (
+              <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
+            ) : (
+              <button onClick={() => onRequest(spot.id)} className="request-button">Request</button>
+            )}
           </div>
         </>
       )}

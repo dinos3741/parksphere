@@ -73,6 +73,15 @@
   background-color: #6a17c0;
 }
 
+.cancel-request-button {
+  background-color: #a5387b; /* A shade of red/purple */
+  color: white;
+}
+
+.cancel-request-button:hover {
+  background-color: #c0392b; /* A darker red on hover */
+}
+
 /* Spot details grid */
 .spot-details-grid {
   display: grid;
