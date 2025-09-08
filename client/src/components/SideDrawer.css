@@ -106,3 +106,45 @@
   color: #333; /* Darker color for heading */
   text-align: left;
 }
+
+.requests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.request-item {
+  display: flex;
+  align-items: center;
+  background-color: #f3e5f5;
+  padding: 5px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.requester-avatar {
+  font-size: 2rem;
+  margin-right: 15px;
+  color: #4a148c;
+}
+
+.request-details {
+  flex-grow: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 15px;
+}
+
+.requester-username {
+  font-weight: bold;
+  color: #4a148c;
+}
+
+.requester-car-type {
+  color: #6a1b9a;
+}
+
+.request-distance {
+  font-weight: bold;
+  color: #4a148c;
+}

@@ -51,7 +51,7 @@ const invisibleIcon = new L.Icon({
     shadowAnchor: null
 });
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, pendingRequests, onRequestStatusChange }) => { // NEW PROP
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -61,6 +61,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [drawerSpot, setDrawerSpot] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
+  const [spotRequests, setSpotRequests] = useState([]);
 
   useEffect(() => {
     if (popup && popupRef.current) {
@@ -378,9 +379,25 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   };
 
-  const handleOwnerSpotClick = (spot) => {
+  const handleOwnerSpotClick = async (spot) => {
     setUserAddress(null);
     setDrawerSpot(spot);
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`/api/spots/${spot.id}/requests-details`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSpotRequests(data);
+      } else {
+        console.error('Error fetching spot requests:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching spot requests:', error);
+    }
   };
 
   
@@ -416,7 +433,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
           const isOwner = spot.user_id === currentUserId;
           const isExactLocation = spot.isExactLocation; // Use the flag from the backend
-          const isPending = pendingRequests.includes(spot.id);
+          
           
 
           if (acceptedSpot) {
@@ -451,10 +468,10 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                           <div className="request-button-container">
                             <hr />
                             <button
-                              onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                              className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
+                              onClick={() => handleRequest(spot.id)}
+                              className={`request-spot-button delete-spot-button`}
                             >
-                              {isPending ? 'Cancel Request' : 'Request'}
+                              {'Request'}
                             </button>
                           </div>
                         )}
@@ -489,11 +506,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                                   <div className="request-button-container">
                                     <hr />
                                     <button
-                                      onClick={() => isPending ? handleCancelRequest(spot.id) : handleRequest(spot.id)}
-                                      className={`request-spot-button delete-spot-button ${isPending ? 'cancel-button' : ''}`}
-                                    >
-                                      {isPending ? 'Cancel Request' : 'Request'}
-                                    </button>
+                                onClick={() => handleRequest(spot.id)}
+                                className={`request-spot-button delete-spot-button`}
+                              >
+                                {'Request'}
+                              </button>
                                   </div>
                                 )}
                               </>
@@ -529,7 +546,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}
         formatRemainingTime={formatRemainingTime}
-        pendingRequests={pendingRequests}
+        spotRequests={spotRequests}
         currentUserId={currentUserId}
       />
     </>

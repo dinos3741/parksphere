@@ -8,7 +8,7 @@ import commentsIcon from '../assets/images/comments.png';
 import React, { useEffect, useRef } from 'react';
 import './SideDrawer.css';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, pendingRequests, currentUserId }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId }) => {
   const drawerRef = useRef(null);
 
   useEffect(() => {
@@ -28,8 +28,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [spot, userAddress, onClose]);
-
-  const relevantRequests = spot ? pendingRequests.filter(request => request.spotId === spot.id) : [];
 
   return (
     <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
@@ -54,12 +52,24 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             </div>
             <div className="requests-section">
               <h3>Requests</h3>
-              {relevantRequests.length > 0 ? (
-                relevantRequests.map((request, index) => (
-                  <div key={index} className="request-item">
-                    <p>Requester: {request.requesterUsername}</p>
-                  </div>
-                ))
+              {spotRequests && spotRequests.length > 0 ? (
+                <div className="requests-list">
+                  {spotRequests.map((request, index) => (
+                    <div key={index} className="request-item">
+                      <div className="requester-avatar">
+                        {/* Placeholder for avatar */}
+                        <i className="fas fa-user-circle"></i>
+                      </div>
+                      <div className="request-details">
+                        <div className="requester-username">{request.requester_username}</div>
+                        <div className="requester-car-type">{request.requester_car_type || 'N/A'}</div>
+                      </div>
+                      <div className="request-distance">
+                        {request.distance ? `${request.distance.toFixed(2)} km` : 'N/A'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <p style={{ color: '#7A1BE0', textAlign: 'left' }}>No requests until now</p>
               )}

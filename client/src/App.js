@@ -596,9 +596,7 @@ function MainAppContent() {
               onSpotDeleted={() => {}}
               onEditSpot={handleOpenEditModal}
               addNotification={addNotification}
-              pendingRequests={pendingRequests}
               onRequestStatusChange={handleRequestStatusChange}
-              currentUserId={currentUserId}
             />
           ) : (
             <div>Loading map or getting your location...</div>
