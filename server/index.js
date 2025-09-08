@@ -1,4 +1,3 @@
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Import cors
@@ -372,9 +371,11 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
       const userCarSize = CAR_SIZE_HIERARCHY[userCarType.toLowerCase()];
       const suitableCarTypes = Object.keys(CAR_SIZE_HIERARCHY).filter(type => CAR_SIZE_HIERARCHY[type] >= userCarSize);
       if (suitableCarTypes.length > 0) {
-        const placeholders = suitableCarTypes.map((_, i) => `${queryParams.length + 1 + i}`).join(',');
+        const placeholders = suitableCarTypes.map((_, i) => `$${queryParams.length + 1 + i}`).join(',');
         conditions.push(`ps.declared_car_type IN (${placeholders})`);
         queryParams.push(...suitableCarTypes);
+        console.log('suitableCarTypes:', suitableCarTypes);
+        console.log('queryParams:', queryParams);
       }
     }
 
@@ -672,6 +673,10 @@ app.post('/api/cancel-request', authenticateToken, async (req, res) => {
 
     // Get requester's username for notification
     const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
+    if (requesterResult.rows.length === 0) {
+      console.log(`Requester with ID ${requesterId} not found.`);
+      return res.status(404).send('Requester not found.');
+    }
     const requesterUsername = requesterResult.rows[0].username;
 
     // Notify the spot owner
