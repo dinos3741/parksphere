@@ -14,6 +14,7 @@ import RequesterSpotPopup from './RequesterSpotPopup';
 import { emitter } from '../emitter';
 import { socket } from '../socket';
 import SideDrawer from './SideDrawer';
+import RequesterSideDrawer from './RequesterSideDrawer';
 
 
 // Fix for default marker icon not showing
@@ -59,6 +60,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
   const [drawerSpot, setDrawerSpot] = useState(null);
+  const [requesterDrawerSpot, setRequesterDrawerSpot] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
@@ -491,33 +493,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                       if (isOwner) {
                         handleOwnerSpotClick(spot);
                       } else {
-                        setPopup({
-                          position: [lat, lng],
-                          content: (
-                            <div>
-                              <>
-                                Parking Spot ID: {spot.id} <br />
-                                Declared by: {spot.username} <br />
-                                Cost Type: {spot.cost_type} <br />
-                                Price: €{ (spot.price ?? 0).toFixed(2) } <br />
-                                Time until expiration: {formatRemainingTime(spot.declared_at, spot.time_to_leave)} <br />
-                                Comments: {spot.comments}
-                                {requesterEta && requesterEta.spotId === spot.id && <div>Requester ETA: {requesterEta.eta} minutes</div>}
-                                {acceptedSpot && acceptedSpot.id === spot.id ? null : (
-                                  <div className="request-button-container">
-                                    <hr />
-                                    <button
-                                onClick={() => handleRequest(spot.id)}
-                                className={`request-spot-button delete-spot-button`}
-                              >
-                                {'Request'}
-                              </button>
-                                  </div>
-                                )}
-                              </>
-                            </div>
-                          )
-                        });
+                        setRequesterDrawerSpot(spot);
+                        setPopup(null); // Close any existing popup
                       }
                     }
                   }}
@@ -526,15 +503,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
             </React.Fragment>
           );
         })}
-
-        {popup && (
-          <Marker ref={popupRef} position={popup.position} icon={invisibleIcon}>
-            <Popup onClose={() => setPopup(null)}>
-              {popup.content}
-            </Popup>
-          </Marker>
-        )}
       </MapContainer>
+
       <SideDrawer 
         spot={drawerSpot} 
         userAddress={userAddress}
@@ -549,6 +519,12 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         formatRemainingTime={formatRemainingTime}
         spotRequests={spotRequests}
         currentUserId={currentUserId}
+      />
+      <RequesterSideDrawer
+        spot={requesterDrawerSpot}
+        formatRemainingTime={formatRemainingTime}
+        onRequest={handleRequest}
+        onClose={() => setRequesterDrawerSpot(null)}
       />
     </>
   );
