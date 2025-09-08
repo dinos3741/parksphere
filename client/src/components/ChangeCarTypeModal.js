@@ -60,7 +60,7 @@ const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDeta
               >
                 <option value="">Select Car Type</option>
                 {CAR_TYPES.map((type) => (
-                  <option key={type} value={type.toLowerCase()}>
+                  <option key={type} value={type}>
                     {type}
                   </option>
                 ))}
