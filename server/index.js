@@ -780,6 +780,36 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { car_type, car_color } = req.body;
+
+  // Ensure the authenticated user is updating their own details
+  if (req.user.userId !== parseInt(userId)) {
+    return res.status(403).json({ message: 'Forbidden: You can only update your own car details.' });
+  }
+
+  try {
+    // Update car_type and car_color in the database
+    await pool.query(
+      'UPDATE users SET car_type = $1, car_color = $2 WHERE id = $3',
+      [car_type, car_color, userId]
+    );
+
+    // Fetch the updated user data to create a new JWT
+    const updatedUserResult = await pool.query('SELECT id, username, car_type FROM users WHERE id = $1', [userId]);
+    const updatedUser = updatedUserResult.rows[0];
+
+    // Re-issue JWT with updated carType
+    const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type }, JWT_SECRET, { expiresIn: '1d' });
+
+    res.status(200).json({ message: 'Car details updated successfully!', token: newAccessToken });
+  } catch (error) {
+    console.error('Error updating car details:', error);
+    res.status(500).json({ message: 'Server error updating car details.' });
+  }
+});
+
 // Function to check and remove expired parking spots
 async function checkAndRemoveExpiredSpots() {
   try {

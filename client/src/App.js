@@ -185,6 +185,22 @@ function MainAppContent() {
     }
   }, [currentUserId]);
 
+  const handleCarDetailsUpdated = useCallback(() => {
+    const token = getToken();
+    if (token) {
+      try {
+        const decodedToken = jwtDecode(token);
+        setCurrentUserId(decodedToken.userId);
+        setCurrentUsername(decodedToken.username);
+        setCurrentUserCarType(decodedToken.carType);
+        fetchProfileData(); // Refresh profile data as well
+      } catch (error) {
+        console.error("Error decoding token after car details update:", error);
+        logout();
+      }
+    }
+  }, [fetchProfileData]);
+
   const fetchPendingRequests = useCallback(async () => {
     if (!currentUserId) return;
     try {
@@ -648,6 +664,9 @@ function MainAppContent() {
         <ProfileModal
           onClose={() => setShowProfileModal(false)}
           userData={profileUserData}
+          currentUserId={currentUserId}
+          addNotification={addNotification}
+          onCarDetailsUpdated={handleCarDetailsUpdated}
         />
       )}
 

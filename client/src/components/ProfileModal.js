@@ -4,7 +4,7 @@ import logo from '../assets/images/logo.png'; // Assuming logo is accessible fro
 import UpdateCredentialsModal from './UpdateCredentialsModal'; // Import the new modal
 import ChangeCarTypeModal from './ChangeCarTypeModal'; // Import the new modal
 
-const ProfileModal = ({ onClose, userData }) => {
+const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCarDetailsUpdated }) => {
   const [showUpdateCredentialsModal, setShowUpdateCredentialsModal] = useState(false);
   const [showChangeCarTypeModal, setShowChangeCarTypeModal] = useState(false); // New state
 
@@ -94,7 +94,12 @@ const ProfileModal = ({ onClose, userData }) => {
         </div>
       </div>
       {showUpdateCredentialsModal && <UpdateCredentialsModal onClose={handleCloseUpdateCredentialsModal} />}
-      {showChangeCarTypeModal && <ChangeCarTypeModal onClose={handleCloseChangeCarTypeModal} />}
+      {showChangeCarTypeModal && <ChangeCarTypeModal 
+        onClose={handleCloseChangeCarTypeModal}
+        currentUserId={currentUserId}
+        addNotification={addNotification}
+        onCarDetailsUpdated={onCarDetailsUpdated}
+      />}
     </div>
   );
 };
