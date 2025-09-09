@@ -130,21 +130,28 @@
   gap: 10px;
   width: 100%;
   justify-content: center;
-  margin-top: 20px;
+  padding-top: 20px;
 }
 
 .modal-buttons button {
-  flex: 1;
-  max-width: 150px;
-  padding: 10px 20px;
-  font-size: 1em;
-  border: none;
-  border-radius: 25px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  background-color: #00FFFF; /* Bright blue for buttons */
+    padding: 8px 12px; /* From SideDrawer */
+    border: none;
+    border-radius: 10px; /* From SideDrawer */
+    cursor: pointer;
+    font-size: 14px; /* From SideDrawer */
+    margin: 0 5px; /* From SideDrawer */
+    width: 120px; /* Fixed width from SideDrawer */
+    color: white;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Keep existing shadow */
+}
+
+.modal-buttons button:first-of-type { /* Update Spot button */
+    background-color: #3454bd; /* Purple-blue from SideDrawer's edit-button */
+}
+
+.modal-buttons button:last-of-type { /* Cancel button */
+    background-color: #a5387b; /* Purple-red from SideDrawer's delete-button */
 }
 
 .modal-buttons button:hover {
