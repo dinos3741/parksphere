@@ -583,10 +583,16 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       if (currentRequest.status === 'cancelled' || currentRequest.status === 'rejected') {
         // Reactivate the request
         await pool.query(
-          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL, distance = $4 WHERE id = $1 RETURNING id`,
-          [currentRequest.id, spotId, requesterId, distance]
+          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL, distance = $2 WHERE id = $1 RETURNING id`,
+          [currentRequest.id, distance]
         );
         const requestId = currentRequest.id; // Use the existing request ID
+        const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
+        if (requesterResult.rows.length === 0) {
+          console.log(`Requester with ID ${requesterId} not found.`);
+          return res.status(404).send('Requester not found.');
+        }
+        const requesterUsername = requesterResult.rows[0].username;
         // Re-send notification to owner if they are connected
         const ownerSocketInfo = userSockets[ownerId];
         const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner';
