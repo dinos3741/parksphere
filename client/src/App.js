@@ -124,6 +124,16 @@ function MainAppContent() {
     const savedLog = sessionStorage.getItem('notificationLog');
     return savedLog ? JSON.parse(savedLog) : [];
   });
+
+  const formatTimestamp = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  };
   const [pendingRequests, setPendingRequests] = useState([]); // New state for pending requests
   const requesterEta = null;
 
@@ -132,7 +142,7 @@ function MainAppContent() {
   }, [notificationLog]);
 
   const addNotification = useCallback((message, color = 'default') => {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = formatTimestamp(new Date());
     setNotificationLog(prevLog => [...prevLog, { id: Date.now(), timestamp, message, color }]);
   }, [setNotificationLog]);
 
