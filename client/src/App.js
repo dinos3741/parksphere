@@ -379,6 +379,37 @@ function MainAppContent() {
   }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
   useEffect(() => {
+    const handleSpotUpdated = (updatedSpotFromServer) => {
+      setFilteredParkingSpots(prevSpots => {
+        return prevSpots.map(spot => {
+          if (spot.id === updatedSpotFromServer.id) {
+            return {
+              ...spot,
+              lat: parseFloat(updatedSpotFromServer.latitude),
+              lng: parseFloat(updatedSpotFromServer.longitude),
+              time_to_leave: updatedSpotFromServer.time_to_leave,
+              price: parseFloat(updatedSpotFromServer.price),
+              comments: updatedSpotFromServer.comments || '',
+              cost_type: updatedSpotFromServer.cost_type,
+              declared_at: updatedSpotFromServer.declared_at,
+              declared_car_type: updatedSpotFromServer.declared_car_type,
+              status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+              is_free: updatedSpotFromServer.cost_type === 'free',
+            };
+          }
+          return spot;
+        });
+      });
+    };
+
+    socket.on('spotUpdated', handleSpotUpdated);
+
+    return () => {
+      socket.off('spotUpdated', handleSpotUpdated);
+    };
+  }, [setFilteredParkingSpots]);
+
+  useEffect(() => {
     const handleSpotRequest = (data) => {
       addNotification(data.message, 'blue');
       playSound();
