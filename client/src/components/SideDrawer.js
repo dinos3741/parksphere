@@ -28,9 +28,11 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       if (timeUntilExpiration <= 0) {
         // Already expired, close immediately
         onClose();
+        setShowRequestActionModal(false);
       } else {
         timeoutId = setTimeout(() => {
           onClose();
+          setShowRequestActionModal(false);
         }, timeUntilExpiration);
       }
     }
