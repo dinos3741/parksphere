@@ -1,6 +1,7 @@
 const { pool, createUsersTable, createParkingSpotsTable } = require('../db');
 const bcrypt = require('bcryptjs');
 const { getRandomPointInCircle } = require('./geoUtils');
+const { CAR_SIZE_HIERARCHY } = require('./carTypes');
 
 // --- Global variables for dynamic location --- 
 let centerLat = 40.64; // Default to Thessaloniki
@@ -33,7 +34,7 @@ function generateRandomCarColor() {
 }
 
 function generateRandomCarType() {
-    const carTypes = ['city car', 'hatchback', 'sedan', 'SUV', 'family car', 'van', 'truck', 'motorcycle'];
+    const carTypes = Object.keys(CAR_SIZE_HIERARCHY);
     return carTypes[Math.floor(Math.random() * carTypes.length)];
 }
 

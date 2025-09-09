@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Register.css';
 
@@ -7,8 +7,32 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
   const [carColor, setCarColor] = useState('');
-  const [carType, setCarType] = useState('city car'); // New state for car type
+  const [carType, setCarType] = useState(''); // Initialize as empty string
+  const [carTypes, setCarTypes] = useState([]); // New state for fetched car types
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchCarTypes = async () => {
+      try {
+        const response = await fetch('/api/car-types');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setCarTypes(data);
+        if (data.length > 0) {
+          setCarType(data[0]); // Set default car type to the first one in the list
+        }
+      } catch (error) {
+        console.error('Error fetching car types:', error);
+        // Fallback to a default list or show an error to the user
+        setCarTypes(['city car', 'hatchback', 'sedan', 'SUV', 'family car', 'van', 'truck', 'motorcycle']);
+        setCarType('city car');
+      }
+    };
+
+    fetchCarTypes();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,14 +113,11 @@ const Register = () => {
           <div className="form-group">
             <label htmlFor="carType">Car Type:</label>
             <select id="carType" value={carType} onChange={(e) => setCarType(e.target.value)}>
-              <option value="city car">City Car (Mini/Compact)</option>
-              <option value="hatchback">Hatchback</option>
-              <option value="sedan">Sedan</option>
-              <option value="SUV">SUV</option>
-              <option value="family car">Family Car</option>
-              <option value="van">Van</option>
-              <option value="truck">Truck</option>
-              <option value="motorcycle">Motorcycle</option>
+              {carTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
             </select>
           </div>
           <button type="submit">Register</button>

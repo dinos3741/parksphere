@@ -254,16 +254,7 @@ const port = 3001;
 
 const JWT_SECRET = 'supersecretjwtkey';
 
-const CAR_SIZE_HIERARCHY = {
-  'motorcycle': 0,
-  'city car': 1,
-  'hatchback': 2,
-  'sedan': 3,
-  'family car': 4,
-  'SUV': 5,
-  'van': 6,
-  'truck': 7,
-};
+const { CAR_SIZE_HIERARCHY } = require('./utils/carTypes');
 
 app.use(bodyParser.json());
 app.use(cors()); // Enable CORS for all routes
@@ -289,6 +280,11 @@ function authenticateToken(req, res, next) {
 
 app.get('/api', (req, res) => {
   res.json({ message: 'Hello from the server!' });
+});
+
+app.get('/api/car-types', (req, res) => {
+  const carTypes = Object.keys(CAR_SIZE_HIERARCHY);
+  res.status(200).json(carTypes);
 });
 
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
