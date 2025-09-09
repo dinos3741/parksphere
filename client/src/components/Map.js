@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css'; // Import the new CSS file
@@ -15,6 +15,7 @@ import { emitter } from '../emitter';
 import { socket } from '../socket';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
+import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
 
 
 // Fix for default marker icon not showing
@@ -64,6 +65,27 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [userAddress, setUserAddress] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
+  const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
+  const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
+
+  const handleNewButtonClick = (spot) => {
+    console.log(`Edit button clicked for spot ID: ${spot.id}`);
+    if (spot && onEditSpot) {
+      onEditSpot(spot); // Call the callback from App.js
+      setDrawerSpot(null); // Close the drawer
+    }
+  };
+
+  const handleDelete = useCallback((spotId) => {
+    setSpotToDeleteId(spotId);
+    setShowDeleteConfirmationModal(true);
+  }, []);
+
+  const confirmDeleteSpot = () => {
+    onSpotDeleted(spotToDeleteId);
+    setShowDeleteConfirmationModal(false);
+    setSpotToDeleteId(null);
+  };
 
   useEffect(() => {
     if (popup && popupRef.current) {
@@ -253,46 +275,6 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
     // Animate if red (<= 2 minutes) AND less than 1 minute remaining
     return (remainingMinutes >= 0 && remainingMinutes <= 2) && (remainingMinutes < 1);
-  };
-
-  const handleDelete = async (spotId) => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      addNotification("You must be logged in to delete a spot.", 'default');
-      return;
-    }
-
-    if (window.confirm("Are you sure you want to delete this parking spot?")) {
-      try {
-        const response = await fetch(`/api/parkingspots/${spotId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          addNotification(`Parking spot ${spotId} deleted successfully!`, 'default');
-          setDrawerSpot(null);
-        } else if (response.status === 401 || response.status === 403) {
-          addNotification("Authentication failed or not authorized to delete this spot.", 'default');
-        } else {
-          const errorData = await response.json();
-          addNotification(`Failed to delete spot: ${errorData.message}`, 'default');
-        }
-      } catch (error) {
-        console.error('Error deleting spot:', error);
-        addNotification('An error occurred while deleting the spot.', 'default');
-      }
-    }
-  };
-
-  const handleNewButtonClick = (spot) => {
-    console.log(`Edit button clicked for spot ID: ${spot.id}`);
-    if (spot && onEditSpot) {
-      onEditSpot(spot); // Call the callback from App.js
-      setDrawerSpot(null); // Close the drawer
-    }
   };
 
   const handleRequest = async (spotId) => {
@@ -537,6 +519,15 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onClose={() => setRequesterDrawerSpot(null)}
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
       />
+
+      {showDeleteConfirmationModal && (
+        <DeleteConfirmationModal
+          isOpen={showDeleteConfirmationModal}
+          onClose={() => setShowDeleteConfirmationModal(false)}
+          onConfirm={confirmDeleteSpot}
+          message={`Are you sure you want to delete parking spot #${spotToDeleteId}? This action cannot be undone.`}
+        />
+      )}
     </>
   );
 };

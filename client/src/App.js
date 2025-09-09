@@ -609,6 +609,29 @@ function MainAppContent() {
     navigate('/');
   }, [currentUserId, navigate]);
 
+  const handleDeleteSpot = useCallback(async (spotId) => {
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/parkingspots/${spotId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      addNotification(`Spot #${spotId} deleted successfully.`, 'green');
+      fetchParkingSpots(selectedFilter, currentUserCarType); // Re-fetch spots to update the map
+    } catch (error) {
+      console.error('Error deleting spot:', error);
+      addNotification(`Failed to delete spot: ${error.message}`, 'red');
+    }
+  }, [addNotification, fetchParkingSpots, selectedFilter, currentUserCarType]);
+
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -669,7 +692,7 @@ function MainAppContent() {
               currentUserId={currentUserId}
               acceptedSpot={acceptedSpot}
               requesterEta={requesterEta}
-              onSpotDeleted={() => {}}
+              onSpotDeleted={handleDeleteSpot}
               onEditSpot={handleOpenEditModal}
               addNotification={addNotification}
               onRequestStatusChange={handleRequestStatusChange}
