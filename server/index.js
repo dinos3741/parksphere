@@ -371,7 +371,6 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
         const placeholders = suitableCarTypes.map((_, i) => `$${queryParams.length + 1 + i}`).join(',');
         conditions.push(`ps.declared_car_type IN (${placeholders})`);
         queryParams.push(...suitableCarTypes);
-        console.log('suitableCarTypes:', suitableCarTypes);
         console.log('queryParams:', queryParams);
       }
     }
