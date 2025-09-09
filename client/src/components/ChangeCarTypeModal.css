@@ -83,34 +83,35 @@
 
 .change-car-type-modal-body .form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 10px;
   margin-top: 20px;
 }
 
 .change-car-type-modal-body .update-button,
 .change-car-type-modal-body .cancel-button {
-  padding: 10px 15px;
+  padding: 10px 20px; /* Increased horizontal padding for ~20% wider */
   border-radius: 5px;
   border: none;
   cursor: pointer;
   font-weight: bold;
+  width: 120px; /* Explicit width for consistency */
 }
 
 .change-car-type-modal-body .update-button {
-  background-color: #4CAF50; /* Green */
+  background-color: #3454bd; /* Purple-blue from SideDrawer.css .edit-button */
   color: white;
 }
 
 .change-car-type-modal-body .update-button:hover {
-  background-color: #45a049;
+  background-color: #2a429a;
 }
 
 .change-car-type-modal-body .cancel-button {
-  background-color: #f44336; /* Red */
+  background-color: #a5387b; /* Purple-red from SideDrawer.css .delete-button */
   color: white;
 }
 
 .change-car-type-modal-body .cancel-button:hover {
-  background-color: #da190b;
+  background-color: #8c2f68;
 }

@@ -1,11 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './ChangeCarTypeModal.css';
-
-const CAR_TYPES = ['Sedan', 'SUV', 'Truck', 'Van', 'Motorcycle', 'Coupe', 'Hatchback', 'Convertible', 'Wagon', 'Minivan', 'Pickup'];
 
 const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDetailsUpdated }) => {
   const [carType, setCarType] = useState('');
   const [carColor, setCarColor] = useState('');
+  const [availableCarTypes, setAvailableCarTypes] = useState([]);
+
+  useEffect(() => {
+    const fetchCarTypes = async () => {
+      try {
+        const response = await fetch('/api/car-types');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setAvailableCarTypes(data);
+        if (data.length > 0 && !carType) {
+          setCarType(data[0]); // Set default car type to the first one in the list if not already set
+        }
+      } catch (error) {
+        console.error('Error fetching car types:', error);
+        addNotification('Failed to load car types.', 'default');
+      }
+    };
+
+    fetchCarTypes();
+  }, [carType, addNotification]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -59,9 +79,9 @@ const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDeta
                 required
               >
                 <option value="">Select Car Type</option>
-                {CAR_TYPES.map((type) => (
+                {availableCarTypes.map((type) => (
                   <option key={type} value={type}>
-                    {type}
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
                   </option>
                 ))}
               </select>
