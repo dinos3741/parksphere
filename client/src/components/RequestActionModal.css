@@ -71,7 +71,8 @@
   border: none;
   cursor: pointer;
   font-weight: bold;
-  flex-grow: 1;
+  flex: 1;
+  font-size: 1em;
 }
 
 .confirm-button {
