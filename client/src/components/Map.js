@@ -535,6 +535,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onCancelRequest={handleCancelRequest}
         hasPendingRequest={requesterDrawerSpot && pendingRequests.includes(requesterDrawerSpot.id)}
         onClose={() => setRequesterDrawerSpot(null)}
+        onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
       />
     </>
   );

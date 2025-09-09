@@ -101,7 +101,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('declineRequest', async (data) => {
-    const { requestId, requesterId, spotId, ownerUsername } = data;
+    const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
     const requesterSocket = userSockets[requesterId]?.socketId;
 
     try {
@@ -111,11 +111,12 @@ io.on('connection', (socket) => {
         [requestId, spotId]
       );
       console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
-      console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
 
       if (requesterSocket) {
         io.to(requesterSocket).emit('requestResponse', {
-          message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`
+          message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`,
+          spotId: spotId,
+          ownerUsername: ownerUsername
         });
       }
       // Emit to owner to update their requests list

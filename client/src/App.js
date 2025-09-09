@@ -419,12 +419,13 @@ function MainAppContent() {
         });
       }
       // New logic to update pendingRequests based on request status
-      if (data.requestId) { // Assuming requestId is present for relevant responses
+      if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
+        setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
+        emitter.emit('request-rejected', { spotId: data.spotId, ownerUsername: data.ownerUsername });
+      } else if (data.requestId) { // Assuming requestId is present for relevant responses
         // If the message indicates reactivation or acceptance, add to pending
         if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
           setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]); // Use spotId or spot.id
-        } else if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
-          setPendingRequests(prevRequests => prevRequests.filter(id => id !== (data.spotId || data.spot.id)));
         }
       }
     };
