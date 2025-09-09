@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './EditSpotModal.css';
 
+
 const EditSpotModal = ({ spotData, onClose, currentUserCarType }) => {
   const [timeToLeave, setTimeToLeave] = useState(spotData?.time_to_leave || '');
   const [costType, setCostType] = useState(spotData?.cost_type || 'paid');
@@ -74,65 +75,67 @@ const EditSpotModal = ({ spotData, onClose, currentUserCarType }) => {
   };
 
   return (
-    <div className="edit-modal-backdrop">
-      <div className="edit-modal-content">
-        <h2>Edit Your Parking Spot</h2>
-        {spotData && (
-          <>
-            <p>Spot ID: {spotData.id}</p>
-            <div className="form-row">
-              <label>Time to leave (minutes):</label>
-              <input
-                type="number"
-                value={timeToLeave}
-                onChange={(e) => setTimeToLeave(e.target.value)}
-                min="1"
-              />
-            </div>
-
-            <div className="form-row">
-              <label>Cost Type:</label>
-              <select
-                value={costType}
-                onChange={(e) => setCostType(e.target.value)}
-              >
-                <option value="paid">Paid</option>
-                <option value="free">Free</option>
-              </select>
-            </div>
-
-            {costType === 'paid' && (
+    <div className="edit-spot-modal-overlay">
+      <div className="edit-spot-modal-content">
+        <div className="edit-spot-modal-header">
+          <h2 className="edit-spot-modal-title">Update Your Parking Spot</h2>
+          
+        </div>
+        <div className="edit-spot-modal-body">
+          {spotData && (
+            <>
+              <p>Spot ID: {spotData.id}</p>
               <div className="form-row">
-                <label>Price to reveal details (€):</label>
+                <label>Time to leave (minutes):</label>
                 <input
                   type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  min="0"
-                  step="0.01"
+                  value={timeToLeave}
+                  onChange={(e) => setTimeToLeave(e.target.value)}
+                  min="1"
                 />
               </div>
-            )}
 
-            <div className="form-row">
-              <label>Comments (optional):</label>
-              <textarea
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                placeholder="e.g., Spot is suitable for small cars only"
-              />
-            </div>
+              <div className="form-row">
+                <label>Cost Type:</label>
+                <select
+                  value={costType}
+                  onChange={(e) => setCostType(e.target.value)}
+                >
+                  <option value="paid">Paid</option>
+                  <option value="free">Free</option>
+                </select>
+              </div>
 
-            <div className="modal-buttons">
-              <button onClick={handleSubmit}>Update Spot</button>
-              <button onClick={onClose}>Cancel</button>
-            </div>
-          </>
-        )}
-        {!spotData && <p>Loading spot data...</p>}
-        <button className="close-modal-button" onClick={onClose}>
-          X
-        </button>
+              {costType === 'paid' && (
+                <div className="form-row">
+                  <label>Price to reveal details (€):</label>
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              )}
+
+              <div className="form-row">
+                <label>Comments (optional):</label>
+                <textarea
+                  value={comments}
+                  onChange={(e) => setComments(e.target.value)}
+                  placeholder="e.g., Spot is suitable for small cars only"
+                />
+              </div>
+
+              <div className="modal-buttons">
+                <button onClick={handleSubmit}>Update Spot</button>
+                <button onClick={onClose}>Cancel</button>
+              </div>
+            </>
+          )}
+          {!spotData && <p>Loading spot data...</p>}
+        </div>
       </div>
     </div>
   );

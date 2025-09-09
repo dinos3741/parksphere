@@ -1,71 +1,118 @@
-/* Reusing styles similar to LeavingFab.css for consistency */
-
-.edit-modal-backdrop {
+.edit-spot-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black backdrop */
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1002; /* Ensure it's above other modals/overlays */
+  z-index: 1000;
 }
 
-.edit-modal-content {
-  background-color: white;
-  padding: 30px;
+.edit-spot-modal-content {
+  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  padding: 20px;
   border-radius: 10px;
-  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.3);
-  text-align: center;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   position: relative;
-  max-width: 90%;
-  width: 400px;
 }
 
-.edit-modal-content h2 {
-  margin-top: 0;
-  color: #333;
-  font-size: 1.8em;
+.edit-spot-modal-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
   margin-bottom: 20px;
 }
 
-.close-modal-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: none;
-  border: none;
-  font-size: 1.2em;
-  cursor: pointer;
-  color: #888;
+.edit-spot-modal-logo {
+  width: 52px;
+  height: 52px;
+  margin-right: 10px;
+  border-radius: 50%;
 }
 
-.close-modal-button:hover {
-  color: #333;
+.edit-spot-modal-title-parksphere {
+  margin: 0;
+  font-family: 'Advent Pro', sans-serif; /* Match main title font */
+  font-size: 2.2em;
+  font-weight: 550;
+  letter-spacing: 15px;
+  color: white;
+  flex-grow: 1;
+  text-align: center;
 }
 
-/* Add to client/src/components/EditSpotModal.css */
 
+
+.edit-spot-modal-title {
+  margin: 0;
+  font-family: 'Advent Pro', sans-serif;
+  font-size: 1.8em; /* Adjust as needed */
+  font-weight: 550;
+  color: white;
+  flex-grow: 1; /* To take available space and push close button to right */
+  text-align: center;
+}
+
+.edit-spot-modal-body p {
+  margin: 5px 0;
+  color: white;
+}
+
+.edit-spot-modal-body strong {
+  color: white;
+}
+
+.tagline {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  font-size: 0.5rem;
+  margin-top: 3px;
+  color: white;
+  text-align: center;
+  margin-left: 0px;
+}
+
+.highlight {
+  color: #00FFFF; /* Brighter blue */
+}
+
+.edit-spot-header-left {
+  display: flex;
+  align-items: center; /* Align logo and title/tagline group vertically */
+}
+
+.edit-spot-title-tagline-container {
+  display: flex;
+  flex-direction: column; /* Stack title and tagline vertically */
+  align-items: flex-start; /* Align text to the left within its container */
+}
+
+/* Form specific styles */
 .form-row {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  margin-bottom: 15px; /* Add some space between rows */
+  margin-bottom: 15px;
 }
 
 .form-row label {
   width: 160px;
   text-align: left;
   font-weight: bold;
-  color: #333; /* Adjust color for better contrast on white background */
+  color: white; /* Changed to white for contrast on gradient background */
   padding-top: 6px;
 }
 
 .form-row input[type="number"],
-.form-row textarea {
+.form-row textarea,
+.form-row select { /* Added select */
   flex: 1;
   padding: 8px;
   border: 1px solid #ccc;
@@ -74,13 +121,8 @@
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-}
-
-.form-row input[type="checkbox"] {
-  flex: 1;
-  width: auto;
-  margin-left: auto;
-  transform: scale(1.2); /* Slightly larger checkbox */
+  background-color: rgba(255, 255, 255, 0.8); /* Slightly transparent white */
+  color: #333;
 }
 
 .modal-buttons {
@@ -97,19 +139,12 @@
   padding: 10px 20px;
   font-size: 1em;
   border: none;
-  border-radius: 25px; /* Rounded corners for buttons */
+  border-radius: 25px;
   color: white;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.modal-buttons button:first-of-type {
-  background-color: #007bff; /* Blue for primary action */
-}
-
-.modal-buttons button:last-of-type {
-  background-color: #6c757d; /* Gray for secondary action */
+  background-color: #00FFFF; /* Bright blue for buttons */
 }
 
 .modal-buttons button:hover {
