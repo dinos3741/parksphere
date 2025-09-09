@@ -670,6 +670,7 @@ function MainAppContent() {
         {showEditModal && spotToEdit && (
           <EditSpotModal
             spotData={spotToEdit}
+            currentUserCarType={currentUserCarType}
             onClose={() => {
               setShowEditModal(false);
               setSpotToEdit(null);

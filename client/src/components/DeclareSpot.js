@@ -79,6 +79,7 @@ const DeclareSpot = ({ userLocation, onClose, currentUserCarType, spotData, isEd
         price: costType === 'free' ? 0.00 : parsedPrice, // Set price to 0 if Free
         comments,
         costType, // Changed from isFree
+        declaredCarType: currentUserCarType,
       };
     }
 

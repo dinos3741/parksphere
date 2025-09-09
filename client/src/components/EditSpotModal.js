@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import './EditSpotModal.css';
 
-const EditSpotModal = ({ spotData, onClose }) => {
+const EditSpotModal = ({ spotData, onClose, currentUserCarType }) => {
   const [timeToLeave, setTimeToLeave] = useState(spotData?.time_to_leave || '');
-  const [isFree, setIsFree] = useState(spotData?.is_free ?? false);
+  const [costType, setCostType] = useState(spotData?.cost_type || 'paid');
   const [price, setPrice] = useState(spotData?.price ?? '');
   const [comments, setComments] = useState(spotData?.comments || '');
+  const [declaredCarType, setDeclaredCarType] = useState(spotData?.declared_car_type || currentUserCarType);
 
   useEffect(() => {
     if (spotData) {
       setTimeToLeave(spotData.time_to_leave);
-      setIsFree(spotData.is_free);
+      setCostType(spotData.cost_type);
       setPrice(spotData.price);
       setComments(spotData.comments);
+      setDeclaredCarType(spotData.declared_car_type || currentUserCarType);
     }
-  }, [spotData]);
+  }, [spotData, currentUserCarType]);
 
-  const handleSubmit = async () => { // Make function async
+  const handleSubmit = async () => {
     if (!spotData || !spotData.id) {
       alert("Error: No spot data available for update.");
       return;
@@ -35,6 +37,10 @@ const EditSpotModal = ({ spotData, onClose }) => {
     }
 
     const parsedPrice = parseFloat(price);
+    if (costType === 'paid' && (isNaN(parsedPrice) || parsedPrice < 0)) {
+      alert("Please enter a valid price for a Paid spot.");
+      return;
+    }
 
     try {
       const response = await fetch(`/api/parkingspots/${spotData.id}`, {
@@ -45,9 +51,10 @@ const EditSpotModal = ({ spotData, onClose }) => {
         },
         body: JSON.stringify({
           timeToLeave: parsedTimeToLeave,
-          isFree,
-          price: parsedPrice,
+          costType,
+          price: costType === 'free' ? 0.00 : parsedPrice,
           comments,
+          declaredCarType,
         }),
       });
 
@@ -56,7 +63,6 @@ const EditSpotModal = ({ spotData, onClose }) => {
         onClose(); // Close the modal on success
       } else if (response.status === 401 || response.status === 403) {
         alert("Authentication failed or not authorized to update this spot.");
-        // Optionally, force logout or redirect to login
       } else {
         const errorText = await response.text();
         alert(`Failed to update spot: ${errorText}`);
@@ -85,15 +91,28 @@ const EditSpotModal = ({ spotData, onClose }) => {
             </div>
 
             <div className="form-row">
-              <label>Price to reveal details (€):</label>
-              <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                min="0"
-                step="0.01"
-              />
+              <label>Cost Type:</label>
+              <select
+                value={costType}
+                onChange={(e) => setCostType(e.target.value)}
+              >
+                <option value="paid">Paid</option>
+                <option value="free">Free</option>
+              </select>
             </div>
+
+            {costType === 'paid' && (
+              <div className="form-row">
+                <label>Price to reveal details (€):</label>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+            )}
 
             <div className="form-row">
               <label>Comments (optional):</label>
@@ -101,15 +120,6 @@ const EditSpotModal = ({ spotData, onClose }) => {
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
                 placeholder="e.g., Spot is suitable for small cars only"
-              />
-            </div>
-
-            <div className="form-row">
-              <label>Free Spot:</label>
-              <input
-                type="checkbox"
-                checked={isFree}
-                onChange={(e) => setIsFree(e.target.checked)}
               />
             </div>
 

@@ -478,8 +478,8 @@ app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
     }
 
     await pool.query(
-      'UPDATE parking_spots SET time_to_leave = $1, cost_type = $2, price = $3, comments = $4 WHERE id = $5', // Changed is_free to cost_type
-      [timeToLeave, costType, price, comments, spotId] // Changed isFree to costType
+      'UPDATE parking_spots SET time_to_leave = $1, cost_type = $2, price = $3, comments = $4, declared_car_type = $5 WHERE id = $6',
+      [timeToLeave, costType, price, comments, declaredCarType, spotId]
     );
 
     // Fetch the updated spot to emit it
