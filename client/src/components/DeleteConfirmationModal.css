@@ -1,0 +1,93 @@
+.delete-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.delete-modal-content {
+  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+  color: white;
+  text-align: center;
+}
+
+.delete-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.delete-modal-header h2 {
+  margin: 0;
+  color: white;
+}
+
+.delete-modal-close-button {
+  background: none;
+  border: none;
+  font-size: 2em;
+  cursor: pointer;
+  color: #aaa;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.delete-modal-close-button:hover {
+  color: #eee;
+}
+
+.delete-modal-body p {
+  margin-bottom: 20px;
+  font-size: 1.1em;
+}
+
+.delete-modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.delete-confirm-button,
+.delete-cancel-button {
+  padding: 10px 20px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  width: 120px;
+}
+
+.delete-confirm-button {
+  background-color: #a5387b; /* Purple-red from SideDrawer.css .delete-button */
+  color: white;
+}
+
+.delete-confirm-button:hover {
+  background-color: #8c2f68;
+}
+
+.delete-cancel-button {
+  background-color: #3454bd; /* Purple-blue from SideDrawer.css .edit-button */
+  color: white;
+}
+
+.delete-cancel-button:hover {
+  background-color: #2a429a;
+}
