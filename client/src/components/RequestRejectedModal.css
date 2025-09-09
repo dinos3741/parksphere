@@ -28,3 +28,18 @@
 .request-rejected-modal-content p {
   color: #6a5acd; /* SlateBlue */
 }
+
+.request-rejected-modal-content button {
+  padding: 10px 15px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  background-color: #f44336; /* Red */
+  color: white;
+  margin-top: 10px;
+}
+
+.request-rejected-modal-content button:hover {
+  background-color: #da190b;
+}
