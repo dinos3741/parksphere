@@ -37,14 +37,12 @@ io.on('connection', (socket) => {
     // Register the new user
     console.log(`Registering user ${username} (ID: ${userId}) with socket ${socket.id}`);
     userSockets[userId] = { socketId: socket.id, username };
-    console.log('Current user sockets:', userSockets);
   });
 
   socket.on('unregister', (userId) => {
     if (userId && userSockets[userId]) {
       console.log(`Unregistering user ${userSockets[userId].username} (ID: ${userId})`);
       delete userSockets[userId];
-      console.log('Current user sockets:', userSockets);
     }
   });
 
@@ -247,7 +245,6 @@ io.on('connection', (socket) => {
         break; // Assuming one user per socket, we can stop
       }
     }
-    console.log('Current user sockets:', userSockets);
   });
 });
 const port = 3001;
@@ -371,7 +368,6 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
         const placeholders = suitableCarTypes.map((_, i) => `$${queryParams.length + 1 + i}`).join(',');
         conditions.push(`ps.declared_car_type IN (${placeholders})`);
         queryParams.push(...suitableCarTypes);
-        console.log('queryParams:', queryParams);
       }
     }
 
