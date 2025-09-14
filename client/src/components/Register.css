@@ -49,6 +49,7 @@
 
 .auth-container h2 {
   color: #FFFFFF !important; /* Change heading color to white for contrast */
+  padding-top: 40px;
 }
 
 .auth-container label {

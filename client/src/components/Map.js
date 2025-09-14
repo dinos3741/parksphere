@@ -68,6 +68,20 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
 
+  useEffect(() => {
+    const handleNewRequest = () => {
+      if (drawerSpot) {
+        handleOwnerSpotClick(drawerSpot);
+      }
+    };
+
+    emitter.on('new-request', handleNewRequest);
+
+    return () => {
+      emitter.off('new-request', handleNewRequest);
+    };
+  }, [drawerSpot]);
+
   const handleNewButtonClick = (spot) => {
     console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
