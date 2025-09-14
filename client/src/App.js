@@ -146,6 +146,26 @@ function MainAppContent() {
     setNotificationLog(prevLog => [...prevLog, { id: Date.now(), timestamp, message, color }]);
   }, [setNotificationLog]);
 
+  const [expiredNotifiedSpots, setExpiredNotifiedSpots] = useState([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      filteredParkingSpots.forEach(spot => {
+        if (spot.time_to_leave && !expiredNotifiedSpots.includes(spot.id)) {
+          const declaredAt = new Date(spot.declared_at);
+          const now = new Date();
+          const minutesSinceDeclared = (now - declaredAt) / 60000;
+          if (minutesSinceDeclared > spot.time_to_leave) {
+            addNotification(`Spot ${spot.id} expired`, 'red');
+            setExpiredNotifiedSpots(prev => [...prev, spot.id]);
+          }
+        }
+      });
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [filteredParkingSpots, expiredNotifiedSpots, addNotification]);
+
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef(null); // Create a ref for the dropdown
