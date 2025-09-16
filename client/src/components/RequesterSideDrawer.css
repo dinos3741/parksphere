@@ -107,3 +107,12 @@
 .spot-detail-text strong {
   color: #333;
 }
+
+.arrived-button {
+  background-color: #28a745; /* Green */
+  color: white;
+}
+
+.arrived-button:hover {
+  background-color: #218838; /* Darker green on hover */
+}

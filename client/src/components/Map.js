@@ -454,20 +454,16 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                     click: () => {
                       if (isOwner) {
                         handleOwnerSpotClick(spot);
+                      } else if (acceptedSpot && acceptedSpot.id === spot.id) {
+                        setRequesterDrawerSpot(spot);
                       }
                     },
                   }}
                 >
-                  {!isOwner && (
+                  {!isOwner && (!acceptedSpot || acceptedSpot.id !== spot.id) && (
                     <Popup>
                       <div>
-                        {(acceptedSpot && acceptedSpot.id === spot.id) ? (
-                          <RequesterSpotPopup
-                            spot={spot}
-                            onClose={() => mapRef.current.closePopup()}
-                            onArrived={handleArrived}
-                          />
-                        ) : (
+                        {
                           // This is a revealed spot, but not owned by current user
                           // Hide the request button if this spot is the accepted one
                           <div className="request-button-container">
@@ -479,7 +475,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                               {'Request'}
                             </button>
                           </div>
-                        )}
+                        }
                       </div>
                     </Popup>
                   )}
@@ -530,6 +526,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onRequest={handleRequest}
         onCancelRequest={handleCancelRequest}
         hasPendingRequest={requesterDrawerSpot && pendingRequests.includes(requesterDrawerSpot.id)}
+        isAcceptedSpot={acceptedSpot && requesterDrawerSpot && acceptedSpot.id === requesterDrawerSpot.id}
+        onArrived={handleArrived}
         onClose={() => setRequesterDrawerSpot(null)}
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
       />

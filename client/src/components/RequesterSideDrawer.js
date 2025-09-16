@@ -8,7 +8,7 @@ import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
 import { emitter } from '../emitter';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, onClose, onRejected }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, onClose, onRejected }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -74,7 +74,9 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
             </div>
             <div className="requester-side-drawer-footer">
-              {hasPendingRequest ? (
+              {isAcceptedSpot ? (
+                <button onClick={() => onArrived(spot.id)} className="arrived-button">Arrived</button>
+              ) : hasPendingRequest ? (
                 <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
               ) : (
                 <button onClick={() => onRequest(spot.id)} className="request-button">Request</button>
