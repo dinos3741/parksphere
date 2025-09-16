@@ -62,6 +62,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [popup, setPopup] = useState(null);
   const [drawerSpot, setDrawerSpot] = useState(null);
   const [requesterDrawerSpot, setRequesterDrawerSpot] = useState(null);
+  const [ownerCarDetails, setOwnerCarDetails] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
@@ -451,11 +452,27 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                   position={[lat, lng]}
                   icon={parkingSpotIcon}
                   eventHandlers={{
-                    click: () => {
+                    click: async () => {
                       if (isOwner) {
                         handleOwnerSpotClick(spot);
                       } else if (acceptedSpot && acceptedSpot.id === spot.id) {
                         setRequesterDrawerSpot(spot);
+                        const token = localStorage.getItem('token');
+                        try {
+                          const response = await fetch(`/api/users/${spot.user_id}`, {
+                            headers: {
+                              'Authorization': `Bearer ${token}`,
+                            },
+                          });
+                          if (response.ok) {
+                            const data = await response.json();
+                            setOwnerCarDetails(data);
+                          } else {
+                            console.error('Error fetching owner car details:', response.statusText);
+                          }
+                        } catch (error) {
+                          console.error('Error fetching owner car details:', error);
+                        }
                       }
                     },
                   }}
@@ -528,7 +545,11 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         hasPendingRequest={requesterDrawerSpot && pendingRequests.includes(requesterDrawerSpot.id)}
         isAcceptedSpot={acceptedSpot && requesterDrawerSpot && acceptedSpot.id === requesterDrawerSpot.id}
         onArrived={handleArrived}
-        onClose={() => setRequesterDrawerSpot(null)}
+        ownerCarDetails={ownerCarDetails}
+        onClose={() => {
+          setRequesterDrawerSpot(null);
+          setOwnerCarDetails(null);
+        }}
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
       />
 
