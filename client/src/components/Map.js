@@ -8,7 +8,7 @@ import markerGreen2x from './icons/marker-icon-green-2x.png';
 import markerRed from './icons/marker-icon-red.png';
 import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-import { getDistance } from '../utils/geoUtils';
+
 
 
 import { emitter } from '../emitter';
