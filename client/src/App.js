@@ -555,7 +555,7 @@ function MainAppContent() {
     return () => {
       socket.off('requestCancelled', handleRequestCancelled);
     };
-  }, [addNotification]);
+  }, [addNotification, playSoundRemoveRequest]);
 
   useEffect(() => {
     const handleTransactionComplete = () => {

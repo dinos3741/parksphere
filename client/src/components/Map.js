@@ -10,7 +10,7 @@ import markerRed2x from './icons/marker-icon-red-2x.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { getDistance } from '../utils/geoUtils';
 
-import RequesterSpotPopup from './RequesterSpotPopup';
+
 import { emitter } from '../emitter';
 import { socket } from '../socket';
 import SideDrawer from './SideDrawer';
@@ -43,20 +43,12 @@ const parkingSpotIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const invisibleIcon = new L.Icon({
-    iconUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
-    iconSize: [1, 1],
-    iconAnchor: [0, 0],
-    popupAnchor: [0, 0],
-    shadowUrl: null,
-    shadowSize: null,
-    shadowAnchor: null
-});
+
 
 const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
-  const [isConfirming, setIsConfirming] = useState(false);
+  
   const [eta, setEta] = useState(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [popup, setPopup] = useState(null);
@@ -166,40 +158,10 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
 
   useEffect(() => {
-    const handleConfirmArrival = async (spotId) => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        addNotification("You must be logged in to confirm arrival.", 'default');
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/confirm-arrival', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ spotId }),
-        });
-
-        if (response.ok) {
-          addNotification("Arrival confirmed! The spot owner has been notified.", 'default');
-        } else {
-          const errorData = await response.json();
-          addNotification(`Failed to confirm arrival: ${errorData.message}`, 'default');
-        }
-      } catch (error) {
-        console.error('Error confirming arrival:', error);
-        addNotification('An error occurred while confirming arrival.', 'default');
-      }
-    };
-
-    if (acceptedSpot && !isConfirming) {
+    if (acceptedSpot) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
-          const distance = getDistance(latitude, longitude, acceptedSpot.latitude, acceptedSpot.longitude);
 
           // if (distance < 0.05) { // 50 meters
           //   setIsConfirming(true);
@@ -240,7 +202,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [acceptedSpot, isConfirming, eta, addNotification]);
+  }, [acceptedSpot, eta, addNotification]);
 
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
