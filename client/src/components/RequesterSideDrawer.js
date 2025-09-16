@@ -57,6 +57,19 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
     }
   };
 
+  useEffect(() => {
+    if (spot) {
+      const interval = setInterval(() => {
+        const remainingTime = formatRemainingTime(spot.declared_at, spot.time_to_leave);
+        if (remainingTime === 'Expired') {
+          onClose();
+        }
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [spot, formatRemainingTime, onClose]);
+
   return (
     <>
       <div ref={drawerRef} className={`requester-side-drawer ${spot ? 'open' : ''}`}>
