@@ -112,10 +112,8 @@
 
 .filter-dropdown {
   margin-left: 20px;
-}
-
-.filter-dropdown {
   border-radius: 10px;
   padding: 6px 10px;
   font-size: 0.9rem;
+  width: 120px;
 }
