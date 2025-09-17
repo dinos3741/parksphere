@@ -104,11 +104,16 @@
 }
 
 .filter-label {
-  margin-right: 10px;
   color: white;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
+}
+
+.filter-dropdown {
+  margin-left: 20px;
 }
 
 .filter-dropdown {
   border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
 }
