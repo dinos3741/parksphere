@@ -1,0 +1,98 @@
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.settings-modal-content {
+  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  padding: 20px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.settings-modal-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.settings-modal-logo {
+  width: 52px;
+  height: 52px;
+  margin-right: 10px;
+  border-radius: 50%;
+}
+
+.settings-modal-title {
+  margin: 0;
+  font-family: 'Advent Pro', sans-serif; /* Match main title font */
+  font-size: 2.2em;
+  font-weight: 550;
+  letter-spacing: 15px;
+  color: white;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.settings-modal-close-button {
+  background: none;
+  border: none;
+  font-size: 2em;
+  cursor: pointer;
+  color: #aaa;
+  position: absolute; /* Position absolutely */
+  top: 10px; /* Align to top */
+  right: 10px; /* Align to right */
+}
+
+.settings-modal-close-button:hover {
+  color: #333;
+}
+
+
+.settings-modal-body p {
+  margin: 5px 0;
+  color: white;
+}
+
+.settings-modal-body strong {
+  color: white;
+}
+
+.tagline {
+  font-family: 'Inter', sans-serif;
+  font-weight: 300;
+  font-size: 0.5rem;
+  margin-top: 3px;
+  color: white;
+  text-align: center;
+  margin-left: 0px;
+}
+
+.highlight {
+  color: #00FFFF; /* Brighter blue */
+}
+
+.settings-header-left {
+  display: flex;
+  align-items: center; /* Align logo and title/tagline group vertically */
+}
+
+.settings-title-tagline-container {
+  display: flex;
+  flex-direction: column; /* Stack title and tagline vertically */
+  align-items: flex-start; /* Align text to the left within its container */
+}

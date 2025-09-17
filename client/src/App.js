@@ -17,6 +17,7 @@ import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
+import SettingsModal from './components/SettingsModal';
 import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -186,6 +187,7 @@ function MainAppContent() {
 
   // Hamburger menu state
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const dropdownRef = useRef(null); // Create a ref for the dropdown
 
   const navigate = useNavigate();
@@ -708,7 +710,7 @@ function MainAppContent() {
         {menuOpen && (
           <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
             <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); fetchProfileData(); }}>Profile</button>
-            <button onClick={() => alert("Settings clicked")}>Settings</button>
+            <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
         )}
@@ -802,6 +804,10 @@ function MainAppContent() {
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
       />
+
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      )}
     </div>
   );
 }
