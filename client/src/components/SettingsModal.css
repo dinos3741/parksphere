@@ -107,3 +107,7 @@
   margin-right: 10px;
   color: white;
 }
+
+.filter-dropdown {
+  border-radius: 10px;
+}
