@@ -71,11 +71,11 @@ async function createRandomUser(client) {
     const plateNumber = generateRandomPlateNumber();
     const carColor = generateRandomCarColor();
     const carType = generateRandomCarType();
-    const initialCredits = parseFloat((Math.random() * 50).toFixed(2));
+    const initialCredits = Math.floor(Math.random() * 50);
 
     const result = await client.query(
         'INSERT INTO users (username, password, plate_number, car_color, car_type, credits, reserved_amount) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username',
-        [username, hashedPassword, plateNumber, carColor, carType, initialCredits, 0.00]
+        [username, hashedPassword, plateNumber, carColor, carType, initialCredits, 0]
     );
     const newUser = result.rows[0];
     console.log(`  Added user: ${newUser.username} with ${initialCredits} credits`);
