@@ -2,7 +2,7 @@ import React from 'react';
 import './SettingsModal.css';
 import logo from '../assets/images/logo.png';
 
-const SettingsModal = ({ onClose }) => {
+const SettingsModal = ({ onClose, selectedFilter, onFilterChange }) => {
   return (
     <div className="settings-modal-overlay">
       <div className="settings-modal-content">
@@ -17,7 +17,14 @@ const SettingsModal = ({ onClose }) => {
           <button className="settings-modal-close-button" onClick={onClose}>&times;</button>
         </div>
         <div className="settings-modal-body">
-          <p>Settings will be here.</p>
+          <label htmlFor="filter">Show spots free in:</label>
+          <select id="filter" className="filter-dropdown" value={selectedFilter} onChange={(e) => onFilterChange(e.target.value)}>
+            <option value="all">All</option>
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+          </select>
         </div>
       </div>
     </div>
