@@ -24,6 +24,7 @@ import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
+import arrivedSound from './assets/sounds/arrived.wav';
 import './App.css';
 
 function MainAppContent() {
@@ -31,6 +32,7 @@ function MainAppContent() {
   const audioBufferRef = useRef(null);
   const removeRequestAudioBufferRef = useRef(null);
   const acceptedRequestAudioBufferRef = useRef(null);
+  const arrivedAudioBufferRef = useRef(null);
   useEffect(() => {
     const initAudio = async () => {
       try {
@@ -46,6 +48,10 @@ function MainAppContent() {
         const acceptedRequestResponse = await fetch(acceptedRequestSound);
         const acceptedRequestArrayBuffer = await acceptedRequestResponse.arrayBuffer();
         acceptedRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(acceptedRequestArrayBuffer);
+
+        const arrivedResponse = await fetch(arrivedSound);
+        const arrivedArrayBuffer = await arrivedResponse.arrayBuffer();
+        arrivedAudioBufferRef.current = await audioContextRef.current.decodeAudioData(arrivedArrayBuffer);
       } catch (error) {
         console.error("Error initializing audio:", error);
       }
@@ -84,6 +90,18 @@ function MainAppContent() {
       }
       const source = audioContextRef.current.createBufferSource();
       source.buffer = acceptedRequestAudioBufferRef.current;
+      source.connect(audioContextRef.current.destination);
+      source.start(0);
+    }
+  }, []);
+
+  const playSoundArrived = useCallback(() => {
+    if (audioContextRef.current && arrivedAudioBufferRef.current) {
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = arrivedAudioBufferRef.current;
       source.connect(audioContextRef.current.destination);
       source.start(0);
     }
@@ -492,6 +510,7 @@ function MainAppContent() {
     const handleRequesterArrived = (data) => {
       const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
       addNotification(message, 'default');
+      playSoundArrived();
       setArrivalConfirmationData(data);
       setArrivalConfirmationModalOpen(true);
     };
@@ -501,7 +520,7 @@ function MainAppContent() {
     return () => {
       socket.off('requesterArrived', handleRequesterArrived);
     };
-  }, [addNotification]);
+  }, [addNotification, playSoundArrived]);
 
   const handleConfirmArrival = () => {
     if (arrivalConfirmationData && userLocation) {
