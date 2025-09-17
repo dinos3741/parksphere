@@ -106,6 +106,7 @@
 .filter-label {
   margin-right: 10px;
   color: white;
+  font-size: 0.8rem;
 }
 
 .filter-dropdown {
