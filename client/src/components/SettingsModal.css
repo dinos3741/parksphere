@@ -108,6 +108,7 @@
   width: 220px;
   color: white;
   font-size: 0.9rem;
+  text-align: left;
 }
 
 .filter-dropdown {
