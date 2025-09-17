@@ -104,6 +104,8 @@
 }
 
 .filter-label {
+  display: inline-block;
+  width: 220px;
   color: white;
   font-size: 0.9rem;
 }
@@ -114,6 +116,6 @@
 
 .filter-dropdown {
   border-radius: 10px;
-  padding: 6px 8px;
+  padding: 6px 10px;
   font-size: 0.9rem;
 }
