@@ -96,3 +96,14 @@
   flex-direction: column; /* Stack title and tagline vertically */
   align-items: flex-start; /* Align text to the left within its container */
 }
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.filter-label {
+  margin-right: 10px;
+  color: white;
+}
