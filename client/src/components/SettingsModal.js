@@ -2,7 +2,7 @@ import React from 'react';
 import './SettingsModal.css';
 import logo from '../assets/images/logo.png';
 
-const SettingsModal = ({ onClose, selectedFilter, onFilterChange }) => {
+const SettingsModal = ({ onClose, selectedFilter, onFilterChange, selectedRadius, onRadiusChange }) => {
   return (
     <div className="settings-modal-overlay">
       <div className="settings-modal-content">
@@ -17,14 +17,26 @@ const SettingsModal = ({ onClose, selectedFilter, onFilterChange }) => {
           <button className="settings-modal-close-button" onClick={onClose}>&times;</button>
         </div>
         <div className="settings-modal-body">
-          <label htmlFor="filter">Show spots free in:</label>
-          <select id="filter" className="filter-dropdown" value={selectedFilter} onChange={(e) => onFilterChange(e.target.value)}>
-            <option value="all">All</option>
-            <option value="5">5 minutes</option>
-            <option value="10">10 minutes</option>
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-          </select>
+          <div className="filter-row">
+            <label htmlFor="filter" className="filter-label">Show spots free in:</label>
+            <select id="filter" className="filter-dropdown" value={selectedFilter} onChange={(e) => onFilterChange(e.target.value)}>
+              <option value="all">All</option>
+              <option value="5">5 minutes</option>
+              <option value="10">10 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+            </select>
+          </div>
+          <div className="filter-row">
+            <label htmlFor="radius" className="filter-label">Show spots around radius of:</label>
+            <select id="radius" className="filter-dropdown" value={selectedRadius} onChange={(e) => onRadiusChange(e.target.value)}>
+              <option value="2">2km</option>
+              <option value="5">5km</option>
+              <option value="10">10km</option>
+              <option value="20">20km</option>
+              <option value="30">30km</option>
+            </select>
+          </div>
         </div>
       </div>
     </div>

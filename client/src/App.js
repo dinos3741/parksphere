@@ -109,6 +109,7 @@ function MainAppContent() {
   }, []);
 
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedRadius, setSelectedRadius] = useState(5);
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -806,7 +807,13 @@ function MainAppContent() {
       />
 
       {showSettingsModal && (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        <SettingsModal 
+          onClose={() => setShowSettingsModal(false)} 
+          selectedFilter={selectedFilter} 
+          onFilterChange={setSelectedFilter} 
+          selectedRadius={selectedRadius} 
+          onRadiusChange={setSelectedRadius} 
+        />
       )}
     </div>
   );
