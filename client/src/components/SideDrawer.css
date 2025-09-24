@@ -128,6 +128,10 @@
   color: #4a148c;
 }
 
+.requester-avatar.accepted {
+  color: #007bff;
+}
+
 .request-details {
   flex-grow: 1;
   display: flex;
@@ -138,6 +142,10 @@
 .requester-username {
   font-weight: bold;
   color: #4a148c;
+}
+
+.requester-username.accepted {
+  color: #007bff;
 }
 
 .requester-car-type {

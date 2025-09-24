@@ -121,12 +121,12 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                 <div className="requests-list">
                   {spotRequests.map((request, index) => (
                     <div key={index} className="request-item" onClick={() => handleRequestItemClick(request)}>
-                      <div className="requester-avatar">
+                      <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
                         {/* Placeholder for avatar */}
                         <i className="fas fa-user-circle"></i>
                       </div>
                       <div className="request-details">
-                        <div className="requester-username">{request.requester_username}</div>
+                        <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
                         <div className="requester-car-type">{request.requester_car_type || 'N/A'}</div>
                       </div>
                       <div className="request-distance">
