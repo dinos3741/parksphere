@@ -16,7 +16,7 @@ const RequestActionModal = ({ request, onConfirm, onReject, onClose }) => {
           <p>Distance: {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}</p>
         </div>
         <div className="request-action-modal-footer">
-          <button className="confirm-button" onClick={() => onConfirm(request)}>Confirm</button>
+          <button className="confirm-button" onClick={() => onConfirm(request)}>Accept</button>
           <button className="reject-button" onClick={() => onReject(request)}>Reject</button>
         </div>
       </div>
