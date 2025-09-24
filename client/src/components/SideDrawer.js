@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import './SideDrawer.css';
 import RequestActionModal from './RequestActionModal';
 import { socket } from '../socket';
+import { emitter } from '../emitter';
 
 const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername }) => {
   const drawerRef = useRef(null);
@@ -59,6 +60,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
     });
     addNotification(`Request from ${request.requester_username} confirmed!`, 'green');
     setShowRequestActionModal(false);
+    emitter.emit('new-request');
     // Remove the accepted request from the list
     // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
   };
@@ -127,9 +129,9 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                       </div>
                       <div className="request-details">
                         <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
-                        <div className="requester-car-type">{request.requester_car_type || 'N/A'}</div>
+                        <div className={`requester-car-type ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_car_type || 'N/A'}</div>
                       </div>
-                      <div className="request-distance">
+                      <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                         {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                       </div>
                     </div>

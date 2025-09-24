@@ -156,7 +156,15 @@
   color: #6a1b9a;
 }
 
+.requester-car-type.accepted {
+  color: #007bff;
+}
+
 .request-distance {
   font-weight: bold;
   color: #4a148c;
+}
+
+.request-distance.accepted {
+  color: #007bff;
 }
