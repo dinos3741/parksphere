@@ -46,6 +46,9 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
   }, [spot, onClose]);
 
   const handleRequestItemClick = (request) => {
+    if (request.status === 'accepted') {
+      return;
+    }
     setSelectedRequest(request);
     setShowRequestActionModal(true);
   };
