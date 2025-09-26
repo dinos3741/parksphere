@@ -46,7 +46,7 @@
 
 .owner-details-grid {
   display: flex;
-  justify-content: space-between;
+  gap: 20px;
   align-items: flex-start;
   margin-top: 15px;
 }
@@ -72,9 +72,10 @@
 }
 
 .owner-details-right {
-  width: 50%;
+  flex-grow: 1;
 }
 
 .owner-details-right p {
   color: #603aac;
+  font-weight: bold;
 }
