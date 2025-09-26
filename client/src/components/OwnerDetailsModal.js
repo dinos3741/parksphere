@@ -17,7 +17,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
             <p><strong>{owner.username}</strong></p>
           </div>
           <div className="owner-details-right">
-            {/* Blank for now */}
+            <p><strong>Joined on:</strong> {owner.created_at ? new Date(owner.created_at).toLocaleDateString() : 'N/A'}</p>
           </div>
         </div>
       </div>
