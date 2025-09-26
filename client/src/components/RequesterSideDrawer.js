@@ -93,9 +93,9 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                 <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div>
                 <div className="spot-detail-text">
                   <strong>Declared by: </strong>
-                  <a href="#" onClick={handleOwnerClick} style={{ color: '#3454bd', textDecoration: 'underline' }}>
+                  <button onClick={handleOwnerClick} style={{ background: 'none', border: 'none', padding: 0, color: '#3454bd', cursor: 'pointer', font: 'inherit' }}>
                     {spot.username}
-                  </a>
+                  </button>
                 </div>
                 <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
                 <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
