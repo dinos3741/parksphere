@@ -18,6 +18,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
           </div>
           <div className="owner-details-right">
             <p><strong>Joined on:</strong> {owner.created_at ? new Date(owner.created_at).toLocaleDateString() : 'N/A'}</p>
+            <p><strong>Credits:</strong> <span style={{ color: '#603aac' }}>{owner.credits}</span></p>
           </div>
         </div>
       </div>
