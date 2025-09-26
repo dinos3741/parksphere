@@ -7,12 +7,19 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
   }
 
   return (
-    <div className="owner-details-modal-overlay">
-      <div className="owner-details-modal-content">
+    <div className="owner-details-modal-overlay" onClick={onClose}>
+      <div className="owner-details-modal-content" onClick={e => e.stopPropagation()}>
+        <span className="close-modal" onClick={onClose}>&times;</span>
         <h2>Owner Details</h2>
-        <p><strong>Username:</strong> {owner.username}</p>
-        {/* Add more owner details here as they become available */}
-        <button onClick={onClose}>Close</button>
+        <div className="owner-details-grid">
+          <div className="owner-details-left">
+            <img src="https://i.pravatar.cc/80" alt="Owner Avatar" className="owner-avatar" />
+            <p><strong>{owner.username}</strong></p>
+          </div>
+          <div className="owner-details-right">
+            {/* Blank for now */}
+          </div>
+        </div>
       </div>
     </div>
   );

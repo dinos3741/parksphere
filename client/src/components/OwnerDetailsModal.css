@@ -43,3 +43,32 @@
 .owner-details-modal-content p {
   margin: 10px 0;
 }
+
+.owner-details-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 15px;
+}
+
+.owner-details-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.owner-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 10px;
+}
+
+.owner-details-left p {
+  margin: 0;
+  font-weight: bold;
+}
+
+.owner-details-right {
+  width: 50%;
+}
