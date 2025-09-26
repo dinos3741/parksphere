@@ -11,6 +11,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
       <div className="owner-details-modal-content" onClick={e => e.stopPropagation()}>
         <span className="close-modal" onClick={onClose}>&times;</span>
         <h2>Owner Details</h2>
+        <div className="owner-details-separator"></div>
         <div className="owner-details-grid">
           <div className="owner-details-left">
             <img src="https://i.pravatar.cc/80" alt="Owner Avatar" className="owner-avatar" />

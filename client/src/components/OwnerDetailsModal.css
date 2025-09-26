@@ -40,6 +40,11 @@
   color: #603aac;
 }
 
+.owner-details-separator {
+  border-bottom: 1px solid #eee;
+  margin: 10px 0;
+}
+
 .owner-details-modal-content p {
   margin: 10px 0;
 }
