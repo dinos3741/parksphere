@@ -24,6 +24,7 @@ async function createUsersTable() {
         plate_number VARCHAR(255) NOT NULL,
         car_color VARCHAR(255) NOT NULL,
         car_type VARCHAR(255), -- New column for car type
+        avatar_url VARCHAR(255), -- New column for avatar URL
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -32,6 +33,12 @@ async function createUsersTable() {
     await client.query(`
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS car_type VARCHAR(255);
+    `);
+
+    // Add avatar_url column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);
     `);
 
     // Add credits column if it doesn't exist

@@ -14,7 +14,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
         <div className="owner-details-separator"></div>
         <div className="owner-details-grid">
           <div className="owner-details-left">
-            <img src="https://i.pravatar.cc/80" alt="Owner Avatar" className="owner-avatar" />
+            <img src={owner.avatar_url || "https://i.pravatar.cc/80"} alt="Owner Avatar" className="owner-avatar" />
             <p><strong>{owner.username}</strong></p>
           </div>
           <div className="owner-details-right">

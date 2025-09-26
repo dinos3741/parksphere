@@ -310,7 +310,7 @@ app.get('/api/users/username/:username', authenticateToken, async (req, res) => 
 
   try {
     const result = await pool.query(
-      'SELECT id, username, created_at, credits, car_type, spots_declared, spots_taken FROM users WHERE username = $1',
+      'SELECT id, username, created_at, credits, car_type, spots_declared, spots_taken, avatar_url FROM users WHERE username = $1',
       [username]
     );
     const user = result.rows[0];
@@ -769,12 +769,13 @@ app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
 
 app.post('/api/register', async (req, res) => {
   const { username, password, plateNumber, carColor, carType } = req.body;
+  const defaultAvatarUrl = `https://i.pravatar.cc/80?u=${username}`;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (username, password, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [username, hashedPassword, plateNumber, carColor, carType]
+      'INSERT INTO users (username, password, plate_number, car_color, car_type, avatar_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [username, hashedPassword, plateNumber, carColor, carType, defaultAvatarUrl]
     );
     res.status(201).json({ message: 'User registered successfully!', userId: result.rows[0].id });
   } catch (error) {
