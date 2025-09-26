@@ -12,14 +12,14 @@
 }
 
 .request-action-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  background-color: rgb(229, 226, 236);
   padding: 20px;
   border-radius: 10px;
   width: 90%;
   max-width: 400px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   position: relative;
-  color: white;
+  color: #333;
 }
 
 .request-action-modal-header {
@@ -33,7 +33,7 @@
 
 .request-action-modal-header h2 {
   margin: 0;
-  color: white;
+  color: #7A1BE0;
 }
 
 .request-action-modal-close-button {
@@ -76,19 +76,22 @@
 }
 
 .confirm-button {
-  background-color: #4CAF50; /* Green */
+  background-color: #3454bd; /* Purple-blue */
   color: white;
 }
 
 .confirm-button:hover {
-  background-color: #45a049;
+  background-color: #2a43a0;
 }
 
 .reject-button {
-  background-color: #f44336; /* Red */
+  background-color: #a5387b; /* Purple-red */
   color: white;
 }
 
 .reject-button:hover {
+  background-color: #8e2f68;
+}
+utton:hover {
   background-color: #da190b;
 }

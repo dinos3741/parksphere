@@ -12,7 +12,7 @@
 }
 
 .modal-content {
-  background: white;
+  background-color: rgb(229, 226, 236);
   padding: 20px;
   border-radius: 8px;
   width: 300px;
@@ -23,7 +23,7 @@
 
 .title {
   font-size: 20px;
-  color: #252c7e;
+  color: #7A1BE0;
   margin-bottom: 12px;
 }
 
@@ -50,13 +50,21 @@
 }
 
 .accept-button {
-  background-color: #4CAF50; /* Green */
+  background-color: #3454bd; /* Purple-blue */
   color: white;
 }
 
+.accept-button:hover {
+  background-color: #2a43a0;
+}
+
 .decline-button {
-  background-color: #f44336; /* Red */
+  background-color: #a5387b; /* Purple-red */
   color: white;
+}
+
+.decline-button:hover {
+  background-color: #8e2f68;
 }
 
 .close-button {
