@@ -74,3 +74,7 @@
 .owner-details-right {
   width: 50%;
 }
+
+.owner-details-right p {
+  color: #603aac;
+}
