@@ -305,6 +305,27 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/users/username/:username', authenticateToken, async (req, res) => {
+  const username = req.params.username;
+
+  try {
+    const result = await pool.query(
+      'SELECT id, username, created_at, credits FROM users WHERE username = $1',
+      [username]
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).send('User not found.');
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Error fetching user data by username:', error);
+    res.status(500).send('Server error fetching user data by username.');
+  }
+});
+
 app.get('/api/user/spots-count', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
 

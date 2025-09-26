@@ -20,10 +20,23 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   const [ownerDetails, setOwnerDetails] = useState(null);
 
   const handleOwnerClick = async () => {
-    // For now, we'll just use the spot's owner details
-    // Later, you might fetch more details from a server
-    setOwnerDetails({ username: spot.username });
-    setShowOwnerModal(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/username/${spot.username}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setOwnerDetails(data);
+        setShowOwnerModal(true);
+      } else {
+        console.error('Failed to fetch owner details');
+      }
+    } catch (error) {
+      console.error('Error fetching owner details:', error);
+    }
   };
 
   useEffect(() => {
