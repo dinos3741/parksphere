@@ -310,7 +310,7 @@ app.get('/api/users/username/:username', authenticateToken, async (req, res) => 
 
   try {
     const result = await pool.query(
-      'SELECT id, username, created_at, credits, car_type, spots_declared FROM users WHERE username = $1',
+      'SELECT id, username, created_at, credits, car_type, spots_declared, spots_taken FROM users WHERE username = $1',
       [username]
     );
     const user = result.rows[0];

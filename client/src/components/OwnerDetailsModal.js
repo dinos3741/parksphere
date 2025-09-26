@@ -21,6 +21,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
             <p><strong>Credits:</strong> <span style={{ color: '#603aac' }}>{owner.credits}</span></p>
             <p><strong>Car Type:</strong> {owner.car_type}</p>
             <p><strong>Spots Declared:</strong> {owner.spots_declared}</p>
+            <p><strong>Spots Taken:</strong> {owner.spots_taken}</p>
           </div>
         </div>
       </div>
