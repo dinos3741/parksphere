@@ -9,12 +9,22 @@ import commentsIcon from '../assets/images/comments.png';
 import carIcon from '../assets/images/car.png';
 import plateIcon from '../assets/images/plate.png';
 import { emitter } from '../emitter';
+import OwnerDetailsModal from './OwnerDetailsModal';
 
 const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
   const [ownerUsername, setOwnerUsername] = useState('');
+  const [showOwnerModal, setShowOwnerModal] = useState(false);
+  const [ownerDetails, setOwnerDetails] = useState(null);
+
+  const handleOwnerClick = async () => {
+    // For now, we'll just use the spot's owner details
+    // Later, you might fetch more details from a server
+    setOwnerDetails({ username: spot.username });
+    setShowOwnerModal(true);
+  };
 
   useEffect(() => {
     const handleRequestRejected = (data) => {
@@ -80,7 +90,13 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
           <>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <div className="requester-side-drawer-content spot-details-grid">
-                <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Declared by: </strong> {spot.username}</div>
+                <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div>
+                <div className="spot-detail-text">
+                  <strong>Declared by: </strong>
+                  <a href="#" onClick={handleOwnerClick} style={{ color: '#3454bd', textDecoration: 'underline' }}>
+                    {spot.username}
+                  </a>
+                </div>
                 <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
                 <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
                 <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
@@ -115,6 +131,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
           </div>
         </div>
       )}
+      {showOwnerModal && <OwnerDetailsModal owner={ownerDetails} onClose={() => setShowOwnerModal(false)} />}
     </>
   );
 };
