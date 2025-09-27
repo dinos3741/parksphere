@@ -44,13 +44,13 @@ async function createUsersTable() {
     // Add credits column if it doesn't exist
     await client.query(`
       ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS credits DECIMAL(10, 2) DEFAULT 0.00;
+      ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 0;
     `);
 
     // Add reserved_amount column if it doesn't exist
     await client.query(`
       ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS reserved_amount DECIMAL(10, 2) DEFAULT 0.00;
+      ADD COLUMN IF NOT EXISTS reserved_amount INTEGER DEFAULT 0;
     `);
 
     // Add spots_declared column if it doesn't exist
@@ -92,7 +92,7 @@ async function createParkingSpotsTable() {
         longitude DECIMAL(11, 8) NOT NULL,
         time_to_leave INTEGER NOT NULL, -- Time in minutes
         cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
-        price DECIMAL(10, 2) DEFAULT 0.00,
+        price INTEGER DEFAULT 0,
         comments TEXT, -- New column for comments
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
