@@ -74,6 +74,35 @@ async function createUsersTable() {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS completed_transactions_count INTEGER DEFAULT 0;
     `);
+
+    // Check and alter credits column type if it's not INTEGER
+    const creditsColumnTypeResult = await client.query(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'credits';
+    `);
+
+    if (creditsColumnTypeResult.rows.length > 0 && creditsColumnTypeResult.rows[0].data_type !== 'integer') {
+      console.log('credits column is not INTEGER, attempting to alter to INTEGER...');
+      await client.query(`
+        ALTER TABLE users ALTER COLUMN credits TYPE INTEGER USING credits::integer;
+      `);
+      console.log('credits column successfully altered to INTEGER.');
+    }
+
+    // Check and alter reserved_amount column type if it's not INTEGER
+    const reservedAmountColumnTypeResult = await client.query(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'reserved_amount';
+    `);
+
+    if (reservedAmountColumnTypeResult.rows.length > 0 && reservedAmountColumnTypeResult.rows[0].data_type !== 'integer') {
+      console.log('reserved_amount column is not INTEGER, attempting to alter to INTEGER...');
+      await client.query(`
+        ALTER TABLE users ALTER COLUMN reserved_amount TYPE INTEGER USING reserved_amount::integer;
+      `);
+      console.log('reserved_amount column successfully altered to INTEGER.');
+    }
+
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
@@ -141,6 +170,21 @@ async function createParkingSpotsTable() {
       ALTER TABLE parking_spots
       ADD COLUMN IF NOT EXISTS fuzzed_longitude DECIMAL(11, 8);
     `);
+
+    // Check and alter price column type if it's not INTEGER
+    const priceColumnTypeResult = await client.query(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'parking_spots' AND column_name = 'price';
+    `);
+
+    if (priceColumnTypeResult.rows.length > 0 && priceColumnTypeResult.rows[0].data_type !== 'integer') {
+      console.log('price column is not INTEGER, attempting to alter to INTEGER...');
+      await client.query(`
+        ALTER TABLE parking_spots ALTER COLUMN price TYPE INTEGER USING price::integer;
+      `);
+      console.log('price column successfully altered to INTEGER.');
+    }
+
     client.release();
     console.log('Parking spots table ensured to exist.');
   } catch (err) {
