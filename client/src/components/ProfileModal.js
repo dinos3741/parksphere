@@ -8,13 +8,7 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
   const [showUpdateCredentialsModal, setShowUpdateCredentialsModal] = useState(false);
   const [showChangeCarTypeModal, setShowChangeCarTypeModal] = useState(false); // New state
 
-  const getInitials = (username) => {
-    if (!username) return '';
-    const words = username.split(' ').filter(word => word.length > 0);
-    if (words.length === 0) return '';
-    if (words.length === 1) return words[0].charAt(0).toUpperCase();
-    return (words[0].charAt(0) + words[1].charAt(0)).toUpperCase();
-  };
+  
 
   const handleUpdateCredentialsClick = () => {
     setShowUpdateCredentialsModal(true);
@@ -51,7 +45,7 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
               <div className="profile-details-two-column"> {/* Main container for two columns */}
                 <div className="profile-left-column"> {/* Left column for avatar and username */}
                   <div className="user-avatar-only"> {/* Avatar circle only */}
-                    <div className="user-avatar">{getInitials(userData.username)}</div>
+                    <img src={`https://i.pravatar.cc/150?u=${userData.username}`} alt={userData.username} className="user-avatar" />
                   </div>
                   <span className="user-full-name-left-column">{userData.username}</span> {/* Username in left column */}
                 </div>
