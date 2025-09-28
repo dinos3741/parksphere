@@ -18,6 +18,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   const [ownerUsername, setOwnerUsername] = useState('');
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerDetails, setOwnerDetails] = useState(null);
+  const [arrivedClicked, setArrivedClicked] = useState(false);
 
   const handleOwnerClick = async () => {
     try {
@@ -125,7 +126,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
             </div>
             <div className="requester-side-drawer-footer">
               {isAcceptedSpot ? (
-                <button onClick={() => { onArrived(spot.id); onClose(); }} className="arrived-button">Arrived</button>
+                <button onClick={() => { onArrived(spot.id); setArrivedClicked(true); onClose(); }} className="arrived-button" disabled={arrivedClicked}>Arrived</button>
               ) : hasPendingRequest ? (
                 <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
               ) : (
