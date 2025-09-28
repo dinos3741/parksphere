@@ -802,6 +802,7 @@ function MainAppContent() {
         isOpen={isArrivalConfirmationModalOpen}
         onClose={handleCloseArrivalModal}
         onConfirm={handleConfirmArrival}
+        isOwner={true}
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
       />

@@ -1,8 +1,12 @@
 import React from 'react';
 import './ArrivalConfirmationModal.css';
 
-const ArrivalConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+const ArrivalConfirmationModal = ({ isOpen, onClose, onConfirm, isOwner, requesterUsername, spotId }) => {
   if (!isOpen) return null;
+
+  const message = isOwner
+    ? `User ${requesterUsername} has arrived at spot ${spotId}. Please confirm to complete the transaction.`
+    : 'Are you sure you arrived at the correct spot location?';
 
   return (
     <div className="arrival-modal-overlay">
@@ -12,7 +16,7 @@ const ArrivalConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
           <button className="arrival-modal-close-button" onClick={onClose}>&times;</button>
         </div>
         <div className="arrival-modal-body">
-          <p>Are you sure you arrived at the correct spot location?</p>
+          <p>{message}</p>
         </div>
         <div className="arrival-modal-footer">
           <button className="arrival-confirm-button" onClick={onConfirm}>Confirm</button>

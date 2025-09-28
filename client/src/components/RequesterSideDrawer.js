@@ -43,6 +43,10 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   };
 
   useEffect(() => {
+    setArrivedClicked(false);
+  }, [spot]);
+
+  useEffect(() => {
     const handleRequestRejected = (data) => {
       if (spot && spot.id === data.spotId) {
         setRejectedSpot(spot);
@@ -160,6 +164,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
           setShowArrivalConfirmation(false);
           onClose();
         }}
+        isOwner={false}
       />
     </>
   );
