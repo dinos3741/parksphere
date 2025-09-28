@@ -60,6 +60,9 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
 
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (showArrivalConfirmation) {
+        return;
+      }
       if (drawerRef.current && !drawerRef.current.contains(event.target)) {
         onClose();
       }
@@ -74,7 +77,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [spot, onClose]);
+  }, [spot, onClose, showArrivalConfirmation]);
 
   const handleCloseRejectedModal = () => {
     setShowRejectedModal(false);
