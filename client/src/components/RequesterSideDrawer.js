@@ -10,6 +10,7 @@ import carIcon from '../assets/images/car.png';
 import plateIcon from '../assets/images/plate.png';
 import { emitter } from '../emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
+import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 
 const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected }) => {
   const drawerRef = useRef(null);
@@ -19,6 +20,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerDetails, setOwnerDetails] = useState(null);
   const [arrivedClicked, setArrivedClicked] = useState(false);
+  const [showArrivalConfirmation, setShowArrivalConfirmation] = useState(false);
 
   const handleOwnerClick = async () => {
     try {
@@ -126,7 +128,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
             </div>
             <div className="requester-side-drawer-footer">
               {isAcceptedSpot && !arrivedClicked ? (
-                <button onClick={() => { onArrived(spot.id); setArrivedClicked(true); onClose(); }} className="arrived-button">Arrived</button>
+                <button onClick={() => setShowArrivalConfirmation(true)} className="arrived-button">Arrived</button>
               ) : !isAcceptedSpot && hasPendingRequest ? (
                 <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
               ) : !isAcceptedSpot ? (
@@ -146,6 +148,16 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
         </div>
       )}
       {showOwnerModal && <OwnerDetailsModal owner={ownerDetails} onClose={() => setShowOwnerModal(false)} />}
+      <ArrivalConfirmationModal
+        isOpen={showArrivalConfirmation}
+        onClose={() => setShowArrivalConfirmation(false)}
+        onConfirm={() => {
+          onArrived(spot.id);
+          setArrivedClicked(true);
+          setShowArrivalConfirmation(false);
+          onClose();
+        }}
+      />
     </>
   );
 };

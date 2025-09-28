@@ -1,55 +1,94 @@
-
-.modal-overlay {
+.arrival-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
 }
 
-.modal-content {
-  background: white;
+.arrival-modal-content {
+  background-color: rgb(229, 226, 236);
   padding: 20px;
-  padding-top: 10px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  text-align: center;
+  border-radius: 15px;
   width: 90%;
   max-width: 400px;
-  position: relative; /* Added for positioning the close button */
-}
-
-.close-button {
-  position: absolute;
-  top: 10px;
-  right: 15px;
-  font-size: 24px;
-  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  position: relative;
   color: #333;
-  background: transparent; /* Added to remove background */
+  text-align: center;
 }
 
-.modal-content h2 {
-  margin-top: 20px; /* Adjusted margin to account for close button */
-}
-
-.modal-actions {
-  margin-top: 20px;
+.arrival-modal-header {
   display: flex;
-  justify-content: center; /* Changed to center as there's only one button */
+  justify-content: space-between;
+  align-items: center;
+  background-color: #603aac;
+  padding: 10px 20px;
+  margin: -20px -20px 20px -20px; /* Adjust to cover the top corners */
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
 }
 
-.confirm-button {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  background-color: #4CAF50;
+.arrival-modal-header h2 {
+  margin: 0;
   color: white;
+  font-size: 1.6em;
+}
+
+.arrival-modal-close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: white;
+}
+
+.arrival-modal-close-button:hover {
+  color: #eee;
+}
+
+.arrival-modal-body p {
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  color: #7A1BE0;
+}
+
+.arrival-modal-footer {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.arrival-confirm-button,
+.arrival-cancel-button {
+  padding: 10px 20px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  width: 120px;
+}
+
+.arrival-confirm-button {
+  background-color: #3454bd; /* Purple-blue from SideDrawer.css .edit-button */
+  color: white;
+}
+
+.arrival-confirm-button:hover {
+  background-color: #2a429a;
+}
+
+.arrival-cancel-button {
+  background-color: #a5387b; /* Purple-red from SideDrawer.css .delete-button */
+  color: white;
+}
+
+.arrival-cancel-button:hover {
+  background-color: #8c2f68;
 }
