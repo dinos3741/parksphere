@@ -125,13 +125,13 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
             </div>
             <div className="requester-side-drawer-footer">
-              {isAcceptedSpot ? (
-                <button onClick={() => { onArrived(spot.id); setArrivedClicked(true); onClose(); }} className="arrived-button" disabled={arrivedClicked}>Arrived</button>
-              ) : hasPendingRequest ? (
+              {isAcceptedSpot && !arrivedClicked ? (
+                <button onClick={() => { onArrived(spot.id); setArrivedClicked(true); onClose(); }} className="arrived-button">Arrived</button>
+              ) : !isAcceptedSpot && hasPendingRequest ? (
                 <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
-              ) : (
+              ) : !isAcceptedSpot ? (
                 <button onClick={() => onRequest(spot.id)} className="request-button">Request</button>
-              )}
+              ) : null}
             </div>
           </>
         )}
