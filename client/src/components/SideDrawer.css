@@ -137,10 +137,10 @@
 }
 
 .request-details {
-  flex-grow: 1;
   display: flex;
   align-items: baseline;
-  gap: 15px;
+  gap: 10px;
+  flex-grow: 1;
 }
 
 .requester-username {
@@ -167,4 +167,21 @@
 
 .request-distance.accepted {
   color: #007bff;
+}
+
+.chat-window-placeholder {
+  grid-column: 1 / -1; /* Span across both columns */
+  margin-top: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f9f9f9;
+}
+
+
+.chat-symbol {
+  font-size: 0.9rem;
+  margin-left: 10px;
+  cursor: pointer;
+  color: #3454bd; /* A color that stands out */
 }
