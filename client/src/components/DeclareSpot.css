@@ -1,85 +1,100 @@
+/* General container styling */
 .declare-spot-container {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background-color: rgba(189, 186, 218, 0.966);
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px; /* Original width */
+  background-color: rgb(229, 226, 236);
+  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+  border-radius: 15px; /* Uniform border radius */
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  width: 100%;
-  max-width: 500px;
   font-family: sans-serif;
+  overflow: hidden; /* Ensures the header's background doesn't bleed out */
 }
 
-.declare-spot-container h2 {
-  margin-top: 0;
-  color: rgb(41, 34, 34);
+/* Header styling */
+.declare-spot-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  background-color: #603aac; /* Purple background from side drawer */
+  border-bottom: 1px solid #eee;
+}
+
+.declare-spot-header h2 {
+  margin: 0;
+  color: white;
+  font-weight: bold;
+}
+
+/* Content styling */
+.declare-spot-content {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.declare-spot-content p {
+  margin: 0;
+  color: #7A1BE0;
   text-align: center;
 }
 
+/* Form styling */
 .form-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
 }
 
 .form-row label {
-  width: 160px;            /* fixed width for alignment */
-  text-align: left;        /* left-align text */
-  font-weight: bold;
-  color: rgb(45, 35, 35);
-  padding-top: 6px;        /* align vertically with input */
+  width: 160px;
+  text-align: left;
+  font-weight: normal;
+  color: #7A1BE0; /* Dark purple text */
+  font-family: 'Open Sans', sans-serif;
 }
 
 .form-row input[type="number"],
-.form-row textarea {
+.form-row textarea,
+.form-row select {
   flex: 1;
   padding: 8px;
-  border: 1px solid #3e2f2f;
+  border: 1px solid #ccc;
   border-radius: 4px;
   font-size: 1em;
-  width: 100%;
   box-sizing: border-box;
-  margin: 0;
 }
 
-.form-row input[type="checkbox"] {
-  flex: 1; /* Allow checkbox to take remaining space */
-  width: auto; /* Override 100% width from other inputs */
-  margin-left: auto; /* Push checkbox to the right */
-  transform: scale(1.5); /* Make checkbox a bit larger for visibility */
-}
-
-
-
-/* Buttons */
-.declare-spot-buttons {
+/* Footer/buttons styling */
+.declare-spot-footer {
+  padding: 1rem;
+  border-top: 1px solid #eee;
   display: flex;
-  gap: 10px;
-  width: 100%;
   justify-content: center;
+  gap: 10px;
 }
 
-.declare-spot-buttons button {
-  flex: 1;
-  max-width: 150px;
-  padding: 10px 20px;
-  font-size: 1em;
+.declare-spot-button, .cancel-button {
+  padding: 10px 20px; /* Adjusted padding */
   border: none;
-  border-radius: 25px;
-  color: rgb(231, 202, 202);
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-  background-color: #cd275c;
+  font-size: 14px;
+  width: 120px; /* Fixed width */
+  color: white;
 }
 
-.declare-spot-buttons button:first-of-type {
-  background-color: #007bff;
+.declare-spot-button {
+  background-color: #3454bd; /* Purple-blue from side drawer's edit */
+}
+
+.cancel-button {
+  background-color: #a5387b; /* Purple-red from side drawer's delete */
 }
