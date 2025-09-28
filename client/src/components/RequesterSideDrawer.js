@@ -7,7 +7,7 @@ import costIcon from '../assets/images/cost.png';
 import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
 import carIcon from '../assets/images/car.png';
-import plateIcon from '../assets/images/plate.png';
+// import plateIcon from '../assets/images/plate.png'; // Removed plateIcon import
 import { emitter } from '../emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
@@ -126,7 +126,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                 {isAcceptedSpot && ownerCarDetails && (
                   <>
                     <div><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Car Color: </strong> {ownerCarDetails.car_color}</div>
-                    <div><img src={plateIcon} alt="Plate" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Plate Number: </strong> {ownerCarDetails.plate_number}</div>
+                    {/* Removed plateIcon usage */}
                   </>
                 )}
                 <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
