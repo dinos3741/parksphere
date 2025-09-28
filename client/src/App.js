@@ -565,6 +565,16 @@ function MainAppContent() {
     setArrivalConfirmationData(null);
   };
 
+  const handleNotIdentified = () => {
+    if (arrivalConfirmationData) {
+      // For now, just log it and notify the owner.
+      console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
+      addNotification(`You have indicated that the requester was not identified.`, 'default');
+    }
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
   useEffect(() => {
     const handleRequestCancelled = (data) => {
       const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
@@ -802,6 +812,7 @@ function MainAppContent() {
         isOpen={isArrivalConfirmationModalOpen}
         onClose={handleCloseArrivalModal}
         onConfirm={handleConfirmArrival}
+        onNotIdentified={handleNotIdentified}
         isOwner={true}
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
