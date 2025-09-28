@@ -7,7 +7,7 @@ import { getDistance } from './utils/geoUtils';
 import { emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
-import DeclareSpot from './components/DeclareSpot';
+// import DeclareSpot from './components/DeclareSpot'; // Removed DeclareSpot import
 import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
@@ -133,7 +133,7 @@ function MainAppContent() {
   const [profileUserData, setProfileUserData] = useState(null); // State for profile data
   const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false);
+  // const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false); // Removed DeclareSpotForm state
   const [showEditModal, setShowEditModal] = useState(false);
   const [spotToEdit, setSpotToEdit] = useState(null);
   const [acceptedSpot, setAcceptedSpot] = useState(null);
@@ -271,9 +271,9 @@ function MainAppContent() {
     }
   }, [currentUserId]);
 
-  const handleShowDeclareSpotForm = useCallback(() => {
-    setShowDeclareSpotForm(true);
-  }, []);
+  // const handleShowDeclareSpotForm = useCallback(() => {
+  //   setShowDeclareSpotForm(true);
+  // }, []); // Removed handleShowDeclareSpotForm
 
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
@@ -760,18 +760,11 @@ function MainAppContent() {
           userLocation={userLocation}
           currentUserCarType={currentUserCarType}
           currentUserId={currentUserId}
-          onCustomDeclare={handleShowDeclareSpotForm}
+          // onCustomDeclare={handleShowDeclareSpotForm} // Removed onCustomDeclare prop
           addNotification={addNotification}
         />
 
-        {showDeclareSpotForm && (
-          <DeclareSpot
-            userLocation={userLocation}
-            currentUserCarType={currentUserCarType}
-            onClose={() => setShowDeclareSpotForm(false)}
-            addNotification={addNotification}
-          />
-        )}
+        {/* Removed DeclareSpot component rendering */}
 
         {showEditModal && spotToEdit && (
           <EditSpotModal

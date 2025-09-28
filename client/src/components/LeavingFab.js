@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import './LeavingFab.css';
 
-const presets = [2, 5, 10, 0]; // minutes, 0 = now
+const presets = [0, 2, 5, 10]; // minutes, 0 = now
 
-// Accept new props: userLocation, currentUserCarType, currentUserId, onCustomDeclare
-const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomDeclare, addNotification }) => {
+// Accept new props: userLocation, currentUserCarType, currentUserId
+const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification }) => {
   const [showOverlay, setShowOverlay] = useState(false);
 
   const handlePresetClick = async (minutes) => {
@@ -82,9 +82,7 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, onCustomD
                   {m === 0 ? 'Now' : `${m}m`}
                 </button>
               ))}
-              <button className="chip" onClick={() => { setShowOverlay(false); onCustomDeclare(); }}>
-                Custom…
-              </button>
+              {/* Removed Custom button as per user request */}
             </div>
             <button className="close-overlay-button" onClick={() => setShowOverlay(false)}>
               X
