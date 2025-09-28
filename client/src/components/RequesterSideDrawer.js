@@ -132,6 +132,11 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                 <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
               </div>
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
+            {isAcceptedSpot && (
+              <div className="chat-button-wrapper">
+                <button className="chat-owner-button-style">Chat with Spot Owner</button>
+              </div>
+            )}
             </div>
             <div className="requester-side-drawer-footer">
               {isAcceptedSpot && !arrivedClicked ? (
