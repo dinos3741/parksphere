@@ -657,9 +657,23 @@ function MainAppContent() {
     };
   }, [setNotificationLog]);
 
+  const handleSendMessage = (messageContent) => {
+    if (messageContent.trim() && chatRecipient) {
+      const newMessage = {
+        from: currentUserId,
+        to: chatRecipient.id,
+        message: messageContent,
+      };
+      socket.emit('privateMessage', newMessage);
+      setChatMessages((prevMessages) => [...prevMessages, newMessage]);
+    }
+  };
+
   useEffect(() => {
     const handlePrivateMessage = (message) => {
-      setChatMessages((prevMessages) => [...prevMessages, message]);
+      if (chatRecipient && message.from === chatRecipient.id) {
+        setChatMessages((prevMessages) => [...prevMessages, message]);
+      }
     };
 
     socket.on('privateMessage', handlePrivateMessage);
@@ -667,7 +681,7 @@ function MainAppContent() {
     return () => {
       socket.off('privateMessage', handlePrivateMessage);
     };
-  }, []);
+  }, [chatRecipient]);
 
   const handleLogout = useCallback(() => {
     if (currentUserId) {
@@ -808,13 +822,16 @@ function MainAppContent() {
 
       <NotificationLog messages={notificationLog} />
 
-      <ChatSideDrawer
-        isOpen={isChatOpen}
-        onClose={handleCloseChat}
-        title={chatRecipient ? `Chat with ${chatRecipient.username}` : 'Chat'}
-        messages={chatMessages}
-        recipient={chatRecipient}
-      />
+      {isChatOpen && (
+        <ChatSideDrawer
+          isOpen={isChatOpen}
+          onClose={handleCloseChat}
+          title={chatRecipient ? `Chat with ${chatRecipient.username}` : 'Chat'}
+          messages={chatMessages}
+          recipient={chatRecipient}
+          onSendMessage={handleSendMessage}
+        />
+      )}
 
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
