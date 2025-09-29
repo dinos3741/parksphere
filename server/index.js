@@ -235,12 +235,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('privateMessage', ({ to, message }) => {
-    const from = Object.keys(userSockets).find(key => userSockets[key].socketId === socket.id);
+  socket.on('privateMessage', (data) => {
+    const { from, to, message } = data;
     const recipientSocketId = userSockets[to]?.socketId;
 
-    if (from && recipientSocketId) {
-      io.to(recipientSocketId).emit('privateMessage', { from, message });
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('privateMessage', { from, to, message });
     }
   });
 
