@@ -192,3 +192,10 @@
 .requester-username.accepted {
   color: #007bff;
 }
+
+.chat-symbol {
+  font-size: 0.9rem;
+  margin-left: 10px;
+  cursor: pointer;
+  color: #3454bd;
+}

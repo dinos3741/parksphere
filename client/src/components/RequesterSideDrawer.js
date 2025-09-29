@@ -141,7 +141,10 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                         <i className="fas fa-user-check"></i>
                       </div>
                       <div className="request-details">
-                        <div className="requester-username accepted">Request accepted</div>
+                        <div className="requester-username accepted" style={{ display: 'flex', alignItems: 'center' }}>
+                        <span>Accepted by {spot.username}</span>
+                        <span className="chat-symbol" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>💬</span>
+                      </div>
                       </div>
                     </div>
                   </div>
