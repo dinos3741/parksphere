@@ -57,13 +57,15 @@
 }
 
 .chat-message.sent {
-  background-color: #dcf8c6;
+  background-color: #4a148c; /* Dark purple */
+  color: white;
   align-self: flex-end;
   margin-left: auto;
 }
 
 .chat-message.received {
-  background-color: #f1f0f0;
+  background-color: #1565c0; /* Dark blue */
+  color: white;
   align-self: flex-start;
 }
 
