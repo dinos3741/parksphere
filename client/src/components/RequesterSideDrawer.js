@@ -112,26 +112,42 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
         {spot && (
           <>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-              <div className="requester-side-drawer-content spot-details-grid">
-                <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div>
-                <div className="spot-detail-text">
-                  <strong>Declared by: </strong>
-                  <button onClick={handleOwnerClick} style={{ background: 'none', border: 'none', padding: 0, color: '#3454bd', cursor: 'pointer', font: 'inherit' }}>
-                    {spot.username}
-                  </button>
+              <div className="requester-side-drawer-content">
+                <div className="spot-details-grid">
+                  <div><img src={spotIcon} alt="Spot" style={{ width: '24px', height: '24px' }} /></div>
+                  <div className="spot-detail-text">
+                    <strong>Declared by: </strong>
+                    <button onClick={handleOwnerClick} style={{ background: 'none', border: 'none', padding: 0, color: '#3454bd', cursor: 'pointer', font: 'inherit' }}>
+                      {spot.username}
+                    </button>
+                  </div>
+                  <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
+                  <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
+                  <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
+                  {isAcceptedSpot && ownerCarDetails && (
+                    <>
+                      <div><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Car Color: </strong> {ownerCarDetails.car_color}</div>
+                      {/* Removed plateIcon usage */}
+                    </>
+                  )}
+                  <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
                 </div>
-                <div><img src={timeIcon} alt="Time" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
-                <div><img src={costIcon} alt="Cost" style={{ width: '28.8px', height: '28.8px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
-                <div><img src={priceIcon} alt="Price" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
-                {isAcceptedSpot && ownerCarDetails && (
-                  <>
-                    <div><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Car Color: </strong> {ownerCarDetails.car_color}</div>
-                    {/* Removed plateIcon usage */}
-                  </>
+                {isAcceptedSpot && <hr style={{ margin: '20px 0', borderColor: '#eee' }} />}
+                {isAcceptedSpot && (
+                  <div className="requests-section" style={{ padding: '0', marginTop: '-10px' }}>
+                    <h3>Requests</h3>
+                    <div className="request-item accepted">
+                      <div className="requester-avatar accepted">
+                        <i className="fas fa-user-check"></i>
+                      </div>
+                      <div className="request-details">
+                        <div className="requester-username accepted">Request accepted</div>
+                      </div>
+                    </div>
+                  </div>
                 )}
-                <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
               </div>
-              <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
+              <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: 'auto' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
             {isAcceptedSpot && (
               <div className="chat-button-wrapper">
                 <button className="chat-owner-button-style" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>Chat with Spot Owner</button>
