@@ -21,6 +21,7 @@ import SettingsModal from './components/SettingsModal';
 import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
+import ChatSideDrawer from './components/ChatSideDrawer';
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
@@ -29,6 +30,9 @@ import arrivedSound from './assets/sounds/arrived.wav';
 import './App.css';
 
 function MainAppContent() {
+  const [isChatOpen, setChatOpen] = useState(false);
+  const [chatRecipient, setChatRecipient] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
   const audioContextRef = useRef(null);
   const audioBufferRef = useRef(null);
   const removeRequestAudioBufferRef = useRef(null);
@@ -653,6 +657,18 @@ function MainAppContent() {
     };
   }, [setNotificationLog]);
 
+  useEffect(() => {
+    const handlePrivateMessage = (message) => {
+      setChatMessages((prevMessages) => [...prevMessages, message]);
+    };
+
+    socket.on('privateMessage', handlePrivateMessage);
+
+    return () => {
+      socket.off('privateMessage', handlePrivateMessage);
+    };
+  }, []);
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
@@ -660,6 +676,17 @@ function MainAppContent() {
     logout();
     navigate('/');
   }, [currentUserId, navigate]);
+
+  const handleOpenChat = useCallback((recipient) => {
+    setChatRecipient(recipient);
+    setChatOpen(true);
+  }, []);
+
+  const handleCloseChat = useCallback(() => {
+    setChatOpen(false);
+    setChatRecipient(null);
+    setChatMessages([]);
+  }, []);
 
   const handleDeleteSpot = useCallback(async (spotId) => {
     try {
@@ -750,6 +777,7 @@ function MainAppContent() {
               onRequestStatusChange={handleRequestStatusChange}
               currentUsername={currentUsername}
               pendingRequests={pendingRequests}
+              onOpenChat={handleOpenChat}
             />
           ) : (
             <div>Loading map or getting your location...</div>
@@ -779,6 +807,14 @@ function MainAppContent() {
       </div>
 
       <NotificationLog messages={notificationLog} />
+
+      <ChatSideDrawer
+        isOpen={isChatOpen}
+        onClose={handleCloseChat}
+        title={chatRecipient ? `Chat with ${chatRecipient.username}` : 'Chat'}
+        messages={chatMessages}
+        recipient={chatRecipient}
+      />
 
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>

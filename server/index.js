@@ -235,6 +235,15 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('privateMessage', ({ to, message }) => {
+    const from = Object.keys(userSockets).find(key => userSockets[key].socketId === socket.id);
+    const recipientSocketId = userSockets[to]?.socketId;
+
+    if (from && recipientSocketId) {
+      io.to(recipientSocketId).emit('privateMessage', { from, message });
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('A user disconnected:', socket.id);
     // Find which user was connected on this socket and remove them

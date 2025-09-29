@@ -45,7 +45,7 @@ const parkingSpotIcon = new L.Icon({
 
 
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -498,6 +498,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         currentUserId={currentUserId}
         addNotification={addNotification}
         currentUsername={currentUsername}
+        onOpenChat={onOpenChat}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}
@@ -513,6 +514,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           setOwnerCarDetails(null);
         }}
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
+        onOpenChat={onOpenChat}
       />
 
       {showDeleteConfirmationModal && (

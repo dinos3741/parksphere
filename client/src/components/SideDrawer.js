@@ -11,7 +11,7 @@ import RequestActionModal from './RequestActionModal';
 import { socket } from '../socket';
 import { emitter } from '../emitter';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat }) => {
   const drawerRef = useRef(null);
   const [showRequestActionModal, setShowRequestActionModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -137,7 +137,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                         {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                       </div>
                       {request.status === 'accepted' && (
-                        <div className="chat-symbol">💬</div>
+                        <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
                       )}
                     </div>
                   ))}

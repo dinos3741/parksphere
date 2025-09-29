@@ -136,7 +136,8 @@
 .chat-button-wrapper {
   display: flex;
   justify-content: center;
-  padding: 0 20px; /* Match footer padding */
-  margin-top: 1rem;
-  margin-bottom: 20px;
+  align-items: center; /* Center vertically as well */
+  max-width: 260px; /* Max width to match footer content area */
+  width: 100%; /* Ensure it takes up available width within max-width */
+  margin: 1rem auto 20px auto; /* Center horizontally and provide margins */
 }

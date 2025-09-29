@@ -12,7 +12,7 @@ import { emitter } from '../emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -134,7 +134,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: '0px' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
             {isAcceptedSpot && (
               <div className="chat-button-wrapper">
-                <button className="chat-owner-button-style">Chat with Spot Owner</button>
+                <button className="chat-owner-button-style" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>Chat with Spot Owner</button>
               </div>
             )}
             </div>
