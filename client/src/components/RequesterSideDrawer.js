@@ -151,11 +151,6 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                 )}
               </div>
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: 'auto' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
-            {isAcceptedSpot && (
-              <div className="chat-button-wrapper">
-                <button className="chat-owner-button-style" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>Chat with Spot Owner</button>
-              </div>
-            )}
             </div>
             <div className="requester-side-drawer-footer">
               {isAcceptedSpot && !arrivedClicked ? (
