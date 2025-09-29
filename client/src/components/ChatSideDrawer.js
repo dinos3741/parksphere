@@ -1,16 +1,8 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import './ChatSideDrawer.css';
 
-const ChatSideDrawer = ({ isOpen, onClose, title, messages, recipient, onSendMessage }) => {
+const ChatSideDrawer = ({ isOpen, onClose, title, messages, recipient, onSendMessage, chatInput, onChatInputChange }) => {
   const drawerRef = useRef(null);
-  const [message, setMessage] = useState('');
-
-  const handleLocalSendMessage = () => {
-    if (message.trim() && recipient) {
-      onSendMessage(message);
-      setMessage('');
-    }
-  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -47,11 +39,11 @@ const ChatSideDrawer = ({ isOpen, onClose, title, messages, recipient, onSendMes
         <textarea 
           className="chat-input" 
           placeholder="Type your message..." 
-          value={message} 
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleLocalSendMessage()}
+          value={chatInput} 
+          onChange={(e) => onChatInputChange(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && onSendMessage()}
         />
-        <button className="send-button" onClick={handleLocalSendMessage}>Send</button>
+        <button className="send-button" onClick={onSendMessage}>Send</button>
       </div>
     </div>
   );

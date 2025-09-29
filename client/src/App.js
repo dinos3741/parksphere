@@ -32,7 +32,9 @@ import './App.css';
 function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
   const [chatRecipient, setChatRecipient] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
+  const [allChatMessages, setAllChatMessages] = useState({}); // Stores messages for all chats
+  const [chatInput, setChatInput] = useState('');
+  const [unreadMessages, setUnreadMessages] = useState({});
   const audioContextRef = useRef(null);
   const audioBufferRef = useRef(null);
   const removeRequestAudioBufferRef = useRef(null);
@@ -657,23 +659,28 @@ function MainAppContent() {
     };
   }, [setNotificationLog]);
 
-  const handleSendMessage = (messageContent) => {
-    if (messageContent.trim() && chatRecipient) {
+  const handleSendMessage = () => {
+    if (chatInput.trim() && chatRecipient) {
       const newMessage = {
         from: currentUserId,
         to: chatRecipient.id,
-        message: messageContent,
+        message: chatInput,
       };
       socket.emit('privateMessage', newMessage);
-      setChatMessages((prevMessages) => [...prevMessages, newMessage]);
+      setAllChatMessages((prevAllMessages) => ({
+        ...prevAllMessages,
+        [chatRecipient.id]: [...(prevAllMessages[chatRecipient.id] || []), newMessage],
+      }));
+      setChatInput(''); // Clear the input after sending
     }
   };
 
   useEffect(() => {
     const handlePrivateMessage = (message) => {
-      if (chatRecipient && message.from === chatRecipient.id) {
-        setChatMessages((prevMessages) => [...prevMessages, message]);
-      }
+      setAllChatMessages((prevAllMessages) => ({
+        ...prevAllMessages,
+        [message.from]: [...(prevAllMessages[message.from] || []), message],
+      }));
     };
 
     socket.on('privateMessage', handlePrivateMessage);
@@ -681,7 +688,7 @@ function MainAppContent() {
     return () => {
       socket.off('privateMessage', handlePrivateMessage);
     };
-  }, [chatRecipient]);
+  }, []);
 
   const handleLogout = useCallback(() => {
     if (currentUserId) {
@@ -699,7 +706,6 @@ function MainAppContent() {
   const handleCloseChat = useCallback(() => {
     setChatOpen(false);
     setChatRecipient(null);
-    setChatMessages([]);
   }, []);
 
   const handleDeleteSpot = useCallback(async (spotId) => {
@@ -827,9 +833,11 @@ function MainAppContent() {
           isOpen={isChatOpen}
           onClose={handleCloseChat}
           title={chatRecipient ? `Chat with ${chatRecipient.username}` : 'Chat'}
-          messages={chatMessages}
+          messages={allChatMessages[chatRecipient?.id] || []}
           recipient={chatRecipient}
           onSendMessage={handleSendMessage}
+          chatInput={chatInput}
+          onChatInputChange={setChatInput}
         />
       )}
 
