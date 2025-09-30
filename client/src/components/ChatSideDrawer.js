@@ -1,10 +1,26 @@
 import React, { useRef, useEffect } from 'react';
+import { emitter } from '../emitter';
+import messageSound from '../assets/sounds/message-sound.wav';
 import './ChatSideDrawer.css';
 
 const ChatSideDrawer = ({ isOpen, onClose, title, messages, recipient, onSendMessage, chatInput, onChatInputChange }) => {
   const drawerRef = useRef(null);
+  const audioRef = useRef(new Audio(messageSound));
 
+  useEffect(() => {
+    const playSound = (data) => {
+      // Only play sound if the message is from the recipient, not the current user
+      if (recipient && data.from === recipient.id) {
+        audioRef.current.play();
+      }
+    };
 
+    emitter.on('chatMessage', playSound);
+
+    return () => {
+      emitter.off('chatMessage', playSound);
+    };
+  }, [recipient]);
 
   return (
     <div ref={drawerRef} className={`chat-side-drawer ${isOpen ? 'open' : ''}`}>

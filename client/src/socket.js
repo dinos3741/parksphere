@@ -11,6 +11,7 @@ socket.on('spotUpdated', (data) => emitter.emit('spotUpdated', data));
 socket.on('etaUpdate', (data) => emitter.emit('etaUpdate', data));
 socket.on('requesterArrived', (data) => emitter.emit('requesterArrived', data));
 socket.on('transactionComplete', (data) => emitter.emit('transactionComplete', data));
+socket.on('privateMessage', (data) => emitter.emit('chatMessage', data));
 
 export const emitAcceptRequest = (data) => socket.emit('acceptRequest', data);
 export const emitDeclineRequest = (data) => socket.emit('declineRequest', data);

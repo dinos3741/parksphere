@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css'; // Import the new CSS file
 import L from 'leaflet';
@@ -435,29 +435,13 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                         } catch (error) {
                           console.error('Error fetching owner car details:', error);
                         }
+                      } else {
+                        setRequesterDrawerSpot(spot);
+                        setPopup(null); // Close any existing popup
                       }
                     },
                   }}
                 >
-                  {!isOwner && (!acceptedSpot || acceptedSpot.id !== spot.id) && (
-                    <Popup>
-                      <div>
-                        {
-                          // This is a revealed spot, but not owned by current user
-                          // Hide the request button if this spot is the accepted one
-                          <div className="request-button-container">
-                            <hr />
-                            <button
-                              onClick={() => handleRequest(spot.id)}
-                              className={`request-spot-button delete-spot-button`}
-                            >
-                              {'Request'}
-                            </button>
-                          </div>
-                        }
-                      </div>
-                    </Popup>
-                  )}
                 </Marker>
               ) : (
                 <Circle
