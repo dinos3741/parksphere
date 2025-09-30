@@ -111,6 +111,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     onSpotDeleted(spotToDeleteId);
     setShowDeleteConfirmationModal(false);
     setSpotToDeleteId(null);
+    setDrawerSpot(null); // Close the SideDrawer after deletion
   };
 
   useEffect(() => {
