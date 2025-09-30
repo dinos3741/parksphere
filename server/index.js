@@ -211,9 +211,12 @@ io.on('connection', (socket) => {
         );
       }
 
+      const requestsResult = await client.query('SELECT requester_id FROM requests WHERE spot_id = $1', [spotId]);
+      const requesterIds = requestsResult.rows.map(r => r.requester_id);
+
       // Delete the spot
       await client.query('DELETE FROM parking_spots WHERE id = $1', [spotId]);
-      io.emit('spotDeleted', spotId);
+      io.emit('spotDeleted', { spotId, ownerId, requesterIds });
 
       await client.query('COMMIT');
 
@@ -528,8 +531,12 @@ app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
       return res.status(403).send('You are not authorized to delete this parking spot.');
     }
 
+    const requestsResult = await pool.query('SELECT requester_id FROM requests WHERE spot_id = $1', [spotId]);
+    const requesterIds = requestsResult.rows.map(r => r.requester_id);
+    const ownerId = userId;
+
     await pool.query('DELETE FROM parking_spots WHERE id = $1', [spotId]);
-    io.emit('spotDeleted', spotId); // Emit spot deleted event
+    io.emit('spotDeleted', { spotId, ownerId, requesterIds }); // Emit spot deleted event
     res.status(200).send('Parking spot deleted successfully!');
   } catch (error) {
     console.error('Error deleting parking spot:', error);
@@ -857,16 +864,16 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
 async function checkAndRemoveExpiredSpots() {
   try {
     const expiredSpots = await pool.query(
-      "SELECT id, declared_at, time_to_leave FROM parking_spots WHERE declared_at + (time_to_leave * INTERVAL '1 minute') < NOW()"
+      "SELECT id, user_id, declared_at, time_to_leave FROM parking_spots WHERE declared_at + (time_to_leave * INTERVAL '1 minute') < NOW()"
     );
 
-    if (expiredSpots.rows.length > 0) {
-      // console.log("Server: Expired spots found:", expiredSpots.rows);
-    }
-
     for (const spot of expiredSpots.rows) {
+      const requestsResult = await pool.query('SELECT requester_id FROM requests WHERE spot_id = $1', [spot.id]);
+      const requesterIds = requestsResult.rows.map(r => r.requester_id);
+      const ownerId = spot.user_id;
+
       await pool.query('DELETE FROM parking_spots WHERE id = $1', [spot.id]);
-      io.emit('spotDeleted', spot.id); // Emit event for real-time update
+      io.emit('spotDeleted', { spotId: spot.id, ownerId, requesterIds }); // Emit event for real-time update
     }
   } catch (error) {
     console.error('Error checking and removing expired spots:', error);

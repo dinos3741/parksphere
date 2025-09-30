@@ -401,29 +401,55 @@ function MainAppContent() {
     fetchPendingRequests();
   }, [fetchPendingRequests]);
 
+  const handleCloseChat = useCallback(() => {
+    setChatOpen(false);
+    setChatRecipient(null);
+  }, []);
+
   useEffect(() => {
     const handleNewSpot = () => {
       fetchParkingSpots(selectedFilter, currentUserCarType);
     };
 
-    socket.on('newParkingSpot', handleNewSpot);
-
-    return () => {
-      socket.off('newParkingSpot', handleNewSpot);
-    };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
-
-  useEffect(() => {
-    const handleSpotDeleted = () => {
+    const handleSpotDeleted = (data) => {
       fetchParkingSpots(selectedFilter, currentUserCarType);
+
+      // The data can be either a spotId or an object with spotId, ownerId, and requesterIds
+      if (typeof data === 'object' && data.spotId) {
+        const { ownerId, requesterIds } = data;
+        const participants = [ownerId, ...(requesterIds || [])];
+
+        setAllChatMessages(prevAllMessages => {
+          const newAllChatMessages = { ...prevAllMessages };
+          participants.forEach(userId => {
+            delete newAllChatMessages[userId];
+          });
+          return newAllChatMessages;
+        });
+
+        setUnreadMessages(prevUnread => {
+          const newUnreadMessages = { ...prevUnread };
+          participants.forEach(userId => {
+            delete newUnreadMessages[userId];
+          });
+          return newUnreadMessages;
+        });
+
+        // If the open chat is with one of the participants, close it
+        if (chatRecipient && participants.includes(chatRecipient.id)) {
+          handleCloseChat();
+        }
+      }
     };
 
+    socket.on('newParkingSpot', handleNewSpot);
     socket.on('spotDeleted', handleSpotDeleted);
 
     return () => {
+      socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
     };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType, chatRecipient, handleCloseChat]);
 
   useEffect(() => {
     const handleSpotUpdated = (updatedSpotFromServer) => {
@@ -716,11 +742,6 @@ function MainAppContent() {
       delete newUnread[recipient.id];
       return newUnread;
     });
-  }, []);
-
-  const handleCloseChat = useCallback(() => {
-    setChatOpen(false);
-    setChatRecipient(null);
   }, []);
 
   const handleDeleteSpot = useCallback(async (spotId) => {
