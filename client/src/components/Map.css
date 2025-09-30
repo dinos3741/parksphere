@@ -110,3 +110,15 @@
   transform: translateY(-50%);
   left: 10%; /* Center horizontally */
 }
+
+.new-request-dot {
+  position: absolute;
+  top: -2px; /* Adjust as needed to position relative to the pin */
+  right: -2px; /* Adjust as needed */
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  border-radius: 50%;
+  z-index: 1001; /* Ensure it's above the marker */
+  border: 1px solid white; /* Small white border for visibility */
+}

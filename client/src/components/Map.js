@@ -3,20 +3,16 @@ import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css'; // Import the new CSS file
 import L from 'leaflet';
-import markerGreen from './icons/marker-icon-green.png';
-import markerGreen2x from './icons/marker-icon-green-2x.png';
-import markerRed from './icons/marker-icon-red.png';
-import markerRed2x from './icons/marker-icon-red-2x.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-
-
 import { emitter } from '../emitter';
 import { socket } from '../socket';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
-
+import markerGreen from './icons/marker-icon-green.png';
+import markerGreen2x from './icons/marker-icon-green-2x.png';
+import markerRed from './icons/marker-icon-red.png';
+import markerRed2x from './icons/marker-icon-red-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Fix for default marker icon not showing
 delete L.Icon.Default.prototype._getIconUrl;
@@ -32,16 +28,22 @@ const userIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Custom icon for parking spots
-const parkingSpotIcon = new L.Icon({
-  iconUrl: markerRed,
-  iconRetinaUrl: markerRed2x,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+// Function to create a custom DivIcon with a red dot
+const createCustomIcon = (iconUrl, iconRetinaUrl, hasNewRequest) => {
+  const iconHtml = `
+    <div style="position: relative; width: 25px; height: 41px;">
+      <img src="${iconUrl}" srcset="${iconRetinaUrl} 2x" alt="Marker" style="width: 100%; height: 100%;"/>
+      ${hasNewRequest ? '<div class="new-request-dot"></div>' : ''}
+    </div>
+  `;
+  return L.divIcon({
+    className: 'custom-div-icon',
+    html: iconHtml,
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34]
+  });
+};
 
 
 
@@ -60,6 +62,23 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const [spotRequests, setSpotRequests] = useState([]);
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
+  const [newRequestSpotIds, setNewRequestSpotIds] = useState([]); // New state for spots with new requests
+
+  useEffect(() => {
+    const handleNewRequest = (data) => {
+      setNewRequestSpotIds(prev => [...prev, data.spotId]);
+      if (drawerSpot && drawerSpot.id === data.spotId) {
+        // If the drawer is open for this spot, refresh its requests
+        handleOwnerSpotClick(drawerSpot);
+      }
+    };
+
+    emitter.on('spotRequest', handleNewRequest);
+
+    return () => {
+      emitter.off('spotRequest', handleNewRequest);
+    };
+  }, [drawerSpot]);
 
   useEffect(() => {
     const handleNewRequest = () => {
@@ -343,6 +362,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleOwnerSpotClick = async (spot) => {
     setUserAddress(null);
     setDrawerSpot(spot);
+    setNewRequestSpotIds(prev => prev.filter(id => id !== spot.id)); // Clear red dot
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(`/api/spots/${spot.id}/requests-details`, {
@@ -412,7 +432,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
               {isExactLocation ? (
                 <Marker
                   position={[lat, lng]}
-                  icon={parkingSpotIcon}
+                  icon={createCustomIcon(markerRed, markerRed2x, isOwner && newRequestSpotIds.includes(spot.id))}
                   eventHandlers={{
                     click: async () => {
                       if (isOwner) {
@@ -459,7 +479,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                       }
                     }
                   }}
-                />
+                >
+                </Circle>
               )}
             </React.Fragment>
           );
