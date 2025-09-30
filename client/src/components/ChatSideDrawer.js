@@ -4,23 +4,7 @@ import './ChatSideDrawer.css';
 const ChatSideDrawer = ({ isOpen, onClose, title, messages, recipient, onSendMessage, chatInput, onChatInputChange }) => {
   const drawerRef = useRef(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (drawerRef.current && !drawerRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
 
   return (
     <div ref={drawerRef} className={`chat-side-drawer ${isOpen ? 'open' : ''}`}>

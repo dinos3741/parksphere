@@ -217,3 +217,13 @@
   border-radius: 50%;
   border: 2px solid white;
 }
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.125rem;
+  cursor: pointer;
+  position: absolute;
+  right: 1rem;
+  color: white; /* Added color for visibility */
+}

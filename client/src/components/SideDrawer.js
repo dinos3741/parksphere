@@ -81,28 +81,13 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
     // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
   };
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (drawerRef.current && !drawerRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
 
-    if (spot || userAddress) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [spot, userAddress, onClose]);
 
   return (
     <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
       <div className="side-drawer-header">
         <h3>{userAddress ? 'User Details' : 'Spot Details'}</h3>
+        <button className="close-button" onClick={onClose}>X</button>
       </div>
       {userAddress ? (
         <div className="side-drawer-content">

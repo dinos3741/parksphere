@@ -62,26 +62,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
     };
   }, [spot]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showArrivalConfirmation) {
-        return;
-      }
-      if (drawerRef.current && !drawerRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
 
-    if (spot) {
-      document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [spot, onClose, showArrivalConfirmation]);
 
   const handleCloseRejectedModal = () => {
     setShowRejectedModal(false);
@@ -108,6 +89,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
       <div ref={drawerRef} className={`requester-side-drawer ${spot ? 'open' : ''}`}>
         <div className="requester-side-drawer-header">
           <h3>Spot Details</h3>
+          <button className="close-button" onClick={onClose}>X</button>
         </div>
         {spot && (
           <>
