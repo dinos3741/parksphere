@@ -12,7 +12,7 @@ import { emitter } from '../emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -139,6 +139,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                     <div className="request-item accepted">
                       <div className="requester-avatar accepted">
                         <i className="fas fa-user-check"></i>
+                        {unreadMessages && unreadMessages[spot.user_id] && <span className="unread-indicator"></span>}
                       </div>
                       <div className="request-details">
                         <div className="requester-username accepted" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>

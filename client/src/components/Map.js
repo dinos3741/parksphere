@@ -516,6 +516,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         }}
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
         onOpenChat={onOpenChat}
+        unreadMessages={unreadMessages}
       />
 
       {showDeleteConfirmationModal && (

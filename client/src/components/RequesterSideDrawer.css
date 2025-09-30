@@ -171,6 +171,7 @@
   font-size: 2rem;
   margin-right: 15px;
   color: #4a148c;
+  position: relative;
 }
 
 .requester-avatar.accepted {
@@ -204,4 +205,15 @@
   text-align: left;
   color: #333;
   margin-top: 10px;
+}
+
+.unread-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  border-radius: 50%;
+  border: 2px solid white;
 }
