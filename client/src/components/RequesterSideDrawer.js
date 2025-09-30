@@ -132,23 +132,25 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                   )}
                   <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
                 </div>
-                {isAcceptedSpot && <hr style={{ margin: '20px 0', borderColor: '#eee' }} />}
-                {isAcceptedSpot && (
-                  <div className="requests-section" style={{ padding: '0', marginTop: '-10px' }}>
-                    <h3>Requests</h3>
+                <hr style={{ margin: '20px 0', borderColor: '#eee' }} />
+                <div className="requests-section" style={{ padding: '0', marginTop: '-10px' }}>
+                  <h3>Approvals</h3>
+                  {isAcceptedSpot ? (
                     <div className="request-item accepted">
                       <div className="requester-avatar accepted">
                         <i className="fas fa-user-check"></i>
                       </div>
                       <div className="request-details">
                         <div className="requester-username accepted" style={{ display: 'flex', alignItems: 'center' }}>
-                        <span>Accepted by {spot.username}</span>
-                        <span className="chat-symbol" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>💬</span>
-                      </div>
+                          <span>Accepted by {spot.username}</span>
+                          <span className="chat-symbol" onClick={() => onOpenChat({ id: spot.user_id, username: spot.username })}>💬</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="no-approvals-text">No approvals yet.</p>
+                  )}
+                </div>
               </div>
               <p style={{ color: '#333', display: 'flex', alignItems: 'center', paddingLeft: '1rem', marginTop: 'auto' }}> {spot.car_type && spot.car_type.charAt(0).toUpperCase() + spot.car_type.slice(1)}</p>
             </div>

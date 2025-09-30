@@ -199,3 +199,9 @@
   cursor: pointer;
   color: #3454bd;
 }
+
+.no-approvals-text {
+  text-align: left;
+  color: #333;
+  margin-top: 10px;
+}
