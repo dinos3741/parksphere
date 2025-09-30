@@ -130,7 +130,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                       <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={() => handleRequestItemClick(request)}>
                         <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           <i className="fas fa-user-circle"></i>
-                          {hasUnread && <span className="unread-indicator"></span>}
                         </div>
                         <div className="request-details">
                           <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
@@ -139,7 +138,10 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                         </div>
                         {request.status === 'accepted' && (
-                          <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
+                          <div style={{ position: 'relative' }}>
+                            <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
+                            {hasUnread && <span className="unread-indicator"></span>}
+                          </div>
                         )}
                       </div>
                     );
