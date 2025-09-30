@@ -677,10 +677,19 @@ function MainAppContent() {
 
   useEffect(() => {
     const handlePrivateMessage = (message) => {
+      const fromId = message.from;
       setAllChatMessages((prevAllMessages) => ({
         ...prevAllMessages,
-        [message.from]: [...(prevAllMessages[message.from] || []), message],
+        [fromId]: [...(prevAllMessages[fromId] || []), message],
       }));
+
+      // If chat is not open with the sender, mark as unread
+      if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
+        setUnreadMessages((prevUnread) => ({
+          ...prevUnread,
+          [fromId]: (prevUnread[fromId] || 0) + 1,
+        }));
+      }
     };
 
     socket.on('privateMessage', handlePrivateMessage);
@@ -688,7 +697,7 @@ function MainAppContent() {
     return () => {
       socket.off('privateMessage', handlePrivateMessage);
     };
-  }, []);
+  }, [isChatOpen, chatRecipient]);
 
   const handleLogout = useCallback(() => {
     if (currentUserId) {
@@ -701,6 +710,12 @@ function MainAppContent() {
   const handleOpenChat = useCallback((recipient) => {
     setChatRecipient(recipient);
     setChatOpen(true);
+    // Clear unread messages for this recipient
+    setUnreadMessages((prevUnread) => {
+      const newUnread = { ...prevUnread };
+      delete newUnread[recipient.id];
+      return newUnread;
+    });
   }, []);
 
   const handleCloseChat = useCallback(() => {
@@ -798,6 +813,7 @@ function MainAppContent() {
               currentUsername={currentUsername}
               pendingRequests={pendingRequests}
               onOpenChat={handleOpenChat}
+              unreadMessages={unreadMessages}
             />
           ) : (
             <div>Loading map or getting your location...</div>

@@ -11,7 +11,7 @@ import RequestActionModal from './RequestActionModal';
 import { socket } from '../socket';
 import { emitter } from '../emitter';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages }) => {
   const drawerRef = useRef(null);
   const [showRequestActionModal, setShowRequestActionModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -124,23 +124,26 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
               <h3>Requests</h3>
               {spotRequests && spotRequests.length > 0 ? (
                 <div className="requests-list">
-                  {spotRequests.map((request, index) => (
-                    <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={() => handleRequestItemClick(request)}>
-                      <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
-                        {/* Placeholder for avatar */}
-                        <i className="fas fa-user-circle"></i>
+                  {spotRequests.map((request, index) => {
+                    const hasUnread = unreadMessages && unreadMessages[request.requester_id];
+                    return (
+                      <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={() => handleRequestItemClick(request)}>
+                        <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
+                          <i className="fas fa-user-circle"></i>
+                          {hasUnread && <span className="unread-indicator"></span>}
+                        </div>
+                        <div className="request-details">
+                          <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
+                        </div>
+                        <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
+                          {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
+                        </div>
+                        {request.status === 'accepted' && (
+                          <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
+                        )}
                       </div>
-                      <div className="request-details">
-                        <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
-                      </div>
-                      <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
-                        {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
-                      </div>
-                      {request.status === 'accepted' && (
-                        <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p style={{ color: '#7A1BE0', textAlign: 'left' }}>No requests until now</p>

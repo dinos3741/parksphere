@@ -45,7 +45,7 @@ const parkingSpotIcon = new L.Icon({
 
 
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -499,6 +499,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         addNotification={addNotification}
         currentUsername={currentUsername}
         onOpenChat={onOpenChat}
+        unreadMessages={unreadMessages}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}

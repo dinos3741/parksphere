@@ -130,6 +130,7 @@
   font-size: 2rem;
   margin-right: 15px;
   color: #4a148c;
+  position: relative;
 }
 
 .requester-avatar.accepted {
@@ -184,4 +185,15 @@
   margin-left: 10px;
   cursor: pointer;
   color: #3454bd; /* A color that stands out */
+}
+
+.unread-indicator {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background-color: red;
+  border-radius: 50%;
+  border: 2px solid white;
 }
