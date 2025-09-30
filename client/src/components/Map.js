@@ -94,6 +94,24 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     };
   }, [drawerSpot]);
 
+  useEffect(() => {
+    const handleSpotDeletedEvent = (data) => {
+      console.log("spotDeleted event received:", data);
+      setRequesterDrawerSpot(prevSpot => {
+        if (prevSpot && prevSpot.id === parseInt(data.spotId, 10)) {
+          return null;
+        }
+        return prevSpot;
+      });
+    };
+
+    emitter.on('spotDeleted', handleSpotDeletedEvent);
+
+    return () => {
+      emitter.off('spotDeleted', handleSpotDeletedEvent);
+    };
+  }, []); // Empty dependency array to ensure listener is set up once
+
   const handleNewButtonClick = (spot) => {
     console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
@@ -457,6 +475,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                           console.error('Error fetching owner car details:', error);
                         }
                       } else {
+                        console.log("Setting requesterDrawerSpot from Marker click:", spot);
                         setRequesterDrawerSpot(spot);
                         setPopup(null); // Close any existing popup
                       }
@@ -475,6 +494,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
                       if (isOwner) {
                         handleOwnerSpotClick(spot);
                       } else {
+                        console.log("Setting requesterDrawerSpot from Circle click:", spot);
                         setRequesterDrawerSpot(spot);
                         setPopup(null); // Close any existing popup
                       }
