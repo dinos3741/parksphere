@@ -31,7 +31,7 @@
 
 .locate-me-button {
     position: absolute;
-    top: 120px; 
+    top: 40px; 
     right: 10px;
     z-index: 1000; 
     background-color: white;
