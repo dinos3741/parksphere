@@ -1,12 +1,12 @@
 .leaving-fab {
   position: fixed;
-  bottom: 20px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #800080; /* Purple */
+  background-color: #9b59b6; /* Lighter Purple */
   color: white;
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
   border: 2px solid #000;
   border-radius: 50%;
   cursor: pointer;
@@ -22,7 +22,7 @@
 }
 
 .leaving-fab:hover {
-  background-color: #6a006a; /* Darker Purple */
+  background-color: #8e44ad; /* Darker Lighter Purple */
   transform: translateX(-50%) translateY(-2px);
 }
 /* Overlay styles */
