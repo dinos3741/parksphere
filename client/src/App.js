@@ -161,6 +161,9 @@ function MainAppContent() {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   };
   const [pendingRequests, setPendingRequests] = useState([]); // New state for pending requests
+  const [isPinDropMode, setPinDropMode] = useState(false);
+  const [pinnedLocation, setPinnedLocation] = useState(null);
+  const [showLeavingOverlay, setShowLeavingOverlay] = useState(false);
   const requesterEta = null;
 
   useEffect(() => {
@@ -835,6 +838,11 @@ function MainAppContent() {
               pendingRequests={pendingRequests}
               onOpenChat={handleOpenChat}
               unreadMessages={unreadMessages}
+              isPinDropMode={isPinDropMode}
+              setPinDropMode={setPinDropMode}
+              pinnedLocation={pinnedLocation}
+              setPinnedLocation={setPinnedLocation}
+              setShowLeavingOverlay={setShowLeavingOverlay}
             />
           ) : (
             <div>Loading map or getting your location...</div>
@@ -845,8 +853,12 @@ function MainAppContent() {
           userLocation={userLocation}
           currentUserCarType={currentUserCarType}
           currentUserId={currentUserId}
-          // onCustomDeclare={handleShowDeclareSpotForm} // Removed onCustomDeclare prop
           addNotification={addNotification}
+          setPinDropMode={setPinDropMode}
+          setShowLeavingOverlay={setShowLeavingOverlay}
+          showLeavingOverlay={showLeavingOverlay}
+          setPinnedLocation={setPinnedLocation}
+          pinnedLocation={pinnedLocation}
         />
 
         {/* Removed DeclareSpot component rendering */}

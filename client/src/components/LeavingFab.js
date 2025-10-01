@@ -1,17 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './LeavingFab.css';
 
 const presets = [0, 2, 5, 10]; // minutes, 0 = now
 
 // Accept new props: userLocation, currentUserCarType, currentUserId
-const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification }) => {
-  const [showOverlay, setShowOverlay] = useState(false);
+const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation }) => {
 
   const handlePresetClick = async (minutes) => {
-    setShowOverlay(false); // Close overlay immediately
+    setShowLeavingOverlay(false); // Close overlay immediately
 
-    if (!userLocation) {
-      addNotification("Cannot declare spot: User location not available.", 'default');
+    if (!pinnedLocation) {
+      addNotification("Cannot declare spot: Please pin a location on the map first.", 'default');
       return;
     }
 
@@ -38,8 +37,8 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          latitude: userLocation[0],
-          longitude: userLocation[1],
+          latitude: pinnedLocation[0],
+          longitude: pinnedLocation[1],
           timeToLeave,
           costType: 'free', // Changed from isFree
           price,
@@ -68,11 +67,11 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
 
   return (
     <>
-      <button className="leaving-fab" onClick={() => setShowOverlay(true)}>
+      <button className="leaving-fab" onClick={() => setPinDropMode(true)}>
         I'm leaving
       </button>
 
-      {showOverlay && (
+      {showLeavingOverlay && (
         <div className="leaving-overlay-backdrop">
           <div className="leaving-overlay-content">
             <h2>Leaving in…</h2>
@@ -82,9 +81,8 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
                   {m === 0 ? 'Now' : `${m}m`}
                 </button>
               ))}
-              {/* Removed Custom button as per user request */}
             </div>
-            <button className="close-overlay-button" onClick={() => setShowOverlay(false)}>
+            <button className="close-overlay-button" onClick={() => { setShowLeavingOverlay(false); setPinnedLocation(null); }}>
               X
             </button>
           </div>

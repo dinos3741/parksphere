@@ -47,7 +47,7 @@ const createCustomIcon = (iconUrl, iconRetinaUrl, hasNewRequest) => {
 
 
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages }) => {
+const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -242,6 +242,23 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   }, [acceptedSpot, eta, addNotification]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (isPinDropMode && map) {
+      const handleMapClick = (e) => {
+        setPinnedLocation([e.latlng.lat, e.latlng.lng]);
+        setPinDropMode(false);
+        setShowLeavingOverlay(true);
+        map.off('click', handleMapClick); // Remove listener after use
+      };
+      map.on('click', handleMapClick);
+
+      return () => {
+        map.off('click', handleMapClick);
+      };
+    }
+  }, [isPinDropMode, mapRef, setPinnedLocation, setPinDropMode, setShowLeavingOverlay]);
+
   if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
     return <div>Loading map or getting your location...</div>;
   }
@@ -411,7 +428,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   return (
     <>
-      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
+      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }} className={isPinDropMode ? 'pin-drop-mode' : ''}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -428,6 +445,13 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
             },
           }}
         />
+
+        {pinnedLocation && (
+          <Marker
+            position={pinnedLocation}
+            icon={userIcon} // Or a different icon for the pin
+          />
+        )}
 
         {parkingSpots.filter(spot => !isSpotExpired(spot)).map(spot => {
           const lat = spot.lat;

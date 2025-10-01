@@ -1,124 +1,77 @@
-.delete-spot-button {
-  padding: 10px 20px;
-  font-size: 1em;
-  border: none;
-  border-radius: 25px; /* More rounded corners */
-  background-color: #dc3545; /* Red color for delete */
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
-  margin-left: 10px; /* Space from other elements */
-  width: 80px;
-}
-
-.delete-spot-button:hover {
-  background-color: #c82333;
-}
-
-.edit-button-color {
-  background-color: #007bff; /* Blue color for edit */
-}
-
-.edit-button-color:hover {
-  background-color: #0056b3;
-}
-
-.request-spot-button {
-  background-color: #4CAF50; /* Green */
-}
-
-.delete-button-container {
-  text-align: center;
-}
-
-.request-button-container {
-  text-align: center;
-
-}
-
-.owner-actions-container {
-  display: flex;
-  justify-content: space-around; /* Distribute space between buttons */
-  margin-top: 10px;
-}
-
-.request-spot-button:hover {
-  background-color: #218838;
-}
-
-/* Opacity pulse animation */
-.pulse-opacity {
-  animation: pulseOpacity 1s infinite alternate; /* Changed to 1s */
-}
-
-@keyframes pulseOpacity {
-  0% {
-    opacity: 0.3; /* Changed to 0.3 */
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-.locate-me-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1000; /* Ensure it's above the map tiles */
-  background-color: white;
-  border: 2px solid #333;
-  border-radius: 50%; /* Make it circular */
-  width: 30px;
-  height: 30px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
-
-.locate-me-button:hover {
-  background-color: #f0f0f0;
-}
-
-.crosshair-icon {
-  width: 20px;
-  height: 20px;
-  position: relative;
-}
-
-.crosshair-icon::before,
-.crosshair-icon::after {
-  content: '';
-  position: absolute;
-  background-color: #333;
-}
-
-.crosshair-icon::before { /* Vertical line */
-  width: 2px;
-  height: 80%; /* Shorter */
-  left: 50%;
-  transform: translateX(-50%);
-  top: 10%; /* Center vertically */
-}
-
-.crosshair-icon::after { /* Horizontal line */
-  width: 80%; /* Shorter */
-  height: 2px;
-  top: 50%;
-  transform: translateY(-50%);
-  left: 10%; /* Center horizontally */
+.custom-div-icon {
+    position: relative;
 }
 
 .new-request-dot {
-  position: absolute;
-  top: -2px; /* Adjust as needed to position relative to the pin */
-  right: -2px; /* Adjust as needed */
-  width: 10px;
-  height: 10px;
-  background-color: red;
-  border-radius: 50%;
-  z-index: 1001; /* Ensure it's above the marker */
-  border: 1px solid white; /* Small white border for visibility */
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background-color: red;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.pulse-opacity {
+    animation: pulse-opacity 2s infinite;
+}
+
+@keyframes pulse-opacity {
+    0% {
+        fill-opacity: 0.2;
+    }
+    50% {
+        fill-opacity: 0.5;
+    }
+    100% {
+        fill-opacity: 0.2;
+    }
+}
+
+.locate-me-button {
+    position: absolute;
+    top: 120px; 
+    right: 10px;
+    z-index: 1000; 
+    background-color: white;
+    border: 2px solid #ccc;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.crosshair-icon {
+    width: 20px;
+    height: 20px;
+    position: relative;
+}
+
+.crosshair-icon::before, .crosshair-icon::after {
+    content: '';
+    position: absolute;
+    background-color: #333;
+}
+
+.crosshair-icon::before {
+    width: 2px;
+    height: 100%;
+    left: 9px;
+    top: 0;
+}
+
+.crosshair-icon::after {
+    height: 2px;
+    width: 100%;
+    top: 9px;
+    left: 0;
+}
+
+.map-container.pin-drop-mode {
+    cursor: crosshair;
 }
