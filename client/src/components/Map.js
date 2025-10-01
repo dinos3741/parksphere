@@ -45,6 +45,23 @@ const createCustomIcon = (iconUrl, iconRetinaUrl, hasNewRequest) => {
   });
 };
 
+const PinDropInstructions = L.Control.extend({
+  onAdd: function(map) {
+    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+    container.innerHTML = "Click anywhere on the map to indicate spot location";
+    return container;
+  },
+
+  onRemove: function(map) {
+    // Nothing to do here
+  }
+});
+
+L.control.pinDropInstructions = function(opts) {
+  return new PinDropInstructions(opts);
+}
+
+
 
 
 const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay }) => {
@@ -247,6 +264,9 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     if (map) {
       if (isPinDropMode) {
         map.getContainer().classList.add('pin-drop-mode');
+        const instructions = L.control.pinDropInstructions({ position: 'topright' });
+        instructions.addTo(map);
+
         const handleMapClick = (e) => {
           setPinnedLocation([e.latlng.lat, e.latlng.lng]);
           setPinDropMode(false);
@@ -258,6 +278,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         return () => {
           map.off('click', handleMapClick);
           map.getContainer().classList.remove('pin-drop-mode');
+          instructions.remove();
         };
       } else {
         map.getContainer().classList.remove('pin-drop-mode');
