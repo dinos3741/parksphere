@@ -5,6 +5,7 @@ import './Map.css'; // Import the new CSS file
 import L from 'leaflet';
 import { emitter } from '../emitter';
 import { socket } from '../socket';
+import { getDistance } from '../utils/geoUtils';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
@@ -64,7 +65,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -164,8 +165,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
 
   const handleLocateMe = () => {
-    if (mapRef.current && userLocation) {
-      mapRef.current.flyTo(userLocation, 15); // Adjust zoom level as needed
+    if (mapRef.current && appUserLocation) {
+      mapRef.current.flyTo(appUserLocation, 15); // Adjust zoom level as needed
     }
   };
 
@@ -203,7 +204,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   const handleUserMarkerClick = async () => {
     setDrawerSpot(null);
-    const address = await fetchUserAddress(userLocation[0], userLocation[1]);
+    const address = await fetchUserAddress(appUserLocation[0], appUserLocation[1]);
     setUserAddress(address);
     if (currentUserId) {
       const carType = await fetchUserCarType(currentUserId);
@@ -257,7 +258,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         navigator.geolocation.clearWatch(watchId);
       };
     }
-  }, [acceptedSpot, eta, addNotification]);
+  }, [acceptedSpot, eta, appAddNotification]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -286,7 +287,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
     }
   }, [isPinDropMode, mapRef, setPinnedLocation, setPinDropMode, setShowLeavingOverlay]);
 
-  if (!userLocation || isNaN(userLocation[0]) || isNaN(userLocation[1])) {
+  if (!appUserLocation || isNaN(appUserLocation[0]) || isNaN(appUserLocation[1])) {
     return <div>Loading map or getting your location...</div>;
   }
 
@@ -339,12 +340,12 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
   const handleRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to request a spot.", 'default');
+      appAddNotification("You must be logged in to request a spot.", 'default');
       return;
     }
 
-    const requesterLat = userLocation[0];
-    const requesterLon = userLocation[1];
+    const requesterLat = appUserLocation[0];
+    const requesterLon = appUserLocation[1];
 
     console.log(`Attempting to send request for spot ID: ${spotId}`);
 
@@ -361,25 +362,25 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
-        addNotification(`Request for spot #${spotId} sent successfully.`, 'green');
+        appAddNotification(`Request for spot #${spotId} sent successfully.`, 'green');
         onRequestStatusChange(spotId, 'requested'); // Notify App.js to update pending requests
         if (mapRef.current) {
           mapRef.current.closePopup();
         }
       } else {
         const errorData = await response.json();
-        addNotification(`Failed to send request: ${errorData.message}`, 'default');
+        appAddNotification(`Failed to send request: ${errorData.message}`, 'default');
       }
     } catch (error) {
       console.error('Error requesting spot:', error);
-      addNotification('An error occurred while sending the request.', 'default');
+      appAddNotification('An error occurred while sending the request.', 'default');
     }
   };
 
   const handleCancelRequest = async (spotId) => {
     const token = localStorage.getItem('token');
     if (!token) {
-      addNotification("You must be logged in to cancel a request.", 'default');
+      appAddNotification("You must be logged in to cancel a request.", 'default');
       return;
     }
 
@@ -398,7 +399,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
       console.log('Response from /api/cancel-request:', response);
 
       if (response.ok) {
-        addNotification(`Request for spot #${spotId} cancelled successfully.`, 'default');
+        appAddNotification(`Request for spot #${spotId} cancelled successfully.`, 'default');
         await onRequestStatusChange(spotId, 'cancelled'); // Notify App.js to update pending requests
         emitter.emit('spot-request-updated', spotId);
         if (mapRef.current) {
@@ -406,17 +407,17 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         }
       } else {
         const errorData = await response.json();
-        addNotification(`Failed to cancel request: ${errorData.message}`, 'default');
+        appAddNotification(`Failed to cancel request: ${errorData.message}`, 'default');
       }
     } catch (error) {
       console.error('Error cancelling request:', error);
-      addNotification('An error occurred while cancelling the request.', 'default');
+      appAddNotification('An error occurred while cancelling the request.', 'default');
     }
   };
 
   const handleArrived = (spotId) => {
     socket.emit('requester-arrived', { spotId });
-    addNotification(`You have arrived at spot ${spotId}. The owner has been notified.`, 'default');
+    appAddNotification(`You have arrived at spot ${spotId}. The owner has been notified.`, 'default');
     if (mapRef.current) {
       mapRef.current.closePopup();
     }
@@ -455,7 +456,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   return (
     <>
-      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
+      <MapContainer ref={mapRef} center={appUserLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -464,7 +465,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
           <span className="crosshair-icon"></span>
         </button>
         <Marker 
-          position={userLocation} 
+          position={appUserLocation} 
           icon={userIcon}
           eventHandlers={{
             click: () => {
@@ -573,7 +574,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         formatRemainingTime={formatRemainingTime}
         spotRequests={spotRequests}
         currentUserId={currentUserId}
-        addNotification={addNotification}
+        addNotification={appAddNotification}
         currentUsername={currentUsername}
         onOpenChat={onOpenChat}
         unreadMessages={unreadMessages}
@@ -594,6 +595,8 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
         onRejected={(spotId) => onRequestStatusChange(spotId, 'cancelled')}
         onOpenChat={onOpenChat}
         unreadMessages={unreadMessages}
+        userLocation={appUserLocation}
+        addNotification={appAddNotification}
       />
 
       {showDeleteConfirmationModal && (

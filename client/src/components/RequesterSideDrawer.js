@@ -7,12 +7,13 @@ import costIcon from '../assets/images/cost.png';
 import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
 import carIcon from '../assets/images/car.png';
-// import plateIcon from '../assets/images/plate.png'; // Removed plateIcon import
 import { emitter } from '../emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
+import DistanceWarningModal from './DistanceWarningModal';
+import { getDistance } from '../utils/geoUtils';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages, userLocation, addNotification }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -21,6 +22,8 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   const [ownerDetails, setOwnerDetails] = useState(null);
   const [arrivedClicked, setArrivedClicked] = useState(false);
   const [showArrivalConfirmation, setShowArrivalConfirmation] = useState(false);
+  const [showDistanceWarningModal, setShowDistanceWarningModal] = useState(false);
+  const [distanceWarningMessage, setDistanceWarningMessage] = useState('');
 
   const handleOwnerClick = async () => {
     try {
@@ -62,8 +65,6 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
     };
   }, [spot]);
 
-
-
   const handleCloseRejectedModal = () => {
     setShowRejectedModal(false);
     if (rejectedSpot) {
@@ -83,6 +84,29 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
       return () => clearInterval(interval);
     }
   }, [spot, formatRemainingTime, onClose]);
+
+  const handleArrivedClick = () => {
+    if (!userLocation || !spot) {
+      addNotification('Error: Your location or spot data is not available.', 'red');
+      return;
+    }
+
+    const distance = getDistance(
+      userLocation[0],
+      userLocation[1],
+      spot.lat,
+      spot.lng
+    );
+
+    const distanceThreshold = 0.05; // 50 meters in kilometers
+
+    if (distance > distanceThreshold) {
+      setDistanceWarningMessage("You are too far from the spot to confirm arrival. Please get closer (within 20 meters).");
+      setShowDistanceWarningModal(true);
+    } else {
+      setShowArrivalConfirmation(true);
+    }
+  };
 
   return (
     <>
@@ -109,7 +133,6 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
                   {isAcceptedSpot && ownerCarDetails && (
                     <>
                       <div><img src={carIcon} alt="Car" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Car Color: </strong> {ownerCarDetails.car_color}</div>
-                      {/* Removed plateIcon usage */}
                     </>
                   )}
                   <div><img src={commentsIcon} alt="Comments" style={{ width: '24px', height: '24px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
@@ -141,7 +164,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
             </div>
             <div className="requester-side-drawer-footer">
               {isAcceptedSpot && !arrivedClicked ? (
-                <button onClick={() => setShowArrivalConfirmation(true)} className="arrived-button">Arrived</button>
+                <button onClick={handleArrivedClick} className="arrived-button">Arrived</button>
               ) : !isAcceptedSpot && hasPendingRequest ? (
                 <button onClick={() => onCancelRequest(spot.id)} className="cancel-request-button">Cancel Request</button>
               ) : !isAcceptedSpot ? (
@@ -171,6 +194,11 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
           onClose();
         }}
         isOwner={false}
+      />
+      <DistanceWarningModal
+        isOpen={showDistanceWarningModal}
+        onClose={() => setShowDistanceWarningModal(false)}
+        message={distanceWarningMessage}
       />
     </>
   );
