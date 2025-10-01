@@ -244,18 +244,24 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   useEffect(() => {
     const map = mapRef.current;
-    if (isPinDropMode && map) {
-      const handleMapClick = (e) => {
-        setPinnedLocation([e.latlng.lat, e.latlng.lng]);
-        setPinDropMode(false);
-        setShowLeavingOverlay(true);
-        map.off('click', handleMapClick); // Remove listener after use
-      };
-      map.on('click', handleMapClick);
+    if (map) {
+      if (isPinDropMode) {
+        map.getContainer().classList.add('pin-drop-mode');
+        const handleMapClick = (e) => {
+          setPinnedLocation([e.latlng.lat, e.latlng.lng]);
+          setPinDropMode(false);
+          setShowLeavingOverlay(true);
+          map.off('click', handleMapClick); // Remove listener after use
+        };
+        map.on('click', handleMapClick);
 
-      return () => {
-        map.off('click', handleMapClick);
-      };
+        return () => {
+          map.off('click', handleMapClick);
+          map.getContainer().classList.remove('pin-drop-mode');
+        };
+      } else {
+        map.getContainer().classList.remove('pin-drop-mode');
+      }
     }
   }, [isPinDropMode, mapRef, setPinnedLocation, setPinDropMode, setShowLeavingOverlay]);
 
@@ -428,7 +434,7 @@ const Map = ({ parkingSpots, userLocation, currentUserId, acceptedSpot, requeste
 
   return (
     <>
-      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }} className={isPinDropMode ? 'pin-drop-mode' : ''}>
+      <MapContainer ref={mapRef} center={userLocation} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

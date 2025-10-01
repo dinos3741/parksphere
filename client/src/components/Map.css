@@ -72,6 +72,6 @@
     left: 0;
 }
 
-.map-container.pin-drop-mode {
+.leaflet-container.pin-drop-mode {
     cursor: crosshair;
 }
