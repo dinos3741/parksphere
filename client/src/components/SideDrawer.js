@@ -86,15 +86,17 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                             onClick={(e) => { e.stopPropagation(); handleConfirmRequest(request); }}
                             style={{
                               marginLeft: '10px',
-                              backgroundColor: '#28a745',
-                              color: 'white',
-                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#218838',
+                              border: '1px solid #218838',
                               borderRadius: '5px',
-                              padding: '5px 10px',
+                              padding: '3px 6px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              fontSize: '1rem',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             }}
                           >
                             <i className="fas fa-check-circle"></i>
@@ -105,15 +107,17 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                             onClick={(e) => { e.stopPropagation(); handleRejectRequest(request); }}
                             style={{
                               marginLeft: '5px',
-                              backgroundColor: '#dc3545',
-                              color: 'white',
-                              border: 'none',
+                              backgroundColor: 'transparent',
+                              color: '#a5387b',
+                              border: '1px solid #a5387b',
                               borderRadius: '5px',
-                              padding: '5px 10px',
+                              padding: '3px 6px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
+                              fontSize: '1rem',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                             }}
                           >
                             <i className="fas fa-times-circle"></i>
