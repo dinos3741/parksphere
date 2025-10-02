@@ -819,7 +819,7 @@ function MainAppContent() {
           selectedFilter={selectedFilter} 
           onFilterChange={setSelectedFilter} 
           currentUsername={currentUsername} 
-          
+          currentUserAvatarUrl={profileUserData?.avatar_url}
         />
 
         <div className="map-container">
