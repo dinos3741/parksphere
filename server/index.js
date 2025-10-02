@@ -338,6 +338,23 @@ app.get('/api/users/username/:username', authenticateToken, async (req, res) => 
   }
 });
 
+app.post('/api/users/populate-avatars', authenticateToken, async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const usersToUpdate = await client.query('SELECT id, username FROM users WHERE avatar_url IS NULL');
+
+    for (const user of usersToUpdate.rows) {
+      const avatarUrl = `https://i.pravatar.cc/80?u=${user.username}`;
+      await client.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, user.id]);
+    }
+    client.release();
+    res.status(200).json({ message: `Populated avatar_url for ${usersToUpdate.rows.length} users.` });
+  } catch (error) {
+    console.error('Error populating avatar URLs:', error);
+    res.status(500).send('Server error populating avatar URLs.');
+  }
+});
+
 app.get('/api/user/spots-count', authenticateToken, async (req, res) => {
   const userId = req.user.userId;
 
@@ -785,13 +802,13 @@ app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
 
 app.post('/api/register', async (req, res) => {
   const { username, password, plateNumber, carColor, carType } = req.body;
-  const defaultAvatarUrl = `https://i.pravatar.cc/80?u=${username}`;
+  const avatarUrl = `https://i.pravatar.cc/80?u=${username}`;
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users (username, password, plate_number, car_color, car_type, avatar_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-      [username, hashedPassword, plateNumber, carColor, carType, defaultAvatarUrl]
+      [username, hashedPassword, plateNumber, carColor, carType, avatarUrl]
     );
     res.status(201).json({ message: 'User registered successfully!', userId: result.rows[0].id });
   } catch (error) {
