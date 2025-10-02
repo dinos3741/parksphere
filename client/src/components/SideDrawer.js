@@ -114,7 +114,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                     return (
                       <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={() => handleRequestItemClick(request)}>
                         <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
-                          <i className="fas fa-user-circle"></i>
+                          <img src={request.requester_avatar_url || `https://i.pravatar.cc/80?u=${request.requester_username}`} alt={request.requester_username} style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
                         </div>
                         <div className="request-details">
                           <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{textDecoration: 'underline', cursor: 'pointer'}}>{request.requester_username}</div>

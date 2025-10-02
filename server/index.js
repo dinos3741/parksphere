@@ -579,6 +579,7 @@ app.get('/api/spots/:spotId/requests-details', authenticateToken, async (req, re
           r.requested_at,
           u.username AS requester_username,
           u.car_type AS requester_car_type,
+          u.avatar_url AS requester_avatar_url,
           r.distance::NUMERIC AS distance,
           r.status
        FROM
