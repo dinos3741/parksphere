@@ -11,7 +11,7 @@ import RequestActionModal from './RequestActionModal';
 import { socket } from '../socket';
 import { emitter } from '../emitter';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages, onOpenRequesterDetails }) => {
   const drawerRef = useRef(null);
   const [showRequestActionModal, setShowRequestActionModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -117,7 +117,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                           <i className="fas fa-user-circle"></i>
                         </div>
                         <div className="request-details">
-                          <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`}>{request.requester_username}</div>
+                          <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{textDecoration: 'underline', cursor: 'pointer'}}>{request.requester_username}</div>
                         </div>
                         <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}

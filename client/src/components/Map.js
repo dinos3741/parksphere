@@ -9,6 +9,7 @@ import { getDistance } from '../utils/geoUtils';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
+import RequesterDetailsModal from './RequesterDetailsModal';
 import markerGreen from './icons/marker-icon-green.png';
 import markerGreen2x from './icons/marker-icon-green-2x.png';
 import markerRed from './icons/marker-icon-red.png';
@@ -81,6 +82,8 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
   const [newRequestSpotIds, setNewRequestSpotIds] = useState([]); // New state for spots with new requests
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
+  const [selectedRequester, setSelectedRequester] = useState(null);
 
   useEffect(() => {
     const handleNewRequest = (data) => {
@@ -148,6 +151,26 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     setShowDeleteConfirmationModal(false);
     setSpotToDeleteId(null);
     setDrawerSpot(null); // Close the SideDrawer after deletion
+  };
+
+  const handleOpenRequesterDetails = async (requester) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/username/${requester.requester_username}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedRequester(data);
+        setShowRequesterDetailsModal(true);
+      } else {
+        console.error('Failed to fetch requester details');
+      }
+    } catch (error) {
+      console.error('Error fetching requester details:', error);
+    }
   };
 
   useEffect(() => {
@@ -578,6 +601,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         currentUsername={currentUsername}
         onOpenChat={onOpenChat}
         unreadMessages={unreadMessages}
+        onOpenRequesterDetails={handleOpenRequesterDetails}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}
@@ -605,6 +629,14 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
           onClose={() => setShowDeleteConfirmationModal(false)}
           onConfirm={confirmDeleteSpot}
           message={`Are you sure you want to delete parking spot #${spotToDeleteId}? This action cannot be undone.`}
+        />
+      )}
+
+      {showRequesterDetailsModal && (
+        <RequesterDetailsModal
+          isOpen={showRequesterDetailsModal}
+          onClose={() => setShowRequesterDetailsModal(false)}
+          requester={selectedRequester}
         />
       )}
     </>
