@@ -233,7 +233,7 @@ function MainAppContent() {
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
       const data = await response.json();
-      console.log('Fetched profile data:', data);
+      console.log('Fetched profile data:', data); // Add this console.log
       setProfileUserData({
         ...data,
         total_arrival_time: parseFloat(data.total_arrival_time),
@@ -364,13 +364,14 @@ function MainAppContent() {
           setCurrentUserId(decodedToken.userId);
           setCurrentUsername(decodedToken.username);
           setCurrentUserCarType(decodedToken.carType);
+          fetchProfileData(); // Fetch profile data after setting user info
         } catch (error) {
           console.error("Error decoding token:", error);
           logout();
         }
       }
     }
-  }, []);
+  }, [fetchProfileData]);
 
   useEffect(() => {
     const interval = setInterval(() => {

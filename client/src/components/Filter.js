@@ -5,7 +5,7 @@ const Filter = ({ selectedFilter, onFilterChange, currentUsername, onLogout, cur
   return (
     <div className="filter-container">
       <div className="user-info">
-        <img src={currentUserAvatarUrl || "https://i.pravatar.cc/80"} alt="User Avatar" className="user-avatar" />
+        <img src={currentUserAvatarUrl} alt="User Avatar" className="user-avatar" />
         <div className="welcome-text-container">
           Welcome {currentUsername}!
         </div>
