@@ -60,7 +60,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
               <div><img src={spotIcon} alt="Spot" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Spot ID: </strong> {spot.id}</div>
               <div><img src={timeIcon} alt="Time" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
               <div><img src={costIcon} alt="Cost" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
-              <div><img src={priceIcon} alt="Price" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> €{(spot.price ?? 0).toFixed(2)}</div>
+              <div><img src={priceIcon} alt="Price" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> {(spot.price ?? 0)} credits</div>
               <div><img src={commentsIcon} alt="Comments" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
               <hr style={{ gridColumn: '1 / -1', margin: '10px 0 0 0', borderColor: '#eee' }} />
             </div>
@@ -76,7 +76,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                           <img src={request.requester_avatar_url || `https://i.pravatar.cc/80?u=${request.requester_username}`} alt={request.requester_username} style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
                         </div>
                         <div className="request-details">
-                          <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{textDecoration: 'underline', cursor: 'pointer'}}>{request.requester_username}</div>
+                          <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{cursor: 'pointer', color: '#007bff'}}>{request.requester_username}</div>
                         </div>
                         <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
