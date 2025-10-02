@@ -13,45 +13,6 @@ import { emitter } from '../emitter';
 
 const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages, onOpenRequesterDetails }) => {
   const drawerRef = useRef(null);
-  const [showRequestActionModal, setShowRequestActionModal] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-
-  useEffect(() => {
-    let timeoutId;
-    if (spot && spot.declared_at && spot.time_to_leave) {
-      const declaredAtMs = new Date(spot.declared_at).getTime();
-      const timeToLeaveMs = spot.time_to_leave * 60 * 1000; // Convert minutes to milliseconds
-      const expirationTimeMs = declaredAtMs + timeToLeaveMs;
-      const currentTimeMs = new Date().getTime();
-
-      const timeUntilExpiration = expirationTimeMs - currentTimeMs;
-
-      if (timeUntilExpiration <= 0) {
-        // Already expired, close immediately
-        onClose();
-        setShowRequestActionModal(false);
-      } else {
-        timeoutId = setTimeout(() => {
-          onClose();
-          setShowRequestActionModal(false);
-        }, timeUntilExpiration);
-      }
-    }
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [spot, onClose]);
-
-  const handleRequestItemClick = (request) => {
-    if (request.status === 'accepted') {
-      return;
-    }
-    setSelectedRequest(request);
-    setShowRequestActionModal(true);
-  };
 
   const handleConfirmRequest = (request) => {
     socket.emit('acceptRequest', {
@@ -62,7 +23,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       ownerId: currentUserId, // Pass owner's ID
     });
     addNotification(`Request from ${request.requester_username} confirmed!`, 'green');
-    setShowRequestActionModal(false);
     emitter.emit('new-request');
     // Remove the accepted request from the list
     // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
@@ -76,7 +36,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       ownerUsername: currentUsername, // Pass owner's username
     });
     addNotification(`Request from ${request.requester_username} rejected!`, 'red');
-    setShowRequestActionModal(false);
     // Remove the rejected request from the list
     // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
   };
@@ -112,7 +71,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                   {spotRequests.map((request, index) => {
                     const hasUnread = unreadMessages && unreadMessages[request.requester_id];
                     return (
-                      <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={() => handleRequestItemClick(request)}>
+                      <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`}>
                         <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           <img src={request.requester_avatar_url || `https://i.pravatar.cc/80?u=${request.requester_username}`} alt={request.requester_username} style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
                         </div>
@@ -122,6 +81,44 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                         <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                         </div>
+                        {request.status === 'pending' && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleConfirmRequest(request); }}
+                            style={{
+                              marginLeft: '10px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '5px',
+                              padding: '5px 10px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <i className="fas fa-check-circle"></i>
+                          </button>
+                        )}
+                        {request.status === 'pending' && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleRejectRequest(request); }}
+                            style={{
+                              marginLeft: '5px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '5px',
+                              padding: '5px 10px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <i className="fas fa-times-circle"></i>
+                          </button>
+                        )}
                         {request.status === 'accepted' && (
                           <div style={{ position: 'relative' }}>
                             <div className="chat-symbol" onClick={() => onOpenChat({ id: request.requester_id, username: request.requester_username })}>💬</div>
@@ -143,14 +140,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             <button onClick={() => onDelete(spot.id)} className="delete-button">Delete</button>
           </div>
         </>
-      )}
-      {showRequestActionModal && (
-        <RequestActionModal
-          request={selectedRequest}
-          onConfirm={handleConfirmRequest}
-          onReject={handleRejectRequest}
-          onClose={() => setShowRequestActionModal(false)}
-        />
       )}
     </div>
   );
