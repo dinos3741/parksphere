@@ -844,8 +844,6 @@ function MainAppContent() {
               pinnedLocation={pinnedLocation}
               setPinnedLocation={setPinnedLocation}
               setShowLeavingOverlay={setShowLeavingOverlay}
-              userLocation={userLocation}
-              addNotification={addNotification}
             />
           ) : (
             <div>Loading map or getting your location...</div>

@@ -5,7 +5,6 @@ import './Map.css'; // Import the new CSS file
 import L from 'leaflet';
 import { emitter } from '../emitter';
 import { socket } from '../socket';
-import { getDistance } from '../utils/geoUtils';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
