@@ -36,8 +36,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       ownerUsername: currentUsername, // Pass owner's username
     });
     addNotification(`Request from ${request.requester_username} rejected!`, 'red');
-    // Remove the rejected request from the list
-    // This will be handled by a socket event from the backend, which will trigger a re-fetch of spot requests in App.js
+    emitter.emit('request-rejected-by-owner', request.id);
   };
 
 

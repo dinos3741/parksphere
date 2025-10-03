@@ -132,6 +132,18 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     };
   }, []); // Empty dependency array to ensure listener is set up once
 
+  useEffect(() => {
+    const handleRequestRejected = (requestId) => {
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
+    };
+
+    emitter.on('request-rejected-by-owner', handleRequestRejected);
+
+    return () => {
+      emitter.off('request-rejected-by-owner', handleRequestRejected);
+    };
+  }, []);
+
   const handleNewButtonClick = (spot) => {
     console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
