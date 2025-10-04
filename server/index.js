@@ -108,8 +108,7 @@ io.on('connection', (socket) => {
         `UPDATE requests SET status = 'rejected', responded_at = NOW() WHERE id = $1 AND spot_id = $2`,
         [requestId, spotId]
       );
-      console.log(`Request ${requestId} for spot ${spotId} was REJECTED.`);
-
+      
       if (requesterSocket) {
         io.to(requesterSocket).emit('requestResponse', {
           message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`,

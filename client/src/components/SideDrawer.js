@@ -5,9 +5,9 @@ import timeIcon from '../assets/images/time.png';
 import costIcon from '../assets/images/cost.png';
 import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import './SideDrawer.css';
-import RequestActionModal from './RequestActionModal';
+
 import { socket } from '../socket';
 import { emitter } from '../emitter';
 

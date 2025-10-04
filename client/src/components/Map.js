@@ -310,8 +310,16 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         };
         map.on('click', handleMapClick);
 
+        const handleKeyDown = (e) => {
+          if (e.key === 'Escape') {
+            setPinDropMode(false);
+          }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
         return () => {
           map.off('click', handleMapClick);
+          document.removeEventListener('keydown', handleKeyDown);
           map.getContainer().classList.remove('pin-drop-mode');
           instructions.remove();
         };
