@@ -4,7 +4,9 @@ import './LeavingFab.css';
 const presets = [0, 2, 5, 10]; // minutes, 0 = now
 
 // Accept new props: userLocation, currentUserCarType, currentUserId
-const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation }) => {
+const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation, pendingRequests }) => {
+
+  const hasPendingRequests = pendingRequests && pendingRequests.length > 0;
 
   const handlePresetClick = async (minutes) => {
     setShowLeavingOverlay(false); // Close overlay immediately
@@ -68,7 +70,12 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
 
   return (
     <>
-      <button className="leaving-fab" onClick={() => setPinDropMode(true)}>
+      <button
+        className={`leaving-fab ${hasPendingRequests ? 'disabled' : ''}`}
+        onClick={() => !hasPendingRequests && setPinDropMode(true)}
+        disabled={hasPendingRequests}
+        title={hasPendingRequests ? "You cannot declare a new spot while you have a pending request." : "Declare a new spot"}
+      >
         I'm leaving
       </button>
 

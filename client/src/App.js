@@ -860,6 +860,7 @@ function MainAppContent() {
           showLeavingOverlay={showLeavingOverlay}
           setPinnedLocation={setPinnedLocation}
           pinnedLocation={pinnedLocation}
+          pendingRequests={pendingRequests}
         />
 
         {/* Removed DeclareSpot component rendering */}

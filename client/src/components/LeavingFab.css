@@ -95,3 +95,14 @@
 .close-overlay-button:hover {
   color: #333;
 }
+
+.leaving-fab.disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  transform: translateX(-50%);
+}
+
+.leaving-fab.disabled:hover {
+  background-color: #ccc;
+  transform: translateX(-50%);
+}
