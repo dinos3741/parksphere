@@ -420,8 +420,12 @@ function MainAppContent() {
 
       // The data can be either a spotId or an object with spotId, ownerId, and requesterIds
       if (typeof data === 'object' && data.spotId) {
-        const { ownerId, requesterIds } = data;
+        const { spotId, ownerId, requesterIds } = data;
         const participants = [ownerId, ...(requesterIds || [])];
+
+        if (requesterIds && requesterIds.includes(currentUserId)) {
+          setPendingRequests(prevRequests => prevRequests.filter(id => id !== parseInt(spotId, 10)));
+        }
 
         setAllChatMessages(prevAllMessages => {
           const newAllChatMessages = { ...prevAllMessages };
