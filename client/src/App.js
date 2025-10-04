@@ -807,7 +807,6 @@ function MainAppContent() {
 
         {menuOpen && (
           <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
-            <button onClick={() => { setShowProfileModal(true); setMenuOpen(false); fetchProfileData(); }}>Profile</button>
             <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
@@ -821,6 +820,7 @@ function MainAppContent() {
           onFilterChange={setSelectedFilter} 
           currentUsername={currentUsername} 
           currentUserAvatarUrl={profileUserData?.avatar_url}
+          onAvatarClick={() => { setShowProfileModal(true); fetchProfileData(); }}
         />
 
         <div className="map-container">
