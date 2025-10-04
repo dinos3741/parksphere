@@ -615,11 +615,14 @@ function MainAppContent() {
     setArrivalConfirmationData(null);
   };
 
+
+
   useEffect(() => {
     const handleRequestCancelled = (data) => {
       const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
       addNotification(message, 'purple');
       playSoundRemoveRequest();
+      emitter.emit('request-cancelled-for-owner', data.requestId);
     };
 
     socket.on('requestCancelled', handleRequestCancelled);
@@ -628,6 +631,8 @@ function MainAppContent() {
       socket.off('requestCancelled', handleRequestCancelled);
     };
   }, [addNotification, playSoundRemoveRequest]);
+
+
 
   useEffect(() => {
     const handleTransactionComplete = () => {

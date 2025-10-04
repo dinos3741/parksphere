@@ -739,6 +739,7 @@ app.post('/api/cancel-request', authenticateToken, async (req, res) => {
         spotId,
         requesterId,
         requesterUsername,
+        requestId,
         message: `User ${requesterUsername} has cancelled their request for your spot ${spotId}.`
       });
     }

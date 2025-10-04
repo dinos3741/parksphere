@@ -144,6 +144,18 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     };
   }, []);
 
+  useEffect(() => {
+    const handleRequestCancelled = (requestId) => {
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
+    };
+
+    emitter.on('request-cancelled-for-owner', handleRequestCancelled);
+
+    return () => {
+      emitter.off('request-cancelled-for-owner', handleRequestCancelled);
+    };
+  }, []);
+
   const handleNewButtonClick = (spot) => {
     console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
