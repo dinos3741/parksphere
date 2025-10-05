@@ -67,6 +67,11 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
                     ? `${(userData.total_arrival_time / userData.completed_transactions_count).toFixed(2)} min`
                     : 'N/A'}
                 </span>
+                <p>Rating:</p> <span className="my-stats-value">
+                  {userData.rating_count > 0
+                    ? `${Number(userData.rating).toFixed(2)} / 5.00 (${userData.rating_count} ratings)`
+                    : 'No ratings yet'}
+                </span>
               </div>
 
               <div className="settings-section">
