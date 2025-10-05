@@ -300,7 +300,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared, spots_taken, total_arrival_time, completed_transactions_count, avatar_url, rating, rating_count FROM users WHERE id = $1',
+      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared, spots_taken, total_arrival_time, completed_transactions_count, avatar_url FROM users WHERE id = $1',
       [userId]
     );
     const user = result.rows[0];
@@ -875,40 +875,6 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating car details:', error);
     res.status(500).json({ message: 'Server error updating car details.' });
-  }
-});
-
-app.post('/api/users/:id/rate', authenticateToken, async (req, res) => {
-  const userId = req.params.id;
-  const { rating } = req.body;
-
-  if (rating === 0) {
-    return res.status(200).json({ message: 'Rating skipped.' });
-  }
-
-  try {
-    const result = await pool.query(
-      'SELECT rating, rating_count FROM users WHERE id = $1',
-      [userId]
-    );
-    const user = result.rows[0];
-
-    if (!user) {
-      return res.status(404).send('User not found.');
-    }
-
-    const newRatingCount = user.rating_count + 1;
-    const newRating = ((user.rating * user.rating_count) + rating) / newRatingCount;
-
-    await pool.query(
-      'UPDATE users SET rating = $1, rating_count = $2 WHERE id = $3',
-      [newRating, newRatingCount, userId]
-    );
-
-    res.status(200).json({ message: 'Rating submitted successfully.' });
-  } catch (error) {
-    console.error('Error submitting rating:', error);
-    res.status(500).send('Server error submitting rating.');
   }
 });
 

@@ -27,7 +27,6 @@ import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
-import RatingModal from './components/RatingModal';
 import './App.css';
 
 function MainAppContent() {
@@ -568,45 +567,39 @@ function MainAppContent() {
     };
   }, [addNotification, playSoundArrived]);
 
-  const handleRatingSubmit = async (rating) => {
-    if (userToRate) {
-      try {
-        const token = getToken();
-        await fetch(`http://localhost:3001/api/users/${userToRate}/rate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ rating }),
-        });
-      } catch (error) {
-        console.error('Error submitting rating:', error);
-      }
-    }
-
-    if (arrivalConfirmationData) {
+  const handleConfirmArrival = () => {
+    if (arrivalConfirmationData && userLocation) {
       const spot = filteredParkingSpots.find(s => s.id === arrivalConfirmationData.spotId);
 
       if (spot) {
-        socket.emit('confirm-transaction', {
-          spotId: arrivalConfirmationData.spotId,
-          requesterId: arrivalConfirmationData.requesterId,
-        });
-        addNotification('Arrival confirmed!', 'green');
+        const distance = getDistance(
+          userLocation[0],
+          userLocation[1],
+          spot.lat,
+          spot.lng
+        );
+
+        const distanceThreshold = 0.02; // 20 meters in kilometers
+
+        if (distance < distanceThreshold) {
+          socket.emit('confirm-transaction', {
+            spotId: arrivalConfirmationData.spotId,
+            requesterId: arrivalConfirmationData.requesterId,
+          });
+          setArrivalConfirmationModalOpen(false);
+          setArrivalConfirmationData(null);
+          addNotification('Arrival confirmed!', 'green');
+        } else {
+          addNotification('You are too far from the spot to confirm arrival. Please get closer (within 20 meters).', 'red');
+          setArrivalConfirmationModalOpen(false);
+          setArrivalConfirmationData(null);
+        }
       } else {
         addNotification('Spot data not found for arrival confirmation.', 'red');
+        setArrivalConfirmationModalOpen(false);
+        setArrivalConfirmationData(null);
       }
     }
-    setShowRatingModal(false);
-    setUserToRate(null);
-    setArrivalConfirmationData(null);
-  };
-
-  const handleArrivalConfirmation = () => {
-    setUserToRate(arrivalConfirmationData.requesterId);
-    setShowRatingModal(true);
-    setArrivalConfirmationModalOpen(false);
   };
 
   const handleCloseArrivalModal = () => {
@@ -940,25 +933,12 @@ function MainAppContent() {
       <ArrivalConfirmationModal
         isOpen={isArrivalConfirmationModalOpen}
         onClose={handleCloseArrivalModal}
-        onConfirm={handleArrivalConfirmation}
+        onConfirm={handleConfirmArrival}
         onNotIdentified={handleNotIdentified}
         isOwner={true}
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
       />
-
-      {showRatingModal && (
-        <RatingModal
-          isOpen={showRatingModal}
-          onClose={() => {
-            setShowRatingModal(false);
-            setUserToRate(null);
-            // Still need to confirm the transaction even if rating is skipped
-            handleRatingSubmit(0);
-          }}
-          onSubmit={handleRatingSubmit}
-        />
-      )}
 
       {showSettingsModal && (
         <SettingsModal 

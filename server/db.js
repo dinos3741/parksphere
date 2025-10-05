@@ -65,16 +65,6 @@ async function createUsersTable() {
       ADD COLUMN IF NOT EXISTS spots_taken INTEGER DEFAULT 0;
     `);
 
-    // Add rating and rating_count columns if they don't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS rating DECIMAL(3, 2) DEFAULT 0.00;
-    `);
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0;
-    `);
-
     // Add total_arrival_time and completed_transactions_count to users table
     await client.query(`
       ALTER TABLE users
