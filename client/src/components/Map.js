@@ -65,7 +65,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -633,6 +633,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         onOpenChat={onOpenChat}
         unreadMessages={unreadMessages}
         onOpenRequesterDetails={handleOpenRequesterDetails}
+        onRateRequester={onRateRequester}
       />
       <RequesterSideDrawer
         spot={requesterDrawerSpot}

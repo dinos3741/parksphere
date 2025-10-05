@@ -624,6 +624,11 @@ function MainAppContent() {
     setArrivalConfirmationData(null);
   };
 
+  const handleRateRequester = (requester) => {
+    setUserToRate(requester.requester_id);
+    setShowRatingModal(true);
+  };
+
 
 
   useEffect(() => {
@@ -862,6 +867,7 @@ function MainAppContent() {
               pinnedLocation={pinnedLocation}
               setPinnedLocation={setPinnedLocation}
               setShowLeavingOverlay={setShowLeavingOverlay}
+              onRateRequester={handleRateRequester}
             />
           ) : (
             <div>Loading map or getting your location...</div>
