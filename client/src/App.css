@@ -419,6 +419,18 @@ body {
   z-index: 1000; /* Ensure it's above other content but below menu icon */
 }
 
+.search-icon {
+  position: absolute;
+  left: 30px;
+  top: 130px;
+  transform: translateY(0%);
+  color: white;
+  font-size: 28.8px;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+
 /* Dropdown items */
 .hamburger-dropdown button {
   background: transparent;

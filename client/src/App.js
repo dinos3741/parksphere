@@ -840,6 +840,7 @@ function MainAppContent() {
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
+          <i className="fas fa-search search-icon"></i>
           <img src={logo} className="logo-img" alt="Parksphere Logo" />
           <div className="logo-container">
             <h1 className="logo">PARKSPHERE</h1>
