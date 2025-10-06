@@ -25,7 +25,7 @@
   align-items: center;
   justify-content: center;
   height: 100%; /* Ensure it takes full height of parent flex item */
-  margin-top: -28px;
+  margin-top: -15px;
 }
 
 .user-info span {
@@ -52,7 +52,7 @@
   margin-right: 10px;
   object-fit: cover;
   border: 2px solid #603aac;
-  margin-top: -20px;
+  margin-top: -10px;
   cursor: pointer;
 }
 
