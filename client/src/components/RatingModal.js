@@ -33,7 +33,7 @@ const RatingModal = ({ isOpen, onClose, requester, onRate }) => {
             </span>
           ))}
         </div>
-        <button onClick={handleRate} disabled={rating === 0}>
+        <button onClick={handleRate} disabled={rating === 0} className="rate-button">
           Rate
         </button>
         <span className="close-icon" onClick={onClose}>&times;</span>
