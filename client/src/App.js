@@ -28,10 +28,12 @@ import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
 import RatingModal from './components/RatingModal';
+import SearchUserModal from './components/SearchUserModal';
 import './App.css';
 
 function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
+  const [showSearchUserModal, setShowSearchUserModal] = useState(false);
   const [chatRecipient, setChatRecipient] = useState(null);
   const [allChatMessages, setAllChatMessages] = useState({}); // Stores messages for all chats
   const [chatInput, setChatInput] = useState('');
@@ -840,7 +842,7 @@ function MainAppContent() {
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
-          <i className="fas fa-search search-icon"></i>
+          <i className="fas fa-search search-icon" onClick={() => setShowSearchUserModal(true)}></i>
           <img src={logo} className="logo-img" alt="Parksphere Logo" />
           <div className="logo-container">
             <h1 className="logo">PARKSPHERE</h1>
@@ -989,6 +991,13 @@ function MainAppContent() {
           onClose={() => setShowRatingModal(false)}
           requester={userToRate}
           onRate={handleRate}
+        />
+      )}
+
+      {showSearchUserModal && (
+        <SearchUserModal
+          isOpen={showSearchUserModal}
+          onClose={() => setShowSearchUserModal(false)}
         />
       )}
     </div>
