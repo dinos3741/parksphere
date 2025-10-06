@@ -58,7 +58,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             <div className="side-drawer-content spot-details-grid">
               <div><img src={spotIcon} alt="Spot" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Spot ID: </strong> {spot.id}</div>
               <div><img src={timeIcon} alt="Time" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Time to Expire: </strong> {formatRemainingTime(spot.declared_at, spot.time_to_leave)}</div>
-              <div><img src={costIcon} alt="Cost" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Cost Type: </strong> {spot.cost_type}</div>
+              <div><img src={costIcon} alt="Cost" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Spot Type: </strong> {spot.cost_type}</div>
               <div><img src={priceIcon} alt="Price" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Price: </strong> {(spot.price ?? 0)} credits</div>
               <div><img src={commentsIcon} alt="Comments" style={{ width: '20px', height: '20px' }} /></div><div className="spot-detail-text"><strong>Comments:</strong> {spot.comments ? spot.comments : 'None'}</div>
               <hr style={{ gridColumn: '1 / -1', margin: '10px 0 0 0', borderColor: '#eee' }} />
