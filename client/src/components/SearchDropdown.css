@@ -53,43 +53,29 @@
   text-align: left;
 }
 
-.section-title {
-  font-weight: bold;
-  color: #333;
-  margin-top: 0;
-  margin-bottom: 10px;
-  text-align: left;
-}
-
-.recent-searches-list,
 .requests-list {
   max-height: 150px; /* Limit height and enable scrolling */
   overflow-y: auto;
+  /* border: 1px solid #eee; */ /* Removed border */
   border-radius: 5px;
   padding: 5px;
-  margin-bottom: 10px;
 }
 
-.recent-search-item,
 .request-item {
   padding: 8px;
   border-bottom: 1px solid #eee;
   text-align: left;
   color: #555;
   font-size: 0.9em;
-  cursor: pointer;
 }
 
-.recent-search-item:last-child,
 .request-item:last-child {
   border-bottom: none;
 }
 
-.no-recent-searches,
 .no-requests {
   text-align: center;
   color: #888;
   font-size: 0.9em;
   padding: 10px;
 }
-

@@ -3,16 +3,11 @@ import './SearchDropdown.css';
 
 const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
   const [username, setUsername] = useState('');
-  const [recentSearches, setRecentSearches] = useState([]);
   const dropdownRef = useRef(null);
 
   const lastThreeRequests = pendingRequests ? pendingRequests.slice(-3) : [];
 
   useEffect(() => {
-    // Load recent searches from localStorage on component mount
-    const storedSearches = JSON.parse(localStorage.getItem('recentSearches')) || [];
-    setRecentSearches(storedSearches);
-
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         onClose();
@@ -32,13 +27,6 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
 
   const handleSearch = async () => {
     if (!username.trim()) return;
-
-    // Add current search to recent searches
-    setRecentSearches(prevSearches => {
-      const newSearches = [username, ...prevSearches.filter(search => search !== username)].slice(0, 5);
-      localStorage.setItem('recentSearches', JSON.stringify(newSearches));
-      return newSearches;
-    });
 
     try {
       const token = localStorage.getItem('token');
@@ -76,24 +64,7 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
         <button onClick={handleSearch}>Search</button>
       </div>
       <hr className="search-separator" />
-      <p className="section-title">Recent Searches</p>
-      <div className="recent-searches-list">
-        {recentSearches.length > 0 ? (
-          recentSearches.map((search, index) => (
-            <div key={index} className="recent-search-item" onClick={() => {
-              setUsername(search);
-              handleSearch();
-            }}>
-              {search}
-            </div>
-          ))
-        ) : (
-          <p className="no-recent-searches">No recent searches.</p>
-        )}
-      </div>
-
-      <hr className="search-separator" />
-      <p className="section-title">Recent Interactions</p>
+      <p className="requests-text">Recent Searches</p>
       <div className="requests-list">
         {lastThreeRequests.length > 0 ? (
           lastThreeRequests.map((requestId) => (
@@ -102,7 +73,7 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
             </div>
           ))
         ) : (
-          <p className="no-requests">No recent interactions.</p>
+          <p className="no-requests">No recent searches.</p>
         )}
       </div>
     </div>
