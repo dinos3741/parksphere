@@ -16,6 +16,7 @@
   padding: 20px;
   border-radius: 8px;
   text-align: center;
+  position: relative;
 }
 
 .rating-stars {
@@ -33,4 +34,13 @@
 .star:hover,
 .star:hover ~ .star {
   color: #ffc107;
+}
+
+.close-icon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: black;
 }
