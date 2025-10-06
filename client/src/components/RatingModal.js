@@ -18,6 +18,7 @@ const RatingModal = ({ isOpen, onClose, requester, onRate }) => {
     <div className="rating-modal-overlay">
       <div className="rating-modal-content">
         <h2>Rate {requester.requester_username}</h2>
+        <p style={{ color: 'black' }}>How was your experience with {requester.requester_username}?</p>
         <div className="rating-stars">
           {[1, 2, 3, 4, 5].map((star) => (
             <span
