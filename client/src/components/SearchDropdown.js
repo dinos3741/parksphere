@@ -55,6 +55,11 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
           placeholder="Enter username..."
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              handleSearch();
+            }
+          }}
         />
         <button onClick={handleSearch}>Search</button>
       </div>
