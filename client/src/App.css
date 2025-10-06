@@ -430,6 +430,11 @@ body {
   z-index: 1001;
 }
 
+.search-icon.highlighted {
+  color: #ffc107; /* Example: change color to yellow/orange when highlighted */
+  /* You can add other styles here, e.g., background-color, border, etc. */
+}
+
 
 /* Dropdown items */
 .hamburger-dropdown button {

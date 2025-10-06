@@ -28,7 +28,7 @@ import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
 import RatingModal from './components/RatingModal';
-import SearchUserModal from './components/SearchUserModal';
+import SearchDropdown from './components/SearchDropdown';
 import './App.css';
 
 function MainAppContent() {
@@ -842,7 +842,7 @@ function MainAppContent() {
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
-          <i className="fas fa-search search-icon" onClick={() => setShowSearchUserModal(true)}></i>
+          <i className={`fas fa-search search-icon ${showSearchUserModal ? 'highlighted' : ''}`} onClick={() => setShowSearchUserModal(true)}></i>
           <img src={logo} className="logo-img" alt="Parksphere Logo" />
           <div className="logo-container">
             <h1 className="logo">PARKSPHERE</h1>
@@ -995,7 +995,7 @@ function MainAppContent() {
       )}
 
       {showSearchUserModal && (
-        <SearchUserModal
+        <SearchDropdown
           isOpen={showSearchUserModal}
           onClose={() => setShowSearchUserModal(false)}
         />
