@@ -76,7 +76,6 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                         </div>
                         <div className="request-details">
                           <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{cursor: 'pointer', color: '#007bff'}}>{request.requester_username}</div>
-                          <span onClick={() => onRateRequester(request)} style={{cursor: 'pointer', marginLeft: '5px'}}>&#9733;</span>
                         </div>
                         <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}

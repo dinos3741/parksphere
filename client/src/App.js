@@ -588,8 +588,9 @@ function MainAppContent() {
             requesterId: arrivalConfirmationData.requesterId,
           });
           setArrivalConfirmationModalOpen(false);
-          setArrivalConfirmationData(null);
           addNotification('Arrival confirmed!', 'green');
+          handleRateRequester({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+          setArrivalConfirmationData(null);
         } else {
           addNotification('You are too far from the spot to confirm arrival. Please get closer (within 20 meters).', 'red');
           setArrivalConfirmationModalOpen(false);
