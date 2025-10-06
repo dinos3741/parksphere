@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SearchDropdown.css';
 
-const SearchDropdown = ({ isOpen, onClose, pendingRequests }) => {
+const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
   const [username, setUsername] = useState('');
   const dropdownRef = useRef(null);
 
@@ -25,12 +25,26 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests }) => {
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  const handleSearch = async () => {
+    if (!username.trim()) return;
 
-  const handleSearch = () => {
-    console.log('Searching for user:', username);
-    // TODO: Implement actual search logic
-    // onClose(); // Keep open after search for now, user can close manually
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/username/${username}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('User not found');
+      }
+      const userData = await response.json();
+      onUserSelect(userData);
+      onClose(); // Close dropdown after showing user details
+    } catch (error) {
+      console.error('Error searching for user:', error);
+      // TODO: Display an error message to the user
+    }
   };
 
   return (
@@ -45,7 +59,7 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests }) => {
         <button onClick={handleSearch}>Search</button>
       </div>
       <hr className="search-separator" />
-      <p className="requests-text">Requests</p>
+      <p className="requests-text">Recent Searches</p>
       <div className="requests-list">
         {lastThreeRequests.length > 0 ? (
           lastThreeRequests.map((requestId) => (
@@ -54,7 +68,7 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests }) => {
             </div>
           ))
         ) : (
-          <p className="no-requests">No recent requests.</p>
+          <p className="no-requests">No recent searches.</p>
         )}
       </div>
     </div>

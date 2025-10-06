@@ -10,7 +10,7 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
     <div className="RequesterDetailsModal__overlay" onClick={onClose}>
       <div className="RequesterDetailsModal__content" onClick={e => e.stopPropagation()}>
         <span className="RequesterDetailsModal__close" onClick={onClose}>&times;</span>
-        <h2>Requester Details</h2>
+        <h2>User Details</h2>
         <div className="RequesterDetailsModal__separator"></div>
         <div className="RequesterDetailsModal__grid">
           <div className="RequesterDetailsModal__left">

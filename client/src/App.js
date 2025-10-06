@@ -28,12 +28,20 @@ import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
 import RatingModal from './components/RatingModal';
+import RequesterDetailsModal from './components/RequesterDetailsModal'; // Import RequesterDetailsModal
 import SearchDropdown from './components/SearchDropdown';
 import './App.css';
 
 function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterDetailsModal
+  const [selectedRequester, setSelectedRequester] = useState(null); // State to hold requester data
+
+  const handleShowRequesterDetails = useCallback((requesterData) => {
+    setSelectedRequester(requesterData);
+    setShowRequesterDetailsModal(true);
+  }, []);
   const [chatRecipient, setChatRecipient] = useState(null);
   const [allChatMessages, setAllChatMessages] = useState({}); // Stores messages for all chats
   const [chatInput, setChatInput] = useState('');
@@ -985,22 +993,33 @@ function MainAppContent() {
         />
       )}
 
-      {showRatingModal && (
-        <RatingModal
-          isOpen={showRatingModal}
-          onClose={() => setShowRatingModal(false)}
-          requester={userToRate}
-          onRate={handleRate}
-        />
-      )}
+      <>
+        {showRatingModal && (
+          <RatingModal
+            isOpen={showRatingModal}
+            onClose={() => setShowRatingModal(false)}
+            requester={userToRate}
+            onRate={handleRate}
+          />
+        )}
 
-      {showSearchUserModal && (
-        <SearchDropdown
-          isOpen={showSearchUserModal}
-          onClose={() => setShowSearchUserModal(false)}
-          pendingRequests={pendingRequests}
-        />
-      )}
+        {showSearchUserModal && (
+          <SearchDropdown
+            isOpen={showSearchUserModal}
+            onClose={() => setShowSearchUserModal(false)}
+            pendingRequests={pendingRequests}
+            onUserSelect={handleShowRequesterDetails}
+          />
+        )}
+
+        {showRequesterDetailsModal && selectedRequester && (
+          <RequesterDetailsModal
+            isOpen={showRequesterDetailsModal}
+            onClose={() => setShowRequesterDetailsModal(false)}
+            requester={selectedRequester}
+          />
+        )}
+      </>
     </div>
   );
 }
