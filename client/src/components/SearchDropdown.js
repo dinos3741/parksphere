@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SearchDropdown.css';
 
-const SearchDropdown = ({ isOpen, onClose }) => {
+const SearchDropdown = ({ isOpen, onClose, pendingRequests }) => {
   const [username, setUsername] = useState('');
   const dropdownRef = useRef(null);
+
+  const lastThreeRequests = pendingRequests ? pendingRequests.slice(-3) : [];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -41,6 +43,19 @@ const SearchDropdown = ({ isOpen, onClose }) => {
           onChange={(e) => setUsername(e.target.value)}
         />
         <button onClick={handleSearch}>Search</button>
+      </div>
+      <hr className="search-separator" />
+      <p className="requests-text">Requests</p>
+      <div className="requests-list">
+        {lastThreeRequests.length > 0 ? (
+          lastThreeRequests.map((requestId) => (
+            <div key={requestId} className="request-item">
+              Request ID: {requestId}
+            </div>
+          ))
+        ) : (
+          <p className="no-requests">No recent requests.</p>
+        )}
       </div>
     </div>
   );

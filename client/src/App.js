@@ -998,6 +998,7 @@ function MainAppContent() {
         <SearchDropdown
           isOpen={showSearchUserModal}
           onClose={() => setShowSearchUserModal(false)}
+          pendingRequests={pendingRequests}
         />
       )}
     </div>
