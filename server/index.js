@@ -314,7 +314,8 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
         u.total_arrival_time, 
         u.completed_transactions_count, 
         u.avatar_url,
-        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
+        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
+        (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
       FROM users u 
       WHERE u.id = $1`,
       [userId]

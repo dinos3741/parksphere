@@ -167,7 +167,7 @@
 
 .my-stats-section {
   display: grid;
-  grid-template-columns: 350px auto;
+  grid-template-columns: 250px auto;
   border-top: 1px solid rgba(200, 200, 200, 0.4); /* More visible grey line */
   row-gap: 0px;
   align-items: center;
