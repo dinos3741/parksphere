@@ -28,11 +28,10 @@
   cursor: pointer;
   color: #ccc;
   margin: 0 5px;
+  transition: color 0.2s;
 }
 
-.star.selected,
-.star:hover,
-.star:hover ~ .star {
+.star.selected {
   color: #ffc107;
 }
 
