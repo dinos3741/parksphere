@@ -671,8 +671,11 @@ function MainAppContent() {
 
 
   useEffect(() => {
-    const handleTransactionComplete = () => {
+    const handleTransactionComplete = (data) => {
       fetchProfileData();
+      if (data.ownerId && data.ownerUsername) {
+        handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+      }
     };
 
     socket.on('transactionComplete', handleTransactionComplete);

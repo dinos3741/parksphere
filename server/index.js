@@ -219,9 +219,16 @@ io.on('connection', (socket) => {
 
       await client.query('COMMIT');
 
+      const ownerResult = await client.query('SELECT username FROM users WHERE id = $1', [ownerId]);
+      const ownerUsername = ownerResult.rows[0].username;
+
       const requesterSocketId = userSockets[requesterId]?.socketId;
       if (requesterSocketId) {
-        io.to(requesterSocketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. ${price} credits have been transferred.` });
+        io.to(requesterSocketId).emit('transactionComplete', { 
+          message: `Transaction for spot ${spotId} complete. ${price} credits have been transferred.`,
+          ownerId: ownerId,
+          ownerUsername: ownerUsername
+        });
       }
 
       const ownerSocketId = userSockets[ownerId]?.socketId;
