@@ -27,6 +27,7 @@ import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
+import RatingModal from './components/RatingModal';
 import './App.css';
 
 function MainAppContent() {
@@ -618,8 +619,35 @@ function MainAppContent() {
   };
 
   const handleRateRequester = (requester) => {
-    setUserToRate(requester.requester_id);
+    setUserToRate(requester);
     setShowRatingModal(true);
+  };
+
+  const handleRate = async (rating) => {
+    if (!userToRate) return;
+
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit rating');
+      }
+
+      addNotification('Rating submitted successfully!', 'green');
+      setShowRatingModal(false);
+      setUserToRate(null);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      addNotification('Failed to submit rating', 'red');
+    }
   };
 
 
@@ -947,6 +975,15 @@ function MainAppContent() {
           onFilterChange={setSelectedFilter} 
           selectedRadius={selectedRadius} 
           onRadiusChange={setSelectedRadius} 
+        />
+      )}
+
+      {showRatingModal && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          requester={userToRate}
+          onRate={handleRate}
         />
       )}
     </div>

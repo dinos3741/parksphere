@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
-const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable } = require('./db');
+const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const app = express();
 
@@ -271,6 +271,7 @@ app.use(cors()); // Enable CORS for all routes
 createUsersTable();
 createParkingSpotsTable();
 createRequestsTable(); // Ensure requests table exists
+createUserRatingsTable();
 
 // Middleware to authenticate JWT
 function authenticateToken(req, res, next) {
@@ -300,7 +301,22 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT id, username, plate_number, car_color, car_type, created_at, credits, spots_declared, spots_taken, total_arrival_time, completed_transactions_count, avatar_url FROM users WHERE id = $1',
+      `SELECT 
+        u.id, 
+        u.username, 
+        u.plate_number, 
+        u.car_color, 
+        u.car_type, 
+        u.created_at, 
+        u.credits, 
+        u.spots_declared, 
+        u.spots_taken, 
+        u.total_arrival_time, 
+        u.completed_transactions_count, 
+        u.avatar_url,
+        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
+      FROM users u 
+      WHERE u.id = $1`,
       [userId]
     );
     const user = result.rows[0];
@@ -321,7 +337,18 @@ app.get('/api/users/username/:username', authenticateToken, async (req, res) => 
 
   try {
     const result = await pool.query(
-      'SELECT id, username, created_at, credits, car_type, spots_declared, spots_taken, avatar_url FROM users WHERE username = $1',
+      `SELECT 
+        u.id, 
+        u.username, 
+        u.created_at, 
+        u.credits, 
+        u.car_type, 
+        u.spots_declared, 
+        u.spots_taken, 
+        u.avatar_url,
+        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
+      FROM users u 
+      WHERE u.username = $1`,
       [username]
     );
     const user = result.rows[0];
@@ -875,6 +902,22 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating car details:', error);
     res.status(500).json({ message: 'Server error updating car details.' });
+  }
+});
+
+app.post('/api/users/rate', authenticateToken, async (req, res) => {
+  const { rated_user_id, rating } = req.body;
+  const rater_id = req.user.userId;
+
+  try {
+    await pool.query(
+      'INSERT INTO user_ratings (rater_id, rated_user_id, rating) VALUES ($1, $2, $3)',
+      [rater_id, rated_user_id, rating]
+    );
+    res.status(201).json({ message: 'Rating submitted successfully!' });
+  } catch (error) {
+    console.error('Error submitting rating:', error);
+    res.status(500).json({ message: 'Server error submitting rating.' });
   }
 });
 

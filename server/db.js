@@ -237,4 +237,23 @@ async function createRequestsTable() {
   }
 }
 
-module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable };
+async function createUserRatingsTable() {
+  try {
+    const client = await pool.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_ratings (
+        id SERIAL PRIMARY KEY,
+        rater_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        rated_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    client.release();
+    console.log('User ratings table ensured to exist.');
+  } catch (err) {
+    console.error('Error creating user ratings table:', err);
+  }
+}
+
+module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable };
