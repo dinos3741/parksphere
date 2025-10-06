@@ -73,7 +73,7 @@
 .recent-search-item,
 .request-item {
   padding: 8px;
-  border-bottom: 1px solid #eee;
+  /* border-bottom: 1px solid #eee; */
   text-align: left;
   color: #555;
   font-size: 0.9em;
