@@ -87,6 +87,25 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   useEffect(() => {
     if (acceptedSpot) {
       setRequesterDrawerSpot(acceptedSpot);
+      const fetchOwnerDetails = async () => {
+        const token = localStorage.getItem('token');
+        try {
+          const response = await fetch(`/api/users/${acceptedSpot.user_id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setOwnerCarDetails(data);
+          } else {
+            console.error('Error fetching owner car details:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching owner car details:', error);
+        }
+      };
+      fetchOwnerDetails();
     }
   }, [acceptedSpot]);
 
