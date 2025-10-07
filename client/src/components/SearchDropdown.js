@@ -51,13 +51,20 @@ const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
 
     try {
       const userData = await findUserByUsername(username);
-      setRecentSearches(prevSearches => {
-        const newSearchItem = { username: userData.username, avatar_url: userData.avatar_url };
-        const filteredSearches = prevSearches.filter(search => search.username !== newSearchItem.username);
-        const newSearches = [newSearchItem, ...filteredSearches].slice(0, 5);
+
+      const storedSearches = JSON.parse(localStorage.getItem('recentSearches')) || [];
+      const newSearchItem = { username: userData.username, avatar_url: userData.avatar_url };
+      const filteredSearches = storedSearches.filter(search => search.username !== newSearchItem.username);
+      const newSearches = [newSearchItem, ...filteredSearches].slice(0, 5);
+      
+      try {
         localStorage.setItem('recentSearches', JSON.stringify(newSearches));
-        return newSearches;
-      });
+      } catch (e) {
+        console.error('Error saving to localStorage:', e);
+      }
+
+      setRecentSearches(newSearches);
+
       onUserSelect(userData);
       onClose();
     } catch (error) {
