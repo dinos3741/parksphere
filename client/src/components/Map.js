@@ -140,6 +140,18 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   }, [drawerSpot]);
 
   useEffect(() => {
+    const handleCloseDrawer = () => {
+      setDrawerSpot(null);
+    };
+
+    emitter.on('closeOwnerDrawer', handleCloseDrawer);
+
+    return () => {
+      emitter.off('closeOwnerDrawer', handleCloseDrawer);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleSpotDeletedEvent = (data) => {
       console.log("spotDeleted event received:", data);
       setRequesterDrawerSpot(prevSpot => {

@@ -686,6 +686,7 @@ function MainAppContent() {
       if (data.ownerId && data.ownerUsername) {
         handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
       }
+      emitter.emit('closeOwnerDrawer');
     };
 
     socket.on('transactionComplete', handleTransactionComplete);
