@@ -1,16 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SearchDropdown.css';
-import { findUserByUsername } from '../utils/api';
+import { findUserByUsername, getInteractions } from '../utils/api';
 
 const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
   const [username, setUsername] = useState('');
   const [recentSearches, setRecentSearches] = useState([]);
+  const [interactions, setInteractions] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const dropdownRef = useRef(null);
 
   useEffect(() => {
     const storedSearches = JSON.parse(localStorage.getItem('recentSearches')) || [];
     setRecentSearches(storedSearches);
+
+    const fetchInteractions = async () => {
+      try {
+        const interactionData = await getInteractions();
+        setInteractions(interactionData);
+      } catch (error) {
+        console.error('Error fetching interactions:', error);
+      }
+    };
+
+    if (isOpen) {
+      fetchInteractions();
+    }
 
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -22,7 +36,7 @@ const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       setErrorMessage('');
-    }
+    } 
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -87,6 +101,22 @@ const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
           ))
         ) : (
           <p className="no-recent-searches">No recent searches.</p>
+        )}
+      </div>
+      <hr className="search-separator" />
+      <p className="section-title">Interactions</p>
+      <div className="interactions-list">
+        {interactions.length > 0 ? (
+          interactions.map((interaction, index) => (
+            <div key={index} className="interaction-item" onClick={() => {
+              onUserSelect(interaction);
+              onClose();
+            }}>
+              {interaction.username}
+            </div>
+          ))
+        ) : (
+          <p className="no-interactions">No recent interactions.</p>
         )}
       </div>
     </div>

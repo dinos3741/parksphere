@@ -200,7 +200,7 @@ async function createRequestsTable() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS requests (
         id SERIAL PRIMARY KEY,
-        spot_id INTEGER REFERENCES parking_spots(id) ON DELETE CASCADE,
+        spot_id INTEGER REFERENCES parking_spots(id),
         requester_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'rejected', 'cancelled', 'fulfilled', 'expired'
@@ -211,6 +211,21 @@ async function createRequestsTable() {
         message TEXT, -- Optional message from requester
         response_message TEXT -- Optional message from owner
       );
+    `);
+
+    // Drop the existing foreign key constraint if it exists
+    await client.query(`
+      ALTER TABLE requests
+      DROP CONSTRAINT IF EXISTS requests_spot_id_fkey;
+    `);
+
+    // Add the foreign key constraint without ON DELETE CASCADE
+    await client.query(`
+      ALTER TABLE requests
+      ADD CONSTRAINT requests_spot_id_fkey
+      FOREIGN KEY (spot_id)
+      REFERENCES parking_spots(id)
+      ON DELETE SET NULL;
     `);
 
     // Add distance column if it doesn't exist

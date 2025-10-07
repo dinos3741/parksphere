@@ -93,6 +93,29 @@
   padding: 10px;
 }
 
+.interactions-list {
+  max-height: 150px;
+  overflow-y: auto;
+  border-radius: 5px;
+  padding: 5px;
+  margin-bottom: 10px;
+}
+
+.interaction-item {
+  padding: 8px;
+  text-align: left;
+  color: #555;
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.no-interactions {
+  text-align: center;
+  color: #888;
+  font-size: 0.9em;
+  padding: 10px;
+}
+
 .error-message {
   color: red;
   font-size: 0.8em;

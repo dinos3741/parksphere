@@ -17,3 +17,20 @@ export const findUserByUsername = async (username) => {
 
   return await response.json();
 };
+
+export const getInteractions = async () => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${BASE_URL}/users/interactions`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = new Error('Error fetching interactions');
+    error.status = response.status;
+    throw error;
+  }
+
+  return await response.json();
+};

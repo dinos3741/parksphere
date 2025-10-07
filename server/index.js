@@ -303,6 +303,40 @@ app.get('/api/car-types', (req, res) => {
   res.status(200).json(carTypes);
 });
 
+app.get('/api/users/interactions', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT owner_id, requester_id, responded_at
+       FROM requests
+       WHERE (owner_id = $1 OR requester_id = $1) AND status = 'fulfilled'
+       ORDER BY responded_at DESC
+       LIMIT 20`,
+      [userId]
+    );
+
+    console.log('Interactions query result:', result.rows);
+
+    const interactionUserIds = result.rows.map(row => row.owner_id === userId ? row.requester_id : row.owner_id);
+    const uniqueUserIds = [...new Set(interactionUserIds)];
+
+    if (uniqueUserIds.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    const usersResult = await pool.query(
+      `SELECT id, username, avatar_url FROM users WHERE id = ANY($1::int[])`,
+      [uniqueUserIds]
+    );
+
+    res.status(200).json(usersResult.rows);
+  } catch (error) {
+    console.error('Error fetching user interactions:', error);
+    res.status(500).send('Server error fetching user interactions.');
+  }
+});
+
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
   const userId = req.params.id;
 
