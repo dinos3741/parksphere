@@ -93,3 +93,10 @@
   padding: 10px;
 }
 
+.error-message {
+  color: red;
+  font-size: 0.8em;
+  text-align: center;
+  margin-top: 10px;
+}
+

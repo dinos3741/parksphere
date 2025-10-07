@@ -1,28 +1,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './SearchDropdown.css';
+import { findUserByUsername } from '../utils/api';
 
-const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
+const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
   const [username, setUsername] = useState('');
   const [recentSearches, setRecentSearches] = useState([]);
+  const [errorMessage, setErrorMessage] = useState('');
   const dropdownRef = useRef(null);
 
-  const lastThreeRequests = pendingRequests ? pendingRequests.slice(-3) : [];
-
   useEffect(() => {
-    // Load recent searches from localStorage on component mount
     const storedSearches = JSON.parse(localStorage.getItem('recentSearches')) || [];
     setRecentSearches(storedSearches);
 
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         onClose();
+        setErrorMessage('');
       }
     };
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
+      setErrorMessage('');
     }
 
     return () => {
@@ -31,31 +30,29 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
   }, [isOpen, onClose]);
 
   const handleSearch = async () => {
-    if (!username.trim()) return;
-
-    // Add current search to recent searches
-    setRecentSearches(prevSearches => {
-      const newSearches = [username, ...prevSearches.filter(search => search !== username)].slice(0, 5);
-      localStorage.setItem('recentSearches', JSON.stringify(newSearches));
-      return newSearches;
-    });
+    if (!username.trim()) {
+      setErrorMessage('Please enter a username.');
+      return;
+    }
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/users/username/${username}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const userData = await findUserByUsername(username);
+      setRecentSearches(prevSearches => {
+        const newSearchItem = { username: userData.username, avatar_url: userData.avatar_url };
+        const filteredSearches = prevSearches.filter(search => search.username !== newSearchItem.username);
+        const newSearches = [newSearchItem, ...filteredSearches].slice(0, 5);
+        localStorage.setItem('recentSearches', JSON.stringify(newSearches));
+        return newSearches;
       });
-      if (!response.ok) {
-        throw new Error('User not found');
-      }
-      const userData = await response.json();
       onUserSelect(userData);
-      onClose(); // Close dropdown after showing user details
+      onClose();
     } catch (error) {
+      if (error.status === 404) {
+        setErrorMessage('Username not found.');
+      } else {
+        setErrorMessage('An error occurred while searching.');
+      }
       console.error('Error searching for user:', error);
-      // TODO: Display an error message to the user
     }
   };
 
@@ -75,34 +72,21 @@ const SearchDropdown = ({ isOpen, onClose, pendingRequests, onUserSelect }) => {
         />
         <button onClick={handleSearch}>Search</button>
       </div>
+      {errorMessage && <p className="error-message">{errorMessage}</p>}
       <hr className="search-separator" />
       <p className="section-title">Recent Searches</p>
       <div className="recent-searches-list">
         {recentSearches.length > 0 ? (
           recentSearches.map((search, index) => (
             <div key={index} className="recent-search-item" onClick={() => {
-              setUsername(search);
-              handleSearch();
+              onUserSelect(search);
+              onClose();
             }}>
-              {search}
+              {search.username}
             </div>
           ))
         ) : (
           <p className="no-recent-searches">No recent searches.</p>
-        )}
-      </div>
-
-      <hr className="search-separator" />
-      <p className="section-title">Recent Interactions</p>
-      <div className="requests-list">
-        {lastThreeRequests.length > 0 ? (
-          lastThreeRequests.map((requestId) => (
-            <div key={requestId} className="request-item">
-              Request ID: {requestId}
-            </div>
-          ))
-        ) : (
-          <p className="no-requests">No recent interactions.</p>
         )}
       </div>
     </div>

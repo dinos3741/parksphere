@@ -23,6 +23,7 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
             <p><strong>Car Type:</strong> {owner.car_type}</p>
             <p><strong>Spots Declared:</strong> {owner.spots_declared}</p>
             <p><strong>Spots Taken:</strong> {owner.spots_taken}</p>
+            <p><strong>Average Rating:</strong> {owner.average_rating ? parseFloat(owner.average_rating).toFixed(1) : 'N/A'}</p>
           </div>
         </div>
       </div>
