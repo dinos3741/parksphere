@@ -85,6 +85,12 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   const [selectedRequester, setSelectedRequester] = useState(null);
 
   useEffect(() => {
+    if (acceptedSpot) {
+      setRequesterDrawerSpot(acceptedSpot);
+    }
+  }, [acceptedSpot]);
+
+  useEffect(() => {
     const handleNewRequest = (data) => {
       setNewRequestSpotIds(prev => [...prev, data.spotId]);
       if (drawerSpot && drawerSpot.id === data.spotId) {

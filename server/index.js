@@ -76,6 +76,7 @@ io.on('connection', (socket) => {
 
       const fullSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
       const spot = fullSpotResult.rows[0];
+      spot.username = ownerUsername; // Add username to the spot object
 
       if (requesterSocketId) {
         io.to(requesterSocketId).emit('requestResponse', {
@@ -315,8 +316,6 @@ app.get('/api/users/interactions', authenticateToken, async (req, res) => {
        LIMIT 20`,
       [userId]
     );
-
-    console.log('Interactions query result:', result.rows);
 
     const interactionUserIds = result.rows.map(row => row.owner_id === userId ? row.requester_id : row.owner_id);
     const uniqueUserIds = [...new Set(interactionUserIds)];
