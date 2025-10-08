@@ -15,8 +15,8 @@ const MessageComposerModal = ({ isOpen, onClose, recipientUsername }) => {
   };
 
   return (
-    <div className="message-composer-modal-overlay">
-      <div className="message-composer-modal-content">
+    <div className="message-composer-modal-overlay" onClick={onClose}>
+      <div className="message-composer-modal-content" onClick={e => e.stopPropagation()}>
         <div className="message-composer-modal-header">
           <h2>Send a message to {recipientUsername}</h2>
           <button onClick={onClose} className="message-composer-modal-close-button">&times;</button>
