@@ -1,7 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import './RequesterDetailsModal.css';
+import MessageComposerModal from './MessageComposerModal';
 
 const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
+  const [showMessageModal, setShowMessageModal] = useState(false);
+
+  const handleMessageIconClick = (e) => {
+    e.stopPropagation(); // Prevent the modal from closing
+    setShowMessageModal(true);
+  };
+
+  const handleCloseMessageComposerModal = () => {
+    setShowMessageModal(false);
+  };
+
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
@@ -31,7 +43,10 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
         <div className="RequesterDetailsModal__grid">
           <div className="RequesterDetailsModal__left">
             <img src={requester.avatar_url || "https://i.pravatar.cc/80"} alt="Requester Avatar" className="RequesterDetailsModal__avatar" />
-            <p><strong>{requester.username}</strong></p>
+            <div className="username-and-message-icon-requester">
+              <p><strong>{requester.username}</strong></p>
+              <span className="send-message-icon-requester" onClick={handleMessageIconClick}>✉️</span>
+            </div>
           </div>
           <div className="RequesterDetailsModal__right">
             <p><strong>Joined on:</strong> {requester.created_at ? new Date(requester.created_at).toLocaleDateString() : 'N/A'}</p>
@@ -43,6 +58,11 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
           </div>
         </div>
       </div>
+      {showMessageModal && <MessageComposerModal 
+        isOpen={showMessageModal} 
+        onClose={handleCloseMessageComposerModal} 
+        recipientUsername={requester.username} 
+      />}
     </div>
   );
 };

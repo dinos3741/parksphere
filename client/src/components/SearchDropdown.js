@@ -99,9 +99,19 @@ const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
       <div className="recent-searches-list">
         {recentSearches.length > 0 ? (
           recentSearches.map((search, index) => (
-            <div key={index} className="recent-search-item" onClick={() => {
-              onUserSelect(search);
-              onClose();
+            <div key={index} className="recent-search-item" onClick={async () => {
+              try {
+                const userData = await findUserByUsername(search.username);
+                onUserSelect(userData);
+                onClose();
+              } catch (error) {
+                if (error.status === 404) {
+                  setErrorMessage('Username not found.');
+                } else {
+                  setErrorMessage('An error occurred while searching.');
+                }
+                console.error('Error searching for user:', error);
+              }
             }}>
               {search.username}
             </div>
@@ -115,9 +125,19 @@ const SearchDropdown = ({ isOpen, onClose, onUserSelect }) => {
       <div className="interactions-list">
         {interactions.length > 0 ? (
           interactions.map((interaction, index) => (
-            <div key={index} className="interaction-item" onClick={() => {
-              onUserSelect(interaction);
-              onClose();
+            <div key={index} className="interaction-item" onClick={async () => {
+              try {
+                const userData = await findUserByUsername(interaction.username);
+                onUserSelect(userData);
+                onClose();
+              } catch (error) {
+                if (error.status === 404) {
+                  setErrorMessage('Username not found.');
+                } else {
+                  setErrorMessage('An error occurred while searching.');
+                }
+                console.error('Error searching for user:', error);
+              }
             }}>
               {interaction.username}
             </div>
