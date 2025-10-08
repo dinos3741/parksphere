@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { jwtDecode } from 'jwt-decode';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
-import { getDistance } from './utils/geoUtils';
+
 import { emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
@@ -423,11 +423,11 @@ function MainAppContent() {
     setChatRecipient(null);
   }, []);
 
-  useEffect(() => {
-    const handleNewSpot = () => {
-      fetchParkingSpots(selectedFilter, currentUserCarType);
-    };
+  const handleNewSpot = useCallback(() => {
+    fetchParkingSpots(selectedFilter, currentUserCarType);
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
 
+  useEffect(() => {
     const handleSpotDeleted = (data) => {
       fetchParkingSpots(selectedFilter, currentUserCarType);
 
@@ -470,7 +470,7 @@ function MainAppContent() {
       socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
     };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType, chatRecipient, handleCloseChat]);
+  }, [fetchParkingSpots, selectedFilter, currentUserCarType, chatRecipient, handleCloseChat, currentUserId, handleNewSpot]);
 
   useEffect(() => {
     const handleSpotUpdated = (updatedSpotFromServer) => {
@@ -579,38 +579,15 @@ function MainAppContent() {
   }, [addNotification, playSoundArrived]);
 
   const handleConfirmArrival = () => {
-    if (arrivalConfirmationData && userLocation) {
-      const spot = filteredParkingSpots.find(s => s.id === arrivalConfirmationData.spotId);
-
-      if (spot) {
-        const distance = getDistance(
-          userLocation[0],
-          userLocation[1],
-          spot.lat,
-          spot.lng
-        );
-
-        const distanceThreshold = 0.02; // 20 meters in kilometers
-
-        if (distance < distanceThreshold) {
-          socket.emit('confirm-transaction', {
-            spotId: arrivalConfirmationData.spotId,
-            requesterId: arrivalConfirmationData.requesterId,
-          });
-          setArrivalConfirmationModalOpen(false);
-          addNotification('Arrival confirmed!', 'green');
-          handleRateRequester({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
-          setArrivalConfirmationData(null);
-        } else {
-          addNotification('You are too far from the spot to confirm arrival. Please get closer (within 20 meters).', 'red');
-          setArrivalConfirmationModalOpen(false);
-          setArrivalConfirmationData(null);
-        }
-      } else {
-        addNotification('Spot data not found for arrival confirmation.', 'red');
-        setArrivalConfirmationModalOpen(false);
-        setArrivalConfirmationData(null);
-      }
+    if (arrivalConfirmationData) {
+      socket.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      addNotification('Arrival confirmed!', 'green');
+      handleRateRequester({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+      setArrivalConfirmationData(null);
     }
   };
 
@@ -629,10 +606,10 @@ function MainAppContent() {
     setArrivalConfirmationData(null);
   };
 
-  const handleRateRequester = (requester) => {
+  const handleRateRequester = useCallback((requester) => {
     setUserToRate(requester);
     setShowRatingModal(true);
-  };
+  }, []);
 
   const handleRate = async (rating) => {
     if (!userToRate) return;
@@ -694,7 +671,7 @@ function MainAppContent() {
     return () => {
       socket.off('transactionComplete', handleTransactionComplete);
     };
-  }, [fetchProfileData]);
+  }, [fetchProfileData, handleRateRequester]);
 
   useEffect(() => {
     const handleRequestAcceptedOrDeclined = (data) => {

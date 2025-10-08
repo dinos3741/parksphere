@@ -102,7 +102,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
     const distanceThreshold = 0.1; // 100 meters in kilometers
 
     if (distance > distanceThreshold) {
-      setDistanceWarningMessage("You are too far from the spot to confirm arrival. Please get closer (within 20 meters).");
+      setDistanceWarningMessage("You are too far from the spot to confirm arrival. Please get closer (within 100 meters).");
       setShowDistanceWarningModal(true);
     } else {
       setShowArrivalConfirmation(true);
