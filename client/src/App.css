@@ -446,6 +446,20 @@ body {
   text-align: left;
 }
 
-.hamburger-dropdown button:hover {
-  color: #ff9800; /* highlight on hover */
+.profile-icon {
+  font-size: 24px;
+  color: white;
+  cursor: pointer;
+  margin-left: 15px;
+}
+
+.message-icon {
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  margin-left: 10px;
+  position: relative;
+  top: 75px;
+  left: -140px;
+  filter: brightness(0) invert(1);
 }
