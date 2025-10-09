@@ -419,47 +419,4 @@ body {
   z-index: 1000; /* Ensure it's above other content but below menu icon */
 }
 
-.search-icon {
-  position: absolute;
-  left: 30px;
-  top: 120px;
-  transform: translateY(0%);
-  color: white;
-  font-size: 28.8px;
-  cursor: pointer;
-  z-index: 1001;
-}
 
-.search-icon.highlighted {
-  color: #ffc107; /* Example: change color to yellow/orange when highlighted */
-  /* You can add other styles here, e.g., background-color, border, etc. */
-}
-
-
-/* Dropdown items */
-.hamburger-dropdown button {
-  background: transparent;
-  border: none;
-  color: #333333; /* Dark grey color for contrast */
-  font-size: 16px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.profile-icon {
-  font-size: 24px;
-  color: white;
-  cursor: pointer;
-  margin-left: 15px;
-}
-
-.message-icon {
-  width: 26px;
-  height: 26px;
-  cursor: pointer;
-  margin-left: 10px;
-  position: relative;
-  top: 79px;
-  left: -170px;
-  filter: brightness(0) invert(1);
-}

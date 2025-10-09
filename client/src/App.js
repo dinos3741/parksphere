@@ -16,7 +16,7 @@ import EditSpotModal from './components/EditSpotModal';
 import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
-import messageIcon from './assets/images/envelope.png';
+
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import SettingsModal from './components/SettingsModal';
 import NotificationLog from './components/NotificationLog';
@@ -37,9 +37,8 @@ function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
 
-  const handleProfileClick = () => {
-    console.log('Profile icon clicked');
-  };
+
+
   const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterDetailsModal
   const [selectedRequester, setSelectedRequester] = useState(null); // State to hold requester data
 
@@ -833,8 +832,7 @@ function MainAppContent() {
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
-          <i className={`fas fa-search search-icon ${showSearchUserModal ? 'highlighted' : ''}`} onClick={() => setShowSearchUserModal(true)}></i>
-        <img src={messageIcon} alt="Messages" className="message-icon" />
+
           <img src={logo} className="logo-img" alt="Parksphere Logo" />
           <div className="logo-container">
             <h1 className="logo">PARKSPHERE</h1>
@@ -864,6 +862,8 @@ function MainAppContent() {
           currentUsername={currentUsername} 
           currentUserAvatarUrl={profileUserData?.avatar_url}
           onAvatarClick={() => { setShowProfileModal(true); fetchProfileData(); }}
+          showSearchUserModal={showSearchUserModal}
+          setShowSearchUserModal={setShowSearchUserModal}
         />
 
         <div className="map-container">
