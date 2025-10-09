@@ -16,7 +16,7 @@ import EditSpotModal from './components/EditSpotModal';
 import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
-import messageIcon from './assets/images/comments.png';
+import messageIcon from './assets/images/envelope.png';
 import ProfileModal from './components/ProfileModal'; // Import ProfileModal
 import SettingsModal from './components/SettingsModal';
 import NotificationLog from './components/NotificationLog';
