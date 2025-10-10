@@ -17,7 +17,7 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
 
   const handleSendMessage = async (message) => {
     try {
-      await sendAuthenticatedRequest('/api/messages', 'POST', { to: requester.id, message });
+      await sendAuthenticatedRequest('/messages', 'POST', { to: requester.id, message });
       setShowMessageModal(false);
     } catch (error) {
       console.error('Error sending message:', error);

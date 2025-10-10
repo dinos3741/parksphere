@@ -253,7 +253,6 @@ function MainAppContent() {
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
       const data = await response.json();
-      console.log('Fetched profile data:', data); // Add this console.log
       setProfileUserData({
         ...data,
         total_arrival_time: parseFloat(data.total_arrival_time),
@@ -796,7 +795,7 @@ function MainAppContent() {
     handleOpenChat(recipient);
 
     try {
-      const messages = await sendAuthenticatedRequest(`/api/messages/conversations/${recipient.id}`);
+      const messages = await sendAuthenticatedRequest(`/messages/conversations/${recipient.id}`);
       setAllChatMessages(prev => ({ ...prev, [recipient.id]: messages }));
     } catch (error) {
       console.error('Error fetching messages:', error);

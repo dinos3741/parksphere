@@ -9,7 +9,7 @@ const ConversationsSideDrawer = ({ isOpen, onClose, onConversationClick }) => {
     if (isOpen) {
       const fetchConversations = async () => {
         try {
-          const data = await sendAuthenticatedRequest('/api/messages/conversations');
+          const data = await sendAuthenticatedRequest('/messages/conversations');
           setConversations(data);
         } catch (error) {
           console.error('Error fetching conversations:', error);
