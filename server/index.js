@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
-const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable } = require('./db');
+const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const app = express();
 
@@ -245,12 +245,21 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('privateMessage', (data) => {
+  socket.on('privateMessage', async (data) => {
     const { from, to, message } = data;
     const recipientSocketId = userSockets[to]?.socketId;
 
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit('privateMessage', { from, to, message });
+    try {
+      await pool.query(
+        'INSERT INTO messages (sender_id, receiver_id, message) VALUES ($1, $2, $3)',
+        [from, to, message]
+      );
+
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit('privateMessage', { from, to, message });
+      }
+    } catch (error) {
+      console.error('Error saving private message:', error);
     }
   });
 
@@ -280,6 +289,7 @@ createUsersTable();
 createParkingSpotsTable();
 createRequestsTable(); // Ensure requests table exists
 createUserRatingsTable();
+createMessagesTable();
 
 // Middleware to authenticate JWT
 function authenticateToken(req, res, next) {
@@ -959,6 +969,82 @@ app.post('/api/users/rate', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error submitting rating:', error);
     res.status(500).json({ message: 'Server error submitting rating.' });
+  }
+});
+
+app.post('/api/messages', authenticateToken, async (req, res) => {
+  const { to, message } = req.body;
+  const from = req.user.userId;
+
+  try {
+    await pool.query(
+      'INSERT INTO messages (sender_id, receiver_id, message) VALUES ($1, $2, $3)',
+      [from, to, message]
+    );
+
+    const recipientSocketId = userSockets[to]?.socketId;
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('privateMessage', { from, to, message });
+    }
+
+    res.status(201).json({ message: 'Message sent successfully!' });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ message: 'Server error sending message.' });
+  }
+});
+
+app.get('/api/messages/conversations', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const result = await pool.query(
+      `SELECT DISTINCT ON (LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id))
+         CASE
+           WHEN sender_id = $1 THEN receiver_id
+           ELSE sender_id
+         END AS other_user_id,
+         message,
+         created_at
+       FROM messages
+       WHERE sender_id = $1 OR receiver_id = $1
+       ORDER BY LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id), created_at DESC`,
+      [userId]
+    );
+
+    const conversations = await Promise.all(result.rows.map(async (row) => {
+      const otherUserResult = await pool.query('SELECT username, avatar_url FROM users WHERE id = $1', [row.other_user_id]);
+      return {
+        ...row,
+        other_username: otherUserResult.rows[0].username,
+        other_avatar_url: otherUserResult.rows[0].avatar_url,
+      };
+    }));
+
+    res.status(200).json(conversations);
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).send('Server error fetching conversations.');
+  }
+});
+
+app.get('/api/messages/conversations/:otherUserId', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  const otherUserId = req.params.otherUserId;
+
+  try {
+    const result = await pool.query(
+      `SELECT sender_id, receiver_id, message, created_at
+       FROM messages
+       WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
+       ORDER BY created_at ASC`,
+      [userId, otherUserId]
+    );
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).send('Server error fetching messages.');
   }
 });
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import './RequesterDetailsModal.css';
 import MessageComposerModal from './MessageComposerModal';
+import { sendAuthenticatedRequest } from '../utils/api';
 
 const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
   const [showMessageModal, setShowMessageModal] = useState(false);
@@ -12,6 +13,15 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
 
   const handleCloseMessageComposerModal = () => {
     setShowMessageModal(false);
+  };
+
+  const handleSendMessage = async (message) => {
+    try {
+      await sendAuthenticatedRequest('/api/messages', 'POST', { to: requester.id, message });
+      setShowMessageModal(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
   };
 
   useEffect(() => {
@@ -59,9 +69,9 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
         </div>
       </div>
       {showMessageModal && <MessageComposerModal 
-        isOpen={showMessageModal} 
+        recipient={requester} 
         onClose={handleCloseMessageComposerModal} 
-        recipientUsername={requester.username} 
+        onSend={handleSendMessage} 
       />}
     </div>
   );

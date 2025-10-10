@@ -271,4 +271,23 @@ async function createUserRatingsTable() {
   }
 }
 
-module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable };
+async function createMessagesTable() {
+  try {
+    const client = await pool.connect();
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        message TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    client.release();
+    console.log('Messages table ensured to exist.');
+  } catch (err) {
+    console.error('Error creating messages table:', err);
+  }
+}
+
+module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable };

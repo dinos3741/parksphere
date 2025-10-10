@@ -21,52 +21,68 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
-.message-composer-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.message-composer-separator {
   border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-  margin-bottom: 20px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
-.message-composer-modal-header h2 {
-  margin: 0;
-  font-size: 1.2em;
-}
-
-.message-composer-modal-close-button {
-  background: none;
-  border: none;
-  font-size: 1.5em;
-  cursor: pointer;
-}
-
-.message-composer-textarea {
+.message-textarea {
   width: 100%;
-  height: 150px;
+  height: 250px; /* Increased height */
   padding: 10px;
   border-radius: 4px;
   border: 1px solid #ccc;
   resize: vertical;
-  box-sizing: border-box;
+  box-sizing: border-box; /* Include padding and border in the element's total width and height */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
 }
 
-.message-composer-modal-footer {
+.message-composer-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center; /* Center the buttons */
   margin-top: 20px;
+  gap: 50px; /* Add space between the buttons */
 }
 
-.message-composer-send-button {
-  background-color: #5cb85c;
-  color: white;
-  border: none;
+.send-button, .cancel-button {
   padding: 10px 20px;
   border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.send-button {
+  background-color: #5cb85c;
+  color: white;
+}
+
+.send-button:hover {
+  background-color: #4cae4c;
+}
+
+.cancel-button {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.cancel-button:hover {
+  background-color: #e0e0e0;
+}
+
+.close-modal {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #aaa;
   cursor: pointer;
 }
 
-.message-composer-send-button:hover {
-  background-color: #4cae4c;
+.close-modal:hover {
+  color: #000;
 }
