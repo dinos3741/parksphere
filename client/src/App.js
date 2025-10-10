@@ -24,7 +24,10 @@ import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import ChatSideDrawer from './components/ChatSideDrawer';
-import ConversationsSideDrawer from './components/ConversationsSideDrawer';
+import MessagesSideDrawer from './components/MessagesSideDrawer';
+
+
+
 import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
@@ -37,8 +40,8 @@ import './App.css';
 
 function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
-  const [showConversations, setShowConversations] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
+  const [isMessagesDrawerOpen, setIsMessagesDrawerOpen] = useState(false);
 
 
 
@@ -790,18 +793,6 @@ function MainAppContent() {
     });
   }, []);
 
-  const handleConversationClick = useCallback(async (recipient) => {
-    setShowConversations(false);
-    handleOpenChat(recipient);
-
-    try {
-      const messages = await sendAuthenticatedRequest(`/messages/conversations/${recipient.id}`);
-      setAllChatMessages(prev => ({ ...prev, [recipient.id]: messages }));
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    }
-  }, [handleOpenChat]);
-
   const handleDeleteSpot = useCallback(async (spotId) => {
     try {
       const token = getToken();
@@ -862,7 +853,7 @@ function MainAppContent() {
 
         {menuOpen && (
           <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
-            <button onClick={() => { setShowConversations(true); setMenuOpen(false); }}>Messages</button>
+            <button onClick={() => { setIsMessagesDrawerOpen(true); setMenuOpen(false); }}>Messages</button>
             <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
@@ -879,6 +870,7 @@ function MainAppContent() {
           onAvatarClick={() => { setShowProfileModal(true); fetchProfileData(); }}
           showSearchUserModal={showSearchUserModal}
           setShowSearchUserModal={setShowSearchUserModal}
+          setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
         />
 
         <div className="map-container">
@@ -903,6 +895,8 @@ function MainAppContent() {
               setPinnedLocation={setPinnedLocation}
               setShowLeavingOverlay={setShowLeavingOverlay}
               onRateRequester={handleRateRequester}
+              isMessagesDrawerOpen={isMessagesDrawerOpen}
+              setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
             />
           ) : (
             <div>Loading map or getting your location...</div>
@@ -938,11 +932,16 @@ function MainAppContent() {
 
       <NotificationLog messages={notificationLog} />
 
-      <ConversationsSideDrawer
-        isOpen={showConversations}
-        onClose={() => setShowConversations(false)}
-        onConversationClick={handleConversationClick}
-      />
+      {currentUserId && (
+        <MessagesSideDrawer
+          isOpen={isMessagesDrawerOpen}
+          onClose={() => setIsMessagesDrawerOpen(false)}
+          onConversationClick={handleOpenChat}
+          allChatMessages={allChatMessages}
+          unreadMessages={unreadMessages}
+          currentUserId={currentUserId}
+        />
+      )}
 
       {isChatOpen && (
         <ChatSideDrawer

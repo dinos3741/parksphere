@@ -9,6 +9,7 @@ import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal
 import RequesterDetailsModal from './RequesterDetailsModal';
+import MessagesSideDrawer from './MessagesSideDrawer';
 import markerGreen from './icons/marker-icon-green.png';
 import markerGreen2x from './icons/marker-icon-green-2x.png';
 import markerRed from './icons/marker-icon-red.png';
@@ -65,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -650,6 +651,15 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
           );
         })}
       </MapContainer>
+
+      <MessagesSideDrawer
+        isOpen={isMessagesDrawerOpen}
+        onClose={() => setIsMessagesDrawerOpen(false)}
+        onConversationClick={(user) => {
+          onOpenChat(user);
+          setIsMessagesDrawerOpen(false);
+        }}
+      />
 
       <SideDrawer 
         spot={drawerSpot} 
