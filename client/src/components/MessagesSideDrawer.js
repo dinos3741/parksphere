@@ -2,6 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { sendAuthenticatedRequest } from '../utils/api'; // Corrected import path
 import './MessagesSideDrawer.css';
 
+// Helper function to format the timestamp
+const formatMessageTimestamp = (timestamp) => {
+  const date = new Date(timestamp);
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return 'Invalid Date';
+  }
+
+  const options = {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true // Use 12-hour format with AM/PM
+  };
+  return date.toLocaleString([], options);
+};
+
+
 const MessagesSideDrawer = ({ isOpen, onClose, onConversationClick, allChatMessages, unreadMessages, currentUserId }) => {
   const [conversations, setConversations] = useState([]);
 
@@ -103,7 +123,7 @@ const MessagesSideDrawer = ({ isOpen, onClose, onConversationClick, allChatMessa
                 <p className="username">{convo.otherUser.username}</p>
                 <p className="last-message">{convo.lastMessage}</p>
               </div>
-              <span className="timestamp">{new Date(convo.timestamp).toLocaleTimeString()}</span>
+              <span className="timestamp">{formatMessageTimestamp(convo.timestamp)}</span>
               {convo.unreadCount > 0 && (
                 <span className="unread-messages-badge">{convo.unreadCount}</span>
               )}

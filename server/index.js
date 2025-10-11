@@ -250,13 +250,14 @@ io.on('connection', (socket) => {
     const recipientSocketId = userSockets[to]?.socketId;
 
     try {
-      await pool.query(
-        'INSERT INTO messages (sender_id, receiver_id, message) VALUES ($1, $2, $3)',
+      const result = await pool.query(
+        'INSERT INTO messages (sender_id, receiver_id, message) VALUES ($1, $2, $3) RETURNING created_at',
         [from, to, message]
       );
+      const created_at = result.rows[0].created_at;
 
       if (recipientSocketId) {
-        io.to(recipientSocketId).emit('privateMessage', { from, to, message });
+        io.to(recipientSocketId).emit('privateMessage', { from, to, message, created_at });
       }
     } catch (error) {
       console.error('Error saving private message:', error);

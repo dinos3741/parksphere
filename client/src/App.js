@@ -740,6 +740,7 @@ function MainAppContent() {
         from: currentUserId,
         to: chatRecipient.id,
         message: chatInput,
+        timestamp: new Date().toISOString(), // Add timestamp here
       };
       socket.emit('privateMessage', newMessage);
       setAllChatMessages((prevAllMessages) => ({
@@ -753,9 +754,11 @@ function MainAppContent() {
   useEffect(() => {
     const handlePrivateMessage = (message) => {
       const fromId = message.from;
+      // Ensure the message object has a 'timestamp' property
+      const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
       setAllChatMessages((prevAllMessages) => ({
         ...prevAllMessages,
-        [fromId]: [...(prevAllMessages[fromId] || []), message],
+        [fromId]: [...(prevAllMessages[fromId] || []), messageWithTimestamp],
       }));
 
       // If chat is not open with the sender, mark as unread
@@ -853,7 +856,6 @@ function MainAppContent() {
 
         {menuOpen && (
           <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
-            <button onClick={() => { setIsMessagesDrawerOpen(true); setMenuOpen(false); }}>Messages</button>
             <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
