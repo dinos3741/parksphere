@@ -115,9 +115,9 @@
 .message-input-container input {
   flex-grow: 1;
   padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
+  border-radius: 10px;
   margin-right: 10px;
+  border-width: 1px;
 }
 
 .message-input-container button {
