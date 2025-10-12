@@ -22,20 +22,43 @@ const formatMessageTimestamp = (timestamp) => {
 };
 
 
-const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, currentUserId }) => {
+const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, currentUserId, clearUnreadMessages }) => {
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
 
   const handleConversationSelect = async (otherUser) => {
+    const convo = conversations.find(c => c.otherUser.id === otherUser.id);
+    const unreadCount = convo ? convo.unreadCount : 0;
+
+    if (clearUnreadMessages) {
+      clearUnreadMessages(otherUser.id);
+    }
+
     setSelectedConversation(otherUser);
     try {
       const messages = await sendAuthenticatedRequest(`/messages/conversations/${otherUser.id}`);
-      setMessageHistory(messages);
+      const messagesWithReadStatus = messages.map((msg, index) => ({
+        ...msg,
+        is_new: index >= messages.length - unreadCount,
+      }));
+      setMessageHistory(messagesWithReadStatus);
     } catch (error) {
       console.error('Error fetching message history:', error);
     }
   };
+
+  useEffect(() => {
+    if (messageHistory.some(msg => msg.is_new)) {
+      const timer = setTimeout(() => {
+        setMessageHistory(prevHistory =>
+          prevHistory.map(msg => ({ ...msg, is_new: false }))
+        );
+      }, 2000); // 2 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [messageHistory]);
 
   useEffect(() => {
     console.log('MessagesSideDrawer useEffect triggered.');
@@ -117,16 +140,24 @@ const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, 
   return (
     <div className={`messages-side-drawer ${isOpen ? 'open' : ''}`}>
       <div className="messages-side-drawer-header">
-        <h3>Messages</h3>
-        <button className="close-button" onClick={onClose}>X</button>
+        {selectedConversation ? (
+          <>
+            <button className="back-button" onClick={() => setSelectedConversation(null)}><i className="fas fa-arrow-left"></i></button>
+            <h3>{selectedConversation.username}</h3>
+          </>
+        ) : (
+          <>
+            <h3>Messages</h3>
+            <button className="close-button" onClick={onClose}>X</button>
+          </>
+        )}
       </div>
       <div className="messages-side-drawer-content">
         {selectedConversation ? (
           <div>
-            <button className="back-button" onClick={() => setSelectedConversation(null)}>Back</button>
             <div className="message-history-container">
               {messageHistory.map((msg, index) => (
-                <div key={index} className={`message ${msg.sender_id === currentUserId ? 'sent' : 'received'}`}>
+                <div key={index} className={`message ${msg.sender_id === currentUserId ? 'sent' : 'received'} ${msg.is_new ? 'new-message' : ''}`}>
                   <p>{msg.message}</p>
                   <span className="timestamp">{formatMessageTimestamp(msg.created_at)}</span>
                 </div>
@@ -139,7 +170,7 @@ const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, 
           conversations.map((convo) => (
             <div
               key={convo.otherUser.id}
-              className="message-item"
+              className={`message-item ${convo.unreadCount > 0 ? 'unread' : ''}`}
               onClick={() => handleConversationSelect(convo.otherUser)}
             >
               {/* <img src={convo.otherUser.avatar_url} alt={convo.otherUser.username} /> */}

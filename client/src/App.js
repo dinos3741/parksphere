@@ -777,6 +777,14 @@ function MainAppContent() {
     };
   }, [isChatOpen, chatRecipient]);
 
+  const clearUnreadMessages = (userId) => {
+    setUnreadMessages((prevUnread) => {
+      const newUnread = { ...prevUnread };
+      delete newUnread[userId];
+      return newUnread;
+    });
+  };
+
   const handleLogout = useCallback(() => {
     if (currentUserId) {
       emitUnregister(currentUserId);
@@ -873,6 +881,7 @@ function MainAppContent() {
           showSearchUserModal={showSearchUserModal}
           setShowSearchUserModal={setShowSearchUserModal}
           setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
+          unreadMessages={unreadMessages}
         />
 
         <div className="map-container">
@@ -941,6 +950,7 @@ function MainAppContent() {
           allChatMessages={allChatMessages}
           unreadMessages={unreadMessages}
           currentUserId={currentUserId}
+          clearUnreadMessages={clearUnreadMessages}
         />
       )}
 
