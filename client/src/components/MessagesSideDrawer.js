@@ -22,8 +22,20 @@ const formatMessageTimestamp = (timestamp) => {
 };
 
 
-const MessagesSideDrawer = ({ isOpen, onClose, onConversationClick, allChatMessages, unreadMessages, currentUserId }) => {
+const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, currentUserId }) => {
   const [conversations, setConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [messageHistory, setMessageHistory] = useState([]);
+
+  const handleConversationSelect = async (otherUser) => {
+    setSelectedConversation(otherUser);
+    try {
+      const messages = await sendAuthenticatedRequest(`/messages/conversations/${otherUser.id}`);
+      setMessageHistory(messages);
+    } catch (error) {
+      console.error('Error fetching message history:', error);
+    }
+  };
 
   useEffect(() => {
     console.log('MessagesSideDrawer useEffect triggered.');
@@ -109,14 +121,26 @@ const MessagesSideDrawer = ({ isOpen, onClose, onConversationClick, allChatMessa
         <button className="close-button" onClick={onClose}>X</button>
       </div>
       <div className="messages-side-drawer-content">
-        {conversations.length === 0 ? (
+        {selectedConversation ? (
+          <div>
+            <button className="back-button" onClick={() => setSelectedConversation(null)}>Back</button>
+            <div className="message-history-container">
+              {messageHistory.map((msg, index) => (
+                <div key={index} className={`message ${msg.sender_id === currentUserId ? 'sent' : 'received'}`}>
+                  <p>{msg.message}</p>
+                  <span className="timestamp">{formatMessageTimestamp(msg.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : conversations.length === 0 ? (
           <p style={{ textAlign: 'center', color: '#666' }}>No messages yet.</p>
         ) : (
           conversations.map((convo) => (
             <div
               key={convo.otherUser.id}
               className="message-item"
-              onClick={() => onConversationClick(convo.otherUser)}
+              onClick={() => handleConversationSelect(convo.otherUser)}
             >
               {/* <img src={convo.otherUser.avatar_url} alt={convo.otherUser.username} /> */}
               <div className="message-details">

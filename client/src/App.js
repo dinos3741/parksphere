@@ -938,7 +938,6 @@ function MainAppContent() {
         <MessagesSideDrawer
           isOpen={isMessagesDrawerOpen}
           onClose={() => setIsMessagesDrawerOpen(false)}
-          onConversationClick={handleOpenChat}
           allChatMessages={allChatMessages}
           unreadMessages={unreadMessages}
           currentUserId={currentUserId}

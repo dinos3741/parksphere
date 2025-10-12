@@ -91,3 +91,38 @@
   font-size: 0.8em;
   color: #999;
 }
+
+.message {
+  padding: 8px 12px;
+  border-radius: 18px;
+  margin-bottom: 10px;
+  max-width: 80%;
+  word-wrap: break-word;
+  color: blue;
+}
+
+.sent {
+  background-color: #dcf8c6;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.received {
+  background-color: #fff;
+  align-self: flex-start;
+  text-align: left;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #603aac;
+  margin-bottom: 10px;
+}
+
+.message-history-container {
+  display: flex;
+  flex-direction: column;
+}
