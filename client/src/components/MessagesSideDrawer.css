@@ -63,6 +63,48 @@
   flex-grow: 1;
 }
 
+.message-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+
+.message-item:hover {
+  background-color: #f5f5f5;
+}
+
+.message-item img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.message-details {
+  flex-grow: 1;
+}
+
+.message-details .username {
+  font-weight: bold;
+  margin: 0;
+  color: blue;
+}
+
+.message-details .last-message {
+  color: #666;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-item .timestamp {
+  font-size: 0.8em;
+  color: #999;
+}
+
 .message-input-container {
   display: flex;
   padding: 10px;
@@ -72,7 +114,7 @@
 
 .message-input-container input {
   flex-grow: 1;
-  padding: 8px;
+  padding: 10px;
   border: 1px solid #ccc;
   border-radius: 5px;
   margin-right: 10px;
@@ -93,7 +135,7 @@
 }
 
 .message {
-  padding: 8px 12px;
+  padding: 0px 12px 5px 12px;
   border-radius: 18px;
   margin-bottom: 10px;
   max-width: 80%;
@@ -115,6 +157,11 @@
 
 .received.new-message {
   background-color: #e6e0f8;
+}
+
+.timestamp {
+  font-size: 0.8em;
+  color: grey;
 }
 
 .message-history-container {
