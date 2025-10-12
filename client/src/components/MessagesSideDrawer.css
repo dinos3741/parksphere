@@ -70,11 +70,13 @@
 
 .message-details {
   flex-grow: 1;
+  text-align: left;
 }
 
 .message-details .username {
   font-weight: bold;
   margin: 0;
+  color: blue;
 }
 
 .message-details .last-message {
