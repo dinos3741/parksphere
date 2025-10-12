@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { sendAuthenticatedRequest } from '../utils/api'; // Corrected import path
+import { socket } from '../socket';
 import './MessagesSideDrawer.css';
 
 // Helper function to format the timestamp
@@ -26,6 +27,8 @@ const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, 
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messageHistory, setMessageHistory] = useState([]);
+  // State for chat input and handlers
+  const [chatInput, setChatInput] = useState('');
 
   const handleConversationSelect = async (otherUser) => {
     const convo = conversations.find(c => c.otherUser.id === otherUser.id);
@@ -137,6 +140,25 @@ const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, 
   }, [isOpen, currentUserId, allChatMessages, unreadMessages]);
 
 
+  const handleChatInputChange = useCallback((e) => {
+    setChatInput(e.target.value);
+  }, []);
+
+  const handleSendMessage = useCallback(() => {
+    if (chatInput.trim() && selectedConversation) {
+      const newMessage = {
+        from: currentUserId,
+        to: selectedConversation.id,
+        message: chatInput,
+        timestamp: new Date().toISOString(),
+      };
+      socket.emit('privateMessage', newMessage);
+      setMessageHistory((prevHistory) => [...prevHistory, newMessage]);
+      setChatInput('');
+    }
+  }, [chatInput, selectedConversation, currentUserId]);
+
+
   return (
     <div className={`messages-side-drawer ${isOpen ? 'open' : ''}`}>
       <div className="messages-side-drawer-header">
@@ -186,6 +208,22 @@ const MessagesSideDrawer = ({ isOpen, onClose, allChatMessages, unreadMessages, 
           ))
         )}
       </div>
+      {selectedConversation && (
+        <div className="message-input-container">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={handleChatInputChange}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleSendMessage();
+              }
+            }}
+            placeholder="Type a message..."
+          />
+          <button onClick={handleSendMessage}>Send</button>
+        </div>
+      )}
     </div>
   );
 };
