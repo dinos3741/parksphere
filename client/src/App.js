@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import { jwtDecode } from 'jwt-decode';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
-import { sendAuthenticatedRequest } from './utils/api';
+
 
 import { emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';

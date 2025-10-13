@@ -630,6 +630,7 @@ app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
     const requesterIds = requestsResult.rows.map(r => r.requester_id);
     const ownerId = userId;
 
+    await pool.query('DELETE FROM requests WHERE spot_id = $1', [spotId]);
     await pool.query('DELETE FROM parking_spots WHERE id = $1', [spotId]);
     io.emit('spotDeleted', { spotId, ownerId, requesterIds }); // Emit spot deleted event
     res.status(200).send('Parking spot deleted successfully!');
@@ -1061,6 +1062,7 @@ async function checkAndRemoveExpiredSpots() {
       const requesterIds = requestsResult.rows.map(r => r.requester_id);
       const ownerId = spot.user_id;
 
+      await pool.query('DELETE FROM requests WHERE spot_id = $1', [spot.id]);
       await pool.query('DELETE FROM parking_spots WHERE id = $1', [spot.id]);
       io.emit('spotDeleted', { spotId: spot.id, ownerId, requesterIds }); // Emit event for real-time update
     }
