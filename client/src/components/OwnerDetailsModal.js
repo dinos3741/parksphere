@@ -1,7 +1,43 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import './OwnerDetailsModal.css';
+import MessageComposerModal from './MessageComposerModal';
+import { sendAuthenticatedRequest } from '../utils/api';
 
 const OwnerDetailsModal = ({ owner, onClose }) => {
+  const [showMessageModal, setShowMessageModal] = useState(false);
+
+  const handleMessageIconClick = (e) => {
+    e.stopPropagation(); // Prevent the modal from closing
+    setShowMessageModal(true);
+  };
+
+  const handleCloseMessageComposerModal = () => {
+    setShowMessageModal(false);
+  };
+
+  const handleSendMessage = async (message) => {
+    try {
+      await sendAuthenticatedRequest('/messages', 'POST', { to: owner.id, message });
+      setShowMessageModal(false);
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
+
   if (!owner) {
     return null;
   }
@@ -15,7 +51,10 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
         <div className="owner-details-grid">
           <div className="owner-details-left">
             <img src={owner.avatar_url || "https://i.pravatar.cc/80"} alt="Owner Avatar" className="owner-avatar" />
-            <p><strong>{owner.username}</strong></p>
+            <div className="username-and-message-icon-owner">
+              <p><strong>{owner.username}</strong></p>
+              <span className="send-message-icon-owner" onClick={handleMessageIconClick}>✉️</span>
+            </div>
           </div>
           <div className="owner-details-right">
             <p><strong>Joined on:</strong> {owner.created_at ? new Date(owner.created_at).toLocaleDateString() : 'N/A'}</p>
@@ -27,6 +66,11 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
           </div>
         </div>
       </div>
+      {showMessageModal && <MessageComposerModal 
+        recipient={owner} 
+        onClose={handleCloseMessageComposerModal} 
+        onSend={handleSendMessage} 
+      />}
     </div>
   );
 };
