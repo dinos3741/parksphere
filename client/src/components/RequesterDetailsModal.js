@@ -65,6 +65,7 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
             <p><strong>Spots Declared:</strong> {requester.spots_declared}</p>
             <p><strong>Spots Taken:</strong> {requester.spots_taken}</p>
             <p><strong>Average Rating:</strong> {requester.average_rating ? parseFloat(requester.average_rating).toFixed(1) : 'N/A'}</p>
+            <p><strong>Rank:</strong> top {requester.rank} %</p>
           </div>
         </div>
       </div>

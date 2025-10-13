@@ -377,12 +377,59 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
       return res.status(404).send('User not found.');
     }
 
+    const scores = await calculateAllUserScores();
+    const sortedScores = scores.sort((a, b) => b.score - a.score);
+    const userIndex = sortedScores.findIndex(s => s.userId === parseInt(userId));
+    const percentile = (userIndex / sortedScores.length) * 100;
+
+    user.rank = Math.ceil(percentile);
+
+
     res.status(200).json(user);
   } catch (error) {
     console.error('Error fetching user data:', error);
     res.status(500).send('Server error fetching user data.');
   }
 });
+
+async function calculateAllUserScores() {
+  const client = await pool.connect();
+  try {
+    const usersResult = await client.query(
+      `SELECT 
+        id,
+        spots_declared, 
+        spots_taken,
+        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = users.id) as avg_rating
+      FROM users`
+    );
+    const users = usersResult.rows;
+
+    const maxValuesResult = await client.query(
+      `SELECT 
+        MAX(spots_declared) as max_spots_declared,
+        MAX(spots_taken) as max_spots_taken
+      FROM users`
+    );
+    const maxValues = maxValuesResult.rows[0];
+
+    const scores = users.map(user => {
+        const normalized_spots_declared = maxValues.max_spots_declared > 0 ? user.spots_declared / maxValues.max_spots_declared : 0;
+        const normalized_spots_taken = maxValues.max_spots_taken > 0 ? user.spots_taken / maxValues.max_spots_taken : 0;
+        const normalized_rating = user.avg_rating ? user.avg_rating / 5.0 : 0;
+
+        const rank_score = (0.5 * normalized_spots_declared) +
+                           (0.2 * normalized_spots_taken) +
+                           (0.3 * normalized_rating);
+        return { userId: user.id, score: rank_score };
+    });
+
+    return scores;
+  } finally {
+    client.release();
+  }
+}
+
 
 app.get('/api/users/username/:username', authenticateToken, async (req, res) => {
   const username = req.params.username;
@@ -408,6 +455,13 @@ app.get('/api/users/username/:username', authenticateToken, async (req, res) => 
     if (!user) {
       return res.status(404).send('User not found.');
     }
+
+    const scores = await calculateAllUserScores();
+    const sortedScores = scores.sort((a, b) => b.score - a.score);
+    const userIndex = sortedScores.findIndex(s => s.userId === user.id);
+    const percentile = (userIndex / sortedScores.length) * 100;
+
+    user.rank = Math.ceil(percentile);
 
     res.status(200).json(user);
   } catch (error) {

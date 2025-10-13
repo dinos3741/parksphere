@@ -72,6 +72,7 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
                     ? `${Number(userData.rating).toFixed(2)} / 5.00 (${userData.rating_count} ratings)`
                     : 'No ratings yet'}
                 </span>
+                <p>Rank:</p> <span className="my-stats-value">top {userData.rank} %</span>
               </div>
 
               <div className="settings-section">
