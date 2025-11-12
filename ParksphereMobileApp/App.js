@@ -266,7 +266,7 @@ export default function App() {
             }
           }
         );
-      }d
+      }
     };
 
     setupLocationTracking();
