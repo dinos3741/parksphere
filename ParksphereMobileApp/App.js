@@ -7,7 +7,12 @@ import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
 import { io } from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
-import SpotDetailsModal from './components/SpotDetailsModal';
+import SpotDetails from './components/SpotDetails';
+import Notifications from './components/Notifications';
+import Map from './components/Map';
+import Login from './components/Login';
+import Profile from './components/Profile';
+import Chat from './components/Chat';
 
 // Helper function to generate fuzzy circle coordinates
 const generateFuzzyCircle = (centerLat, centerLon, radius) => {
@@ -43,9 +48,7 @@ export default function App() {
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
 
-  const [username, setUsername] = useState('');
   const [currentUsername, setCurrentUsername] = useState(null);
-  const [password, setPassword] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
@@ -56,6 +59,8 @@ export default function App() {
     setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
   };
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
+  const [showProfile, setShowProfile] = useState(false); // New state for profile screen
+  const [showChat, setShowChat] = useState(false); // New state for chat screen
 
   // Map related states
   const [userLocation, setUserLocation] = useState(null);
@@ -261,7 +266,7 @@ export default function App() {
             }
           }
         );
-      }
+      }d
     };
 
     setupLocationTracking();
@@ -273,37 +278,12 @@ export default function App() {
     };
   }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed, userId]); // Dependencies
 
-  const handleLogin = async () => {
-    try {
-      const response = await fetch(serverUrl + '/api/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userId', String(data.userId));
-        await AsyncStorage.setItem('username', data.username);
-        setToken(data.token);
-        setUserId(data.userId);
-        setCurrentUsername(data.username);
-        setIsLoggedIn(true);
-        addNotification(`Welcome ${data.username}!`);
-        // Alert.alert('Success', 'Logged in!'); // Removed success notification
-      } else {
-        setMessage(`Login failed: ${data.message || 'Invalid credentials'}`);
-        Alert.alert('Login Failed', data.message || 'Invalid credentials');
-      }
-    } catch (error) {
-      console.error('Error during login:', error);
-      Alert.alert('Error', 'Could not connect to the server for login.');
-      setMessage('Login failed due to network error.');
-    }
+  const handleLogin = (data) => {
+    setToken(data.token);
+    setUserId(data.userId);
+    setCurrentUsername(data.username);
+    setIsLoggedIn(true);
+    addNotification(`Welcome ${data.username}!`);
   };
 
   const handleLogout = async () => {
@@ -409,38 +389,6 @@ export default function App() {
     }
   };
 
-  const fetchProfileData = async () => {
-    if (!token || !userId) {
-      setMessage('Please log in first to fetch profile data.');
-      return;
-    }
-    try {
-      const response = await fetch(`${serverUrl}/api/users/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(`Profile Data: ${JSON.stringify(data.username)}`);
-        Alert.alert('Profile Data', `Username: ${data.username}\nCredits: ${data.credits}`);
-      } else if (response.status === 401 || response.status === 403) {
-        console.error('Authentication failed for profile data. Logging out...');
-        handleLogout();
-      } else {
-        setMessage(`Failed to fetch profile: ${data.message || 'Error'}`);
-        Alert.alert('Error', data.message || 'Failed to fetch profile data.');
-      }
-    }
-    catch (error) {
-      console.error('Error fetching profile data:', error);
-      Alert.alert('Error', 'Could not connect to the server for profile data.');
-      setMessage('Failed to fetch profile due to network error.');
-    }
-  };
-
   const handleCreateSpot = async (duration) => {
     if (!token || !userId || !userLocation) {
       Alert.alert('Error', 'Please log in and ensure location is available to create a spot.');
@@ -487,6 +435,27 @@ export default function App() {
     return null;
   }
 
+  const renderMainContent = () => {
+    if (showProfile) {
+      return <Profile userId={userId} token={token} onBack={() => setShowProfile(false)} />;
+    }
+    if (showChat) {
+      return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
+    }
+    return (
+      <Map
+        userLocation={userLocation}
+        locationPermissionGranted={locationPermissionGranted}
+        parkingSpots={parkingSpots}
+        userId={userId}
+        handleSpotPress={handleSpotPress}
+        handleCenterMap={handleCenterMap}
+        mapViewRef={mapViewRef}
+        setSpotDetailsVisible={setSpotDetailsVisible}
+      />
+    );
+  };
+
   return (
     <View style={styles.fullContainer}>
       <View style={styles.header}>
@@ -505,8 +474,11 @@ export default function App() {
       {isMenuVisible ? (
         <React.Fragment>
           <View style={styles.menu}>
-            <TouchableOpacity onPress={() => { /* Handle Profile */ setMenuVisible(false); }}>
+            <TouchableOpacity onPress={() => { setShowProfile(true); setMenuVisible(false); }}>
               <Text style={styles.menuItem}>Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setShowChat(true); setMenuVisible(false); }}>
+              <Text style={styles.menuItem}>Chat</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { handleLogout(); setMenuVisible(false); }}>
               <Text style={styles.menuItem}>Logout</Text>
@@ -516,117 +488,9 @@ export default function App() {
       ) : null}
 
       {isLoggedIn ? (
-        <View style={styles.mapScreenContainer}> {/* New container for map screen */}
-          {userLocation ? (
-            <MapView
-              ref={mapViewRef}
-              style={styles.map}
-              initialRegion={parkingSpots.length > 0 ? {
-                latitude: parseFloat(parkingSpots[0].latitude),
-                longitude: parseFloat(parkingSpots[0].longitude),
-                latitudeDelta: 0.0922,
-                longitudeDelta: 0.0421,
-              } : userLocation}
-              showsUserLocation={locationPermissionGranted} // Show blue dot if permission granted
-              onPress={(e) => {
-                if (e.nativeEvent.action !== 'marker-press') {
-                  setSpotDetailsVisible(false);
-                }
-              }}
-            >
-              {/* Add a marker for the user's location */}
-              {locationPermissionGranted && userLocation && (
-                <Marker
-                  coordinate={{ latitude: userLocation.latitude, longitude: userLocation.longitude }}
-                  title="Your Location"
-                  pinColor="blue"
-                />
-              )}
-
-              {/* Render parking spots */}
-              {parkingSpots.map((spot) => {
-                console.log('spot.id:', spot.id, 'spot.ownerId:', spot.ownerId, 'userId:', userId, 'match:', spot.ownerId == userId);
-                return (
-                <React.Fragment key={spot.id}>
-                  {spot.ownerId === userId ? ( // If the current user is the owner of the spot
-                    <Marker
-                      coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                      onPress={() => handleSpotPress(spot)}
-                      pinColor="red" // Red pin for owner's spot
-                    />
-                  ) : ( // Otherwise, render as a fuzzy circle and a transparent marker for clickability
-                    <>
-                      <Circle
-                        center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                        radius={200} // Example radius in meters
-                        fillColor="rgba(255,0,0,0.2)" // Red with more transparency
-                        strokeColor="rgba(255,0,0,0.8)"
-                        strokeWidth={2}
-                      />
-                      <Marker
-                        coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                        onPress={() => handleSpotPress(spot)}
-                        tracksViewChanges={false}
-                      >
-                        <View style={{width: 20, height: 20, backgroundColor: 'transparent'}}></View>
-                      </Marker>
-                    </>
-                  )}
-                </React.Fragment>
-                );
-              })}
-            </MapView>
-          ) : (
-            <Text style={styles.messageText}>Getting your location...</Text>
-          )}
-          <View style={styles.mapControls}>
-            <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
-              <Text style={styles.centerButtonText}>⌖</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
-            <Text style={styles.fabText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        renderMainContent()
       ) : (
-        <ImageBackground 
-          source={require('./assets/images/parking_background.png')} 
-          style={styles.backgroundImage} 
-          imageStyle={styles.imageStyle}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.loginOverlay}>
-            <View style={styles.loginContainer}>
-              <Text style={styles.loginTitle}>Login</Text> 
-              <TextInput
-                style={styles.input}
-                placeholder="Username"
-                placeholderTextColor="#888" 
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor="#888" 
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
-              <TouchableOpacity style={styles.loginButton} onPress={handleLogin}> 
-                <Text style={styles.loginButtonText}>Login</Text>
-              </TouchableOpacity>
-              <View style={styles.registerPrompt}> 
-                <Text style={styles.registerText}>Don't have an account?</Text>
-                <TouchableOpacity onPress={() => setShowRegister(true)}>
-                  <Text style={styles.registerLink}>Register here</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-          </TouchableWithoutFeedback>
-        </ImageBackground>
+        <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
       )}
       <StatusBar style="auto" />
       <LeavingModal
@@ -634,7 +498,7 @@ export default function App() {
         onClose={() => setLeavingModalVisible(false)}
         onCreateSpot={handleCreateSpot}
       />
-      <SpotDetailsModal
+      <SpotDetails
         visible={isSpotDetailsVisible}
         spot={selectedSpot}
         onClose={() => setSpotDetailsVisible(false)}
@@ -643,15 +507,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && (
-        <View style={styles.notificationArea}>
-          <ScrollView>
-            {notifications.map((notification, index) => (
-              <Text key={index} style={styles.notificationText}>[{notification.timestamp}] {notification.msg}</Text>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      {isLoggedIn && !showProfile && !showChat && <Notifications notifications={notifications} />}
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
       </View>
