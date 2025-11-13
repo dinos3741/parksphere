@@ -498,9 +498,6 @@ export default function App() {
       {isMenuVisible ? (
         <React.Fragment>
           <View style={styles.menu}>
-            <TouchableOpacity onPress={() => { setShowProfile(true); setMenuVisible(false); }}>
-              <Text style={styles.menuItem}>Profile</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => { setShowChat(true); setMenuVisible(false); }}>
               <Text style={styles.menuItem}>Chat</Text>
             </TouchableOpacity>
@@ -755,13 +752,13 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    width: 66,
-    height: 66,
-    borderRadius: 30,
-    backgroundColor: '#007bff',
+    width: 79,
+    height: 79,
+    borderRadius: 40,
+    backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 100,
+    bottom: 190,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
@@ -771,9 +768,9 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: 'white',
-    fontSize: 40,
+    fontSize: 48,
     fontWeight: 'normal',
-    lineHeight: 40,
+    lineHeight: 48,
   },
   hamburger: {
     padding: 10,
