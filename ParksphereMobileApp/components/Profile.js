@@ -2,47 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const Profile = ({ userId, token, onBack }) => {
-  const [user, setUser] = useState(null);
+const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   const [isEditMode, setIsEditMode] = useState(false);
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [carType, setCarType] = useState('');
+  const [username, setUsername] = useState(user ? user.username : '');
+  const [email, setEmail] = useState(user ? user.email : '');
+  const [carType, setCarType] = useState(user ? user.car_type : '');
 
   useEffect(() => {
-    const fetchProfileData = async () => {
-      if (!token || !userId) {
-        return;
-      }
-      try {
-        const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          setUser(data);
-          setUsername(data.username);
-          setEmail(data.email);
-          setCarType(data.car_type);
-        } else {
-          Alert.alert('Error', data.message || 'Failed to fetch profile data.');
-        }
-      } catch (error) {
-        console.error('Error fetching profile data:', error);
-        Alert.alert('Error', 'Could not connect to the server for profile data.');
-      }
-    };
-
-    fetchProfileData();
-  }, [userId, token]);
+    if (user) {
+      setUsername(user.username);
+      setEmail(user.email);
+      setCarType(user.car_type);
+    }
+  }, [user]);
 
   const handleUpdate = async () => {
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${userId}`, {
+      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +30,9 @@ const Profile = ({ userId, token, onBack }) => {
       const data = await response.json();
 
       if (response.ok) {
-        setUser(data);
+        if(onProfileUpdate) {
+          onProfileUpdate(data);
+        }
         setIsEditMode(false);
         Alert.alert('Success', 'Profile updated successfully.');
       } else {

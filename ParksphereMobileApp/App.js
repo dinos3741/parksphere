@@ -61,6 +61,30 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
   const [showProfile, setShowProfile] = useState(false); // New state for profile screen
   const [showChat, setShowChat] = useState(false); // New state for chat screen
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (isLoggedIn && userId && token) {
+        try {
+          const response = await fetch(`${serverUrl}/api/users/${userId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            setCurrentUser(data);
+          } else {
+            console.error('Failed to fetch user data');
+          }
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      }
+    };
+    fetchUserData();
+  }, [isLoggedIn, userId, token]);
 
   // Map related states
   const [userLocation, setUserLocation] = useState(null);
@@ -437,7 +461,7 @@ export default function App() {
 
   const renderMainContent = () => {
     if (showProfile) {
-      return <Profile userId={userId} token={token} onBack={() => setShowProfile(false)} />;
+      return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;
     }
     if (showChat) {
       return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
@@ -507,7 +531,19 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && !showProfile && !showChat && <Notifications notifications={notifications} />}
+      {isLoggedIn && !showProfile && !showChat && (
+        <>
+          <Notifications notifications={notifications} />
+          <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
+            <Text style={styles.fabText}>+</Text>
+          </TouchableOpacity>
+        </>
+      )}
+      {isLoggedIn && !showProfile && !showChat && currentUser && (
+        <View style={styles.tabBar}>
+          <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
+        </View>
+      )}
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
       </View>
@@ -690,6 +726,24 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#333',
   },
+  tabBar: {
+    height: 50,
+    backgroundColor: '#f0f0f0',
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  tabBarText: {
+    color: '#888',
+    fontSize: 16,
+  },
+  tabBarIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
   footer: {
     backgroundColor: '#547abb',
     padding: 10,
@@ -707,7 +761,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#007bff',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 30,
+    bottom: 100,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
