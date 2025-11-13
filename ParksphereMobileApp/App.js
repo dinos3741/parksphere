@@ -13,6 +13,8 @@ import Map from './components/Map';
 import Login from './components/Login';
 import Profile from './components/Profile';
 import Chat from './components/Chat';
+import UserDetails from './components/UserDetails';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 // Helper function to generate fuzzy circle coordinates
 const generateFuzzyCircle = (centerLat, centerLon, radius) => {
@@ -61,6 +63,7 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
   const [showProfile, setShowProfile] = useState(false); // New state for profile screen
   const [showChat, setShowChat] = useState(false); // New state for chat screen
+  const [showUserDetails, setShowUserDetails] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -460,6 +463,9 @@ export default function App() {
   }
 
   const renderMainContent = () => {
+    if (showUserDetails) {
+      return <UserDetails user={currentUser} onBack={() => setShowUserDetails(false)} />;
+    }
     if (showProfile) {
       return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;
     }
@@ -528,7 +534,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && !showProfile && !showChat && (
+      {isLoggedIn && !showProfile && !showChat && !showUserDetails && (
         <>
           <Notifications notifications={notifications} />
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
@@ -538,7 +544,16 @@ export default function App() {
       )}
       {isLoggedIn && !showProfile && !showChat && currentUser && (
         <View style={styles.tabBar}>
-          <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
+          <TouchableOpacity onPress={() => {
+            setShowUserDetails(false);
+            setShowProfile(false);
+            setShowChat(false);
+          }}>
+            <FontAwesome name="home" size={29} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowUserDetails(true)}>
+            <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
+          </TouchableOpacity>
         </View>
       )}
       <View style={styles.footer}>
@@ -730,6 +745,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#ddd',
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 20,
   },
   tabBarText: {
@@ -769,7 +785,7 @@ const styles = StyleSheet.create({
   fabText: {
     color: 'white',
     fontSize: 48,
-    fontWeight: 'normal',
+    fontWeight: '300',
     lineHeight: 48,
   },
   hamburger: {
