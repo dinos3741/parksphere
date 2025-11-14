@@ -73,9 +73,6 @@ const Chat = ({ userId, token, onBack, otherUserId, socket }) => {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>{'< Back'}</Text>
-      </TouchableOpacity>
       <GiftedChat
         messages={messages}
         onSend={(messages) => onSend(messages)}
@@ -90,16 +87,6 @@ const Chat = ({ userId, token, onBack, otherUserId, socket }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    backButton: {
-        position: 'absolute',
-        top: 40,
-        left: 20,
-        zIndex: 1,
-    },
-    backButtonText: {
-        fontSize: 18,
-        color: '#007bff',
     },
 });
 

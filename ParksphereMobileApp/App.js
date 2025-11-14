@@ -15,6 +15,7 @@ import Profile from './components/Profile';
 import Chat from './components/Chat';
 import UserDetails from './components/UserDetails';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import SearchScreen from './components/SearchScreen';
 
 // Helper function to generate fuzzy circle coordinates
 const generateFuzzyCircle = (centerLat, centerLon, radius) => {
@@ -64,6 +65,7 @@ export default function App() {
   const [showProfile, setShowProfile] = useState(false); // New state for profile screen
   const [showChat, setShowChat] = useState(false); // New state for chat screen
   const [showUserDetails, setShowUserDetails] = useState(false);
+  const [showSearch, setShowSearch] = useState(false); // New state for search screen
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -463,14 +465,17 @@ export default function App() {
   }
 
   const renderMainContent = () => {
+    if (showSearch) {
+      return <SearchScreen onBack={() => setShowSearch(false)} />;
+    }
+    if (showChat) {
+      return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
+    }
     if (showUserDetails) {
       return <UserDetails user={currentUser} onBack={() => setShowUserDetails(false)} />;
     }
     if (showProfile) {
       return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;
-    }
-    if (showChat) {
-      return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
     }
     return (
       <Map
@@ -542,7 +547,7 @@ export default function App() {
           </TouchableOpacity>
         </>
       )}
-      {isLoggedIn && !showProfile && !showChat && currentUser && (
+      {isLoggedIn && !showProfile && currentUser && (
         <View style={styles.tabBar}>
           <TouchableOpacity onPress={() => {
             setShowUserDetails(false);
@@ -551,7 +556,26 @@ export default function App() {
           }}>
             <FontAwesome name="home" size={29} color="black" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowUserDetails(true)}>
+          <TouchableOpacity onPress={() => {
+            setShowChat(true);
+            setShowUserDetails(false);
+            setShowProfile(false);
+          }}>
+            <FontAwesome name="comments" size={29} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => {
+            setShowSearch(true);
+            setShowUserDetails(false);
+            setShowChat(false);
+            setShowProfile(false);
+          }}>
+            <FontAwesome name="search" size={29} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => {
+            setShowUserDetails(true);
+            setShowChat(false);
+            setShowProfile(false);
+          }}>
             <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
           </TouchableOpacity>
         </View>
