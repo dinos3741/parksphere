@@ -1,14 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
-const SearchScreen = ({ onBack }) => {
+const SearchScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Search Screen</Text>
       <Text>This is the search screen content.</Text>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>{'< Back'}</Text>
-      </TouchableOpacity>
     </View>
   );
 };

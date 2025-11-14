@@ -57,12 +57,12 @@ const UserDetails = ({ user, onBack }) => {
         <View style={styles.infoRow}>
           <Text style={styles.profileLabel}>Rating:</Text>
           <Text style={styles.profileValue}>
-            {typeof user.rating === 'number' ? user.rating.toFixed(2) + ' (' + user.rating_count + ')' : 'N/A'}
+            {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
           </Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.profileLabel}>Rank:</Text>
-          <Text style={styles.profileValue}>{user.rank ? user.rank + '%' : 'N/A'}</Text>
+          <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
         </View>
       </View>
     </View>

@@ -466,7 +466,7 @@ export default function App() {
 
   const renderMainContent = () => {
     if (showSearch) {
-      return <SearchScreen onBack={() => setShowSearch(false)} />;
+      return <SearchScreen />;
     }
     if (showChat) {
       return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
@@ -519,11 +519,13 @@ export default function App() {
         </React.Fragment>
       ) : null}
 
-      {isLoggedIn ? (
-        renderMainContent()
-      ) : (
-        <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
-      )}
+      <View style={{flex: 1}}>
+        {isLoggedIn ? (
+          renderMainContent()
+        ) : (
+          <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
+        )}
+      </View>
       <StatusBar style="auto" />
       <LeavingModal
         visible={isLeavingModalVisible}
@@ -539,7 +541,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && !showProfile && !showChat && !showUserDetails && (
+      {isLoggedIn && !showProfile && !showChat && !showUserDetails && !showSearch && (
         <>
           <Notifications notifications={notifications} />
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
@@ -547,12 +549,13 @@ export default function App() {
           </TouchableOpacity>
         </>
       )}
-      {isLoggedIn && !showProfile && currentUser && (
+      {isLoggedIn && currentUser && (
         <View style={styles.tabBar}>
           <TouchableOpacity onPress={() => {
             setShowUserDetails(false);
             setShowProfile(false);
             setShowChat(false);
+            setShowSearch(false);
           }}>
             <FontAwesome name="home" size={29} color="black" />
           </TouchableOpacity>
@@ -560,6 +563,7 @@ export default function App() {
             setShowChat(true);
             setShowUserDetails(false);
             setShowProfile(false);
+            setShowSearch(false);
           }}>
             <FontAwesome name="comments" size={29} color="black" />
           </TouchableOpacity>
@@ -569,12 +573,13 @@ export default function App() {
             setShowChat(false);
             setShowProfile(false);
           }}>
-            <FontAwesome name="search" size={29} color="black" />
+            <FontAwesome name="search" size={26} color="black" />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => {
             setShowUserDetails(true);
             setShowChat(false);
             setShowProfile(false);
+            setShowSearch(false);
           }}>
             <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
           </TouchableOpacity>
