@@ -533,7 +533,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && !showProfile && !showChat && !showUserDetails && !showSearch && (
+      {isLoggedIn && !showProfile && !showChat && !showUserDetails && !showSearch && !showAboutScreen && (
         <>
           <Notifications notifications={notifications} />
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
