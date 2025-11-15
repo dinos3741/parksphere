@@ -1,0 +1,49 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+
+const AboutScreen = ({ onBack }) => {
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={onBack}>
+        <Text style={styles.backButtonText}>{'< Back'}</Text>
+      </TouchableOpacity>
+      <Text style={styles.title}>About Parksphere</Text>
+      <Text style={styles.description}>
+        Parksphere is a mobile application that helps you find parking spots in the city.
+        You can declare your parking spot when you are about to leave, and other users can request it.
+        This creates a community of drivers helping each other to find parking faster.
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: 'white',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    zIndex: 1,
+  },
+  backButtonText: {
+    fontSize: 18,
+    color: '#007bff',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+    marginTop: 60,
+  },
+  description: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+});
+
+export default AboutScreen;

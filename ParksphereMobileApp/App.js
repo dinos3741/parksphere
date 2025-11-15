@@ -16,6 +16,7 @@ import Chat from './components/Chat';
 import UserDetails from './components/UserDetails';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
+import AboutScreen from './components/AboutScreen';
 
 // Helper function to generate fuzzy circle coordinates
 const generateFuzzyCircle = (centerLat, centerLon, radius) => {
@@ -65,6 +66,7 @@ export default function App() {
   const [showChat, setShowChat] = useState(false); // New state for chat screen
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [showSearch, setShowSearch] = useState(false); // New state for search screen
+  const [showAboutScreen, setShowAboutScreen] = useState(false); // New state for about screen
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
@@ -464,6 +466,9 @@ export default function App() {
   }
 
   const renderMainContent = () => {
+    if (showAboutScreen) {
+      return <AboutScreen onBack={() => setShowAboutScreen(false)} />;
+    }
     if (showSearch) {
       return <SearchScreen />;
     }
@@ -496,7 +501,9 @@ export default function App() {
   return (
     <View style={styles.fullContainer}>
       <View style={styles.header}>
-        <Image source={require('./assets/images/logo.png')} style={styles.logo} />
+        <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
+          <Image source={require('./assets/images/logo.png')} style={styles.logo} />
+        </TouchableOpacity>
         <View style={styles.titleContainer}>
           <Text style={styles.appName}>PARKSPHERE</Text>
           <Text style={styles.tagline}>the app you need to <Text style={styles.highlight}>park in the city!</Text></Text>
