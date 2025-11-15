@@ -13,6 +13,7 @@ const AboutScreen = ({ onBack }) => {
         You can declare your parking spot when you are about to leave, and other users can request it.
         This creates a community of drivers helping each other to find parking faster.
       </Text>
+      <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
     </View>
   );
 };
@@ -43,6 +44,15 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  footerText: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 12,
+    color: 'grey',
   },
 });
 
