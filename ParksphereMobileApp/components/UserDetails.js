@@ -144,11 +144,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 5,
     paddingHorizontal: 10,
-    backgroundColor: '#007bff',
+    backgroundColor: '#D8BFD8',
     borderRadius: 5,
   },
   editButtonText: {
-    color: 'white',
+    color: 'black',
     fontSize: 16,
   },
 });
