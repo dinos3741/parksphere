@@ -35,7 +35,6 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
-  const [isMenuVisible, setMenuVisible] = useState(false);
   const socket = useRef(null);
   const mapViewRef = useRef(null);
 
@@ -499,22 +498,8 @@ export default function App() {
           <Text style={styles.appName}>PARKSPHERE</Text>
           <Text style={styles.tagline}>the app you need to <Text style={styles.highlight}>park in the city!</Text></Text>
         </View>
-        <TouchableOpacity style={styles.hamburger} onPress={() => setMenuVisible(!isMenuVisible)}>
-          <View style={styles.hamburgerLine} />
-          <View style={styles.hamburgerLine} />
-          <View style={styles.hamburgerLine} />
-        </TouchableOpacity>
+        <View style={{ width: 60 }} />
       </View>
-
-      {isMenuVisible ? (
-        <React.Fragment>
-          <View style={styles.menu}>
-            <TouchableOpacity onPress={() => { handleLogout(); setMenuVisible(false); }}>
-              <Text style={styles.menuItem}>Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </React.Fragment>
-      ) : null}
 
       <View style={{flex: 1}}>
         {isLoggedIn ? (
@@ -610,6 +595,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   titleContainer: {
+    flex: 1,
     alignItems: 'center',
   },
   appName: {
@@ -813,33 +799,6 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '300',
     lineHeight: 48,
-  },
-  hamburger: {
-    padding: 10,
-  },
-  hamburgerLine: {
-    width: 25,
-    height: 2,
-    backgroundColor: 'white',
-    marginVertical: 4,
-  },
-  menu: {
-    position: 'absolute',
-    top: 100,
-    right: 20,
-    backgroundColor: 'white',
-    borderRadius: 5,
-    padding: 10,
-    zIndex: 1,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  menuItem: {
-    fontSize: 16,
-    paddingVertical: 5,
   },
   logoutText: {
     color: 'red',
