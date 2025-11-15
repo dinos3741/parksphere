@@ -471,7 +471,10 @@ export default function App() {
       return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
     }
     if (showUserDetails) {
-      return <UserDetails user={currentUser} onBack={() => setShowUserDetails(false)} />;
+      return <UserDetails user={currentUser} onBack={() => setShowUserDetails(false)} onEditProfile={() => {
+        setShowUserDetails(false);
+        setShowProfile(true);
+      }} />;
     }
     if (showProfile) {
       return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;
@@ -765,9 +768,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   tabBarIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   footer: {
     backgroundColor: '#547abb',

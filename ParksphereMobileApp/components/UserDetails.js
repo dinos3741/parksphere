@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 
-const UserDetails = ({ user, onBack }) => {
+const UserDetails = ({ user, onBack, onEditProfile }) => {
   if (!user) {
     return null;
   }
@@ -12,6 +12,9 @@ const UserDetails = ({ user, onBack }) => {
         <View style={styles.profileLeftColumn}>
           <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
           <Text style={styles.username}>{user.username}</Text>
+          <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.profileRightColumn}>
           <View style={styles.infoRow}>
@@ -85,12 +88,12 @@ const styles = StyleSheet.create({
     color: '#007bff',
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   username: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     marginTop: 10,
   },
@@ -136,6 +139,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  editButton: {
+    marginTop: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    backgroundColor: '#007bff',
+    borderRadius: 5,
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 16,
   },
 });
 
