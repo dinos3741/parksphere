@@ -1,12 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
-const AboutScreen = ({ onBack }) => {
+const AboutScreen = () => {
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>{'< Back'}</Text>
-      </TouchableOpacity>
       <Text style={styles.title}>About Parksphere</Text>
       <Text style={styles.description}>
         Parksphere is a mobile application that helps you find parking spots in the city.
