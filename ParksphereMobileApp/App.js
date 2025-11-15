@@ -509,9 +509,6 @@ export default function App() {
       {isMenuVisible ? (
         <React.Fragment>
           <View style={styles.menu}>
-            <TouchableOpacity onPress={() => { setShowChat(true); setMenuVisible(false); }}>
-              <Text style={styles.menuItem}>Chat</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => { handleLogout(); setMenuVisible(false); }}>
               <Text style={styles.menuItem}>Logout</Text>
             </TouchableOpacity>
