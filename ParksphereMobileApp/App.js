@@ -68,29 +68,38 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false); // New state for search screen
   const [showAboutScreen, setShowAboutScreen] = useState(false); // New state for about screen
   const [currentUser, setCurrentUser] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const fetchUserData = async () => {
+    if (isLoggedIn && userId && token) {
+      try {
+        const response = await fetch(`${serverUrl}/api/users/${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data);
+        } else {
+          console.error('Failed to fetch user data');
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    }
+  };
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (isLoggedIn && userId && token) {
-        try {
-          const response = await fetch(`${serverUrl}/api/users/${userId}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setCurrentUser(data);
-          } else {
-            console.error('Failed to fetch user data');
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      }
-    };
     fetchUserData();
   }, [isLoggedIn, userId, token]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUserData();
+  };
 
   // Map related states
   const [userLocation, setUserLocation] = useState(null);
@@ -485,6 +494,8 @@ export default function App() {
           setShowProfile(true);
         }} 
         onLogout={handleLogout} 
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
       />;
     }
     if (showProfile) {

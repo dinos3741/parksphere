@@ -1,14 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl } from 'react-native';
 
-const UserDetails = ({ user, onBack, onEditProfile, onLogout }) => {
+const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refreshing }) => {
   if (!user) {
     return null;
   }
 
   return (
     <View style={styles.container}>
-      <ScrollView>
+      <ScrollView
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <View style={styles.profileDetailsTwoColumn}>
           <View style={styles.profileLeftColumn}>
             <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
