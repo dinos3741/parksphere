@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
 const carTypes = [
@@ -61,45 +61,60 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   }
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack}>
-        <Text style={styles.backButtonText}>{'< Back'}</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>Edit Your Car Details</Text>
-      
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Car Type</Text>
-        <View style={styles.pickerWrapper}>
-          <Picker
-            selectedValue={carType}
-            style={styles.picker}
-            onValueChange={(itemValue) => setCarType(itemValue)}
-          >
-            {carTypes.map((type) => (
-              <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
-            ))}
-          </Picker>
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoidingContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>{'< Back'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Edit Your Car Details</Text>
+        
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Car Type</Text>
+          <View style={styles.pickerWrapper}>
+            <Picker
+              selectedValue={carType}
+              style={styles.picker}
+              onValueChange={(itemValue) => setCarType(itemValue)}
+            >
+              {carTypes.map((type) => (
+                <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
+              ))}
+            </Picker>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Car Color</Text>
-        <TextInput
-          style={styles.input}
-          value={carColor}
-          onChangeText={setCarColor}
-          placeholder="e.g., Blue"
-        />
-      </View>
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Car Color</Text>
+          <TextInput
+            style={styles.input}
+            value={carColor}
+            onChangeText={setCarColor}
+            placeholder="e.g., Blue"
+          />
+        </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleUpdate}>
-        <Text style={styles.buttonText}>Save Changes</Text>
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity style={styles.button} onPress={handleUpdate}>
+          <Text style={styles.buttonText}>Save Changes</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardAvoidingContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    padding: 20,
+    backgroundColor: '#f4f4f8',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f4f4f8',
