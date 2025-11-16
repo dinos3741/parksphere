@@ -527,6 +527,12 @@ export default function App() {
         </TouchableOpacity>
         <View style={styles.titleContainer}>
           <Text style={styles.appName}>Parksphere</Text>
+          {isLoggedIn && currentUsername && (
+            <View style={styles.welcomeContainer}>
+              <Text style={styles.verticalLine}>|</Text>
+              <Text style={styles.welcomeText}>Welcome {currentUsername}</Text>
+            </View>
+          )}
         </View>
         <View style={{ width: 60 }} />
       </View>
@@ -636,6 +642,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
     letterSpacing: 5.5,
+  },
+  welcomeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  verticalLine: {
+    color: 'white',
+    fontSize: 16,
+    marginHorizontal: 5,
+  },
+  welcomeText: {
+    color: 'white',
+    fontSize: 16,
   },
   tagline: {
     fontSize: 12,
