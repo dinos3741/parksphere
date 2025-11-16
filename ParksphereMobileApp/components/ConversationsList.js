@@ -51,7 +51,6 @@ const ConversationsList = ({ userId, token, onSelectConversation }) => {
         data={conversations}
         keyExtractor={(item) => item.other_user_id.toString()}
         renderItem={renderConversationItem}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </View>
   );
@@ -97,11 +96,6 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     color: '#999',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#eee',
-    marginLeft: 80, // Align with message content
   },
 });
 
