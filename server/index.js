@@ -1070,10 +1070,11 @@ app.get('/api/messages/conversations', authenticateToken, async (req, res) => {
 
     const conversations = await Promise.all(result.rows.map(async (row) => {
       const otherUserResult = await pool.query('SELECT username, avatar_url FROM users WHERE id = $1', [row.other_user_id]);
+      const otherUser = otherUserResult.rows[0];
       return {
         ...row,
-        other_username: otherUserResult.rows[0].username,
-        other_avatar_url: otherUserResult.rows[0].avatar_url,
+        other_username: otherUser ? otherUser.username : 'Unknown User',
+        other_avatar_url: otherUser ? otherUser.avatar_url : 'https://i.pravatar.cc/80?u=unknown', // Provide a default avatar
       };
     }));
 
