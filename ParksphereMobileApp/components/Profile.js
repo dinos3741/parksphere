@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
+
+const carTypes = [
+  'motorcycle',
+  'city car',
+  'hatchback',
+  'sedan',
+  'family car',
+  'SUV',
+  'van',
+  'truck',
+];
 
 const Profile = ({ user, token, onBack, onProfileUpdate }) => {
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [username, setUsername] = useState(user ? user.username : '');
-  const [email, setEmail] = useState(user ? user.email : '');
   const [carType, setCarType] = useState(user ? user.car_type : '');
+  const [carColor, setCarColor] = useState(user ? user.car_color : '');
 
   useEffect(() => {
     if (user) {
-      setUsername(user.username);
-      setEmail(user.email);
       setCarType(user.car_type);
+      setCarColor(user.car_color);
     }
   }, [user]);
 
@@ -24,7 +32,7 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ username, email, car_type: carType }),
+        body: JSON.stringify({ car_type: carType, car_color: carColor }),
       });
 
       const data = await response.json();
@@ -33,8 +41,8 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
         if(onProfileUpdate) {
           onProfileUpdate(data);
         }
-        setIsEditMode(false);
         Alert.alert('Success', 'Profile updated successfully.');
+        onBack();
       } else {
         Alert.alert('Error', data.message || 'Failed to update profile.');
       }
@@ -57,34 +65,26 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
         <Text style={styles.backButtonText}>{'< Back'}</Text>
       </TouchableOpacity>
-      <Text style={styles.title}>Profile</Text>
-      {isEditMode ? (
-        <>
-          <TextInput style={styles.input} value={username} onChangeText={setUsername} />
-          <TextInput style={styles.input} value={email} onChangeText={setEmail} />
-          <TextInput style={styles.input} value={carType} onChangeText={setCarType} />
-          <TouchableOpacity style={styles.button} onPress={handleUpdate}>
-            <Text style={styles.buttonText}>Save</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => setIsEditMode(false)}>
-            <Text style={styles.buttonText}>Cancel</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={styles.label}>Username:</Text>
-          <Text style={styles.value}>{user.username}</Text>
-          <Text style={styles.label}>Email:</Text>
-          <Text style={styles.value}>{user.email}</Text>
-          <Text style={styles.label}>Car Type:</Text>
-          <Text style={styles.value}>{user.car_type}</Text>
-          <Text style={styles.label}>Credits:</Text>
-          <Text style={styles.value}>{user.credits}</Text>
-          <TouchableOpacity style={styles.button} onPress={() => setIsEditMode(true)}>
-            <Text style={styles.buttonText}>Edit</Text>
-          </TouchableOpacity>
-        </>
-      )}
+      <Text style={styles.title}>Edit Profile</Text>
+      <Text style={styles.label}>Car Type:</Text>
+      <Picker
+        selectedValue={carType}
+        style={styles.picker}
+        onValueChange={(itemValue) => setCarType(itemValue)}
+      >
+        {carTypes.map((type) => (
+          <Picker.Item key={type} label={type} value={type} />
+        ))}
+      </Picker>
+      <Text style={styles.label}>Car Color:</Text>
+      <TextInput
+        style={styles.input}
+        value={carColor}
+        onChangeText={setCarColor}
+      />
+      <TouchableOpacity style={styles.button} onPress={handleUpdate}>
+        <Text style={styles.buttonText}>Save</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -106,10 +106,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 10,
   },
-  value: {
-    fontSize: 18,
-    marginBottom: 10,
-  },
   input: {
     width: '80%',
     height: 40,
@@ -118,6 +114,10 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 10,
     marginBottom: 10,
+  },
+  picker: {
+    width: '80%',
+    height: 150,
   },
   button: {
     backgroundColor: '#007bff',
