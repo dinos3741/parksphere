@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'blue', // Example color
     borderRadius: 10, // Example border radius
-    margin: 10, // Example margin
+    margin: 5, // Example margin
   },
   logo: {
     width: 44,
