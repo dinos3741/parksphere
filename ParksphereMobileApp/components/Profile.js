@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#333',
     marginTop: 60,
     marginBottom: 30,
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 18,
     color: '#512da8',
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });
 
