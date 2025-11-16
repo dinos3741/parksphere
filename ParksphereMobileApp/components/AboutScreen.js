@@ -33,10 +33,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 20,
-    marginTop: 30,
+    marginTop: 60,
   },
   description: {
     fontSize: 16,
