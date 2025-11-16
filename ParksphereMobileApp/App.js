@@ -506,16 +506,18 @@ export default function App() {
       return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={handleProfileUpdate} />;
     }
     return (
-      <Map
-        userLocation={userLocation}
-        locationPermissionGranted={locationPermissionGranted}
-        parkingSpots={parkingSpots}
-        userId={userId}
-        handleSpotPress={handleSpotPress}
-        handleCenterMap={handleCenterMap}
-        mapViewRef={mapViewRef}
-        setSpotDetailsVisible={setSpotDetailsVisible}
-      />
+      <View style={styles.mapBorderWrapper}>
+        <Map
+          userLocation={userLocation}
+          locationPermissionGranted={locationPermissionGranted}
+          parkingSpots={parkingSpots}
+          userId={userId}
+          handleSpotPress={handleSpotPress}
+          handleCenterMap={handleCenterMap}
+          mapViewRef={mapViewRef}
+          setSpotDetailsVisible={setSpotDetailsVisible}
+        />
+      </View>
     );
   };
 
@@ -531,7 +533,7 @@ export default function App() {
 
       </View>
 
-      <View style={styles.mapContainer}>
+      <View style={{flex: 1}}>
         {isLoggedIn ? (
           renderMainContent()
         ) : (
@@ -619,13 +621,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#512da8',
     paddingTop: 50,
   },
-  mapContainer: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: 'blue', // Example color
-    borderRadius: 10, // Example border radius
-    margin: 5, // Example margin
-  },
   logo: {
     width: 44,
     height: 44,
@@ -638,6 +633,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
     letterSpacing: 0,
+  },
+  mapBorderWrapper: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: 'blue',
+    borderRadius: 10,
+    margin: 5,
   },
 
   tagline: {
