@@ -24,7 +24,7 @@ const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refresh
           <View style={styles.profileRightColumn}>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Plate number:</Text>
-              <Text style={styles.profileValue}>{user.plate_number.toUpperCase()}</Text>
+              <Text style={styles.profileValue}>{(user.plate_number || '').toUpperCase()}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Car color:</Text>
