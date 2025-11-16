@@ -526,11 +526,7 @@ export default function App() {
           <Image source={require('./assets/images/logo.png')} style={styles.logo} />
         </TouchableOpacity>
         <Text style={styles.appName}>Parksphere</Text>
-        {isLoggedIn && currentUsername && (
-          <View style={styles.welcomeMessageContainer}>
-            <Text style={styles.welcomeText}>Welcome {currentUsername}</Text>
-          </View>
-        )}
+
       </View>
 
       <View style={{flex: 1}}>
@@ -634,12 +630,7 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0,
   },
-  welcomeMessageContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end', // Align to the right
-    flex: 1, // Take up remaining space
-  },
+
   tagline: {
     fontSize: 12,
     color: 'white',
