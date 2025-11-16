@@ -525,16 +525,12 @@ export default function App() {
         <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
           <Image source={require('./assets/images/logo.png')} style={styles.logo} />
         </TouchableOpacity>
-        <View style={styles.titleContainer}>
-          <Text style={styles.appName}>Parksphere</Text>
-          {isLoggedIn && currentUsername && (
-            <>
-              <Text style={styles.verticalLine}>|</Text>
-              <Text style={styles.welcomeText}>Welcome {currentUsername}</Text>
-            </>
-          )}
-        </View>
-
+        <Text style={styles.appName}>Parksphere</Text>
+        {isLoggedIn && currentUsername && (
+          <View style={styles.welcomeMessageContainer}>
+            <Text style={styles.welcomeText}>Welcome {currentUsername}</Text>
+          </View>
+        )}
       </View>
 
       <View style={{flex: 1}}>
@@ -619,8 +615,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: 10,
+    justifyContent: 'space-between',
     padding: 10,
     paddingHorizontal: 20,
     backgroundColor: '#512da8',
@@ -632,12 +627,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     marginRight: 10,
   },
-  titleContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
     fontSize: 19.2,
@@ -645,14 +634,15 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0,
   },
-  verticalLine: {
-    color: 'white',
-    fontSize: 14,
-    marginHorizontal: 5,
-  },
   welcomeText: {
     color: 'white',
     fontSize: 14,
+  },
+  welcomeMessageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end', // Align to the right
+    flex: 1, // Take up remaining space
   },
   tagline: {
     fontSize: 12,
