@@ -844,12 +844,26 @@ function MainAppContent() {
     }
   }, [currentUserId]);
 
+  const [isLogoAnimating, setIsLogoAnimating] = useState(false);
+
+  const handleLogoClick = () => {
+    setIsLogoAnimating(true);
+    setTimeout(() => {
+      setIsLogoAnimating(false);
+    }, 1000); // Animation duration
+  };
+
   return (
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
 
-          <img src={logo} className="logo-img" alt="Parksphere Logo" />
+          <img
+            src={logo}
+            className={`logo-img ${isLogoAnimating ? 'logo-animate' : ''}`}
+            alt="Parksphere Logo"
+            onClick={handleLogoClick}
+          />
           <div className="logo-container">
             <h1 className="logo">PARKSPHERE</h1>
             <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
