@@ -101,6 +101,10 @@ export default function App() {
     fetchUserData();
   };
 
+  const handleProfileUpdate = () => {
+    fetchUserData();
+  };
+
   // Map related states
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
@@ -499,7 +503,7 @@ export default function App() {
       />;
     }
     if (showProfile) {
-      return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;
+      return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={handleProfileUpdate} />;
     }
     return (
       <Map
