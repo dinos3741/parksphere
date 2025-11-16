@@ -525,7 +525,9 @@ export default function App() {
         <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
           <Image source={require('./assets/images/logo.png')} style={styles.logo} />
         </TouchableOpacity>
-        <Text style={styles.appName}>Parksphere</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={styles.appName}>Parksphere</Text>
+        </View>
 
       </View>
 
