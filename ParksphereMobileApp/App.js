@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 50,
     height: 50,
-    borderRadius: 25,
+    borderRadius: 28,
     marginRight: 10,
   },
   titleContainer: {
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     maxWidth: 380,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     padding: 30,
-    borderRadius: 15,
+    borderRadius: 17,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
     height: 50, // Taller input fields
     borderColor: '#ddd',
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 9,
     paddingHorizontal: 15,
     marginBottom: 15,
     backgroundColor: '#fefefe',
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#007bff', // Blue button
     paddingVertical: 15,
-    borderRadius: 8,
+    borderRadius: 9,
     alignItems: 'center',
     marginTop: 10,
     shadowColor: '#007bff',
@@ -762,7 +762,7 @@ const styles = StyleSheet.create({
   },
   centerButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 20,
+    borderRadius: 22,
     padding: 10,
     elevation: 2,
   },
@@ -787,7 +787,7 @@ const styles = StyleSheet.create({
   tabBarIcon: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: 13,
   },
   footer: {
     backgroundColor: '#547abb',
@@ -802,7 +802,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 79,
     height: 79,
-    borderRadius: 40,
+    borderRadius: 44,
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -837,7 +837,7 @@ const styles = StyleSheet.create({
     padding: 10,
     marginHorizontal: 10,
     marginBottom: 10,
-    borderRadius: 8,
+    borderRadius: 9,
     height: 100, // Fixed height
     overflow: 'hidden', // Hide overflow content
   },

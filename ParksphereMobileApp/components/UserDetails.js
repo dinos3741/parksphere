@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView } from 'react-native';
 
 const UserDetails = ({ user, onBack, onEditProfile, onLogout }) => {
   if (!user) {
@@ -8,66 +8,68 @@ const UserDetails = ({ user, onBack, onEditProfile, onLogout }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.profileDetailsTwoColumn}>
-        <View style={styles.profileLeftColumn}>
-          <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
-          <Text style={styles.username}>{user.username}</Text>
-          <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
+      <ScrollView>
+        <View style={styles.profileDetailsTwoColumn}>
+          <View style={styles.profileLeftColumn}>
+            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+            <Text style={styles.username}>{user.username}</Text>
+            <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
+              <Text style={styles.editButtonText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.profileRightColumn}>
+            <View style={styles.infoRow}>
+              <Text style={styles.profileLabel}>Plate number:</Text>
+              <Text style={styles.profileValue}>{user.plate_number.toUpperCase()}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.profileLabel}>Car color:</Text>
+              <Text style={styles.profileValue}>{user.car_color}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.profileLabel}>Car type:</Text>
+              <Text style={styles.profileValue}>{user.car_type}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.profileLabel}>Credits:</Text>
+              <Text style={styles.profileValue}>{user.credits}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.profileLabel}>Account created:</Text>
+              <Text style={styles.profileValue}>{new Date(user.created_at).toLocaleDateString()}</Text>
+            </View>
+          </View>
         </View>
-        <View style={styles.profileRightColumn}>
+        <View style={styles.myStatsSection}>
+          <Text style={styles.myStatsLabel}>My Stats</Text>
           <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Plate number:</Text>
-            <Text style={styles.profileValue}>{user.plate_number.toUpperCase()}</Text>
+            <Text style={styles.profileLabel}>Spots declared:</Text>
+            <Text style={styles.profileValue}>{user.spots_declared}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Car color:</Text>
-            <Text style={styles.profileValue}>{user.car_color}</Text>
+            <Text style={styles.profileLabel}>Spots taken:</Text>
+            <Text style={styles.profileValue}>{user.spots_taken}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Car type:</Text>
-            <Text style={styles.profileValue}>{user.car_type}</Text>
+            <Text style={styles.profileLabel}>Average arrival time:</Text>
+            <Text style={styles.profileValue}>
+              {user.completed_transactions_count > 0
+                ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
+                : 'N/A'}
+            </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Credits:</Text>
-            <Text style={styles.profileValue}>{user.credits}</Text>
+            <Text style={styles.profileLabel}>Rating:</Text>
+            <Text style={styles.profileValue}>
+              {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
+            </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Account created:</Text>
-            <Text style={styles.profileValue}>{new Date(user.created_at).toLocaleDateString()}</Text>
+            <Text style={styles.profileLabel}>Rank:</Text>
+            <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
           </View>
         </View>
-      </View>
-      <View style={styles.myStatsSection}>
-        <Text style={styles.myStatsLabel}>My Stats</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.profileLabel}>Spots declared:</Text>
-          <Text style={styles.profileValue}>{user.spots_declared}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.profileLabel}>Spots taken:</Text>
-          <Text style={styles.profileValue}>{user.spots_taken}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.profileLabel}>Average arrival time:</Text>
-          <Text style={styles.profileValue}>
-            {user.completed_transactions_count > 0
-              ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
-              : 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.profileLabel}>Rating:</Text>
-          <Text style={styles.profileValue}>
-            {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.profileLabel}>Rank:</Text>
-          <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
-        </View>
-      </View>
+      </ScrollView>
       <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
         <Text style={styles.logoutButtonText}>Logout</Text>
       </TouchableOpacity>
@@ -148,19 +150,20 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 10,
     backgroundColor: '#D8BFD8',
-    borderRadius: 5,
+    borderRadius: 10,
   },
   editButtonText: {
     color: 'black',
     fontSize: 16,
   },
   logoutButton: {
-    marginTop: 20,
+    position: 'absolute',
+    bottom: 20,
+    alignSelf: 'center',
     paddingVertical: 10,
     paddingHorizontal: 20,
     backgroundColor: '#ff3b30',
-    borderRadius: 5,
-    alignSelf: 'center',
+    borderRadius: 10,
   },
   logoutButtonText: {
     color: 'white',
