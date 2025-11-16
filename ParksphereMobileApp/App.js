@@ -634,10 +634,6 @@ const styles = StyleSheet.create({
     color: 'white',
     letterSpacing: 0,
   },
-  welcomeText: {
-    color: 'white',
-    fontSize: 14,
-  },
   welcomeMessageContainer: {
     flexDirection: 'row',
     alignItems: 'center',
