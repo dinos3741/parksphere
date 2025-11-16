@@ -814,7 +814,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 190,
+    bottom: 7,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
