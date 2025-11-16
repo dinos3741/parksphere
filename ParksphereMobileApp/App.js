@@ -620,8 +620,8 @@ const styles = StyleSheet.create({
     paddingTop: 50,
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 28,
     marginRight: 10,
   },
