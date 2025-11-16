@@ -531,7 +531,7 @@ export default function App() {
 
       </View>
 
-      <View style={{flex: 1}}>
+      <View style={styles.mapContainer}>
         {isLoggedIn ? (
           renderMainContent()
         ) : (
@@ -618,6 +618,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     backgroundColor: '#512da8',
     paddingTop: 50,
+  },
+  mapContainer: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: 'blue', // Example color
+    borderRadius: 10, // Example border radius
+    margin: 10, // Example margin
   },
   logo: {
     width: 44,
