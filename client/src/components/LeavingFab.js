@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './LeavingFab.css';
 
 const presets = [0, 2, 5, 10]; // minutes, 0 = now
@@ -7,6 +7,17 @@ const presets = [0, 2, 5, 10]; // minutes, 0 = now
 const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation, pendingRequests }) => {
 
   const hasPendingRequests = pendingRequests && pendingRequests.length > 0;
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const handleFabClick = () => {
+    if (!hasPendingRequests) {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 1000); // Animation duration
+      setPinDropMode(true);
+    }
+  };
 
   const handlePresetClick = async (minutes) => {
     setShowLeavingOverlay(false); // Close overlay immediately
@@ -71,8 +82,8 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
   return (
     <>
       <button
-        className={`leaving-fab ${hasPendingRequests ? 'disabled' : ''}`}
-        onClick={() => !hasPendingRequests && setPinDropMode(true)}
+        className={`leaving-fab ${hasPendingRequests ? 'disabled' : ''} ${isAnimating ? 'logo-animate' : ''}`}
+        onClick={handleFabClick}
         disabled={hasPendingRequests}
         title={hasPendingRequests ? "You cannot declare a new spot while you have a pending request." : "Declare a new spot"}
       >
