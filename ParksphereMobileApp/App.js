@@ -330,6 +330,7 @@ export default function App() {
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
       setNotifications([]); // Clear notifications on logout
+      setShowUserDetails(false); // Hide user details screen on logout
       // Alert.alert('Logged Out', 'You have been logged out.'); // Removed logout notification
     } catch (error) {
       console.error('Error during logout:', error);
@@ -476,10 +477,15 @@ export default function App() {
       return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
     }
     if (showUserDetails) {
-      return <UserDetails user={currentUser} onBack={() => setShowUserDetails(false)} onEditProfile={() => {
-        setShowUserDetails(false);
-        setShowProfile(true);
-      }} />;
+      return <UserDetails 
+        user={currentUser} 
+        onBack={() => setShowUserDetails(false)} 
+        onEditProfile={() => {
+          setShowUserDetails(false);
+          setShowProfile(true);
+        }} 
+        onLogout={handleLogout} 
+      />;
     }
     if (showProfile) {
       return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={setCurrentUser} />;

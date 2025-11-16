@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 
-const UserDetails = ({ user, onBack, onEditProfile }) => {
+const UserDetails = ({ user, onBack, onEditProfile, onLogout }) => {
   if (!user) {
     return null;
   }
@@ -68,6 +68,9 @@ const UserDetails = ({ user, onBack, onEditProfile }) => {
           <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
         </View>
       </View>
+      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+        <Text style={styles.logoutButtonText}>Logout</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -150,6 +153,19 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: 'black',
     fontSize: 16,
+  },
+  logoutButton: {
+    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#ff3b30',
+    borderRadius: 5,
+    alignSelf: 'center',
+  },
+  logoutButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
