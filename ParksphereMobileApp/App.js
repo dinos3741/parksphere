@@ -12,7 +12,7 @@ import Notifications from './components/Notifications';
 import Map from './components/Map';
 import Login from './components/Login';
 import Profile from './components/Profile';
-import Chat from './components/Chat';
+import ChatTab from './components/ChatTab';
 import UserDetails from './components/UserDetails';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
@@ -487,7 +487,7 @@ export default function App() {
       return <SearchScreen />;
     }
     if (showChat) {
-      return <Chat userId={userId} token={token} onBack={() => setShowChat(false)} otherUserId={2} socket={socket} />;
+      return <ChatTab userId={userId} token={token} socket={socket} onBack={() => setShowChat(false)} />;
     }
     if (showUserDetails) {
       return <UserDetails 
