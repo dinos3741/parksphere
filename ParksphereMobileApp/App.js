@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
     alignItems: 'center',
-    marginLeft: -80,
+    marginLeft: -100,
   },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
