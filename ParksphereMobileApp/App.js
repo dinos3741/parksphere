@@ -528,13 +528,13 @@ export default function App() {
         <View style={styles.titleContainer}>
           <Text style={styles.appName}>Parksphere</Text>
           {isLoggedIn && currentUsername && (
-            <View style={styles.welcomeContainer}>
+            <>
               <Text style={styles.verticalLine}>|</Text>
               <Text style={styles.welcomeText}>Welcome {currentUsername}</Text>
-            </View>
+            </>
           )}
         </View>
-        <View style={{ width: 60 }} />
+
       </View>
 
       <View style={{flex: 1}}>
@@ -619,7 +619,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: 10,
     padding: 10,
     paddingHorizontal: 20,
     backgroundColor: '#512da8',
@@ -633,29 +634,25 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: -100,
+    justifyContent: 'center',
   },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 19.2,
+    fontSize: 16,
     fontWeight: '600',
     color: 'white',
-    letterSpacing: 5.5,
-  },
-  welcomeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 5,
+    letterSpacing: 0,
   },
   verticalLine: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
     marginHorizontal: 5,
   },
   welcomeText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 14,
   },
   tagline: {
     fontSize: 12,
