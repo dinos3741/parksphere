@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     width: '100%',
-    height: 50, // Standard height for picker
+    height: 180, // Standard height for picker
     color: '#333',
   },
   button: {
