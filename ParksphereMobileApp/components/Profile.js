@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } => 'react';
 import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
@@ -65,25 +65,35 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
         <Text style={styles.backButtonText}>{'< Back'}</Text>
       </TouchableOpacity>
-      <Text style={styles.title}>Edit Profile</Text>
-      <Text style={styles.label}>Car Type:</Text>
-      <Picker
-        selectedValue={carType}
-        style={styles.picker}
-        onValueChange={(itemValue) => setCarType(itemValue)}
-      >
-        {carTypes.map((type) => (
-          <Picker.Item key={type} label={type} value={type} />
-        ))}
-      </Picker>
-      <Text style={styles.label}>Car Color:</Text>
-      <TextInput
-        style={styles.input}
-        value={carColor}
-        onChangeText={setCarColor}
-      />
+      <Text style={styles.title}>Edit Your Car Details</Text>
+      
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>Car Type</Text>
+        <View style={styles.pickerWrapper}>
+          <Picker
+            selectedValue={carType}
+            style={styles.picker}
+            onValueChange={(itemValue) => setCarType(itemValue)}
+          >
+            {carTypes.map((type) => (
+              <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
+            ))}
+          </Picker>
+        </View>
+      </View>
+
+      <View style={styles.inputContainer}>
+        <Text style={styles.label}>Car Color</Text>
+        <TextInput
+          style={styles.input}
+          value={carColor}
+          onChangeText={setCarColor}
+          placeholder="e.g., Blue"
+        />
+      </View>
+
       <TouchableOpacity style={styles.button} onPress={handleUpdate}>
-        <Text style={styles.buttonText}>Save</Text>
+        <Text style={styles.buttonText}>Save Changes</Text>
       </TouchableOpacity>
     </View>
   );
@@ -92,51 +102,75 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#f4f4f8',
     padding: 20,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
+    color: '#333',
+    marginTop: 60,
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  inputContainer: {
     marginBottom: 20,
+    width: '100%',
   },
   label: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
   },
   input: {
-    width: '80%',
-    height: 40,
-    borderColor: 'gray',
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 10,
+    borderColor: '#ddd',
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerWrapper: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    overflow: 'hidden', // Ensures the picker respects the border radius
   },
   picker: {
-    width: '80%',
-    height: 150,
+    width: '100%',
+    height: 50, // Standard height for picker
+    color: '#333',
   },
   button: {
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 10,
+    backgroundColor: '#512da8',
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
   },
   buttonText: {
     color: 'white',
+    fontSize: 18,
     fontWeight: 'bold',
   },
   backButton: {
     position: 'absolute',
     top: 40,
     left: 20,
+    zIndex: 1,
   },
   backButtonText: {
     fontSize: 18,
-    color: '#007bff',
+    color: '#512da8',
+    fontWeight: 'bold',
   },
 });
 
