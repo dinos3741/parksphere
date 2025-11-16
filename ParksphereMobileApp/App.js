@@ -587,9 +587,6 @@ export default function App() {
           </TouchableOpacity>
         </View>
       )}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
-      </View>
     </View>
   );
 }
@@ -788,15 +785,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 13,
-  },
-  footer: {
-    backgroundColor: '#547abb',
-    padding: 10,
-    alignItems: 'center',
-  },
-  footerText: {
-    color: 'white',
-    fontSize: 12,
   },
   fab: {
     position: 'absolute',
