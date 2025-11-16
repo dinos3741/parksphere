@@ -39,7 +39,7 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
 
       if (response.ok) {
         if(onProfileUpdate) {
-          onProfileUpdate(data);
+          onProfileUpdate();
         }
         Alert.alert('Success', 'Profile updated successfully.');
         onBack();
