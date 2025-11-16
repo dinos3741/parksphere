@@ -554,6 +554,7 @@ export default function App() {
             setShowProfile(false);
             setShowChat(false);
             setShowSearch(false);
+            setShowAboutScreen(false);
           }}>
             <FontAwesome name="home" size={29} color="black" />
           </TouchableOpacity>
@@ -562,6 +563,7 @@ export default function App() {
             setShowUserDetails(false);
             setShowProfile(false);
             setShowSearch(false);
+            setShowAboutScreen(false);
           }}>
             <FontAwesome name="comments" size={29} color="black" />
           </TouchableOpacity>
@@ -570,6 +572,7 @@ export default function App() {
             setShowUserDetails(false);
             setShowChat(false);
             setShowProfile(false);
+            setShowAboutScreen(false);
           }}>
             <FontAwesome name="search" size={26} color="black" />
           </TouchableOpacity>
@@ -578,6 +581,7 @@ export default function App() {
             setShowChat(false);
             setShowProfile(false);
             setShowSearch(false);
+            setShowAboutScreen(false);
           }}>
             <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
           </TouchableOpacity>
