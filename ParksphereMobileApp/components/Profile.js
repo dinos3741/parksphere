@@ -26,7 +26,7 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
 
   const handleUpdate = async () => {
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}`, {
+      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}/car-details`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
