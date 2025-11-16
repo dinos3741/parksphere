@@ -526,8 +526,7 @@ export default function App() {
           <Image source={require('./assets/images/logo.png')} style={styles.logo} />
         </TouchableOpacity>
         <View style={styles.titleContainer}>
-          <Text style={styles.appName}>PARKSPHERE</Text>
-          <Text style={styles.tagline}>the app you need to <Text style={styles.highlight}>park in the city!</Text></Text>
+          <Text style={styles.appName}>Parksphere</Text>
         </View>
         <View style={{ width: 60 }} />
       </View>
@@ -629,10 +628,11 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
     alignItems: 'center',
+    marginLeft: -80,
   },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 24,
+    fontSize: 19.2,
     fontWeight: '600',
     color: 'white',
     letterSpacing: 5.5,
