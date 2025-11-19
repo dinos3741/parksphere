@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -604,6 +604,13 @@ setCurrentUsername(data.username);
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
+      <Modal
+        visible={showAboutScreen}
+        animationType="slide"
+        onRequestClose={() => setShowAboutScreen(false)}
+      >
+        <AboutScreen onClose={() => setShowAboutScreen(false)} />
+      </Modal>
       {isLoggedIn && activeScreen === 'Home' && (
         <>
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>

@@ -1,9 +1,13 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
-const AboutScreen = () => {
+const AboutScreen = ({ onClose }) => {
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={onClose}>
+        <FontAwesome name="arrow-left" size={24} color="#007bff" />
+      </TouchableOpacity>
       <Text style={styles.title}>About Parksphere</Text>
       <Text style={styles.description}>
         Parksphere is a mobile application that helps you find parking spots in the city.
@@ -20,6 +24,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     backgroundColor: 'white',
+    paddingTop: 60, // Add padding to account for the back button
   },
   backButton: {
     position: 'absolute',
