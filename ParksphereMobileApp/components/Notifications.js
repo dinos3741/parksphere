@@ -17,7 +17,7 @@ const Notifications = ({ notifications }) => {
 
 const styles = StyleSheet.create({
   notificationArea: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     padding: 10,
     marginHorizontal: 10,
     marginBottom: 10,

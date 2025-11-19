@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
@@ -18,6 +20,11 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
 
+import { enableScreens } from 'react-native-screens';
+enableScreens(false);
+
+const Tab = createBottomTabNavigator();
+
 // Helper function to generate fuzzy circle coordinates
 const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   const EARTH_RADIUS = 6371000; // meters
@@ -32,6 +39,26 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   }
   return coordinates;
 };
+
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications }) {
+  return (
+    <View style={{flex: 1}}>
+      <View style={{...styles.mapBorderWrapper, flex: 1}}>
+        <Map
+          userLocation={userLocation}
+          locationPermissionGranted={locationPermissionGranted}
+          parkingSpots={parkingSpots}
+          userId={userId}
+          handleSpotPress={handleSpotPress}
+          handleCenterMap={handleCenterMap}
+          mapViewRef={mapViewRef}
+          setSpotDetailsVisible={setSpotDetailsVisible}
+        />
+      </View>
+      <Notifications notifications={notifications} />
+    </View>
+  );
+}
 
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
@@ -62,10 +89,6 @@ export default function App() {
     setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
   };
   const [showRegister, setShowRegister] = useState(false); // New state for register screen
-  const [showProfile, setShowProfile] = useState(false); // New state for profile screen
-  const [showChat, setShowChat] = useState(false); // New state for chat screen
-  const [showUserDetails, setShowUserDetails] = useState(false);
-  const [showSearch, setShowSearch] = useState(false); // New state for search screen
   const [showAboutScreen, setShowAboutScreen] = useState(false); // New state for about screen
   const [currentUser, setCurrentUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -343,7 +366,6 @@ export default function App() {
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
       setNotifications([]); // Clear notifications on logout
-      setShowUserDetails(false); // Hide user details screen on logout
       // Alert.alert('Logged Out', 'You have been logged out.'); // Removed logout notification
     } catch (error) {
       console.error('Error during logout:', error);
@@ -479,68 +501,77 @@ export default function App() {
     return null;
   }
 
-  const renderMainContent = () => {
-    if (showAboutScreen) {
-      return <AboutScreen onBack={() => setShowAboutScreen(false)} />;
-    }
-    if (showSearch) {
-      return <SearchScreen />;
-    }
-    if (showChat) {
-      return <ChatTab userId={userId} token={token} socket={socket} onBack={() => setShowChat(false)} />;
-    }
-    if (showUserDetails) {
-      return <UserDetails 
+  function WrappedHomeScreen(props) {
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} />;
+  }
+
+  function WrappedChatTab(props) {
+    return <ChatTab {...props} userId={userId} token={token} socket={socket} />;
+  }
+
+  function ProfileScreen() {
+    return (
+      <UserDetails 
         user={currentUser} 
-        onBack={() => setShowUserDetails(false)} 
+        onBack={() => {}} 
         onEditProfile={() => {
-          setShowUserDetails(false);
-          setShowProfile(true);
+          // This will be handled by navigation
         }} 
         onLogout={handleLogout} 
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
-      />;
-    }
-    if (showProfile) {
-      return <Profile user={currentUser} token={token} onBack={() => setShowProfile(false)} onProfileUpdate={handleProfileUpdate} />;
-    }
-    return (
-      <View style={styles.mapBorderWrapper}>
-        <Map
-          userLocation={userLocation}
-          locationPermissionGranted={locationPermissionGranted}
-          parkingSpots={parkingSpots}
-          userId={userId}
-          handleSpotPress={handleSpotPress}
-          handleCenterMap={handleCenterMap}
-          mapViewRef={mapViewRef}
-          setSpotDetailsVisible={setSpotDetailsVisible}
-        />
-      </View>
+      />
     );
-  };
+  }
 
   return (
-    <View style={styles.fullContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
-          <Image source={require('./assets/images/logo.png')} style={styles.logo} />
-        </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.appName}>Parksphere</Text>
-        </View>
+    <>
+      <StatusBar style="auto" />
+      <NavigationContainer>
+        {isLoggedIn && currentUser ? (
+          <View style={styles.fullContainer}>
+            <View style={styles.header}>
+              <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
+                <Image source={require('./assets/images/logo.png')} style={styles.logo} />
+              </TouchableOpacity>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text style={styles.appName}>Parksphere</Text>
+              </View>
+            </View>
+            <Tab.Navigator
+              screenOptions={({ route }) => ({
+                tabBarIcon: ({ focused, color, size }) => {
+                  let iconName;
 
-      </View>
+                  if (route.name === 'Home') {
+                    iconName = 'home';
+                  } else if (route.name === 'Chat') {
+                    iconName = 'comments';
+                  } else if (route.name === 'Search') {
+                    iconName = 'search';
+                  } else if (route.name === 'Profile') {
+                    return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
+                  }
 
-      <View style={{flex: 1}}>
-        {isLoggedIn ? (
-          renderMainContent()
+                  return <FontAwesome name={iconName} size={size} color={color} />;
+                },
+                tabBarActiveTintColor: 'tomato',
+                tabBarInactiveTintColor: 'gray',
+                headerShown: false,
+                tabBarStyle: { height: 80 },
+              })}
+            >
+              <Tab.Screen name="Home" component={WrappedHomeScreen} />
+              <Tab.Screen name="Chat" component={WrappedChatTab} />
+              <Tab.Screen name="Search" component={SearchScreen} />
+              <Tab.Screen name="Profile" component={ProfileScreen} />
+            </Tab.Navigator>
+          </View>
         ) : (
           <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
         )}
-      </View>
-      <StatusBar style="auto" />
+      </NavigationContainer>
+
       <LeavingModal
         visible={isLeavingModalVisible}
         onClose={() => setLeavingModalVisible(false)}
@@ -555,55 +586,14 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && !showProfile && !showChat && !showUserDetails && !showSearch && !showAboutScreen && (
+      {isLoggedIn && (
         <>
-          <Notifications notifications={notifications} />
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
             <Text style={styles.fabText}>+</Text>
           </TouchableOpacity>
         </>
       )}
-      {isLoggedIn && currentUser && (
-        <View style={styles.tabBar}>
-          <TouchableOpacity onPress={() => {
-            setShowUserDetails(false);
-            setShowProfile(false);
-            setShowChat(false);
-            setShowSearch(false);
-            setShowAboutScreen(false);
-          }}>
-            <FontAwesome name="home" size={29} color="black" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => {
-            setShowChat(true);
-            setShowUserDetails(false);
-            setShowProfile(false);
-            setShowSearch(false);
-            setShowAboutScreen(false);
-          }}>
-            <FontAwesome name="comments" size={29} color="black" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => {
-            setShowSearch(true);
-            setShowUserDetails(false);
-            setShowChat(false);
-            setShowProfile(false);
-            setShowAboutScreen(false);
-          }}>
-            <FontAwesome name="search" size={26} color="black" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => {
-            setShowUserDetails(true);
-            setShowChat(false);
-            setShowProfile(false);
-            setShowSearch(false);
-            setShowAboutScreen(false);
-          }}>
-            <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
+    </>
   );
 }
 
@@ -787,20 +777,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#333',
   },
-  tabBar: {
-    height: 50,
-    backgroundColor: '#f0f0f0',
-    borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-  },
-  tabBarText: {
-    color: '#888',
-    fontSize: 16,
-  },
   tabBarIcon: {
     width: 24,
     height: 24,
@@ -814,7 +790,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 7,
+    bottom: 150,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
@@ -840,17 +816,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent', // Transparent so content below is visible
     zIndex: 0, // Ensure it's below the menu but above other content
   },
-  notificationArea: {
-    backgroundColor: 'transparent', // Changed to transparent
-    padding: 10,
-    marginHorizontal: 10,
-    marginBottom: 10,
-    borderRadius: 9,
-    height: 100, // Fixed height
-    overflow: 'hidden', // Hide overflow content
-  },
-  notificationText: {
-    fontSize: 14,
-    color: '#333',
+  notificationsOverlay: {
+    position: 'absolute',
+    top: 100, // Adjust as needed to be below the header
+    left: 0,
+    right: 0,
+    zIndex: 1, // Ensure it's above the map
   },
 });
