@@ -558,7 +558,7 @@ export default function App() {
                 tabBarActiveTintColor: 'tomato',
                 tabBarInactiveTintColor: 'gray',
                 headerShown: false,
-                tabBarStyle: { height: 80 },
+                tabBarStyle: { height: 60 },
               })}
             >
               <Tab.Screen name="Home" component={WrappedHomeScreen} />
@@ -790,7 +790,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 150,
+    bottom: 170,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
