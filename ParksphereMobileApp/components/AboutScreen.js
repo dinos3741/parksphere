@@ -10,13 +10,17 @@ const AboutScreen = ({ onClose }) => {
         <FontAwesome name="arrow-left" size={24} color="#4dd0e1" />
       </TouchableOpacity>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>About ParkSphere</Text>
+        <Text style={styles.title}>What is ParkSphere?</Text>
         <Image source={parkingBackground} style={styles.mainImage} />
+        
         <Text style={styles.description}>
-          Welcome to <Text style={styles.accent}>ParkSphere!</Text>
-        </Text>
-        <Text style={styles.description}>
-          Park Sphere helps drivers find free parking spots in real time by connecting those who are about to leave with those looking to park. Simply open the app to view nearby spots that will soon become available, reserve one with a small tip, and head to the location while the other driver waits. Whether you're leaving or arriving, Park Sphere makes city parking faster, easier, and stress-free.
+          Park Sphere is a peer-to-peer parking app that helps drivers find free parking spots in real time
+          by connecting those who are about to leave with those looking to park. Simply open the app to view 
+          nearby spots that will soon become available, reserve one, and head to the location while the other 
+          driver waits for your arrival. 
+          If you're parking out from a spot, siply notify those around you of your impending departure to earn 
+          some extra cash and/or parking credit points!
+          Whether you're leaving or arriving, Park Sphere makes city parking faster, easier, and stress-free.
         </Text>
         <Text style={styles.subtitle}>How ParkSphere works</Text>
         <View style={styles.stepContainer}>
