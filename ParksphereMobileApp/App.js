@@ -92,6 +92,7 @@ export default function App() {
   const [showAboutScreen, setShowAboutScreen] = useState(false); // New state for about screen
   const [currentUser, setCurrentUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('Home');
 
   const fetchUserData = async () => {
     if (isLoggedIn && userId && token) {
@@ -539,6 +540,12 @@ export default function App() {
               </View>
             </View>
             <Tab.Navigator
+              screenListeners={{
+                state: (e) => {
+                  const currentScreen = e.data.state.routes[e.data.state.index].name;
+                  setActiveScreen(currentScreen);
+                },
+              }}
               screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
                   let iconName;
@@ -586,7 +593,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
       />
-      {isLoggedIn && (
+      {isLoggedIn && activeScreen === 'Home' && (
         <>
           <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
             <Text style={styles.fabText}>+</Text>
