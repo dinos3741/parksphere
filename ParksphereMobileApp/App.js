@@ -93,6 +93,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const fetchUserData = async () => {
     if (isLoggedIn && userId && token) {
@@ -127,6 +128,7 @@ export default function App() {
 
   const handleProfileUpdate = () => {
     fetchUserData();
+    setIsEditingProfile(false); // Go back to details view after update
   };
 
   // Map related states
@@ -348,7 +350,7 @@ export default function App() {
   const handleLogin = (data) => {
     setToken(data.token);
     setUserId(data.userId);
-    setCurrentUsername(data.username);
+setCurrentUsername(data.username);
     setIsLoggedIn(true);
     addNotification(`Welcome ${data.username}!`);
   };
@@ -511,14 +513,23 @@ export default function App() {
   }
 
   function ProfileScreen() {
+    if (isEditingProfile) {
+      return (
+        <Profile
+          user={currentUser}
+          token={token}
+          onBack={() => setIsEditingProfile(false)}
+          onProfileUpdate={handleProfileUpdate}
+        />
+      );
+    }
+
     return (
-      <UserDetails 
-        user={currentUser} 
-        onBack={() => {}} 
-        onEditProfile={() => {
-          // This will be handled by navigation
-        }} 
-        onLogout={handleLogout} 
+      <UserDetails
+        user={currentUser}
+        onBack={() => {}} // Or handle back navigation if needed
+        onEditProfile={() => setIsEditingProfile(true)}
+        onLogout={handleLogout}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
       />
