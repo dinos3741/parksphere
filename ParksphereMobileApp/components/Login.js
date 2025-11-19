@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert } from 'react-native';
+import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import logo from '../assets/images/logo.png'; // Import the logo image
 
 const Login = ({ onLogin, onRegister }) => {
   const [username, setUsername] = useState('');
@@ -40,6 +41,11 @@ const Login = ({ onLogin, onRegister }) => {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.loginOverlay}>
+          <View style={styles.logoContainer}>
+            <Image source={logo} style={styles.logoImage} />
+            <Text style={styles.parksphereTitle}>PARKSPHERE</Text>
+            <Text style={styles.tagline}>the app you need to <Text style={styles.highlight}>park in the city!</Text></Text>
+          </View>
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Login</Text>
             <TextInput
@@ -90,11 +96,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 70,
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 10,
+  },
+  parksphereTitle: {
+    fontFamily: 'AdventPro-SemiBold',
+    fontSize: 32,
+    color: 'white',
+    letterSpacing: 2,
+  },
+  tagline: {
+    fontSize: 16,
+    color: 'white',
+    marginTop: 5,
+  },
+  highlight: {
+    color: '#4dd0e1',
+    fontWeight: 'bold',
+  },
   loginContainer: {
-    width: '85%',
-    maxWidth: 380,
+    width: '80%',
+    maxWidth: 300,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 30,
+    padding: 20,
     borderRadius: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -104,19 +135,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loginTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   input: {
     width: '100%',
-    height: 50,
+    height: 45,
     borderColor: '#ddd',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 15,
-    marginBottom: 15,
+    marginBottom: 10,
     backgroundColor: '#fefefe',
     fontSize: 16,
     color: '#333',
@@ -124,10 +155,10 @@ const styles = StyleSheet.create({
   loginButton: {
     width: '100%',
     backgroundColor: '#007bff',
-    paddingVertical: 15,
+    paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
     shadowColor: '#007bff',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -136,11 +167,11 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   registerPrompt: {
-    marginTop: 20,
+    marginTop: 15,
     width: '100%',
     alignItems: 'center',
     flexDirection: 'row',
