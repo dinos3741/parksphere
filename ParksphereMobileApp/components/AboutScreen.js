@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
 const AboutScreen = ({ onClose }) => {
@@ -8,12 +8,21 @@ const AboutScreen = ({ onClose }) => {
       <TouchableOpacity style={styles.backButton} onPress={onClose}>
         <FontAwesome name="arrow-left" size={24} color="#007bff" />
       </TouchableOpacity>
-      <Text style={styles.title}>About Parksphere</Text>
-      <Text style={styles.description}>
-        Parksphere is a mobile application that helps you find parking spots in the city.
-        You can declare your parking spot when you are about to leave, and other users can request it.
-        This creates a community of drivers helping each other to find parking faster.
-      </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>Welcome to Parksphere</Text>
+        
+        <Text style={styles.description}>
+          Park Sphere helps drivers find free parking spots in real time by connecting those who are about to leave with those looking to park. Simply open the app to view nearby spots that will soon become available, reserve one with a small tip, and head to the location while the other driver waits. Whether you're leaving or arriving, 
+          Park Sphere makes city parking faster, easier, and stress-free.
+        </Text>
+        <Text style={styles.title}>How ParkSphere works</Text>
+        <View style={styles.stepContainer}>
+          <Text style={styles.step}>Step 1: Find nearby parking spots that will soon be free — updated in real time on the map.</Text>
+          <Text style={styles.step}>Step 2: Request the spot by sending a small tip to reserve it.</Text>
+          <Text style={styles.step}>Step 3: Get confirmation from the current driver and temporarily block the amount.</Text>
+          <Text style={styles.step}>Step 4: Arrive and confirm the handoff — the spot is yours to park!</Text>
+        </View>
+      </ScrollView>
       <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
     </View>
   );
@@ -22,9 +31,7 @@ const AboutScreen = ({ onClose }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: 'white',
-    paddingTop: 60, // Add padding to account for the back button
   },
   backButton: {
     position: 'absolute',
@@ -32,20 +39,36 @@ const styles = StyleSheet.create({
     left: 20,
     zIndex: 1,
   },
-  backButtonText: {
-    fontSize: 18,
-    color: '#007bff',
+  scrollContent: {
+    padding: 20,
+    paddingTop: 80, // Adjust for back button
+    paddingBottom: 60, // Adjust for footer
   },
   title: {
     fontSize: 24,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20,
+  },
+  subtitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    textAlign: 'center',
     marginTop: 20,
+    marginBottom: 10,
   },
   description: {
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 15,
+  },
+  stepContainer: {
+    marginTop: 10,
+  },
+  step: {
+    fontSize: 16,
+    textAlign: 'left',
+    marginBottom: 10,
   },
   footerText: {
     position: 'absolute',
