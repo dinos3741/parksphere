@@ -5,10 +5,13 @@ import logo from '../assets/images/logo.png'; // Import the logo image
 const Register = ({ onBack }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [carType, setCarType] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [carColor, setCarColor] = useState('');
 
   const handleRegister = async () => {
     // TODO: Implement registration logic
-    Alert.alert('Registration', 'Registration functionality to be implemented.');
+    Alert.alert('Registration', `Username: ${username}, Car Type: ${carType}, Plate Number: ${plateNumber}, Car Color: ${carColor}`);
   };
 
   return (
@@ -41,6 +44,30 @@ const Register = ({ onBack }) => {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Car Type"
+              placeholderTextColor="#888"
+              value={carType}
+              onChangeText={setCarType}
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Plate Number"
+              placeholderTextColor="#888"
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              autoCapitalize="characters"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Car Color"
+              placeholderTextColor="#888"
+              value={carColor}
+              onChangeText={setCarColor}
+              autoCapitalize="words"
             />
             <TouchableOpacity style={styles.loginButton} onPress={handleRegister}>
               <Text style={styles.loginButtonText}>Register</Text>
