@@ -7,12 +7,13 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
-import { io } from "socket.io-client"; // Import socket.io-client
+import io from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
 import Notifications from './components/Notifications';
 import Map from './components/Map';
 import Login from './components/Login';
+import Register from './components/Register';
 import Profile from './components/Profile';
 import ChatTab from './components/ChatTab';
 import UserDetails from './components/UserDetails';
@@ -585,6 +586,8 @@ setCurrentUsername(data.username);
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
           </View>
+        ) : showRegister ? (
+          <Register onBack={() => setShowRegister(false)} />
         ) : (
           <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
         )}
