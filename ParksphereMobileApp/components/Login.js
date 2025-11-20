@@ -17,15 +17,16 @@ const Login = ({ onLogin, onRegister }) => {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await response.json();
-
       if (response.ok) {
+        const data = await response.json();
         await AsyncStorage.setItem('userToken', data.token);
         await AsyncStorage.setItem('userId', String(data.userId));
         await AsyncStorage.setItem('username', data.username);
         onLogin(data);
       } else {
-        Alert.alert('Login Failed', data.message || 'Invalid credentials');
+        const errorText = await response.text();
+        console.error('Login failed:', errorText);
+        Alert.alert('Login Failed', 'Invalid username or password.');
       }
     } catch (error) {
       console.error('Error during login:', error);
