@@ -230,7 +230,7 @@ export default function App() {
       });
     });
 
-    socket.current.on('spotDeleted', (spotId) => {
+    socket.current.on('spotDeleted', ({ spotId }) => {
       setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
     });
 
