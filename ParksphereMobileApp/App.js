@@ -46,6 +46,7 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
         <Map
+          key={parkingSpots.length}
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
