@@ -17,6 +17,7 @@ import Register from './components/Register';
 import Profile from './components/Profile';
 import ChatTab from './components/ChatTab';
 import UserDetails from './components/UserDetails';
+import TimeOptionsModal from './components/TimeOptionsModal'; // Import the new modal
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
@@ -41,7 +42,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -55,6 +56,10 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           handleCenterMap={handleCenterMap}
           mapViewRef={mapViewRef}
           setSpotDetailsVisible={setSpotDetailsVisible}
+          isAddingSpot={isAddingSpot}
+          setIsAddingSpot={setIsAddingSpot}
+          setNewSpotCoordinates={setNewSpotCoordinates}
+          setShowTimeOptionsModal={setShowTimeOptionsModal}
         />
       </View>
       <Notifications notifications={notifications} />
@@ -96,6 +101,21 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isAddingSpot, setIsAddingSpot] = useState(false); // New state for adding a spot
+  const [newSpotCoordinates, setNewSpotCoordinates] = useState(null); // New state for new spot coordinates
+  const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
+
+  const handleFabPress = () => {
+    if (isAddingSpot) {
+      // If currently adding a spot, cancel it
+      setIsAddingSpot(false);
+      setNewSpotCoordinates(null);
+    } else {
+      // Otherwise, start adding a spot
+      setIsAddingSpot(true);
+      setLeavingModalVisible(false); // Close leaving modal if open
+    }
+  };
 
   const fetchUserData = async () => {
     if (isLoggedIn && userId && token) {
@@ -461,8 +481,8 @@ setCurrentUsername(data.username);
   };
 
   const handleCreateSpot = async (duration) => {
-    if (!token || !userId || !userLocation) {
-      Alert.alert('Error', 'Please log in and ensure location is available to create a spot.');
+    if (!token || !userId || !newSpotCoordinates) { // Use newSpotCoordinates
+      Alert.alert('Error', 'Please log in and select a location to create a spot.');
       return;
     }
 
@@ -473,10 +493,10 @@ setCurrentUsername(data.username);
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           userId: userId,
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude,
+          latitude: newSpotCoordinates.latitude, // Use newSpotCoordinates
+          longitude: newSpotCoordinates.longitude, // Use newSpotCoordinates
           timeToLeave: duration, // Duration in minutes
           costType: 'free',
           price: 0,
@@ -489,7 +509,8 @@ setCurrentUsername(data.username);
 
       if (response.ok) {
         addNotification(`Parking spot ${data.spotId} declared successfully by user ${currentUsername}`);
-        setLeavingModalVisible(false); // Close the modal on success
+        setShowTimeOptionsModal(false); // Close the modal on success
+        setNewSpotCoordinates(null); // Clear coordinates
       } else if (response.status === 401 || response.status === 403) {
         console.error('Authentication failed for creating spot. Logging out...');
         handleLogout();
@@ -507,7 +528,7 @@ setCurrentUsername(data.username);
   }
 
   function WrappedHomeScreen(props) {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} />;
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} />;
   }
 
   function WrappedChatTab(props) {
@@ -615,10 +636,15 @@ setCurrentUsername(data.username);
       >
         <AboutScreen onClose={() => setShowAboutScreen(false)} />
       </Modal>
+      <TimeOptionsModal
+        visible={showTimeOptionsModal}
+        onClose={() => setShowTimeOptionsModal(false)}
+        onSelectTime={handleCreateSpot}
+      />
       {isLoggedIn && activeScreen === 'Home' && (
         <>
-          <TouchableOpacity style={styles.fab} onPress={() => setLeavingModalVisible(true)}>
-            <Text style={styles.fabText}>+</Text>
+          <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
+            <Text style={styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
           </TouchableOpacity>
         </>
       )}

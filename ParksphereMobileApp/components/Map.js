@@ -11,6 +11,10 @@ const Map = ({
   handleCenterMap,
   mapViewRef,
   setSpotDetailsVisible,
+  isAddingSpot,
+  setIsAddingSpot,
+  setNewSpotCoordinates,
+  setShowTimeOptionsModal,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -30,7 +34,12 @@ const Map = ({
           }
           showsUserLocation={locationPermissionGranted}
           onPress={(e) => {
-            if (e.nativeEvent.action !== 'marker-press') {
+            if (isAddingSpot) {
+              const { coordinate } = e.nativeEvent;
+              setNewSpotCoordinates(coordinate);
+              setShowTimeOptionsModal(true);
+              setIsAddingSpot(false); // Exit adding spot mode after selection
+            } else if (e.nativeEvent.action !== 'marker-press') {
               setSpotDetailsVisible(false);
             }
           }}
@@ -75,6 +84,12 @@ const Map = ({
       ) : (
         <Text style={styles.messageText}>Getting your location...</Text>
       )}
+      {isAddingSpot && (
+        <View style={styles.crosshairContainer}>
+          <View style={styles.crosshairHorizontal} />
+          <View style={styles.crosshairVertical} />
+        </View>
+      )}
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
           <Text style={styles.centerButtonText}>⌖</Text>
@@ -114,6 +129,28 @@ const styles = StyleSheet.create({
   centerButtonText: {
     fontSize: 20,
     color: '#333',
+  },
+  crosshairContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'none', // Allows map interaction underneath
+  },
+  crosshairHorizontal: {
+    position: 'absolute',
+    width: 30,
+    height: 2,
+    backgroundColor: 'black',
+  },
+  crosshairVertical: {
+    position: 'absolute',
+    width: 2,
+    height: 30,
+    backgroundColor: 'black',
   },
 });
 

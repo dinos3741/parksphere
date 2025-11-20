@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './LeavingFab.css';
 
-const presets = [0, 2, 5, 10]; // minutes, 0 = now
+const presets = [1, 2, 5, 10]; // minutes
 
 // Accept new props: userLocation, currentUserCarType, currentUserId
 const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation, pendingRequests }) => {
@@ -62,7 +62,7 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
 
       if (response.ok) {
         const responseData = await response.json(); // Parse JSON response
-        addNotification(`Parking spot ${responseData.spotId} declared successfully! You are leaving in ${minutes === 0 ? 'Now' : `${minutes} minutes`}.`, 'default');
+        addNotification(`Parking spot ${responseData.spotId} declared successfully! You are leaving in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`, 'default');
         setPinnedLocation(null); // Clear the pin from the map
         // The socket.io 'newParkingSpot' event on the server will handle map updates
       } else if (response.status === 409) { // Handle 409 Conflict specifically
@@ -97,7 +97,7 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
             <div className="chips-container">
               {presets.map((m) => (
                 <button key={m} className="chip" onClick={() => handlePresetClick(m)}>
-                  {m === 0 ? 'Now' : `${m}m`}
+                  {`${m} min`}
                 </button>
               ))}
             </div>
