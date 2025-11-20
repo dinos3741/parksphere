@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image } from 'react-native';
+import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image, ScrollView } from 'react-native';
 import logo from '../assets/images/logo.png'; // Import the logo image
+
+const carTypes = ['motorcycle', 'city car', 'hatchback', 'sedan', 'family car', 'SUV', 'van', 'truck'];
+
 
 const Register = ({ onBack }) => {
   const [username, setUsername] = useState('');
@@ -45,14 +47,20 @@ const Register = ({ onBack }) => {
               onChangeText={setPassword}
               secureTextEntry
             />
-            <TextInput
-              style={styles.input}
-              placeholder="Car Type"
-              placeholderTextColor="#888"
-              value={carType}
-              onChangeText={setCarType}
-              autoCapitalize="none"
-            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.carTypeScrollView}>
+              {carTypes.map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.carTypeOption,
+                    carType === type && styles.selectedCarType,
+                  ]}
+                  onPress={() => setCarType(type)}
+                >
+                  <Text style={[styles.carTypeLabel, carType === type && styles.selectedCarTypeLabel]}>{type}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <TextInput
               style={styles.input}
               placeholder="Plate Number"
@@ -156,6 +164,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#fefefe',
     fontSize: 16,
     color: '#333',
+  },
+  carTypeScrollView: {
+    height: 50,
+    marginBottom: 10,
+  },
+  carTypeOption: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 20,
+    marginHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedCarType: {
+    backgroundColor: '#007bff',
+    borderColor: '#007bff',
+  },
+  carTypeLabel: {
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  selectedCarTypeLabel: {
+    color: '#fff',
   },
   loginButton: {
     width: '100%',
