@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image, ScrollView } from 'react-native';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
