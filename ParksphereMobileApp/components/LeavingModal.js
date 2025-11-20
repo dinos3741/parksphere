@@ -18,6 +18,9 @@ const LeavingModal = ({ visible, onClose, onCreateSpot }) => {
             <Text style={styles.modalText}>Leaving in...</Text>
             <View style={styles.buttonContainer}>
               <View style={styles.rowContainer}>
+                <TouchableOpacity style={styles.optionButton} onPress={() => onCreateSpot(1)}>
+                  <Text style={styles.optionButtonText}>1 min</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.optionButton} onPress={() => onCreateSpot(2)}>
                   <Text style={styles.optionButtonText}>2 min</Text>
                 </TouchableOpacity>
@@ -26,14 +29,6 @@ const LeavingModal = ({ visible, onClose, onCreateSpot }) => {
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.optionButton} onPress={() => onCreateSpot(10)}>
                   <Text style={styles.optionButtonText}>10 min</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.optionButton} onPress={() => onCreateSpot(20)}>
-                  <Text style={styles.optionButtonText}>20 min</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.rowContainer}>
-                <TouchableOpacity style={styles.optionButton} onPress={() => console.log('Custom')}>
-                  <Text style={styles.optionButtonText}>Custom...</Text>
                 </TouchableOpacity>
               </View>
             </View>
