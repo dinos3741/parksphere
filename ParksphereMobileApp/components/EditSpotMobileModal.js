@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
 const { width } = Dimensions.get('window');
@@ -39,9 +39,11 @@ const EditSpotMobileModal = ({ visible, onClose, spotData, onSave }) => {
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.centeredView}>
-        <View style={styles.modalView}>
-          <Text style={styles.modalTitle}>Edit Spot #{spotData?.id}</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.centeredView}>
+          <TouchableWithoutFeedback onPress={() => { /* Prevent clicks on modal content from dismissing keyboard */ }}>
+            <View style={styles.modalView}>
+          <Text style={styles.modalTitle}>Update Parking Spot</Text>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Time to leave (minutes):</Text>
@@ -56,14 +58,26 @@ const EditSpotMobileModal = ({ visible, onClose, spotData, onSave }) => {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Cost Type:</Text>
-            <Picker
-              selectedValue={costType}
-              style={styles.picker}
-              onValueChange={(itemValue) => setCostType(itemValue)}
-            >
-              <Picker.Item label="Free" value="free" />
-              <Picker.Item label="Paid" value="paid" />
-            </Picker>
+            <View style={styles.toggleContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  costType === 'free' && styles.toggleButtonActive,
+                ]}
+                onPress={() => setCostType('free')}
+              >
+                <Text style={[styles.toggleButtonText, costType === 'free' && styles.toggleButtonTextActive]}>Free</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.toggleButton,
+                  costType === 'paid' && styles.toggleButtonActive,
+                ]}
+                onPress={() => setCostType('paid')}
+              >
+                <Text style={[styles.toggleButtonText, costType === 'paid' && styles.toggleButtonTextActive]}>Paid</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -79,15 +93,17 @@ const EditSpotMobileModal = ({ visible, onClose, spotData, onSave }) => {
           </View>
 
           <View style={styles.buttonContainer}>
+            <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSave}>
+              <Text style={styles.buttonText}>Update Spot</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.button, styles.cancelButton]} onPress={onClose}>
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSave}>
-              <Text style={styles.buttonText}>Save Changes</Text>
-            </TouchableOpacity>
           </View>
+            </View>
+          </TouchableWithoutFeedback>
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };
@@ -153,6 +169,30 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f9f9f9',
   },
+  toggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#2ecc71', // Green for active
+  },
+  toggleButtonText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: 'bold',
+  },
+  toggleButtonTextActive: {
+    color: 'white',
+  },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -164,6 +204,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center', // Vertically center the content
     marginHorizontal: 5,
   },
   cancelButton: {
