@@ -41,8 +41,7 @@ const EditSpotMobileModal = ({ visible, onClose, spotData, onSave }) => {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.centeredView}>
-          <TouchableWithoutFeedback onPress={() => { /* Prevent clicks on modal content from dismissing keyboard */ }}>
-            <View style={styles.modalView}>
+          <View style={styles.modalView}>
           <Text style={styles.modalTitle}>Update Parking Spot</Text>
 
           <View style={styles.inputGroup}>
@@ -101,7 +100,6 @@ const EditSpotMobileModal = ({ visible, onClose, spotData, onSave }) => {
             </TouchableOpacity>
           </View>
             </View>
-          </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
     </Modal>
