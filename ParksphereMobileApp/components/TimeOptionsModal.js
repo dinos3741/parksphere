@@ -4,20 +4,16 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'rea
 const { width } = Dimensions.get('window');
 
 const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
-  const [selectedDuration, setSelectedDuration] = useState(60); // Default to 60 minutes
+  const [selectedDuration, setSelectedDuration] = useState(1); // Default to 1 minute
 
   const timeOptions = [
-    { label: '30 min', value: 30 },
-    { label: '1 hour', value: 60 },
-    { label: '2 hours', value: 120 },
-    { label: '3 hours', value: 180 },
-    { label: '4 hours', value: 240 },
+    { label: '1 min', value: 1 },
+    { label: '2 min', value: 2 },
+    { label: '5 min', value: 5 },
+    { label: '10 min', value: 10 },
   ];
 
-  const handleConfirm = () => {
-    onSelectTime(selectedDuration);
-    onClose();
-  };
+
 
   return (
     <Modal
@@ -37,7 +33,10 @@ const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
                   styles.optionButton,
                   selectedDuration === option.value && styles.selectedOption,
                 ]}
-                onPress={() => setSelectedDuration(option.value)}
+                onPress={() => {
+                  onSelectTime(option.value);
+                  onClose();
+                }}
               >
                 <Text
                   style={[
@@ -50,20 +49,7 @@ const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
               </TouchableOpacity>
             ))}
           </View>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonClose]}
-              onPress={onClose}
-            >
-              <Text style={styles.textStyle}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.button, styles.buttonConfirm]}
-              onPress={handleConfirm}
-            >
-              <Text style={styles.textStyle}>Confirm</Text>
-            </TouchableOpacity>
-          </View>
+
         </View>
       </View>
     </Modal>
