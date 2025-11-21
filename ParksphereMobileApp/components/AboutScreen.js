@@ -7,7 +7,7 @@ const AboutScreen = ({ onClose }) => {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onClose}>
-        <FontAwesome name="arrow-left" size={24} color="#4dd0e1" />
+        <FontAwesome name="arrow-left" size={30} color="#4dd0e1" style={{ transform: [{ scaleX: 1.2 }, { scaleY: 0.8 }], fontWeight: '300' }} />
       </TouchableOpacity>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>What is ParkSphere?</Text>
