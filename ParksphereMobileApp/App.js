@@ -20,8 +20,7 @@ import UserDetails from './components/UserDetails';
 import TimeOptionsModal from './components/TimeOptionsModal'; // Import the new modal
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
-import AboutScreen from './components/AboutScreen';
-import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
+
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 
 import { enableScreens } from 'react-native-screens';
