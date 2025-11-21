@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
   },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 19.2,
+    fontSize: 21.12,
     fontWeight: '600',
     color: 'white',
     letterSpacing: 0,
