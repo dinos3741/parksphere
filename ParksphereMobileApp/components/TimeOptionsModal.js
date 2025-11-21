@@ -40,13 +40,13 @@ const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
                       onClose();
                     }}
                   >
-                                    <Text
-                                      style={[
-                                        styles.optionText,
-                                        selectedDuration === option.value && styles.selectedOptionText,
-                                      ]}
-                                      numberOfLines={1}
-                                    >                      {option.label}
+                    <Text
+                      style={[
+                        styles.optionText,
+                        selectedDuration === option.value && styles.selectedOptionText,
+                      ]}
+                    >
+                      {option.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-    width: width * 0.6, // 60% of screen width
+    width: width * 0.8, // 80% of screen width
   },
   modalTitle: {
     marginBottom: 20,
