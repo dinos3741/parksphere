@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     margin: 20,
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 35,
+    padding: 30,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
-    width: width * 0.8, // 80% of screen width
+    width: width * 0.6, // 70% of screen width
   },
   modalTitle: {
     marginBottom: 20,
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   optionButton: {
     backgroundColor: '#f0f0f0',

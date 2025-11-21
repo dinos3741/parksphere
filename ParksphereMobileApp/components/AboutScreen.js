@@ -7,7 +7,7 @@ const AboutScreen = ({ onClose }) => {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onClose}>
-        <FontAwesome name="chevron-left" size={24} color="#4dd0e1" />
+        <FontAwesome name="arrow-left" size={24} color="#4dd0e1" />
       </TouchableOpacity>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>What is ParkSphere?</Text>
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    top: 40,
+    top: 60,
     left: 20,
     zIndex: 1,
   },
