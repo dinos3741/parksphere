@@ -644,7 +644,7 @@ setCurrentUsername(data.username);
       {isLoggedIn && activeScreen === 'Home' && (
         <>
           <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
-            <Text style={styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
+            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
           </TouchableOpacity>
         </>
       )}
@@ -858,6 +858,13 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '300',
     lineHeight: 48,
+  },
+  fabTextSmall: {
+    color: 'red',
+    fontSize: 30,
+    fontWeight: '300',
+    lineHeight: 30,
+    top: 3, // Lower the X symbol by 3 pixels
   },
   logoutText: {
     color: 'red',
