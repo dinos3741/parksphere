@@ -26,7 +26,7 @@ const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
         <View style={styles.centeredView}>
           <TouchableWithoutFeedback onPress={() => { /* Prevent clicks on modal content from closing the modal */ }}>
             <View style={styles.modalView}>
-              <Text style={styles.modalTitle}>Select Parking Duration</Text>
+              <Text style={styles.modalTitle}>Leaving in...</Text>
               <View style={styles.optionsContainer}>
                 {timeOptions.map((option) => (
                   <TouchableOpacity
