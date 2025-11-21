@@ -118,17 +118,17 @@ const styles = StyleSheet.create({
   modalView: {
     margin: 20,
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 25,
     padding: 35,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
     width: width * 0.9, // 90% of screen width
   },
   modalTitle: {
@@ -150,12 +150,17 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    // borderWidth: 1, // Removed border
+    // borderColor: '#ddd', // Removed border
     borderRadius: 10,
     padding: 10,
     fontSize: 16,
     backgroundColor: '#f9f9f9',
+    shadowColor: '#000', // Subtle shadow
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   textArea: {
     height: 100,
@@ -173,8 +178,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 10,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    // borderWidth: 1, // Removed border
+    // borderColor: '#ddd', // Removed border
+    shadowColor: '#000', // Subtle shadow
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   toggleButton: {
     flex: 1,
@@ -206,6 +216,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center', // Vertically center the content
     marginHorizontal: 5,
+    shadowColor: '#000', // Subtle shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   cancelButton: {
     backgroundColor: '#e74c3c',
