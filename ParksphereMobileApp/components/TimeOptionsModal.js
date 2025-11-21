@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, TouchableWithoutFeedback } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
-  const [selectedDuration, setSelectedDuration] = useState(null); // No option pre-selected
+  const [selectedDuration, setSelectedDuration] = useState(1); // Default to 1 minute
 
   const timeOptions = [
     { label: '1 min', value: 1 },
@@ -22,39 +22,36 @@ const TimeOptionsModal = ({ visible, onClose, onSelectTime }) => {
       visible={visible}
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.centeredView}>
-          <TouchableWithoutFeedback onPress={() => { /* Prevent clicks on modal content from closing the modal */ }}>
-            <View style={styles.modalView}>
-              <Text style={styles.modalTitle}>Leaving in...</Text>
-              <View style={styles.optionsContainer}>
-                {timeOptions.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.optionButton,
-                      selectedDuration === option.value && styles.selectedOption,
-                    ]}
-                    onPress={() => {
-                      onSelectTime(option.value);
-                      onClose();
-                    }}
-                  >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        selectedDuration === option.value && styles.selectedOptionText,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
+      <View style={styles.centeredView}>
+        <View style={styles.modalView}>
+          <Text style={styles.modalTitle}>Select Parking Duration</Text>
+          <View style={styles.optionsContainer}>
+            {timeOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.optionButton,
+                  selectedDuration === option.value && styles.selectedOption,
+                ]}
+                onPress={() => {
+                  onSelectTime(option.value);
+                  onClose();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.optionText,
+                    selectedDuration === option.value && styles.selectedOptionText,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 };
