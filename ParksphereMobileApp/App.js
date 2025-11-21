@@ -21,6 +21,8 @@ import TimeOptionsModal from './components/TimeOptionsModal'; // Import the new 
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
+import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
+import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -104,6 +106,10 @@ export default function App() {
   const [isAddingSpot, setIsAddingSpot] = useState(false); // New state for adding a spot
   const [newSpotCoordinates, setNewSpotCoordinates] = useState(null); // New state for new spot coordinates
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
+  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
+  const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
+  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
+  const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
 
   const handleFabPress = () => {
     if (isAddingSpot) {
@@ -464,9 +470,49 @@ setCurrentUsername(data.username);
     }
   };
 
-  const handleEditSpot = (spotId) => {
-    Alert.alert('Edit Spot', `Editing functionality for spot ${spotId} is not yet implemented.`);
-    // In the future, this would open an edit modal or navigate to an edit screen
+  const handleEditSpot = (spot) => { // Pass the full spot object
+    setSpotToEdit(spot);
+    setShowEditSpotMobileModal(true);
+    setSpotDetailsVisible(false); // Close the SpotDetails modal
+  };
+
+  const handleSaveEditedSpot = async (spotId, updatedDetails) => {
+    if (!token) {
+      Alert.alert('Error', 'You must be logged in to edit a spot.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedDetails),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        addNotification(`Spot ${spotId} updated successfully!`);
+        // Update the parkingSpots state to reflect the changes
+        setParkingSpots((prevSpots) =>
+          prevSpots.map((spot) => (spot.id === spotId ? { ...spot, ...updatedDetails } : spot))
+        );
+      } else if (response.status === 401 || response.status === 403) {
+        console.error('Authentication failed for editing spot. Logging out...');
+        handleLogout();
+      } else {
+        Alert.alert('Error', `Failed to update spot: ${data.message || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating spot:', error);
+      Alert.alert('Error', 'Could not connect to the server to update spot.');
+    } finally {
+      setShowEditSpotMobileModal(false); // Close the edit modal
+      setSpotToEdit(null); // Clear the spot to edit
+    }
   };
 
   const handleCenterMap = () => {
@@ -640,6 +686,12 @@ setCurrentUsername(data.username);
         visible={showTimeOptionsModal}
         onClose={() => setShowTimeOptionsModal(false)}
         onSelectTime={handleCreateSpot}
+      />
+      <EditSpotMobileModal
+        visible={showEditSpotMobileModal}
+        onClose={() => setShowEditSpotMobileModal(false)}
+        spotData={spotToEdit}
+        onSave={handleSaveEditedSpot}
       />
       {isLoggedIn && activeScreen === 'Home' && (
         <>

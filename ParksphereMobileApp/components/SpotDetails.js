@@ -35,7 +35,7 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             <>
               <TouchableOpacity
                 style={{ ...styles.openButton, backgroundColor: '#4CAF50' }} // Green color for Edit
-                onPress={() => onEditSpot(spot.id)} // Call onEditSpot for owner
+                onPress={() => onEditSpot(spot)} // Call onEditSpot for owner
               >
                 <Text style={styles.textStyle}>Edit Spot</Text>
               </TouchableOpacity>
