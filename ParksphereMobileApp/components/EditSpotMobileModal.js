@@ -176,8 +176,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 10,
     overflow: 'hidden',
-    // borderWidth: 1, // Removed border
-    // borderColor: '#ddd', // Removed border
+    borderWidth: 1,
+    borderColor: '#ddd',
     shadowColor: '#000', // Subtle shadow
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
