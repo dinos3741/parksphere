@@ -107,8 +107,6 @@ export default function App() {
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
   const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
   const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
-  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
-  const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
 
   const handleFabPress = () => {
     if (isAddingSpot) {
