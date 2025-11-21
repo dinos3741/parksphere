@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions, Picker } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 
 const { width } = Dimensions.get('window');
 
