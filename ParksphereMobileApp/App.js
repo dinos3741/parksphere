@@ -108,6 +108,7 @@ export default function App() {
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
   const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
   const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
+  const [isFabPressed, setIsFabPressed] = useState(false);
 
   const handleFabPress = () => {
     if (isAddingSpot) {
@@ -653,7 +654,12 @@ setCurrentUsername(data.username);
             </Tab.Navigator>
             {activeScreen === 'Home' && (
               <>
-                <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
+                <TouchableOpacity 
+                  style={[styles.fab, isFabPressed ? styles.fabPressed : {}]} 
+                  onPress={handleFabPress}
+                  onPressIn={() => setIsFabPressed(true)}
+                  onPressOut={() => setIsFabPressed(false)}
+                >
                   <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
                 </TouchableOpacity>
               </>
@@ -902,6 +908,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
+  },
+  fabPressed: {
+    transform: [{ scale: 0.95 }],
   },
   fabText: {
     color: 'white',
