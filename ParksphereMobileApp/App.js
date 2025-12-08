@@ -651,6 +651,13 @@ setCurrentUsername(data.username);
               <Tab.Screen name="Search" component={SearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
+            {activeScreen === 'Home' && (
+              <>
+                <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
+                  <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         ) : showRegister ? (
           <Register onBack={() => setShowRegister(false)} />
@@ -691,14 +698,6 @@ setCurrentUsername(data.username);
         spotData={spotToEdit}
         onSave={handleSaveEditedSpot}
       />
-      {isLoggedIn && activeScreen === 'Home' && (
-        <>
-          <TouchableOpacity style={styles.fab} onPress={handleFabPress}>
-            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </>
   );
 }
 
