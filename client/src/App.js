@@ -542,8 +542,6 @@ function MainAppContent() {
                 distance: data.distance,
                 status: 'pending',
               };
-              console.log('New request object:', newRequest);
-              console.log('Distance from data:', data.distance, 'Type:', typeof data.distance);
               setSpotRequests(prevRequests => [...prevRequests, newRequest]);
             } catch (error) {
               console.error('Error fetching requester details:', error);
