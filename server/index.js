@@ -9,10 +9,17 @@ const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, cr
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3002",
+  "http://192.168.1.70:3000",
+  "http://192.168.1.70:8081"
+];
+
 const server = http.createServer(app); // Create http server
 const io = new Server(server, { // Initialize Socket.IO
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3002"], // Allow multiple origins
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });
@@ -283,7 +290,7 @@ const JWT_SECRET = 'supersecretjwtkey';
 const { CAR_SIZE_HIERARCHY } = require('./utils/carTypes');
 
 app.use(bodyParser.json());
-app.use(cors()); // Enable CORS for all routes
+app.use(cors({ origin: allowedOrigins })); // Enable CORS for all routes
 
 // Ensure tables exist on server start
 createUsersTable();
