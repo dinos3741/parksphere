@@ -406,7 +406,7 @@ setCurrentUsername(data.username);
     setSpotDetailsVisible(true);
   };
 
-  const handleRequestSpot = async (spotId) => {
+  const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
     if (!token) {
       Alert.alert('Error', 'You must be logged in to request a spot.');
       return;
@@ -419,7 +419,7 @@ setCurrentUsername(data.username);
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ spotId }),
+        body: JSON.stringify({ spotId, requesterLat, requesterLon }),
       });
 
       const data = await response.json();
@@ -682,6 +682,7 @@ setCurrentUsername(data.username);
         currentUserId={userId} // Pass the current user's ID
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
+        userLocation={userLocation} // Pass userLocation here
       />
       <Modal
         visible={showAboutScreen}

@@ -814,35 +814,36 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
     }
     const requesterUsername = requesterResult.rows[0].username;
     
-    
+    // Log distance after parseFloat and before emission
+    const distanceToSend = parseFloat(distance);
 
     // Find the owner's socket ID and username
     const ownerSocketInfo = userSockets[ownerId];
-    const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner'; // Get owner's username
-
-    if (ownerSocketInfo && ownerSocketInfo.socketId) {
-      // Send a notification to the spot owner
-      io.to(ownerSocketInfo.socketId).emit('spotRequest', {
-        spotId,
-        requesterId,
-        requesterUsername,
-        ownerUsername, // Include ownerUsername here
-        requestId, // Pass the new requestId
-        distance,
-        message: `User ${requesterUsername} has requested your parking spot!`
-      });
-      res.status(200).json({ message: 'Request sent successfully.', requestId });
-    } else {
-      console.log(`Spot owner ${ownerId} is not currently connected or socketId is missing.`);
-      // If owner is not connected, still create the request in DB, but inform requester
-      res.status(200).json({ message: 'Request sent. Owner is currently offline, they will be notified when they connect.', requestId });
-    }
-  } catch (error) {
-    console.error('Error requesting spot:', error);
-    res.status(500).send('Server error requesting spot.');
-  }
-});
-
+            const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner'; // Get owner's username
+    
+        if (ownerSocketInfo && ownerSocketInfo.socketId) {
+          const payload = {
+            spotId,
+            requesterId,
+            requesterUsername,
+            ownerUsername, // Include ownerUsername here
+            requestId, // Pass the new requestId
+            distance: distanceToSend,
+            message: `User ${requesterUsername} has requested your parking spot!`
+          };
+          // Send a notification to the spot owner
+          io.to(ownerSocketInfo.socketId).emit('spotRequest', payload);
+          res.status(200).json({ message: 'Request sent successfully.', requestId });
+        } else {
+          console.log(`Spot owner ${ownerId} is not currently connected or socketId is missing.`);
+          // If owner is not connected, still create the request in DB, but inform requester
+          res.status(200).json({ message: 'Request sent. Owner is currently offline, they will be notified when they connect.', requestId });
+        }
+      } catch (error) {
+        console.error('Error requesting spot:', error);
+        res.status(500).send('Server error requesting spot.');
+      }
+    });
 app.post('/api/cancel-request', authenticateToken, async (req, res) => {
   const { spotId } = req.body;
   const requesterId = req.user.userId;

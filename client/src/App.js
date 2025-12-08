@@ -513,21 +513,49 @@ function MainAppContent() {
   }, [setFilteredParkingSpots]);
 
   const [spotRequests, setSpotRequests] = useState([]);
-  useEffect(() => {
-    const handleSpotRequest = (data) => {
-      addNotification(data.message, 'blue');
-      playSound();
-      fetchPendingRequests();
-      emitter.emit('new-request');
-      setSpotRequests(prevRequests => [...prevRequests, data]);
-    };
+  const handleSpotRequest = useCallback(async (data) => {
+    addNotification(data.message, 'blue');
+    playSound();
+    fetchPendingRequests();
+    emitter.emit('new-request');
 
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/users/${data.requesterId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch requester details');
+      }
+      const requesterData = await response.json();
+
+              const newRequest = {
+                id: data.requestId,
+                spotId: data.spotId,
+                requester_id: data.requesterId,
+                requested_at: new Date().toISOString(),
+                requester_username: data.requesterUsername,
+                requester_car_type: requesterData.car_type,
+                requester_avatar_url: requesterData.avatar_url,
+                distance: data.distance,
+                status: 'pending',
+              };
+              console.log('New request object:', newRequest);
+              console.log('Distance from data:', data.distance, 'Type:', typeof data.distance);
+              setSpotRequests(prevRequests => [...prevRequests, newRequest]);
+            } catch (error) {
+              console.error('Error fetching requester details:', error);
+            }  }, [addNotification, playSound, fetchPendingRequests]);
+
+  useEffect(() => {
     socket.on('spotRequest', handleSpotRequest);
 
     return () => {
       socket.off('spotRequest', handleSpotRequest);
     };
-  }, [addNotification, playSound, fetchPendingRequests]);
+  }, [handleSpotRequest]);
 
   useEffect(() => {
     const handleRequestResponse = (data) => {
@@ -657,7 +685,7 @@ function MainAppContent() {
       addNotification(message, 'purple');
       playSoundRemoveRequest();
       emitter.emit('request-cancelled-for-owner', data.requestId);
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== data.requestId));
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
     };
 
     socket.on('requestCancelled', handleRequestCancelled);
