@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -78,7 +78,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   const [ownerCarDetails, setOwnerCarDetails] = useState(null);
   const [userAddress, setUserAddress] = useState(null);
   const [currentUserCarType, setCurrentUserCarType] = useState(null);
-  const [spotRequests, setSpotRequests] = useState([]);
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
   const [newRequestSpotIds, setNewRequestSpotIds] = useState([]); // New state for spots with new requests
@@ -170,29 +169,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     };
   }, []); // Empty dependency array to ensure listener is set up once
 
-  useEffect(() => {
-    const handleRequestRejected = (requestId) => {
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
-    };
 
-    emitter.on('request-rejected-by-owner', handleRequestRejected);
-
-    return () => {
-      emitter.off('request-rejected-by-owner', handleRequestRejected);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleRequestCancelled = (requestId) => {
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
-    };
-
-    emitter.on('request-cancelled-for-owner', handleRequestCancelled);
-
-    return () => {
-      emitter.off('request-cancelled-for-owner', handleRequestCancelled);
-    };
-  }, []);
 
   const handleNewButtonClick = (spot) => {
     console.log(`Edit button clicked for spot ID: ${spot.id}`);
@@ -519,23 +496,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     setUserAddress(null);
     setDrawerSpot(spot);
     setNewRequestSpotIds(prev => prev.filter(id => id !== spot.id)); // Clear red dot
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch(`/api/spots/${spot.id}/requests-details`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const formattedData = data.map(req => ({...req, distance: parseFloat(req.distance)}));
-        setSpotRequests(formattedData);
-      } else {
-        console.error('Error fetching spot requests:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching spot requests:', error);
-    }
   };
 
   
@@ -673,7 +633,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}
         formatRemainingTime={formatRemainingTime}
-        spotRequests={spotRequests}
+        spotRequests={spotRequests.filter(req => req.spotId === drawerSpot?.id)}
         currentUserId={currentUserId}
         addNotification={appAddNotification}
         currentUsername={currentUsername}

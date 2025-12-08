@@ -512,12 +512,14 @@ function MainAppContent() {
     };
   }, [setFilteredParkingSpots]);
 
+  const [spotRequests, setSpotRequests] = useState([]);
   useEffect(() => {
     const handleSpotRequest = (data) => {
       addNotification(data.message, 'blue');
       playSound();
       fetchPendingRequests();
       emitter.emit('new-request');
+      setSpotRequests(prevRequests => [...prevRequests, data]);
     };
 
     socket.on('spotRequest', handleSpotRequest);
@@ -655,12 +657,20 @@ function MainAppContent() {
       addNotification(message, 'purple');
       playSoundRemoveRequest();
       emitter.emit('request-cancelled-for-owner', data.requestId);
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== data.requestId));
     };
 
     socket.on('requestCancelled', handleRequestCancelled);
 
+    const handleRequestRejected = (requestId) => {
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
+    };
+
+    emitter.on('request-rejected-by-owner', handleRequestRejected);
+
     return () => {
       socket.off('requestCancelled', handleRequestCancelled);
+      emitter.off('request-rejected-by-owner', handleRequestRejected);
     };
   }, [addNotification, playSoundRemoveRequest]);
 
@@ -912,6 +922,7 @@ function MainAppContent() {
               onRequestStatusChange={handleRequestStatusChange}
               currentUsername={currentUsername}
               pendingRequests={pendingRequests}
+              spotRequests={spotRequests}
               onOpenChat={handleOpenChat}
               unreadMessages={unreadMessages}
               isPinDropMode={isPinDropMode}

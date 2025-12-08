@@ -828,6 +828,7 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
         requesterUsername,
         ownerUsername, // Include ownerUsername here
         requestId, // Pass the new requestId
+        distance,
         message: `User ${requesterUsername} has requested your parking spot!`
       });
       res.status(200).json({ message: 'Request sent successfully.', requestId });
