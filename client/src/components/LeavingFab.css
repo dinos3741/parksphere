@@ -25,6 +25,10 @@
   background-color: #8e44ad; /* Darker Lighter Purple */
   transform: translateX(-50%) translateY(-2px);
 }
+
+.leaving-fab:active {
+  transform: translateX(-50%) scale(0.95);
+}
 /* Overlay styles */
 .leaving-overlay-backdrop {
   position: fixed;
