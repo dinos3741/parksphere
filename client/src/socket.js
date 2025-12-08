@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import { emitter } from './emitter';
 
-const socket = io('http://localhost:3001');
+const socket = io('http://192.168.1.70:3001');
 
 socket.on('newParkingSpot', (data) => emitter.emit('newParkingSpot', data));
 socket.on('spotDeleted', (data) => emitter.emit('spotDeleted', data));
