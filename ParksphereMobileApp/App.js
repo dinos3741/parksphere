@@ -698,6 +698,7 @@ setCurrentUsername(data.username);
         spotData={spotToEdit}
         onSave={handleSaveEditedSpot}
       />
+    </>
   );
 }
 
