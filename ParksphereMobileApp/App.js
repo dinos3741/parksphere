@@ -241,6 +241,7 @@ export default function App() {
     socket.current.on('connect', () => {
       console.log('Connected to Socket.IO server!');
       if (userId && currentUsername) {
+        console.log(`Emitting register event for userId: ${userId}, username: ${currentUsername}`);
         socket.current.emit('register', { userId, username: currentUsername });
       }
     });
@@ -264,6 +265,12 @@ export default function App() {
       setParkingSpots((prevSpots) =>
         prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
       );
+    });
+
+    socket.current.on('spotRequest', (data) => {
+      console.log('Spot request received:', data);
+      Alert.alert('Incoming Spot Request', data.message);
+      addNotification(data.message);
     });
 
     socket.current.on('requestResponse', (data) => {
