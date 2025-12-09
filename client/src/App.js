@@ -678,6 +678,18 @@ function MainAppContent() {
 
 
   useEffect(() => {
+    const handleSpotDeclared = () => {
+      handleNewSpot();
+    };
+
+    emitter.on('spotDeclared', handleSpotDeclared);
+
+    return () => {
+      emitter.off('spotDeclared', handleSpotDeclared);
+    };
+  }, [handleNewSpot]);
+
+  useEffect(() => {
     const handleRequestCancelled = (data) => {
       const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
       addNotification(message, 'purple');

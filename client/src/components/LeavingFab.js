@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { emitter } from '../emitter'; // Import the emitter
 import './LeavingFab.css';
 
 const presets = [1, 2, 5, 10]; // minutes
@@ -64,6 +65,7 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
         const responseData = await response.json(); // Parse JSON response
         addNotification(`Parking spot ${responseData.spotId} declared successfully! You are leaving in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`, 'default');
         setPinnedLocation(null); // Clear the pin from the map
+        emitter.emit('spotDeclared'); // Emit event to refresh spots
         // The socket.io 'newParkingSpot' event on the server will handle map updates
       } else if (response.status === 409) { // Handle 409 Conflict specifically
         const errorData = await response.json();
