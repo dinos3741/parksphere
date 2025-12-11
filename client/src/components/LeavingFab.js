@@ -4,7 +4,7 @@ import './LeavingFab.css';
 const presets = [1, 2, 5, 10]; // minutes
 
 // Accept new props: userLocation, currentUserCarType, currentUserId
-const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation, pendingRequests }) => {
+const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotification, setPinDropMode, setShowLeavingOverlay, showLeavingOverlay, setPinnedLocation, pinnedLocation, pendingRequests, hasDeclaredSpot }) => {
 
   const hasPendingRequests = pendingRequests && pendingRequests.length > 0;
   const [isAnimating, setIsAnimating] = useState(false);
@@ -82,10 +82,10 @@ const LeavingFab = ({ userLocation, currentUserCarType, currentUserId, addNotifi
   return (
     <>
       <button
-        className={`leaving-fab ${hasPendingRequests ? 'disabled' : ''} ${isAnimating ? 'logo-animate' : ''}`}
+        className={`leaving-fab ${hasPendingRequests || hasDeclaredSpot ? 'disabled' : ''} ${isAnimating ? 'logo-animate' : ''}`}
         onClick={handleFabClick}
-        disabled={hasPendingRequests}
-        title={hasPendingRequests ? "You cannot declare a new spot while you have a pending request." : "Declare a new spot"}
+        disabled={hasPendingRequests || hasDeclaredSpot}
+        title={hasPendingRequests ? "You cannot declare a new spot while you have a pending request." : hasDeclaredSpot ? "You have already declared a spot." : "Declare a new spot"}
       >
         I'm leaving
       </button>

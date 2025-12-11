@@ -81,6 +81,7 @@ function MainAppContent() {
   const navigate = useNavigate();
   const [spotRequests, setSpotRequests] = useState([]);
   const [isLogoAnimating, setIsLogoAnimating] = useState(false);
+  const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
 
   const socket = useRef(null);
 
@@ -690,6 +691,15 @@ function MainAppContent() {
     }
   }, []);
 
+  useEffect(() => {
+    if (currentUserId && filteredParkingSpots.length > 0) {
+      const userHasDeclaredSpot = filteredParkingSpots.some(spot => spot.user_id === currentUserId);
+      setHasDeclaredSpot(userHasDeclaredSpot);
+    } else {
+      setHasDeclaredSpot(false);
+    }
+  }, [filteredParkingSpots, currentUserId]);
+
   const handleLogoClick = () => {
     setIsLogoAnimating(true);
     setTimeout(() => {
@@ -778,6 +788,7 @@ function MainAppContent() {
           setPinnedLocation={setPinnedLocation}
           pinnedLocation={pinnedLocation}
           pendingRequests={pendingRequests}
+          hasDeclaredSpot={hasDeclaredSpot}
         />
         {showEditModal && spotToEdit && (
           <EditSpotModal
