@@ -660,6 +660,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         unreadMessages={unreadMessages}
         userLocation={appUserLocation}
         addNotification={appAddNotification}
+        currentTime={currentTime}
       />
 
       {showDeleteConfirmationModal && (

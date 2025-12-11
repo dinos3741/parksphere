@@ -14,7 +14,7 @@ import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 import DistanceWarningModal from './DistanceWarningModal';
 import { getDistance } from '../utils/geoUtils';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages, userLocation, addNotification }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages, userLocation, addNotification, currentTime }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -75,16 +75,12 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
 
   useEffect(() => {
     if (spot) {
-      const interval = setInterval(() => {
-        const remainingTime = formatRemainingTime(spot.declared_at, spot.time_to_leave);
-        if (remainingTime === 'Expired') {
-          onClose();
-        }
-      }, 1000);
-
-      return () => clearInterval(interval);
+      const remainingTime = formatRemainingTime(spot.declared_at, spot.time_to_leave);
+      if (remainingTime === 'Expired') {
+        onClose();
+      }
     }
-  }, [spot, formatRemainingTime, onClose]);
+  }, [spot, formatRemainingTime, onClose, currentTime]);
 
   const handleArrivedClick = () => {
     if (!userLocation || !spot) {
