@@ -537,7 +537,7 @@ function MainAppContent() {
         time_to_leave: spot.time_to_leave,
         price: parseFloat(spot.price),
         comments: spot.comments || '',
-        isExactLocation: spot.isExactLocation,
+        isExactLocation: spot.user_id === currentUserId,
         is_free: spot.is_free,
         declared_at: spot.declared_at,
         cost_type: spot.cost_type,
