@@ -211,6 +211,7 @@ function MainAppContent() {
                 declared_car_type: updatedSpotFromServer.declared_car_type,
                 status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
                 is_free: updatedSpotFromServer.cost_type === 'free',
+                isExactLocation: updatedSpotFromServer.user_id === currentUserId,
               }
             : spot
         )
