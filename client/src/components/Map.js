@@ -542,8 +542,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
             return null;
           }
 
-          console.log('spot', spot, 'isExactLocation', spot.isExactLocation);
-
           const isOwner = spot.user_id === currentUserId;
           const isExactLocation = spot.isExactLocation; // Use the flag from the backend
           

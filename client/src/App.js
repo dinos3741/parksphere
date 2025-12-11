@@ -547,7 +547,7 @@ function MainAppContent() {
     } catch (error) {
       console.error('Error fetching parking spots:', error);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
