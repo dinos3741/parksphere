@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
+import io from 'socket.io-client';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
 
-
-import { emitRegister, emitUnregister, socket } from './socket';
 import Map from './components/Map';
 import Filter from './components/Filter';
-// import DeclareSpot from './components/DeclareSpot'; // Removed DeclareSpot import
 import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
@@ -18,23 +16,20 @@ import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
 import logo from './assets/images/logo.png';
 
-import ProfileModal from './components/ProfileModal'; // Import ProfileModal
+import ProfileModal from './components/ProfileModal';
 import SettingsModal from './components/SettingsModal';
 import NotificationLog from './components/NotificationLog';
-import AcceptedRequestModal from './components/AcceptedRequestModal'; // Import AcceptedRequestModal
+import AcceptedRequestModal from './components/AcceptedRequestModal';
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import ChatSideDrawer from './components/ChatSideDrawer';
 import MessagesSideDrawer from './components/MessagesSideDrawer';
 
-
-
-import { emitter } from './emitter';
 import newRequestSound from './assets/sounds/new-request.wav';
 import removeRequestSound from './assets/sounds/remove-request.wav';
 import acceptedRequestSound from './assets/sounds/accepted-request.wav';
 import arrivedSound from './assets/sounds/arrived.wav';
 import RatingModal from './components/RatingModal';
-import RequesterDetailsModal from './components/RequesterDetailsModal'; // Import RequesterDetailsModal
+import RequesterDetailsModal from './components/RequesterDetailsModal';
 import SearchDropdown from './components/SearchDropdown';
 import './App.css';
 
@@ -42,18 +37,10 @@ function MainAppContent() {
   const [isChatOpen, setChatOpen] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
   const [isMessagesDrawerOpen, setIsMessagesDrawerOpen] = useState(false);
-
-
-
-  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterDetailsModal
-  const [selectedRequester, setSelectedRequester] = useState(null); // State to hold requester data
-
-  const handleShowRequesterDetails = useCallback((requesterData) => {
-    setSelectedRequester(requesterData);
-    setShowRequesterDetailsModal(true);
-  }, []);
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
+  const [selectedRequester, setSelectedRequester] = useState(null);
   const [chatRecipient, setChatRecipient] = useState(null);
-  const [allChatMessages, setAllChatMessages] = useState({}); // Stores messages for all chats
+  const [allChatMessages, setAllChatMessages] = useState({});
   const [chatInput, setChatInput] = useState('');
   const [unreadMessages, setUnreadMessages] = useState({});
   const audioContextRef = useRef(null);
@@ -61,6 +48,260 @@ function MainAppContent() {
   const removeRequestAudioBufferRef = useRef(null);
   const acceptedRequestAudioBufferRef = useRef(null);
   const arrivedAudioBufferRef = useRef(null);
+  const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedRadius, setSelectedRadius] = useState(5);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false);
+  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
+  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [userToRate, setUserToRate] = useState(null);
+  const [acceptedRequestOwnerUsername, setAcceptedRequestOwnerUsername] = useState('');
+  const [profileUserData, setProfileUserData] = useState(null);
+  const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [spotToEdit, setSpotToEdit] = useState(null);
+  const [acceptedSpot, setAcceptedSpot] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUsername, setCurrentUsername] = useState(null);
+  const [currentUserCarType, setCurrentUserCarType] = useState(null);
+  const [notificationLog, setNotificationLog] = useState(() => {
+    const savedLog = sessionStorage.getItem('notificationLog');
+    return savedLog ? JSON.parse(savedLog) : [];
+  });
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [isPinDropMode, setPinDropMode] = useState(false);
+  const [pinnedLocation, setPinnedLocation] = useState(null);
+  const [showLeavingOverlay, setShowLeavingOverlay] = useState(false);
+  const requesterEta = null;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+  const [spotRequests, setSpotRequests] = useState([]);
+  const [isLogoAnimating, setIsLogoAnimating] = useState(false);
+
+  const socket = useRef(null);
+
+  const formatTimestamp = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  };
+
+  const addNotification = useCallback((message, color = 'default') => {
+    const timestamp = formatTimestamp(new Date());
+    setNotificationLog(prevLog => [...prevLog, { id: Date.now(), timestamp, message, color }]);
+  }, []);
+
+  const handleLogout = useCallback(() => {
+    if (socket.current && currentUserId) {
+      socket.current.emit('unregister', currentUserId);
+    }
+    logout();
+    navigate('/');
+    setNotificationLog([]);
+  }, [currentUserId, navigate, setNotificationLog]);
+
+  const handleShowRequesterDetails = useCallback((requesterData) => {
+    setSelectedRequester(requesterData);
+    setShowRequesterDetailsModal(true);
+  }, []);
+
+  const handleNewSpot = useCallback((newSpotFromServer) => {
+    const formattedSpot = {
+      id: newSpotFromServer.id,
+      user_id: newSpotFromServer.user_id,
+      username: newSpotFromServer.username,
+      lat: parseFloat(newSpotFromServer.latitude),
+      lng: parseFloat(newSpotFromServer.longitude),
+      status: newSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+      time_to_leave: newSpotFromServer.time_to_leave,
+      price: parseFloat(newSpotFromServer.price),
+      comments: newSpotFromServer.comments || '',
+      isExactLocation: newSpotFromServer.user_id === currentUserId,
+      is_free: newSpotFromServer.cost_type === 'free',
+      declared_at: newSpotFromServer.declared_at,
+      cost_type: newSpotFromServer.cost_type,
+    };
+    setFilteredParkingSpots(prevSpots => [...prevSpots, formattedSpot]);
+  }, [currentUserId]);
+
+  const handleSpotDeleted = useCallback((data) => {
+    const spotIdToDelete = data?.spotId;
+    if (spotIdToDelete) {
+      setFilteredParkingSpots(prevSpots => prevSpots.filter(spot => spot.id !== spotIdToDelete));
+      const { ownerId, requesterIds } = data;
+      const participants = [ownerId, ...(requesterIds || [])];
+      if (requesterIds && requesterIds.includes(currentUserId)) {
+        setPendingRequests(prevRequests => prevRequests.filter(id => id !== parseInt(spotIdToDelete, 10)));
+      }
+      setAllChatMessages(prevAllMessages => {
+        const newAllChatMessages = { ...prevAllMessages };
+        participants.forEach(userId => {
+          delete newAllChatMessages[userId];
+        });
+        return newAllChatMessages;
+      });
+      setUnreadMessages(prevUnread => {
+        const newUnreadMessages = { ...prevUnread };
+        participants.forEach(userId => {
+          delete newUnreadMessages[userId];
+        });
+        return newUnreadMessages;
+      });
+      if (chatRecipient && participants.includes(chatRecipient.id)) {
+        setChatOpen(false);
+        setChatRecipient(null);
+      }
+    }
+  }, [currentUserId, chatRecipient]);
+
+  useEffect(() => {
+    const token = getToken();
+    if (token) {
+      if (isTokenExpired(token)) {
+        logout();
+      } else {
+        try {
+          const decodedToken = jwtDecode(token);
+          setCurrentUserId(decodedToken.userId);
+          setCurrentUsername(decodedToken.username);
+          setCurrentUserCarType(decodedToken.carType);
+        } catch (error) {
+          console.error("Error decoding token:", error);
+          logout();
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    socket.current = io('http://localhost:3001');
+
+    socket.current.on('connect', () => {
+      if (currentUserId && currentUsername) {
+        socket.current.emit('register', { userId: currentUserId, username: currentUsername });
+      }
+    });
+
+    socket.current.on('newParkingSpot', handleNewSpot);
+    socket.current.on('spotDeleted', handleSpotDeleted);
+
+    // All other listeners
+    socket.current.on('spotUpdated', (updatedSpotFromServer) => {
+      setFilteredParkingSpots(prevSpots =>
+        prevSpots.map(spot =>
+          spot.id === updatedSpotFromServer.id
+            ? {
+                ...spot,
+                lat: parseFloat(updatedSpotFromServer.latitude),
+                lng: parseFloat(updatedSpotFromServer.longitude),
+                time_to_leave: updatedSpotFromServer.time_to_leave,
+                price: parseFloat(updatedSpotFromServer.price),
+                comments: updatedSpotFromServer.comments || '',
+                cost_type: updatedSpotFromServer.cost_type,
+                declared_at: updatedSpotFromServer.declared_at,
+                declared_car_type: updatedSpotFromServer.declared_car_type,
+                status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+                is_free: updatedSpotFromServer.cost_type === 'free',
+              }
+            : spot
+        )
+      );
+    });
+
+    socket.current.on('spotRequest', (data) => {
+      addNotification(data.message, 'blue');
+      playSound();
+      fetchPendingRequests();
+    });
+
+    socket.current.on('requestResponse', (data) => {
+      if (data.message.includes('ACCEPTED')) {
+        setAcceptedRequestOwnerUsername(data.ownerUsername);
+        setShowAcceptedRequestModal(true);
+        playSoundAcceptedRequest();
+      }
+      addNotification(data.message, 'default');
+      if (data.spot) {
+        setAcceptedSpot(data.spot);
+        setFilteredParkingSpots(prevSpots => {
+          const index = prevSpots.findIndex(s => s.id === data.spot.id);
+          if (index !== -1) {
+            const newSpots = [...prevSpots];
+            newSpots[index] = {
+              ...newSpots[index],
+              lat: parseFloat(data.spot.latitude),
+              lng: parseFloat(data.spot.longitude),
+              isExactLocation: true,
+            };
+            return newSpots;
+          }
+          return prevSpots;
+        });
+      }
+      if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
+        setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
+      } else if (data.requestId) {
+        if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
+          setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]);
+        }
+      }
+    });
+
+    socket.current.on('requesterArrived', (data) => {
+      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      addNotification(message, 'default');
+      playSoundArrived();
+      setArrivalConfirmationData(data);
+      setArrivalConfirmationModalOpen(true);
+    });
+
+    socket.current.on('requestCancelled', (data) => {
+      const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
+      addNotification(message, 'purple');
+      playSoundRemoveRequest();
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
+    });
+
+    socket.current.on('transactionComplete', (data) => {
+      fetchProfileData();
+      if (data.ownerId && data.ownerUsername) {
+        handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+      }
+    });
+
+    socket.current.on('privateMessage', (message) => {
+      const fromId = message.from;
+      const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
+      setAllChatMessages(prev => ({ ...prev, [fromId]: [...(prev[fromId] || []), messageWithTimestamp] }));
+      if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
+        setUnreadMessages(prev => ({ ...prev, [fromId]: (prev[fromId] || 0) + 1 }));
+      }
+    });
+
+    return () => {
+      socket.current.disconnect();
+    };
+  }, []); // This effect runs only once on mount
+
+  useEffect(() => {
+    if (socket.current && currentUserId && currentUsername) {
+      socket.current.emit('register', { userId: currentUserId, username: currentUsername });
+    }
+  }, [currentUserId, currentUsername]);
+
+
+  useEffect(() => {
+    sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
+  }, [notificationLog]);
+
   useEffect(() => {
     const initAudio = async () => {
       try {
@@ -68,15 +309,12 @@ function MainAppContent() {
         const response = await fetch(newRequestSound);
         const arrayBuffer = await response.arrayBuffer();
         audioBufferRef.current = await audioContextRef.current.decodeAudioData(arrayBuffer);
-
         const removeRequestResponse = await fetch(removeRequestSound);
         const removeRequestArrayBuffer = await removeRequestResponse.arrayBuffer();
         removeRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(removeRequestArrayBuffer);
-
         const acceptedRequestResponse = await fetch(acceptedRequestSound);
         const acceptedRequestArrayBuffer = await acceptedRequestResponse.arrayBuffer();
         acceptedRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(acceptedRequestArrayBuffer);
-
         const arrivedResponse = await fetch(arrivedSound);
         const arrivedArrayBuffer = await arrivedResponse.arrayBuffer();
         arrivedAudioBufferRef.current = await audioContextRef.current.decodeAudioData(arrivedArrayBuffer);
@@ -135,9 +373,6 @@ function MainAppContent() {
     }
   }, []);
 
-  const [selectedFilter, setSelectedFilter] = useState('all');
-  const [selectedRadius, setSelectedRadius] = useState(5);
-
   useEffect(() => {
     const unlockAudio = () => {
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
@@ -145,58 +380,11 @@ function MainAppContent() {
       }
       document.body.removeEventListener('click', unlockAudio);
     };
-
     document.body.addEventListener('click', unlockAudio);
-
     return () => {
       document.body.removeEventListener('click', unlockAudio);
     };
   }, []);
-  const [showProfileModal, setShowProfileModal] = useState(false); // State for ProfileModal
-  const [showAcceptedRequestModal, setShowAcceptedRequestModal] = useState(false); // State for AcceptedRequestModal
-  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
-  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [userToRate, setUserToRate] = useState(null);
-  const [acceptedRequestOwnerUsername, setAcceptedRequestOwnerUsername] = useState(''); // State for the username of the owner who accepted the request
-  const [profileUserData, setProfileUserData] = useState(null); // State for profile data
-  const [filteredParkingSpots, setFilteredParkingSpots] = useState([]);
-  const [userLocation, setUserLocation] = useState(null);
-  // const [showDeclareSpotForm, setShowDeclareSpotForm] = useState(false); // Removed DeclareSpotForm state
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [spotToEdit, setSpotToEdit] = useState(null);
-  const [acceptedSpot, setAcceptedSpot] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [currentUsername, setCurrentUsername] = useState(null);
-  const [currentUserCarType, setCurrentUserCarType] = useState(null);
-  const [notificationLog, setNotificationLog] = useState(() => {
-    const savedLog = sessionStorage.getItem('notificationLog');
-    return savedLog ? JSON.parse(savedLog) : [];
-  });
-
-  const formatTimestamp = (date) => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-  };
-  const [pendingRequests, setPendingRequests] = useState([]); // New state for pending requests
-  const [isPinDropMode, setPinDropMode] = useState(false);
-  const [pinnedLocation, setPinnedLocation] = useState(null);
-  const [showLeavingOverlay, setShowLeavingOverlay] = useState(false);
-  const requesterEta = null;
-
-  useEffect(() => {
-    sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
-  }, [notificationLog]);
-
-  const addNotification = useCallback((message, color = 'default') => {
-    const timestamp = formatTimestamp(new Date());
-    setNotificationLog(prevLog => [...prevLog, { id: Date.now(), timestamp, message, color }]);
-  }, [setNotificationLog]);
 
   const [expiredNotifiedSpots, setExpiredNotifiedSpots] = useState([]);
 
@@ -213,26 +401,16 @@ function MainAppContent() {
           }
         }
       });
-    }, 1000); // Check every second
-
+    }, 1000);
     return () => clearInterval(interval);
   }, [filteredParkingSpots, expiredNotifiedSpots, addNotification]);
 
-  // Hamburger menu state
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const dropdownRef = useRef(null); // Create a ref for the dropdown
-
-  const navigate = useNavigate();
-
-  // Function to handle clicks outside the dropdown
   const handleClickOutside = useCallback((event) => {
     if (dropdownRef.current && !dropdownRef.current.contains(event.target) && !event.target.closest('.hamburger-menu')) {
       setMenuOpen(false);
     }
   }, []);
 
-  // Effect to add and remove the event listener
   useEffect(() => {
     if (menuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
@@ -247,9 +425,7 @@ function MainAppContent() {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
         const errorText = await response.text();
@@ -263,9 +439,15 @@ function MainAppContent() {
       });
     } catch (error) {
       console.error('Error fetching profile data:', error);
-      setProfileUserData(null); // Clear data on error
+      setProfileUserData(null);
     }
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      fetchProfileData();
+    }
+  }, [currentUserId, fetchProfileData]);
 
   const handleCarDetailsUpdated = useCallback(() => {
     const token = getToken();
@@ -275,7 +457,7 @@ function MainAppContent() {
         setCurrentUserId(decodedToken.userId);
         setCurrentUsername(decodedToken.username);
         setCurrentUserCarType(decodedToken.carType);
-        fetchProfileData(); // Refresh profile data as well
+        fetchProfileData();
       } catch (error) {
         console.error("Error decoding token after car details update:", error);
         logout();
@@ -288,9 +470,7 @@ function MainAppContent() {
     try {
       const token = getToken();
       const response = await fetch(`http://localhost:3001/api/user/pending-requests`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -301,10 +481,6 @@ function MainAppContent() {
       console.error('Error fetching pending requests:', error);
     }
   }, [currentUserId]);
-
-  // const handleShowDeclareSpotForm = useCallback(() => {
-  //   setShowDeclareSpotForm(true);
-  // }, []); // Removed handleShowDeclareSpotForm
 
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
@@ -345,11 +521,7 @@ function MainAppContent() {
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-
-      const response = await fetch(url, {
-        headers: headers,
-        cache: 'no-store',
-      });
+      const response = await fetch(url, { headers: headers, cache: 'no-store' });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -376,48 +548,14 @@ function MainAppContent() {
   }, []);
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      if (isTokenExpired(token)) {
-        logout();
-      } else {
-        try {
-          const decodedToken = jwtDecode(token);
-          setCurrentUserId(decodedToken.userId);
-          setCurrentUsername(decodedToken.username);
-          setCurrentUserCarType(decodedToken.carType);
-          fetchProfileData(); // Fetch profile data after setting user info
-        } catch (error) {
-          console.error("Error decoding token:", error);
-          logout();
-        }
-      }
-    }
-  }, [fetchProfileData]);
-
-  useEffect(() => {
     const interval = setInterval(() => {
       const token = getToken();
       if (token && isTokenExpired(token)) {
         logout();
       }
-    }, 60000); // Check every minute
-
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    const handleRegister = () => {
-      if (currentUserId && currentUsername) {
-        emitRegister({ userId: currentUserId, username: currentUsername });
-      }
-    };
-    handleRegister();
-    socket.on('connect', handleRegister);
-    return () => {
-      socket.off('connect', handleRegister);
-    };
-  }, [currentUserId, currentUsername]);
 
   useEffect(() => {
     fetchParkingSpots(selectedFilter, currentUserCarType);
@@ -432,192 +570,9 @@ function MainAppContent() {
     setChatRecipient(null);
   }, []);
 
-  const handleNewSpot = useCallback(() => {
-    fetchParkingSpots(selectedFilter, currentUserCarType);
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
-
-  useEffect(() => {
-    const handleSpotDeleted = (data) => {
-      fetchParkingSpots(selectedFilter, currentUserCarType);
-
-      // The data can be either a spotId or an object with spotId, ownerId, and requesterIds
-      if (typeof data === 'object' && data.spotId) {
-        const { spotId, ownerId, requesterIds } = data;
-        const participants = [ownerId, ...(requesterIds || [])];
-
-        if (requesterIds && requesterIds.includes(currentUserId)) {
-          setPendingRequests(prevRequests => prevRequests.filter(id => id !== parseInt(spotId, 10)));
-        }
-
-        setAllChatMessages(prevAllMessages => {
-          const newAllChatMessages = { ...prevAllMessages };
-          participants.forEach(userId => {
-            delete newAllChatMessages[userId];
-          });
-          return newAllChatMessages;
-        });
-
-        setUnreadMessages(prevUnread => {
-          const newUnreadMessages = { ...prevUnread };
-          participants.forEach(userId => {
-            delete newUnreadMessages[userId];
-          });
-          return newUnreadMessages;
-        });
-
-        // If the open chat is with one of the participants, close it
-        if (chatRecipient && participants.includes(chatRecipient.id)) {
-          handleCloseChat();
-        }
-      }
-    };
-
-    socket.on('newParkingSpot', handleNewSpot);
-    socket.on('spotDeleted', handleSpotDeleted);
-
-    return () => {
-      socket.off('newParkingSpot', handleNewSpot);
-      socket.off('spotDeleted', handleSpotDeleted);
-    };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType, chatRecipient, handleCloseChat, currentUserId, handleNewSpot]);
-
-  useEffect(() => {
-    const handleSpotUpdated = (updatedSpotFromServer) => {
-      setFilteredParkingSpots(prevSpots => {
-        return prevSpots.map(spot => {
-          if (spot.id === updatedSpotFromServer.id) {
-            return {
-              ...spot,
-              lat: parseFloat(updatedSpotFromServer.latitude),
-              lng: parseFloat(updatedSpotFromServer.longitude),
-              time_to_leave: updatedSpotFromServer.time_to_leave,
-              price: parseFloat(updatedSpotFromServer.price),
-              comments: updatedSpotFromServer.comments || '',
-              cost_type: updatedSpotFromServer.cost_type,
-              declared_at: updatedSpotFromServer.declared_at,
-              declared_car_type: updatedSpotFromServer.declared_car_type,
-              status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
-              is_free: updatedSpotFromServer.cost_type === 'free',
-            };
-          }
-          return spot;
-        });
-      });
-    };
-
-    socket.on('spotUpdated', handleSpotUpdated);
-
-    return () => {
-      socket.off('spotUpdated', handleSpotUpdated);
-    };
-  }, [setFilteredParkingSpots]);
-
-  const [spotRequests, setSpotRequests] = useState([]);
-  const handleSpotRequest = useCallback(async (data) => {
-    addNotification(data.message, 'blue');
-    playSound();
-    fetchPendingRequests();
-    emitter.emit('new-request');
-
-    try {
-      const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/users/${data.requesterId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch requester details');
-      }
-      const requesterData = await response.json();
-
-              const newRequest = {
-                id: data.requestId,
-                spotId: data.spotId,
-                requester_id: data.requesterId,
-                requested_at: new Date().toISOString(),
-                requester_username: data.requesterUsername,
-                requester_car_type: requesterData.car_type,
-                requester_avatar_url: requesterData.avatar_url,
-                distance: data.distance,
-                status: 'pending',
-              };
-              setSpotRequests(prevRequests => [...prevRequests, newRequest]);
-            } catch (error) {
-              console.error('Error fetching requester details:', error);
-            }  }, [addNotification, playSound, fetchPendingRequests]);
-
-  useEffect(() => {
-    socket.on('spotRequest', handleSpotRequest);
-
-    return () => {
-      socket.off('spotRequest', handleSpotRequest);
-    };
-  }, [handleSpotRequest]);
-
-  useEffect(() => {
-    const handleRequestResponse = (data) => {
-      if (data.message.includes('ACCEPTED')) {
-        setAcceptedRequestOwnerUsername(data.ownerUsername);
-        setShowAcceptedRequestModal(true);
-        playSoundAcceptedRequest();
-      }
-      addNotification(data.message, 'default');
-      if (data.spot) {
-        setAcceptedSpot(data.spot);
-        setFilteredParkingSpots(prevSpots => {
-          const index = prevSpots.findIndex(s => s.id === data.spot.id);
-          if (index !== -1) {
-            const newSpots = [...prevSpots];
-            newSpots[index] = {
-              ...newSpots[index],
-              lat: parseFloat(data.spot.latitude),
-              lng: parseFloat(data.spot.longitude),
-              isExactLocation: true,
-            };
-            return newSpots;
-          }
-          return prevSpots;
-        });
-      }
-      // New logic to update pendingRequests based on request status
-      if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
-        setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
-        emitter.emit('request-rejected', { spotId: data.spotId, ownerUsername: data.ownerUsername });
-      } else if (data.requestId) { // Assuming requestId is present for relevant responses
-        // If the message indicates reactivation or acceptance, add to pending
-        if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
-          setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]); // Use spotId or spot.id
-        }
-      }
-    };
-
-    socket.on('requestResponse', handleRequestResponse);
-
-    return () => {
-      socket.off('requestResponse', handleRequestResponse);
-    };
-  }, [addNotification, playSoundAcceptedRequest]);
-
-  useEffect(() => {
-    const handleRequesterArrived = (data) => {
-      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-      addNotification(message, 'default');
-      playSoundArrived();
-      setArrivalConfirmationData(data);
-      setArrivalConfirmationModalOpen(true);
-    };
-
-    socket.on('requesterArrived', handleRequesterArrived);
-
-    return () => {
-      socket.off('requesterArrived', handleRequesterArrived);
-    };
-  }, [addNotification, playSoundArrived]);
-
   const handleConfirmArrival = () => {
     if (arrivalConfirmationData) {
-      socket.emit('confirm-transaction', {
+      socket.current.emit('confirm-transaction', {
         spotId: arrivalConfirmationData.spotId,
         requesterId: arrivalConfirmationData.requesterId,
       });
@@ -635,7 +590,6 @@ function MainAppContent() {
 
   const handleNotIdentified = () => {
     if (arrivalConfirmationData) {
-      // For now, just log it and notify the owner.
       console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
       addNotification(`You have indicated that the requester was not identified.`, 'default');
     }
@@ -650,22 +604,16 @@ function MainAppContent() {
 
   const handleRate = async (rating) => {
     if (!userToRate) return;
-
     try {
       const token = getToken();
       const response = await fetch(`http://localhost:3001/api/users/rate`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
       });
-
       if (!response.ok) {
         throw new Error('Failed to submit rating');
       }
-
       addNotification('Rating submitted successfully!', 'green');
       setShowRatingModal(false);
       setUserToRate(null);
@@ -675,178 +623,33 @@ function MainAppContent() {
     }
   };
 
-
-
-  useEffect(() => {
-    const handleSpotDeclared = () => {
-      handleNewSpot();
-    };
-
-    emitter.on('spotDeclared', handleSpotDeclared);
-
-    return () => {
-      emitter.off('spotDeclared', handleSpotDeclared);
-    };
-  }, [handleNewSpot]);
-
-  useEffect(() => {
-    const handleRequestCancelled = (data) => {
-      const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
-      addNotification(message, 'purple');
-      playSoundRemoveRequest();
-      emitter.emit('request-cancelled-for-owner', data.requestId);
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
-    };
-
-    socket.on('requestCancelled', handleRequestCancelled);
-
-    const handleRequestRejected = (requestId) => {
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== requestId));
-    };
-
-    emitter.on('request-rejected-by-owner', handleRequestRejected);
-
-    return () => {
-      socket.off('requestCancelled', handleRequestCancelled);
-      emitter.off('request-rejected-by-owner', handleRequestRejected);
-    };
-  }, [addNotification, playSoundRemoveRequest]);
-
-
-
-  useEffect(() => {
-    const handleTransactionComplete = (data) => {
-      fetchProfileData();
-      if (data.ownerId && data.ownerUsername) {
-        handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
-      }
-      emitter.emit('closeOwnerDrawer');
-    };
-
-    socket.on('transactionComplete', handleTransactionComplete);
-
-    return () => {
-      socket.off('transactionComplete', handleTransactionComplete);
-    };
-  }, [fetchProfileData, handleRateRequester]);
-
-  useEffect(() => {
-    const handleRequestAcceptedOrDeclined = (data) => {
-      // Re-fetch spot requests for the currently open spot (if any)
-      // This assumes that when a request is accepted/declined, the owner's drawer is open
-      // and we need to update the requests list for that specific spot.
-      // The spotRequests are fetched in handleOwnerSpotClick in Map.js
-      // We need a way to trigger that fetch again or update the state directly.
-      // For simplicity, let's re-fetch all parking spots, which will also update the requests for the open drawer.
-      fetchParkingSpots(selectedFilter, currentUserCarType); // This will re-fetch all spots and their requests
-    };
-
-    socket.on('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
-
-    return () => {
-      socket.off('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
-    };
-  }, [fetchParkingSpots, selectedFilter, currentUserCarType]);
-
-  // Effect to handle welcome message from sessionStorage and emitter
-  useEffect(() => {
-    const checkAndDisplayWelcomeMessage = () => {
-      const welcomeMessage = sessionStorage.getItem('welcomeMessage');
-      if (welcomeMessage) {
-        addNotification(welcomeMessage, 'default');
-        sessionStorage.removeItem('welcomeMessage');
-      }
-    };
-
-    // Check on mount
-    checkAndDisplayWelcomeMessage();
-
-    // Listen for login-success event
-    emitter.on('login-success', checkAndDisplayWelcomeMessage);
-
-    return () => {
-      emitter.off('login-success', checkAndDisplayWelcomeMessage);
-    };
-  }, [addNotification]);
-
-  // Effect to clear notifications on logout
-  useEffect(() => {
-    const handleClearNotifications = () => {
-      setNotificationLog([]);
-    };
-
-    emitter.on('clear-notifications', handleClearNotifications);
-
-    return () => {
-      emitter.off('clear-notifications', handleClearNotifications);
-    };
-  }, [setNotificationLog]);
-
   const handleSendMessage = () => {
     if (chatInput.trim() && chatRecipient) {
       const newMessage = {
         from: currentUserId,
         to: chatRecipient.id,
         message: chatInput,
-        timestamp: new Date().toISOString(), // Add timestamp here
+        timestamp: new Date().toISOString(),
       };
-      socket.emit('privateMessage', newMessage);
-      setAllChatMessages((prevAllMessages) => ({
-        ...prevAllMessages,
-        [chatRecipient.id]: [...(prevAllMessages[chatRecipient.id] || []), newMessage],
-      }));
-      setChatInput(''); // Clear the input after sending
+      socket.current.emit('privateMessage', newMessage);
+      setAllChatMessages((prev) => ({ ...prev, [chatRecipient.id]: [...(prev[chatRecipient.id] || []), newMessage] }));
+      setChatInput('');
     }
   };
 
-  useEffect(() => {
-    const handlePrivateMessage = (message) => {
-      const fromId = message.from;
-      // Ensure the message object has a 'timestamp' property
-      const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
-      setAllChatMessages((prevAllMessages) => ({
-        ...prevAllMessages,
-        [fromId]: [...(prevAllMessages[fromId] || []), messageWithTimestamp],
-      }));
-
-      // If chat is not open with the sender, mark as unread
-      if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
-        setUnreadMessages((prevUnread) => ({
-          ...prevUnread,
-          [fromId]: (prevUnread[fromId] || 0) + 1,
-        }));
-      }
-    };
-
-    socket.on('privateMessage', handlePrivateMessage);
-
-    return () => {
-      socket.off('privateMessage', handlePrivateMessage);
-    };
-  }, [isChatOpen, chatRecipient]);
-
   const clearUnreadMessages = (userId) => {
-    setUnreadMessages((prevUnread) => {
-      const newUnread = { ...prevUnread };
+    setUnreadMessages((prev) => {
+      const newUnread = { ...prev };
       delete newUnread[userId];
       return newUnread;
     });
   };
 
-  const handleLogout = useCallback(() => {
-    if (currentUserId) {
-      emitUnregister(currentUserId);
-    }
-    logout();
-    navigate('/');
-  }, [currentUserId, navigate]);
-
   const handleOpenChat = useCallback((recipient) => {
     setChatRecipient(recipient);
     setChatOpen(true);
-    // Clear unread messages for this recipient
-    setUnreadMessages((prevUnread) => {
-      const newUnread = { ...prevUnread };
+    setUnreadMessages((prev) => {
+      const newUnread = { ...prev };
       delete newUnread[recipient.id];
       return newUnread;
     });
@@ -857,23 +660,18 @@ function MainAppContent() {
       const token = getToken();
       const response = await fetch(`http://localhost:3001/api/parkingspots/${spotId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
-
       addNotification(`Spot #${spotId} deleted successfully.`, 'green');
-      fetchParkingSpots(selectedFilter, currentUserCarType); // Re-fetch spots to update the map
     } catch (error) {
       console.error('Error deleting spot:', error);
       addNotification(`Failed to delete spot: ${error.message}`, 'red');
     }
-  }, [addNotification, fetchParkingSpots, selectedFilter, currentUserCarType]);
+  }, [addNotification]);
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -890,22 +688,19 @@ function MainAppContent() {
       console.log("Geolocation is not supported by this browser.");
       setUserLocation([51.505, -0.09]);
     }
-  }, [currentUserId]);
-
-  const [isLogoAnimating, setIsLogoAnimating] = useState(false);
+  }, []);
 
   const handleLogoClick = () => {
     setIsLogoAnimating(true);
     setTimeout(() => {
       setIsLogoAnimating(false);
-    }, 1000); // Animation duration
+    }, 1000);
   };
 
   return (
     <div className="App">
       <header className="App-header">
         <div className="logo-title-container">
-
           <img
             src={logo}
             className={`logo-img ${isLogoAnimating ? 'logo-animate' : ''}`}
@@ -917,20 +712,17 @@ function MainAppContent() {
             <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
           </div>
         </div>
-
         <div className="hamburger-menu" onClick={() => setMenuOpen(!menuOpen)}>
           <div className="bar"></div>
           <div className="bar"></div>
           <div className="bar"></div>
         </div>
-
         {menuOpen && (
-          <div className="hamburger-dropdown" ref={dropdownRef}> {/* Add ref here */}
+          <div className="hamburger-dropdown" ref={dropdownRef}>
             <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
             <button onClick={handleLogout}>Logout</button>
           </div>
         )}
-
       </header>
       
       <div className="main-content">
@@ -945,7 +737,6 @@ function MainAppContent() {
           setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
           unreadMessages={unreadMessages}
         />
-
         <div className="map-container">
           {userLocation ? (
             <Map
@@ -976,7 +767,6 @@ function MainAppContent() {
             <div>Loading map or getting your location...</div>
           )}
         </div>
-
         <LeavingFab
           userLocation={userLocation}
           currentUserCarType={currentUserCarType}
@@ -989,9 +779,6 @@ function MainAppContent() {
           pinnedLocation={pinnedLocation}
           pendingRequests={pendingRequests}
         />
-
-        {/* Removed DeclareSpot component rendering */}
-
         {showEditModal && spotToEdit && (
           <EditSpotModal
             spotData={spotToEdit}
@@ -1003,9 +790,7 @@ function MainAppContent() {
           />
         )}
       </div>
-
       <NotificationLog messages={notificationLog} />
-
       {currentUserId && (
         <MessagesSideDrawer
           isOpen={isMessagesDrawerOpen}
@@ -1016,7 +801,6 @@ function MainAppContent() {
           clearUnreadMessages={clearUnreadMessages}
         />
       )}
-
       {isChatOpen && (
         <ChatSideDrawer
           isOpen={isChatOpen}
@@ -1029,18 +813,15 @@ function MainAppContent() {
           onChatInputChange={setChatInput}
         />
       )}
-
       <footer className="App-footer">
         <p>Konstantinos Dimou &copy; 2025</p>
       </footer>
-
       {showAcceptedRequestModal && (
         <AcceptedRequestModal 
           onClose={() => setShowAcceptedRequestModal(false)} 
           ownerUsername={acceptedRequestOwnerUsername} 
         />
       )}
-
       {showProfileModal && (
         <ProfileModal
           onClose={() => setShowProfileModal(false)}
@@ -1050,7 +831,6 @@ function MainAppContent() {
           onCarDetailsUpdated={handleCarDetailsUpdated}
         />
       )}
-
       <ArrivalConfirmationModal
         isOpen={isArrivalConfirmationModalOpen}
         onClose={handleCloseArrivalModal}
@@ -1060,7 +840,6 @@ function MainAppContent() {
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
       />
-
       {showSettingsModal && (
         <SettingsModal 
           onClose={() => setShowSettingsModal(false)} 
@@ -1070,7 +849,6 @@ function MainAppContent() {
           onRadiusChange={setSelectedRadius} 
         />
       )}
-
       <>
         {showRatingModal && (
           <RatingModal
@@ -1080,7 +858,6 @@ function MainAppContent() {
             onRate={handleRate}
           />
         )}
-
         {showSearchUserModal && (
           <SearchDropdown
             isOpen={showSearchUserModal}
@@ -1089,7 +866,6 @@ function MainAppContent() {
             onUserSelect={handleShowRequesterDetails}
           />
         )}
-
         {showRequesterDetailsModal && selectedRequester && (
           <RequesterDetailsModal
             isOpen={showRequesterDetailsModal}

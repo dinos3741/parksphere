@@ -624,7 +624,12 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     );
     const newSpot = result.rows[0];
     await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
-    io.emit('newParkingSpot', newSpot); // Emit new spot event
+
+    const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    const username = userResult.rows[0].username;
+    const spotToEmit = { ...newSpot, username };
+
+    io.emit('newParkingSpot', spotToEmit); // Emit new spot event with username
     res.status(201).json({ message: 'Spot declared successfully!', spotId: newSpot.id });
   } catch (error) {
     console.error('Error declaring spot:', error);

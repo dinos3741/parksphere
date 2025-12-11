@@ -3,8 +3,8 @@ import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css'; // Import the new CSS file
 import L from 'leaflet';
-import { emitter } from '../emitter';
-import { socket } from '../socket';
+import emitter from '../utils/emitter';
+import socket from '../utils/socket';
 import SideDrawer from './SideDrawer';
 import RequesterSideDrawer from './RequesterSideDrawer';
 import DeleteConfirmationModal from './DeleteConfirmationModal'; // Import the new modal

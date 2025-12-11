@@ -8,8 +8,8 @@ import commentsIcon from '../assets/images/comments.png';
 import React, { useRef } from 'react';
 import './SideDrawer.css';
 
-import { socket } from '../socket';
-import { emitter } from '../emitter';
+import socket from '../utils/socket';
+import emitter from '../utils/emitter';
 
 const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages, onOpenRequesterDetails, onRateRequester }) => {
   const drawerRef = useRef(null);

@@ -8,7 +8,7 @@ import priceIcon from '../assets/images/price.png';
 import commentsIcon from '../assets/images/comments.png';
 import carIcon from '../assets/images/car.png';
 import plateIcon from '../assets/images/plate.png';
-import { emitter } from '../emitter';
+import emitter from '../utils/emitter';
 import OwnerDetailsModal from './OwnerDetailsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 import DistanceWarningModal from './DistanceWarningModal';

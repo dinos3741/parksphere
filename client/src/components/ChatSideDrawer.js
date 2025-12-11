@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { emitter } from '../emitter';
+import emitter from '../utils/emitter';
 import messageSound from '../assets/sounds/message-sound.wav';
 import './ChatSideDrawer.css';
 

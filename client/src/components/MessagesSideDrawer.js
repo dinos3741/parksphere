@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { sendAuthenticatedRequest } from '../utils/api'; // Corrected import path
-import { socket } from '../socket';
+import socket from '../utils/socket';
 import './MessagesSideDrawer.css';
 
 // Helper function to format the timestamp

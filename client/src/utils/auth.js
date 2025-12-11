@@ -1,6 +1,5 @@
 
 import { jwtDecode } from 'jwt-decode';
-import { emitter } from '../emitter';
 
 export const getToken = () => {
   return localStorage.getItem('token');
@@ -27,7 +26,6 @@ export const isTokenExpired = (token) => {
 export const logout = () => {
   removeToken();
   sessionStorage.removeItem('notificationLog'); // Clear notifications from session storage
-  emitter.emit('clear-notifications'); // Emit event to clear notifications in UI
   // You might want to redirect the user to the login page here
   window.location.href = '/login';
 };
