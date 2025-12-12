@@ -4,6 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import io from 'socket.io-client';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
+import emitter from './utils/emitter';
 
 import Map from './components/Map';
 import Filter from './components/Filter';
@@ -141,11 +142,14 @@ function MainAppContent() {
   const handleSpotDeleted = useCallback((data) => {
     const spotIdToDelete = data?.spotId;
     if (spotIdToDelete) {
-      setFilteredParkingSpots(prevSpots => prevSpots.filter(spot => spot.id !== spotIdToDelete));
+      const spotIdInt = parseInt(spotIdToDelete, 10);
+      setFilteredParkingSpots(prevSpots => prevSpots.filter(spot => spot.id !== spotIdInt));
       const { ownerId, requesterIds } = data;
       const participants = [ownerId, ...(requesterIds || [])];
-      if (requesterIds && requesterIds.includes(currentUserId)) {
-        setPendingRequests(prevRequests => prevRequests.filter(id => id !== parseInt(spotIdToDelete, 10)));
+      if (requesterIds && requesterIds.includes(currentUserIdRef.current)) {
+        setPendingRequests(prevRequests => prevRequests.filter(id => id !== spotIdInt));
+        addNotification(`Spot #${spotIdToDelete} is no longer available.`, 'red');
+        emitter.emit('spotDeleted', data);
       }
       setAllChatMessages(prevAllMessages => {
         const newAllChatMessages = { ...prevAllMessages };
@@ -166,7 +170,7 @@ function MainAppContent() {
         setChatRecipient(null);
       }
     }
-  }, [currentUserId, chatRecipient]);
+  }, [chatRecipient, addNotification]);
 
   useEffect(() => {
     const token = getToken();

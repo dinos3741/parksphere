@@ -153,7 +153,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
 
   useEffect(() => {
     const handleSpotDeletedEvent = (data) => {
-      console.log("spotDeleted event received:", data);
       setRequesterDrawerSpot(prevSpot => {
         if (prevSpot && prevSpot.id === parseInt(data.spotId, 10)) {
           return null;
