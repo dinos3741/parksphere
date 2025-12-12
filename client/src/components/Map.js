@@ -140,6 +140,15 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   }, [drawerSpot]);
 
   useEffect(() => {
+    if (requesterDrawerSpot) {
+      const spotExists = parkingSpots.some(spot => spot.id === requesterDrawerSpot.id);
+      if (!spotExists) {
+        setRequesterDrawerSpot(null);
+      }
+    }
+  }, [parkingSpots, requesterDrawerSpot]);
+
+  useEffect(() => {
     const handleCloseDrawer = () => {
       setDrawerSpot(null);
     };
@@ -150,23 +159,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
       emitter.off('closeOwnerDrawer', handleCloseDrawer);
     };
   }, []);
-
-  useEffect(() => {
-    const handleSpotDeletedEvent = (data) => {
-      setRequesterDrawerSpot(prevSpot => {
-        if (prevSpot && prevSpot.id === parseInt(data.spotId, 10)) {
-          return null;
-        }
-        return prevSpot;
-      });
-    };
-
-    emitter.on('spotDeleted', handleSpotDeletedEvent);
-
-    return () => {
-      emitter.off('spotDeleted', handleSpotDeletedEvent);
-    };
-  }, []); // Empty dependency array to ensure listener is set up once
 
 
 

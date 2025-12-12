@@ -144,12 +144,12 @@ function MainAppContent() {
     if (spotIdToDelete) {
       const spotIdInt = parseInt(spotIdToDelete, 10);
       setFilteredParkingSpots(prevSpots => prevSpots.filter(spot => spot.id !== spotIdInt));
+      emitter.emit('spotDeleted', data);
       const { ownerId, requesterIds } = data;
       const participants = [ownerId, ...(requesterIds || [])];
       if (requesterIds && requesterIds.includes(currentUserIdRef.current)) {
         setPendingRequests(prevRequests => prevRequests.filter(id => id !== spotIdInt));
         addNotification(`Spot #${spotIdToDelete} is no longer available.`, 'red');
-        emitter.emit('spotDeleted', data);
       }
       setAllChatMessages(prevAllMessages => {
         const newAllChatMessages = { ...prevAllMessages };
