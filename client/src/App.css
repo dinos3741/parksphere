@@ -13,6 +13,7 @@ body {
   background-position: center;
   background-repeat: no-repeat;
   min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -20,6 +21,8 @@ body {
 .main-content {
   flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 
@@ -80,7 +83,6 @@ body {
   flex-grow: 1;
   border: 2px solid #333; /* Border around the map */
   margin: 10px; /* Add some margin around the map */
-  height: 60vh; /* Give the map container a fixed height */
 }
 
 .filter-container {
