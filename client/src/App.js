@@ -114,6 +114,11 @@ function MainAppContent() {
     setShowRequesterDetailsModal(true);
   }, []);
 
+  const currentUserIdRef = useRef(currentUserId);
+  useEffect(() => {
+    currentUserIdRef.current = currentUserId;
+  }, [currentUserId]);
+
   const handleNewSpot = useCallback((newSpotFromServer) => {
     const formattedSpot = {
       id: newSpotFromServer.id,
@@ -125,13 +130,13 @@ function MainAppContent() {
       time_to_leave: newSpotFromServer.time_to_leave,
       price: parseFloat(newSpotFromServer.price),
       comments: newSpotFromServer.comments || '',
-      isExactLocation: newSpotFromServer.user_id === currentUserId,
+      isExactLocation: newSpotFromServer.user_id === currentUserIdRef.current,
       is_free: newSpotFromServer.cost_type === 'free',
       declared_at: newSpotFromServer.declared_at,
       cost_type: newSpotFromServer.cost_type,
     };
     setFilteredParkingSpots(prevSpots => [...prevSpots, formattedSpot]);
-  }, [currentUserId]);
+  }, []);
 
   const handleSpotDeleted = useCallback((data) => {
     const spotIdToDelete = data?.spotId;
@@ -669,6 +674,7 @@ function MainAppContent() {
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
       addNotification(`Spot #${spotId} deleted successfully.`, 'green');
+      setFilteredParkingSpots(prevSpots => prevSpots.filter(spot => spot.id !== spotId));
     } catch (error) {
       console.error('Error deleting spot:', error);
       addNotification(`Failed to delete spot: ${error.message}`, 'red');
