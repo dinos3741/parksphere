@@ -21,6 +21,7 @@ import TimeOptionsModal from './components/TimeOptionsModal'; // Import the new 
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
+import RequestsScreen from './components/RequestsScreen';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 
@@ -639,6 +640,8 @@ setCurrentUsername(data.username);
                     iconName = 'home';
                   } else if (route.name === 'Chat') {
                     iconName = 'comments';
+                  } else if (route.name === 'Requests') {
+                    iconName = 'list-alt';
                   } else if (route.name === 'Search') {
                     iconName = 'search';
                   } else if (route.name === 'Profile') {
@@ -655,6 +658,7 @@ setCurrentUsername(data.username);
             >
               <Tab.Screen name="Home" component={WrappedHomeScreen} />
               <Tab.Screen name="Chat" component={WrappedChatTab} />
+              <Tab.Screen name="Requests" component={RequestsScreen} />
               <Tab.Screen name="Search" component={SearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
