@@ -572,7 +572,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
                           console.error('Error fetching owner car details:', error);
                         }
                       } else {
-                        console.log("Setting requesterDrawerSpot from Marker click:", spot);
                         setRequesterDrawerSpot(spot);
                         setPopup(null); // Close any existing popup
                       }
@@ -591,7 +590,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
                       if (isOwner) {
                         handleOwnerSpotClick(spot);
                       } else {
-                        console.log("Setting requesterDrawerSpot from Circle click:", spot);
                         setRequesterDrawerSpot(spot);
                         setPopup(null); // Close any existing popup
                       }
