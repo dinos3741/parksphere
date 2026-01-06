@@ -505,6 +505,23 @@ function MainAppContent({ serverUrl }) {
     }
   }, [currentUserId]);
 
+  const fetchSpotRequests = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/user/spot-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setSpotRequests(data);
+    } catch (error) {
+      console.error('Error fetching spot requests:', error);
+    }
+  }, [currentUserId]);
+
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
     setShowEditModal(true);
