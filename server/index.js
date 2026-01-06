@@ -145,7 +145,13 @@ io.on('connection', (socket) => {
 
   socket.on('requester-arrived', async (data) => {
     const { spotId } = data;
-    const requesterId = Object.keys(userSockets).find(key => userSockets[key].socketId === socket.id);
+    let requesterId = null;
+    for (const userIdKey in userSockets) {
+      if (userSockets[userIdKey].some(s => s.socketId === socket.id)) {
+        requesterId = userIdKey;
+        break;
+      }
+    }
     if (!requesterId) return;
 
     try {

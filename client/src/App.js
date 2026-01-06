@@ -197,9 +197,12 @@ function MainAppContent({ serverUrl }) {
     socket.current = io('http://localhost:3001');
 
     socket.current.on('connect', () => {
-      console.log('Socket.IO client connected!'); // Re-added log
+      console.log('Socket.IO client connected!');
       if (currentUserId && currentUsername) {
+        console.log(`Attempting to register socket for user: ${currentUsername} (ID: ${currentUserId})`);
         socket.current.emit('register', { userId: currentUserId, username: currentUsername });
+      } else {
+        console.log('Socket.IO client connected, but currentUserId or currentUsername is not available yet.');
       }
     });
 

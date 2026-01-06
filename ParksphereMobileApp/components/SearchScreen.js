@@ -25,6 +25,7 @@ const SearchScreen = ({ token, serverUrl }) => {
         if (response.ok) {
           const data = await response.json();
           setInteractions(data);
+          console.log('Fetched interactions:', data); // Add this line
         } else {
           const errorText = await response.text();
           console.error('Failed to fetch interactions:', response.status, errorText);
