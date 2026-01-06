@@ -7,6 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
+import { Audio } from 'expo-av';
 import io from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
@@ -75,6 +76,27 @@ export default function App() {
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const socket = useRef(null);
   const mapViewRef = useRef(null);
+  const [sound, setSound] = useState();
+
+  async function playSound() {
+    console.log('Loading Sound');
+    const { sound } = await Audio.Sound.createAsync( require('./assets/sounds/new-request.wav')
+    );
+    setSound(sound);
+
+    console.log('Playing Sound');
+    await sound.playAsync();
+  }
+
+  useEffect(() => {
+    return sound
+      ? () => {
+          console.log('Unloading Sound');
+          sound.unloadAsync();
+        }
+      : undefined;
+  }, [sound]);
+
 
   useEffect(() => {
     async function loadFont() {
@@ -109,6 +131,8 @@ export default function App() {
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
   const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
   const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
+  const [spotRequests, setSpotRequests] = useState([]);
+  const [hasNewRequests, setHasNewRequests] = useState(false);
 
   const handleFabPress = () => {
     if (isAddingSpot) {
@@ -270,8 +294,10 @@ export default function App() {
 
     socket.current.on('spotRequest', (data) => {
       console.log('Spot request received:', data);
-      Alert.alert('Incoming Spot Request', data.message);
+      setSpotRequests(prevRequests => [...prevRequests, data]);
+      setHasNewRequests(true);
       addNotification(data.message);
+      playSound();
     });
 
     socket.current.on('requestResponse', (data) => {
@@ -521,6 +547,32 @@ setCurrentUsername(data.username);
     }
   };
 
+  const handleAcceptRequest = (request) => {
+    if (socket.current) {
+      socket.current.emit('acceptRequest', {
+        requestId: request.requestId,
+        requesterId: request.requesterId,
+        spotId: request.spotId,
+        ownerUsername: currentUsername,
+        ownerId: userId,
+      });
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== request.requestId));
+    }
+  };
+
+  const handleDeclineRequest = (request) => {
+    if (socket.current) {
+      socket.current.emit('declineRequest', {
+        requestId: request.requestId,
+        requesterId: request.requesterId,
+        spotId: request.spotId,
+        ownerUsername: currentUsername,
+        ownerId: userId,
+      });
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== request.requestId));
+    }
+  };
+
   const handleCenterMap = () => {
     if (mapViewRef.current && userLocation) {
       mapViewRef.current.animateToRegion({
@@ -587,6 +639,11 @@ setCurrentUsername(data.username);
     return <ChatTab {...props} userId={userId} token={token} socket={socket} />;
   }
 
+
+  function WrappedRequestsScreen(props) {
+    return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} />;
+  }
+
   function ProfileScreen() {
     if (isEditingProfile) {
       return (
@@ -635,6 +692,7 @@ setCurrentUsername(data.username);
               screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
                   let iconName;
+                  let showBadge = false;
 
                   if (route.name === 'Home') {
                     iconName = 'home';
@@ -642,13 +700,36 @@ setCurrentUsername(data.username);
                     iconName = 'comments';
                   } else if (route.name === 'Requests') {
                     iconName = 'list-alt';
+                    if (hasNewRequests) {
+                      showBadge = true;
+                    }
                   } else if (route.name === 'Search') {
                     iconName = 'search';
                   } else if (route.name === 'Profile') {
                     return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
                   }
 
-                  return <FontAwesome name={iconName} size={size} color={color} />;
+                  return (
+                    <View>
+                      <FontAwesome name={iconName} size={size} color={color} />
+                      {showBadge && (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            right: -6,
+                            top: -3,
+                            backgroundColor: 'red',
+                            borderRadius: 6,
+                            width: 12,
+                            height: 12,
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                          }}
+                        >
+                        </View>
+                      )}
+                    </View>
+                  );
                 },
                 tabBarActiveTintColor: 'tomato',
                 tabBarInactiveTintColor: 'gray',
@@ -658,7 +739,15 @@ setCurrentUsername(data.username);
             >
               <Tab.Screen name="Home" component={WrappedHomeScreen} />
               <Tab.Screen name="Chat" component={WrappedChatTab} />
-              <Tab.Screen name="Requests" component={RequestsScreen} />
+              <Tab.Screen 
+                name="Requests" 
+                component={WrappedRequestsScreen} 
+                listeners={{
+                  tabPress: (e) => {
+                    setHasNewRequests(false);
+                  },
+                }}
+              />
               <Tab.Screen name="Search" component={SearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>

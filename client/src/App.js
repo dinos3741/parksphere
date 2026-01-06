@@ -84,6 +84,8 @@ function MainAppContent() {
   const [isLogoAnimating, setIsLogoAnimating] = useState(false);
   const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
 
+  console.log('MainAppContent: After useState declarations.'); // NEW LOG HERE
+
   const socket = useRef(null);
 
   const formatTimestamp = (date) => {
@@ -195,9 +197,18 @@ function MainAppContent() {
     socket.current = io('http://localhost:3001');
 
     socket.current.on('connect', () => {
+      console.log('Socket.IO client connected!'); // Re-added log
       if (currentUserId && currentUsername) {
         socket.current.emit('register', { userId: currentUserId, username: currentUsername });
       }
+    });
+
+    socket.current.on('disconnect', () => {
+      console.log('Socket.IO client disconnected!'); // Re-added log
+    });
+
+    socket.current.on('connect_error', (error) => {
+      console.error('Socket.IO connection error:', error); // Re-added log
     });
 
     socket.current.on('newParkingSpot', handleNewSpot);
@@ -231,6 +242,7 @@ function MainAppContent() {
       addNotification(data.message, 'blue');
       playSound();
       fetchPendingRequests();
+      fetchSpotRequests(); // Call the new function
     });
 
     socket.current.on('requestResponse', (data) => {

@@ -523,6 +523,44 @@ app.get('/api/user/pending-requests', authenticateToken, async (req, res) => {
   }
 });
 
+app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
+  const ownerId = req.user.userId;
+
+  try {
+    const result = await pool.query(
+      `SELECT
+          r.id,
+          r.spot_id,
+          r.requester_id,
+          r.requested_at,
+          u.username AS requester_username,
+          u.car_type AS requester_car_type,
+          u.avatar_url AS requester_avatar_url,
+          r.distance::NUMERIC AS distance,
+          r.status
+       FROM
+          requests r
+       JOIN
+          parking_spots ps ON r.spot_id = ps.id
+       JOIN
+          users u ON r.requester_id = u.id
+       WHERE
+          ps.user_id = $1 AND (r.status = 'pending' OR r.status = 'accepted')
+       ORDER BY
+          r.requested_at DESC`,
+      [ownerId]
+    );
+    const formattedRows = result.rows.map(row => ({
+      ...row,
+      distance: parseFloat(row.distance) // Convert to number
+    }));
+    res.status(200).json(formattedRows);
+  } catch (error) {
+    console.error('Error fetching owner spot requests:', error);
+    res.status(500).send('Server error fetching owner spot requests.');
+  }
+});
+
 
 
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
