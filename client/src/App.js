@@ -668,7 +668,7 @@ function MainAppContent() {
     });
   };
 
-  const handleOpenChat = useCallback((recipient) => {
+  const handleOpenChat = useCallback(async (recipient) => { // Make it async
     setChatRecipient(recipient);
     setChatOpen(true);
     setUnreadMessages((prev) => {
@@ -676,6 +676,28 @@ function MainAppContent() {
       delete newUnread[recipient.id];
       return newUnread;
     });
+
+    // Fetch historical messages
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/messages/conversations/${recipient.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const historicalMessages = await response.json();
+        setAllChatMessages(prev => ({
+          ...prev,
+          [recipient.id]: historicalMessages.map(msg => ({
+            ...msg,
+            timestamp: msg.created_at // Use created_at from DB as timestamp
+          }))
+        }));
+      } else {
+        console.error('Failed to fetch historical messages:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching historical messages:', error);
+    }
   }, []);
 
   const handleDeleteSpot = useCallback(async (spotId) => {
