@@ -34,7 +34,7 @@ import RequesterDetailsModal from './components/RequesterDetailsModal';
 import SearchDropdown from './components/SearchDropdown';
 import './App.css';
 
-function MainAppContent() {
+function MainAppContent({ serverUrl }) {
   const [isChatOpen, setChatOpen] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
   const [isMessagesDrawerOpen, setIsMessagesDrawerOpen] = useState(false);
@@ -817,6 +817,7 @@ function MainAppContent() {
               onRateRequester={handleRateRequester}
               isMessagesDrawerOpen={isMessagesDrawerOpen}
               setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
+              serverUrl={serverUrl}
             />
           ) : (
             <div>Loading map or getting your location...</div>
@@ -948,7 +949,7 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <MainAppContent />
+              <MainAppContent serverUrl="http://localhost:3001" />
             </ProtectedRoute>
           }
         />

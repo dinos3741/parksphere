@@ -46,8 +46,15 @@ io.on('connection', (socket) => {
 
   socket.on('unregister', (userId) => {
     if (userId && userSockets[userId]) {
-      console.log(`Unregistering user ${userSockets[userId].username} (ID: ${userId})`);
-      delete userSockets[userId];
+      const sockets = userSockets[userId];
+      const index = sockets.findIndex(s => s.socketId === socket.id); // Find the specific socket
+      if (index !== -1) {
+        console.log(`Unregistering socket ${socket.id} for user (ID: ${userId})`);
+        sockets.splice(index, 1); // Remove only that socket
+        if (sockets.length === 0) { // If no more sockets for this user, remove the user entry
+          delete userSockets[userId];
+        }
+      }
     }
   });
 

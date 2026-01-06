@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -447,7 +447,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     console.log(`Attempting to send cancel request for spot ID: ${spotId}`);
 
     try {
-      const response = await fetch('/api/cancel-request', { // This endpoint needs to be created
+      const response = await fetch(`${serverUrl}/api/cancel-request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
