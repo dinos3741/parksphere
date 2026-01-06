@@ -283,6 +283,7 @@ export default function App() {
 
     socket.current.on('spotDeleted', ({ spotId }) => {
       setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
+      setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
     });
 
     socket.current.on('spotUpdated', (updatedSpot) => {
@@ -406,6 +407,22 @@ export default function App() {
       }
     };
   }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed, userId]); // Dependencies
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      parkingSpots.forEach(spot => {
+        const expirationTime = new Date(spot.declared_at).getTime() + spot.time_to_leave * 60 * 1000;
+        if (now > expirationTime) {
+          // Spot has expired
+          setParkingSpots(prevSpots => prevSpots.filter(s => s.id !== spot.id));
+          setSpotRequests(prevRequests => prevRequests.filter(req => req.spotId !== spot.id));
+        }
+      });
+    }, 1000); // Run every second
+
+    return () => clearInterval(interval);
+  }, [parkingSpots]);
 
   const handleLogin = (data) => {
     setToken(data.token);
