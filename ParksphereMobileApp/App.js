@@ -658,7 +658,7 @@ setCurrentUsername(data.username);
 
 
   function WrappedRequestsScreen(props) {
-    return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} />;
+    return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
   }
 
   function ProfileScreen() {

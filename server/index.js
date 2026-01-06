@@ -33,17 +33,15 @@ io.on('connection', (socket) => {
     const { userId, username } = payload;
     if (!userId) return;
 
-    // Remove any existing registration for this socket to prevent duplicates
-    for (const id in userSockets) {
-      if (userSockets[id].socketId === socket.id && id !== userId) {
-        console.log(`Socket ${socket.id} was previously registered to user ${userSockets[id].username}. Unregistering old user.`);
-        delete userSockets[id];
-      }
+    if (!userSockets[userId]) {
+      userSockets[userId] = [];
     }
 
-    // Register the new user
-    console.log(`Registering user ${username} (ID: ${userId}) with socket ${socket.id}`);
-    userSockets[userId] = { socketId: socket.id, username };
+    // Avoid adding the same socket id multiple times
+    if (!userSockets[userId].find(s => s.socketId === socket.id)) {
+      userSockets[userId].push({ socketId: socket.id, username });
+      console.log(`Registering user ${username} (ID: ${userId}) with socket ${socket.id}`);
+    }
   });
 
   socket.on('unregister', (userId) => {
@@ -55,7 +53,7 @@ io.on('connection', (socket) => {
 
   socket.on('acceptRequest', async (data) => {
     const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
-    const requesterSocketId = userSockets[requesterId]?.socketId;
+    const requesterSockets = userSockets[requesterId];
     const client = await pool.connect();
 
     try {
@@ -85,11 +83,13 @@ io.on('connection', (socket) => {
       const spot = fullSpotResult.rows[0];
       spot.username = ownerUsername; // Add username to the spot object
 
-      if (requesterSocketId) {
-        io.to(requesterSocketId).emit('requestResponse', {
-          message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}! Please get to the spot before the expiration time.`,
-          spot: spot, // Include the full spot object
-          ownerUsername: ownerUsername
+      if (requesterSockets) {
+        requesterSockets.forEach(s => {
+          io.to(s.socketId).emit('requestResponse', {
+            message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}! Please get to the spot before the expiration time.`,
+            spot: spot, // Include the full spot object
+            ownerUsername: ownerUsername
+          });
         });
       }
       // Emit to owner to update their requests list
@@ -108,7 +108,7 @@ io.on('connection', (socket) => {
 
   socket.on('declineRequest', async (data) => {
     const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
-    const requesterSocket = userSockets[requesterId]?.socketId;
+    const requesterSockets = userSockets[requesterId];
 
     try {
       // Update the request status in the database
@@ -117,11 +117,13 @@ io.on('connection', (socket) => {
         [requestId, spotId]
       );
       
-      if (requesterSocket) {
-        io.to(requesterSocket).emit('requestResponse', {
-          message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`,
-          spotId: spotId,
-          ownerUsername: ownerUsername
+      if (requesterSockets) {
+        requesterSockets.forEach(s => {
+          io.to(s.socketId).emit('requestResponse', {
+            message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`,
+            spotId: spotId,
+            ownerUsername: ownerUsername
+          });
         });
       }
       // Emit to owner to update their requests list
@@ -152,12 +154,14 @@ io.on('connection', (socket) => {
       }
       const requesterUsername = requesterResult.rows[0].username;
 
-      const ownerSocketInfo = userSockets[ownerId];
-      if (ownerSocketInfo && ownerSocketInfo.socketId) {
-        io.to(ownerSocketInfo.socketId).emit('requesterArrived', { 
-          spotId, 
-          requesterId, 
-          requesterUsername 
+      const ownerSockets = userSockets[ownerId];
+      if (ownerSockets) {
+        ownerSockets.forEach(s => {
+          io.to(s.socketId).emit('requesterArrived', { 
+            spotId, 
+            requesterId, 
+            requesterUsername 
+          });
         });
       }
     } catch (error) {
@@ -230,18 +234,22 @@ io.on('connection', (socket) => {
       const ownerResult = await client.query('SELECT username FROM users WHERE id = $1', [ownerId]);
       const ownerUsername = ownerResult.rows[0].username;
 
-      const requesterSocketId = userSockets[requesterId]?.socketId;
-      if (requesterSocketId) {
-        io.to(requesterSocketId).emit('transactionComplete', { 
-          message: `Transaction for spot ${spotId} complete. ${price} credits have been transferred.`,
-          ownerId: ownerId,
-          ownerUsername: ownerUsername
+      const requesterSockets = userSockets[requesterId];
+      if (requesterSockets) {
+        requesterSockets.forEach(s => {
+          io.to(s.socketId).emit('transactionComplete', { 
+            message: `Transaction for spot ${spotId} complete. ${price} credits have been transferred.`,
+            ownerId: ownerId,
+            ownerUsername: ownerUsername
+          });
         });
       }
 
-      const ownerSocketId = userSockets[ownerId]?.socketId;
-      if (ownerSocketId) {
-        io.to(ownerSocketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. You have received ${price} credits.` });
+      const ownerSockets = userSockets[ownerId];
+      if (ownerSockets) {
+        ownerSockets.forEach(s => {
+          io.to(s.socketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. You have received ${price} credits.` });
+        });
       }
 
     } catch (error) {
@@ -254,7 +262,7 @@ io.on('connection', (socket) => {
 
   socket.on('privateMessage', async (data) => {
     const { from, to, message } = data;
-    const recipientSocketId = userSockets[to]?.socketId;
+    const recipientSockets = userSockets[to];
 
     try {
       const result = await pool.query(
@@ -263,8 +271,10 @@ io.on('connection', (socket) => {
       );
       const created_at = result.rows[0].created_at;
 
-      if (recipientSocketId) {
-        io.to(recipientSocketId).emit('privateMessage', { from, to, message, created_at });
+      if (recipientSockets) {
+        recipientSockets.forEach(s => {
+          io.to(s.socketId).emit('privateMessage', { from, to, message, created_at });
+        });
       }
     } catch (error) {
       console.error('Error saving private message:', error);
@@ -275,10 +285,15 @@ io.on('connection', (socket) => {
     console.log('A user disconnected:', socket.id);
     // Find which user was connected on this socket and remove them
     for (const userId in userSockets) {
-      if (userSockets[userId].socketId === socket.id) {
-        console.log(`User ${userSockets[userId].username} (ID: ${userId}) disconnected.`);
-        delete userSockets[userId];
-        break; // Assuming one user per socket, we can stop
+      const sockets = userSockets[userId];
+      const index = sockets.findIndex(s => s.socketId === socket.id);
+      if (index !== -1) {
+        console.log(`User ${sockets[index].username} (ID: ${userId}) disconnected.`);
+        sockets.splice(index, 1);
+        if (sockets.length === 0) {
+          delete userSockets[userId];
+        }
+        break;
       }
     }
   });
@@ -861,12 +876,12 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
     const distanceToSend = parseFloat(distance);
 
     // Find the owner's socket ID and username
-    const ownerSocketInfo = userSockets[ownerId];
-    const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner'; // Get owner's username
+    const ownerSockets = userSockets[ownerId];
+    const ownerUsername = ownerSockets ? ownerSockets[0].username : 'Unknown Owner'; // Get owner's username
     
-    console.log(`[request-spot] Attempting to notify owner. Owner ID: ${ownerId}`, { ownerSocketInfo });
+    console.log(`[request-spot] Attempting to notify owner. Owner ID: ${ownerId}`, { ownerSockets });
 
-    if (ownerSocketInfo && ownerSocketInfo.socketId) {
+    if (ownerSockets) {
       const payload = {
         spotId,
         requesterId,
@@ -879,7 +894,9 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
       
       console.log('[request-spot] Emitting spotRequest with payload:', payload);
       // Send a notification to the spot owner
-      io.to(ownerSocketInfo.socketId).emit('spotRequest', payload);
+      ownerSockets.forEach(s => {
+        io.to(s.socketId).emit('spotRequest', payload);
+      });
       res.status(200).json({ message: 'Request sent successfully.', requestId });
     } else {
       console.log(`[request-spot] Spot owner ${ownerId} is not currently connected or socketId is missing.`);
@@ -923,14 +940,16 @@ app.post('/api/cancel-request', authenticateToken, async (req, res) => {
     const requesterUsername = requesterResult.rows[0].username;
 
     // Notify the spot owner
-    const ownerSocketInfo = userSockets[ownerId];
-    if (ownerSocketInfo && ownerSocketInfo.socketId) {
-      io.to(ownerSocketInfo.socketId).emit('requestCancelled', {
-        spotId,
-        requesterId,
-        requesterUsername,
-        requestId,
-        message: `User ${requesterUsername} has cancelled their request for your spot ${spotId}.`
+    const ownerSockets = userSockets[ownerId];
+    if (ownerSockets) {
+      ownerSockets.forEach(s => {
+        io.to(s.socketId).emit('requestCancelled', {
+          spotId,
+          requesterId,
+          requesterUsername,
+          requestId,
+          message: `User ${requesterUsername} has cancelled their request for your spot ${spotId}.`
+        });
       });
     }
 
@@ -955,9 +974,11 @@ app.post('/api/eta', authenticateToken, async (req, res) => {
     const distance = getDistance(requesterLat, requesterLon, parseFloat(spotLat), parseFloat(spotLon));
     const eta = (distance / 20) * 60; // ETA in minutes, assuming 20 km/h average speed
 
-    const ownerSocketInfo = userSockets[ownerId];
-    if (ownerSocketInfo && ownerSocketInfo.socketId) {
-      io.to(ownerSocketInfo.socketId).emit('etaUpdate', { spotId, requesterId, eta: Math.round(eta) });
+    const ownerSockets = userSockets[ownerId];
+    if (ownerSockets) {
+      ownerSockets.forEach(s => {
+        io.to(s.socketId).emit('etaUpdate', { spotId, requesterId, eta: Math.round(eta) });
+      });
     }
 
     res.status(200).json({ eta: Math.round(eta) });
@@ -978,9 +999,11 @@ app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
     }
     const ownerId = spotResult.rows[0].user_id;
 
-    const ownerSocketInfo = userSockets[ownerId];
-    if (ownerSocketInfo && ownerSocketInfo.socketId) {
-      io.to(ownerSocketInfo.socketId).emit('requesterArrived', { spotId, requesterId });
+    const ownerSockets = userSockets[ownerId];
+    if (ownerSockets) {
+      ownerSockets.forEach(s => {
+        io.to(s.socketId).emit('requesterArrived', { spotId, requesterId });
+      });
       res.status(200).json({ message: 'Arrival confirmed and owner notified.' });
     } else {
       res.status(200).json({ message: 'Arrival confirmed. Owner is currently offline.' });

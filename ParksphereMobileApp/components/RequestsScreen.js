@@ -1,11 +1,36 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import RequesterProfileModal from './RequesterProfileModal';
 
-const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineRequest }) => {
+const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineRequest, token, serverUrl }) => {
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+
+  const handleUserPress = async (requesterId) => {
+    try {
+      const response = await fetch(`${serverUrl}/api/users/${requesterId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUser(data);
+        setModalVisible(true);
+      } else {
+        Alert.alert('Error', 'Failed to fetch user data.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not connect to the server.');
+    }
+  };
+
   const renderItem = ({ item }) => (
     <View style={styles.requestItem}>
-      <Text style={styles.requestText}>{item.requesterUsername} has requested your spot</Text>
+      <TouchableOpacity onPress={() => handleUserPress(item.requesterId)}>
+        <Text style={styles.requestText}><Text style={styles.username}>{item.requesterUsername}</Text> has requested your spot</Text>
+      </TouchableOpacity>
       <View style={styles.buttonContainer}>
         <TouchableOpacity onPress={() => handleAcceptRequest(item)} style={[styles.button, styles.acceptButton]}>
           <FontAwesome name="check" size={20} color="white" />
@@ -27,6 +52,13 @@ const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineReques
         />
       ) : (
         <Text style={styles.text}>No pending requests</Text>
+      )}
+      {selectedUser && (
+        <RequesterProfileModal
+          user={selectedUser}
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+        />
       )}
     </View>
   );
@@ -59,6 +91,9 @@ const styles = StyleSheet.create({
   },
   requestText: {
     fontSize: 16,
+  },
+  username: {
+    fontWeight: 'bold',
   },
   buttonContainer: {
     flexDirection: 'row',
