@@ -1,18 +1,43 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-const SearchScreen = () => {
+const SearchScreen = ({ token, serverUrl }) => {
   const [username, setUsername] = useState('');
   const [recentSearches, setRecentSearches] = useState([
     { id: '1', username: 'john_doe' },
     { id: '2', username: 'jane_doe' },
     { id: '3', username: 'peter_jones' },
   ]);
-  const [interactions, setInteractions] = useState([
-    { id: '1', username: 'test_user_1' },
-    { id: '2', username: 'test_user_2' },
-  ]);
+  const [interactions, setInteractions] = useState([]); // Initialize as empty array
+
+  useEffect(() => {
+    const fetchInteractions = async () => {
+      if (!token || !serverUrl) return;
+
+      try {
+        const response = await fetch(`${serverUrl}/api/users/interactions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setInteractions(data);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to fetch interactions:', response.status, errorText);
+          Alert.alert('Error', 'Failed to fetch interactions.');
+        }
+      } catch (error) {
+        console.error('Error fetching interactions:', error);
+        Alert.alert('Error', 'Could not connect to the server to fetch interactions.');
+      }
+    };
+
+    fetchInteractions();
+  }, [token, serverUrl]); // Re-fetch if token or serverUrl changes
 
   const handleSearch = () => {
     // Handle the search logic here
@@ -60,7 +85,7 @@ const SearchScreen = () => {
           <Text style={styles.interactionsTitle}>Interactions</Text>
           <FlatList
             data={interactions}
-            keyExtractor={item => item.id}
+            keyExtractor={item => item.id.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity onPress={() => setUsername(item.username)}>
                 <Text style={styles.interactionItem}>{item.username}</Text>

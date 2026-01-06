@@ -657,6 +657,10 @@ setCurrentUsername(data.username);
   }
 
 
+  function WrappedSearchScreen(props) {
+    return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;
+  }
+
   function WrappedRequestsScreen(props) {
     return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
   }
