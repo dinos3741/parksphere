@@ -264,17 +264,19 @@ export default function App() {
     socket.current = io(serverUrl, { transports: ['websocket'] }); // Connect to your server
 
     socket.current.on('connect', () => {
-      console.log('Connected to Socket.IO server!');
+      console.log('Mobile App: Connected to Socket.IO server!');
       if (userId && currentUsername) {
-        console.log(`Emitting register event for userId: ${userId}, username: ${currentUsername}`);
+        console.log(`Mobile App: Emitting register event for userId: ${userId}, username: ${currentUsername}, socketId: ${socket.current.id}`);
         socket.current.emit('register', { userId, username: currentUsername });
+      } else {
+        console.log('Mobile App: Connected, but userId or currentUsername not available yet.');
       }
     });
 
     socket.current.on('newParkingSpot', (newSpot) => {
-      console.log('newSpot received:', newSpot);
+      console.log('Mobile App: newSpot received:', newSpot);
       const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id }; // Map user_id to ownerId
-      console.log('spotWithOwnerId:', spotWithOwnerId);
+      console.log('Mobile App: spotWithOwnerId:', spotWithOwnerId);
       setParkingSpots((prevSpots) => {
         const updatedSpots = [...prevSpots, spotWithOwnerId];
         return updatedSpots;
@@ -282,19 +284,20 @@ export default function App() {
     });
 
     socket.current.on('spotDeleted', ({ spotId }) => {
+      console.log('Mobile App: spotDeleted received:', spotId);
       setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
       setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
     });
 
     socket.current.on('spotUpdated', (updatedSpot) => {
-      console.log('Spot updated received:', updatedSpot);
+      console.log('Mobile App: Spot updated received:', updatedSpot);
       setParkingSpots((prevSpots) =>
         prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
       );
     });
 
     socket.current.on('spotRequest', (data) => {
-      console.log('Spot request received:', data);
+      console.log('Mobile App: Spot request received:', data);
       setSpotRequests(prevRequests => [...prevRequests, data]);
       setHasNewRequests(true);
       addNotification(data.message);
@@ -302,7 +305,7 @@ export default function App() {
     });
 
     socket.current.on('requestResponse', (data) => {
-      console.log('Request response received:', data);
+      console.log('Mobile App: Request response received:', data);
       Alert.alert('Spot Request Update', data.message);
       if (data.spot) {
         setAcceptedSpot(data.spot);
@@ -310,6 +313,19 @@ export default function App() {
       } else {
         setAcceptedSpot(null); // Clear accepted spot if request was declined or cancelled
       }
+    });
+
+    socket.current.on('requesterArrived', (data) => {
+      console.log('Mobile App: Requester arrived notification received:', data);
+      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      addNotification(message, 'default');
+      playSoundArrived();
+      setArrivalConfirmationData(data);
+      setArrivalConfirmationModalOpen(true);
+    });
+
+    socket.current.on('disconnect', () => {
+      console.log('Mobile App: Disconnected from Socket.IO server.');
     });
 
     socket.current.on('disconnect', () => {

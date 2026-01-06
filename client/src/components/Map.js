@@ -476,6 +476,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   };
 
   const handleArrived = (spotId) => {
+    console.log(`Web app: Emitting 'requester-arrived' for spotId: ${spotId}`);
     socket.emit('requester-arrived', { spotId });
     appAddNotification(`You have arrived at spot ${spotId}. The owner has been notified.`, 'default');
     if (mapRef.current) {

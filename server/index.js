@@ -27,7 +27,7 @@ const io = new Server(server, { // Initialize Socket.IO
 const userSockets = {}; // Map userId to socketId
 
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+  console.log('Server: A user connected:', socket.id);
 
   socket.on('register', (payload) => {
     const { userId, username } = payload;
@@ -40,7 +40,7 @@ io.on('connection', (socket) => {
     // Avoid adding the same socket id multiple times
     if (!userSockets[userId].find(s => s.socketId === socket.id)) {
       userSockets[userId].push({ socketId: socket.id, username });
-      console.log(`Registering user ${username} (ID: ${userId}) with socket ${socket.id}`);
+      console.log(`Server: Registering user ${username} (ID: ${userId}) with socket ${socket.id}. Current userSockets:`, userSockets);
     }
   });
 
@@ -49,11 +49,13 @@ io.on('connection', (socket) => {
       const sockets = userSockets[userId];
       const index = sockets.findIndex(s => s.socketId === socket.id); // Find the specific socket
       if (index !== -1) {
-        console.log(`Unregistering socket ${socket.id} for user (ID: ${userId})`);
+        console.log(`Server: Unregistering socket ${socket.id} for user (ID: ${userId})`);
         sockets.splice(index, 1); // Remove only that socket
         if (sockets.length === 0) { // If no more sockets for this user, remove the user entry
           delete userSockets[userId];
+          console.log(`Server: User ${userId} has no more active sockets. Removed from userSockets.`);
         }
+        console.log('Server: Current userSockets after unregister:', userSockets);
       }
     }
   });
@@ -144,6 +146,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('requester-arrived', async (data) => {
+    console.log('Server: Received requester-arrived event with data:', data);
     const { spotId } = data;
     let requesterId = null;
     for (const userIdKey in userSockets) {
@@ -152,30 +155,38 @@ io.on('connection', (socket) => {
         break;
       }
     }
+    console.log('Server: Identified requesterId:', requesterId);
     if (!requesterId) return;
 
     try {
       const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
       if (spotResult.rows.length === 0) {
+        console.log('Server: Spot not found for spotId:', spotId);
         return; // Spot not found
       }
       const ownerId = spotResult.rows[0].user_id;
+      console.log('Server: Identified ownerId:', ownerId);
 
       const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
       if (requesterResult.rows.length === 0) {
+        console.log('Server: Requester not found for requesterId:', requesterId);
         return; // Requester not found
       }
       const requesterUsername = requesterResult.rows[0].username;
 
       const ownerSockets = userSockets[ownerId];
       if (ownerSockets) {
+        const payload = { 
+          spotId, 
+          requesterId, 
+          requesterUsername 
+        };
+        console.log(`Server: Emitting requesterArrived to owner ${ownerId} on sockets:`, ownerSockets, 'with payload:', payload);
         ownerSockets.forEach(s => {
-          io.to(s.socketId).emit('requesterArrived', { 
-            spotId, 
-            requesterId, 
-            requesterUsername 
-          });
+          io.to(s.socketId).emit('requesterArrived', payload);
         });
+      } else {
+        console.log(`Server: Owner ${ownerId} has no active sockets to emit requesterArrived.`);
       }
     } catch (error) {
       console.error('Error handling requester arrival:', error);
