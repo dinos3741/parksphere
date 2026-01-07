@@ -61,8 +61,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('acceptRequest', async (data) => {
+    console.log('Server: acceptRequest event received with data:', data);
     const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
     const requesterSockets = userSockets[requesterId];
+    console.log('Server: Found requester sockets:', requesterSockets);
     const client = await pool.connect();
 
     try {
@@ -93,18 +95,27 @@ io.on('connection', (socket) => {
       spot.username = ownerUsername; // Add username to the spot object
 
       if (requesterSockets) {
+        console.log('Server: Emitting requestResponse to requester sockets...');
         requesterSockets.forEach(s => {
-          io.to(s.socketId).emit('requestResponse', {
+          const payload = {
             message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}! Please get to the spot before the expiration time.`,
             spot: spot, // Include the full spot object
             ownerUsername: ownerUsername
-          });
+          };
+          io.to(s.socketId).emit('requestResponse', payload);
+          console.log(`Server: Emitted requestResponse to socket ${s.socketId} with payload:`, payload);
         });
       }
       // Emit to owner to update their requests list
-      const ownerSocketId = userSockets[ownerId]?.socketId;
-      if (ownerSocketId) {
-        io.to(ownerSocketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
+      console.log('Server: Attempting to find owner socket for ownerId:', ownerId);
+      const ownerSocketInfo = userSockets[ownerId];
+      console.log('Server: Found owner socket info:', ownerSocketInfo);
+      if (ownerSocketInfo) {
+        console.log('Server: Emitting requestAcceptedOrDeclined to owner...');
+        ownerSocketInfo.forEach(s => {
+          io.to(s.socketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
+          console.log(`Server: Emitted requestAcceptedOrDeclined to owner socket ${s.socketId}`);
+        });
       }
     } catch (error) {
       await client.query('ROLLBACK');
@@ -147,6 +158,7 @@ io.on('connection', (socket) => {
 
   socket.on('requester-arrived', async (data) => {
     console.log('Server: Received requester-arrived event with data:', data);
+    console.log('Server: Incoming socket.id for requester-arrived:', socket.id);
     const { spotId } = data;
     let requesterId = null;
     for (const userIdKey in userSockets) {

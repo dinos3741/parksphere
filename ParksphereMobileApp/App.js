@@ -25,6 +25,7 @@ import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
+import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -133,6 +134,56 @@ export default function App() {
   const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
+  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
+  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
+
+  const handleConfirmTransaction = () => {
+    if (socket.current && arrivalConfirmationData) {
+      socket.current.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      addNotification('Arrival confirmed!', 'green');
+      setArrivalConfirmationData(null);
+    }
+  };
+
+  const handleCloseArrivalModal = () => {
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const handleNotIdentified = () => {
+    if (arrivalConfirmationData) {
+      console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
+      addNotification(`You have indicated that the requester was not identified.`, 'default');
+    }
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const [arrivedSound, setArrivedSound] = useState();
+
+  async function playSoundArrived() {
+    console.log('Loading Arrived Sound');
+    const { sound } = await Audio.Sound.createAsync( require('./assets/sounds/arrived.wav')
+    );
+    setArrivedSound(sound);
+
+    console.log('Playing Arrived Sound');
+    await sound.playAsync();
+  }
+
+  useEffect(() => {
+    return arrivedSound
+      ? () => {
+          console.log('Unloading Arrived Sound');
+          arrivedSound.unloadAsync();
+        }
+      : undefined;
+  }, [arrivedSound]);
+
 
   const handleFabPress = () => {
     if (isAddingSpot) {
@@ -302,6 +353,11 @@ export default function App() {
       setHasNewRequests(true);
       addNotification(data.message);
       playSound();
+    });
+
+    socket.current.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
+      console.log(`Mobile App: Received confirmation that request ${requestId} for spot ${spotId} was processed.`);
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
     });
 
     socket.current.on('requestResponse', (data) => {
@@ -838,6 +894,14 @@ setCurrentUsername(data.username);
         onClose={() => setShowEditSpotMobileModal(false)}
         spotData={spotToEdit}
         onSave={handleSaveEditedSpot}
+      />
+      <ArrivalConfirmationModal
+        isOpen={isArrivalConfirmationModalOpen}
+        onClose={handleCloseArrivalModal}
+        onConfirm={handleConfirmTransaction}
+        onNotIdentified={handleNotIdentified}
+        requesterUsername={arrivalConfirmationData?.requesterUsername}
+        spotId={arrivalConfirmationData?.spotId}
       />
     </>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
-import io from 'socket.io-client';
+import socket, { register, unregister } from './utils/socket';
 
 import { getToken, isTokenExpired, logout } from './utils/auth';
 import emitter from './utils/emitter';
@@ -86,7 +86,7 @@ function MainAppContent({ serverUrl }) {
 
   console.log('MainAppContent: After useState declarations.'); // NEW LOG HERE
 
-  const socket = useRef(null);
+
 
   const formatTimestamp = (date) => {
     const year = date.getFullYear();
@@ -104,8 +104,8 @@ function MainAppContent({ serverUrl }) {
   }, []);
 
   const handleLogout = useCallback(() => {
-    if (socket.current && currentUserId) {
-      socket.current.emit('unregister', currentUserId);
+    if (currentUserId) {
+      unregister(currentUserId);
     }
     logout();
     navigate('/');
@@ -185,6 +185,7 @@ function MainAppContent({ serverUrl }) {
           setCurrentUserId(decodedToken.userId);
           setCurrentUsername(decodedToken.username);
           setCurrentUserCarType(decodedToken.carType);
+          console.log(`Web App: currentUserId and currentUsername set: ${decodedToken.username} (ID: ${decodedToken.userId})`);
         } catch (error) {
           console.error("Error decoding token:", error);
           logout();
@@ -193,163 +194,69 @@ function MainAppContent({ serverUrl }) {
     }
   }, []);
 
-  useEffect(() => {
-    socket.current = io('http://localhost:3001');
-
-    socket.current.on('connect', () => {
-      console.log('Socket.IO client connected!');
-      if (currentUserId && currentUsername) {
-        console.log(`Attempting to register socket for user: ${currentUsername} (ID: ${currentUserId})`);
-        socket.current.emit('register', { userId: currentUserId, username: currentUsername });
-      } else {
-        console.log('Socket.IO client connected, but currentUserId or currentUsername is not available yet.');
-      }
-    });
-
-    socket.current.on('disconnect', () => {
-      console.log('Socket.IO client disconnected!'); // Re-added log
-    });
-
-    socket.current.on('connect_error', (error) => {
-      console.error('Socket.IO connection error:', error); // Re-added log
-    });
-
-    socket.current.on('newParkingSpot', handleNewSpot);
-    socket.current.on('spotDeleted', handleSpotDeleted);
-
-    // All other listeners
-    socket.current.on('spotUpdated', (updatedSpotFromServer) => {
-      setFilteredParkingSpots(prevSpots =>
-        prevSpots.map(spot =>
-          spot.id === updatedSpotFromServer.id
-            ? {
-                ...spot,
-                lat: parseFloat(updatedSpotFromServer.latitude),
-                lng: parseFloat(updatedSpotFromServer.longitude),
-                time_to_leave: updatedSpotFromServer.time_to_leave,
-                price: parseFloat(updatedSpotFromServer.price),
-                comments: updatedSpotFromServer.comments || '',
-                cost_type: updatedSpotFromServer.cost_type,
-                declared_at: updatedSpotFromServer.declared_at,
-                declared_car_type: updatedSpotFromServer.declared_car_type,
-                status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
-                is_free: updatedSpotFromServer.cost_type === 'free',
-                isExactLocation: updatedSpotFromServer.user_id === currentUserId,
-              }
-            : spot
-        )
-      );
-    });
-
-    socket.current.on('spotRequest', (data) => {
-      addNotification(data.message, 'blue');
-      playSound();
-      fetchPendingRequests();
-      fetchSpotRequests(); // Call the new function
-    });
-
-    socket.current.on('requestResponse', (data) => {
-      if (data.message.includes('ACCEPTED')) {
-        setAcceptedRequestOwnerUsername(data.ownerUsername);
-        setShowAcceptedRequestModal(true);
-        playSoundAcceptedRequest();
-      }
-      addNotification(data.message, 'default');
-      if (data.spot) {
-        setAcceptedSpot(data.spot);
-        setFilteredParkingSpots(prevSpots => {
-          const index = prevSpots.findIndex(s => s.id === data.spot.id);
-          if (index !== -1) {
-            const newSpots = [...prevSpots];
-            newSpots[index] = {
-              ...newSpots[index],
-              lat: parseFloat(data.spot.latitude),
-              lng: parseFloat(data.spot.longitude),
-              isExactLocation: true,
-            };
-            return newSpots;
-          }
-          return prevSpots;
-        });
-      }
-      if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
-        setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
-      } else if (data.requestId) {
-        if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
-          setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]);
-        }
-      }
-    });
-
-    socket.current.on('requesterArrived', (data) => {
-      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-      addNotification(message, 'default');
-      playSoundArrived();
-      setArrivalConfirmationData(data);
-      setArrivalConfirmationModalOpen(true);
-    });
-
-    socket.current.on('requestCancelled', (data) => {
-      const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
-      addNotification(message, 'purple');
-      playSoundRemoveRequest();
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
-    });
-
-    socket.current.on('transactionComplete', (data) => {
-      fetchProfileData();
-      if (data.ownerId && data.ownerUsername) {
-        handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
-      }
-    });
-
-    socket.current.on('privateMessage', (message) => {
-      const fromId = message.from;
-      const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
-      setAllChatMessages(prev => ({ ...prev, [fromId]: [...(prev[fromId] || []), messageWithTimestamp] }));
-      if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
-        setUnreadMessages(prev => ({ ...prev, [fromId]: (prev[fromId] || 0) + 1 }));
-      }
-    });
-
-    return () => {
-      socket.current.disconnect();
-    };
-  }, []); // This effect runs only once on mount
-
-  useEffect(() => {
-    if (socket.current && currentUserId && currentUsername) {
-      socket.current.emit('register', { userId: currentUserId, username: currentUsername });
-    }
-  }, [currentUserId, currentUsername]);
 
 
-  useEffect(() => {
-    sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
-  }, [notificationLog]);
-
-  useEffect(() => {
-    const initAudio = async () => {
-      try {
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        const response = await fetch(newRequestSound);
-        const arrayBuffer = await response.arrayBuffer();
-        audioBufferRef.current = await audioContextRef.current.decodeAudioData(arrayBuffer);
-        const removeRequestResponse = await fetch(removeRequestSound);
-        const removeRequestArrayBuffer = await removeRequestResponse.arrayBuffer();
-        removeRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(removeRequestArrayBuffer);
-        const acceptedRequestResponse = await fetch(acceptedRequestSound);
-        const acceptedRequestArrayBuffer = await acceptedRequestResponse.arrayBuffer();
-        acceptedRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(acceptedRequestArrayBuffer);
-        const arrivedResponse = await fetch(arrivedSound);
-        const arrivedArrayBuffer = await arrivedResponse.arrayBuffer();
-        arrivedAudioBufferRef.current = await audioContextRef.current.decodeAudioData(arrivedArrayBuffer);
-      } catch (error) {
-        console.error("Error initializing audio:", error);
-      }
-    };
-    initAudio();
+  const handleRateRequester = useCallback((requester) => {
+    setUserToRate(requester);
+    setShowRatingModal(true);
   }, []);
+
+  const fetchProfileData = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+      const data = await response.json();
+      setProfileUserData({
+        ...data,
+        total_arrival_time: parseFloat(data.total_arrival_time),
+        completed_transactions_count: parseInt(data.completed_transactions_count, 10),
+      });
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+      setProfileUserData(null);
+    }
+  }, [currentUserId]);
+
+  const fetchPendingRequests = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/user/pending-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setPendingRequests(data);
+    } catch (error) {
+      console.error('Error fetching pending requests:', error);
+    }
+  }, [currentUserId]);
+
+  const fetchSpotRequests = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const token = getToken();
+      const response = await fetch(`http://localhost:3001/api/user/spot-requests`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setSpotRequests(data);
+    } catch (error) {
+      console.error('Error fetching spot requests:', error);
+    }
+  }, [currentUserId]);
 
   const playSound = useCallback(() => {
     if (audioContextRef.current && audioBufferRef.current) {
@@ -400,6 +307,148 @@ function MainAppContent({ serverUrl }) {
   }, []);
 
   useEffect(() => {
+    if (currentUserId && currentUsername) {
+      register(currentUserId, currentUsername);
+    }
+
+    socket.on('newParkingSpot', handleNewSpot);
+    socket.on('spotDeleted', handleSpotDeleted);
+    socket.on('spotUpdated', (updatedSpotFromServer) => {
+      setFilteredParkingSpots(prevSpots =>
+        prevSpots.map(spot =>
+          spot.id === updatedSpotFromServer.id
+            ? {
+                ...spot,
+                lat: parseFloat(updatedSpotFromServer.latitude),
+                lng: parseFloat(updatedSpotFromServer.longitude),
+                time_to_leave: updatedSpotFromServer.time_to_leave,
+                price: parseFloat(updatedSpotFromServer.price),
+                comments: updatedSpotFromServer.comments || '',
+                cost_type: updatedSpotFromServer.cost_type,
+                declared_at: updatedSpotFromServer.declared_at,
+                declared_car_type: updatedSpotFromServer.declared_car_type,
+                status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+                is_free: updatedSpotFromServer.cost_type === 'free',
+                isExactLocation: updatedSpotFromServer.user_id === currentUserId,
+              }
+            : spot
+        )
+      );
+    });
+
+    socket.on('spotRequest', (data) => {
+      addNotification(data.message, 'blue');
+      playSound();
+      fetchPendingRequests();
+      fetchSpotRequests(); // Call the new function
+    });
+
+    socket.on('requestResponse', (data) => {
+      if (data.message.includes('ACCEPTED')) {
+        setAcceptedRequestOwnerUsername(data.ownerUsername);
+        setShowAcceptedRequestModal(true);
+        playSoundAcceptedRequest();
+      }
+      addNotification(data.message, 'default');
+      if (data.spot) {
+        setAcceptedSpot(data.spot);
+        setFilteredParkingSpots(prevSpots => {
+          const index = prevSpots.findIndex(s => s.id === data.spot.id);
+          if (index !== -1) {
+            const newSpots = [...prevSpots];
+            newSpots[index] = {
+              ...newSpots[index],
+              lat: parseFloat(data.spot.latitude),
+              lng: parseFloat(data.spot.longitude),
+              isExactLocation: true,
+            };
+            return newSpots;
+          }
+          return prevSpots;
+        });
+      }
+      if (data.message.includes('DECLINED') || data.message.includes('CANCELLED')) {
+        setPendingRequests(prevRequests => prevRequests.filter(id => id !== data.spotId));
+      } else if (data.requestId) {
+        if (data.message.includes('reactivated') || data.message.includes('ACCEPTED')) {
+          setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]);
+        }
+      }
+    });
+
+    socket.on('requesterArrived', (data) => {
+      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      addNotification(message, 'default');
+      playSoundArrived();
+      setArrivalConfirmationData(data);
+      setArrivalConfirmationModalOpen(true);
+    });
+
+    socket.on('requestCancelled', (data) => {
+      const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
+      addNotification(message, 'purple');
+      playSoundRemoveRequest();
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
+    });
+
+    socket.on('transactionComplete', (data) => {
+      fetchProfileData();
+      if (data.ownerId && data.ownerUsername) {
+        handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+      }
+    });
+
+    socket.on('privateMessage', (message) => {
+      const fromId = message.from;
+      const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
+      setAllChatMessages(prev => ({ ...prev, [fromId]: [...(prev[fromId] || []), messageWithTimestamp] }));
+      if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
+        setUnreadMessages(prev => ({ ...prev, [fromId]: (prev[fromId] || 0) + 1 }));
+      }
+    });
+
+    return () => {
+      socket.off('newParkingSpot', handleNewSpot);
+      socket.off('spotDeleted', handleSpotDeleted);
+      socket.off('spotUpdated');
+      socket.off('spotRequest');
+      socket.off('requestResponse');
+      socket.off('requesterArrived');
+      socket.off('requestCancelled');
+      socket.off('transactionComplete');
+      socket.off('privateMessage');
+    };
+  }, [currentUserId, currentUsername, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient]);
+
+
+  useEffect(() => {
+    sessionStorage.setItem('notificationLog', JSON.stringify(notificationLog));
+  }, [notificationLog]);
+
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        const response = await fetch(newRequestSound);
+        const arrayBuffer = await response.arrayBuffer();
+        audioBufferRef.current = await audioContextRef.current.decodeAudioData(arrayBuffer);
+        const removeRequestResponse = await fetch(removeRequestSound);
+        const removeRequestArrayBuffer = await removeRequestResponse.arrayBuffer();
+        removeRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(removeRequestArrayBuffer);
+        const acceptedRequestResponse = await fetch(acceptedRequestSound);
+        const acceptedRequestArrayBuffer = await acceptedRequestResponse.arrayBuffer();
+        acceptedRequestAudioBufferRef.current = await audioContextRef.current.decodeAudioData(acceptedRequestArrayBuffer);
+        const arrivedResponse = await fetch(arrivedSound);
+        const arrivedArrayBuffer = await arrivedResponse.arrayBuffer();
+        arrivedAudioBufferRef.current = await audioContextRef.current.decodeAudioData(arrivedArrayBuffer);
+      } catch (error) {
+        console.error("Error initializing audio:", error);
+      }
+    };
+    initAudio();
+  }, []);
+
+  useEffect(() => {
     const unlockAudio = () => {
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume();
@@ -446,29 +495,6 @@ function MainAppContent({ serverUrl }) {
     };
   }, [menuOpen, handleClickOutside]);
 
-  const fetchProfileData = useCallback(async () => {
-    if (!currentUserId) return;
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-      }
-      const data = await response.json();
-      setProfileUserData({
-        ...data,
-        total_arrival_time: parseFloat(data.total_arrival_time),
-        completed_transactions_count: parseInt(data.completed_transactions_count, 10),
-      });
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-      setProfileUserData(null);
-    }
-  }, [currentUserId]);
-
   useEffect(() => {
     if (currentUserId) {
       fetchProfileData();
@@ -490,40 +516,6 @@ function MainAppContent({ serverUrl }) {
       }
     }
   }, [fetchProfileData]);
-
-  const fetchPendingRequests = useCallback(async () => {
-    if (!currentUserId) return;
-    try {
-      const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/user/pending-requests`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setPendingRequests(data);
-    } catch (error) {
-      console.error('Error fetching pending requests:', error);
-    }
-  }, [currentUserId]);
-
-  const fetchSpotRequests = useCallback(async () => {
-    if (!currentUserId) return;
-    try {
-      const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/user/spot-requests`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setSpotRequests(data);
-    } catch (error) {
-      console.error('Error fetching spot requests:', error);
-    }
-  }, [currentUserId]);
 
   const handleOpenEditModal = useCallback((spot) => {
     setSpotToEdit(spot);
@@ -588,7 +580,7 @@ function MainAppContent({ serverUrl }) {
     } catch (error) {
       console.error('Error fetching parking spots:', error);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -615,7 +607,7 @@ function MainAppContent({ serverUrl }) {
 
   const handleConfirmArrival = () => {
     if (arrivalConfirmationData) {
-      socket.current.emit('confirm-transaction', {
+      socket.emit('confirm-transaction', {
         spotId: arrivalConfirmationData.spotId,
         requesterId: arrivalConfirmationData.requesterId,
       });
@@ -639,11 +631,6 @@ function MainAppContent({ serverUrl }) {
     setArrivalConfirmationModalOpen(false);
     setArrivalConfirmationData(null);
   };
-
-  const handleRateRequester = useCallback((requester) => {
-    setUserToRate(requester);
-    setShowRatingModal(true);
-  }, []);
 
   const handleRate = async (rating) => {
     if (!userToRate) return;
@@ -674,7 +661,7 @@ function MainAppContent({ serverUrl }) {
         message: chatInput,
         timestamp: new Date().toISOString(),
       };
-      socket.current.emit('privateMessage', newMessage);
+      socket.emit('privateMessage', newMessage);
       setAllChatMessages((prev) => ({ ...prev, [chatRecipient.id]: [...(prev[chatRecipient.id] || []), newMessage] }));
       setChatInput('');
     }
