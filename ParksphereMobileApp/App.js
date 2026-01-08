@@ -30,7 +30,7 @@ import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import RatingModal from './components/RatingModal';
 
 import { enableScreens } from 'react-native-screens';
-enableScreens(false);
+enableScreens(true);
 
 const Tab = createBottomTabNavigator();
 
@@ -804,7 +804,7 @@ setCurrentUsername(data.username);
 
   function SearchStackScreen({ navigation }) {
     return (
-      <SearchStack.Navigator screenOptions={{ headerShown: false }}>
+      <SearchStack.Navigator>
         <SearchStack.Screen name="SearchScreen" component={WrappedSearchScreen} />
       </SearchStack.Navigator>
     );
