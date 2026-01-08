@@ -464,34 +464,45 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 async function calculateAllUserScores() {
   const client = await pool.connect();
   try {
-    const usersResult = await client.query(
-      `SELECT 
-        id,
-        spots_declared, 
-        spots_taken,
-        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = users.id) as avg_rating
-      FROM users`
-    );
-    const users = usersResult.rows;
+      const usersResult = await client.query(
+        `SELECT id, spots_declared, spots_taken, average_rating, total_arrival_time, completed_transactions_count
+         FROM users`
+      );
+      const users = usersResult.rows;
 
-    const maxValuesResult = await client.query(
-      `SELECT 
-        MAX(spots_declared) as max_spots_declared,
-        MAX(spots_taken) as max_spots_taken
-      FROM users`
-    );
-    const maxValues = maxValuesResult.rows[0];
+      const maxValuesResult = await client.query(
+        `SELECT MAX(spots_declared) as max_spots_declared,
+                MAX(spots_taken) as max_spots_taken,
+                MAX(total_arrival_time) as max_total_arrival_time,
+                MAX(completed_transactions_count) as max_completed_transactions_count
+         FROM users`
+      );
+      const maxValues = maxValuesResult.rows[0];
 
-    const scores = users.map(user => {
+      const scores = users.map(user => {
         const normalized_spots_declared = maxValues.max_spots_declared > 0 ? user.spots_declared / maxValues.max_spots_declared : 0;
         const normalized_spots_taken = maxValues.max_spots_taken > 0 ? user.spots_taken / maxValues.max_spots_taken : 0;
-        const normalized_rating = user.avg_rating ? user.avg_rating / 5.0 : 0;
+        const normalized_rating = user.average_rating ? user.average_rating / 5.0 : 0; // Use stored average_rating
+        // For total_arrival_time, lower is better, so we invert the score
+        const normalized_arrival_time = maxValues.max_total_arrival_time > 0 ? (1 - (user.total_arrival_time / maxValues.max_total_arrival_time)) : 0;
+        const normalized_completed_transactions = maxValues.max_completed_transactions_count > 0 ? user.completed_transactions_count / maxValues.max_completed_transactions_count : 0;
 
-        const rank_score = (0.5 * normalized_spots_declared) +
-                           (0.2 * normalized_spots_taken) +
-                           (0.3 * normalized_rating);
+        // Define weights for each factor (adjust as needed)
+        const weight_rating = 0.4;
+        const weight_spots_declared = 0.15;
+        const weight_spots_taken = 0.15;
+        const weight_arrival_time = 0.15;
+        const weight_completed_transactions = 0.15;
+
+        const rank_score = (
+          (weight_rating * normalized_rating) +
+          (weight_spots_declared * normalized_spots_declared) +
+          (weight_spots_taken * normalized_spots_taken) +
+          (weight_arrival_time * normalized_arrival_time) +
+          (weight_completed_transactions * normalized_completed_transactions)
+        );
         return { userId: user.id, score: rank_score };
-    });
+      });
 
     return scores;
   } finally {
