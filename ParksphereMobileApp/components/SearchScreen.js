@@ -49,7 +49,7 @@ const SearchScreen = ({ token, serverUrl, navigation }) => {
   };
 
   const handleUserClick = (userId) => {
-    navigation.navigate('UserDetails', { userId: userId });
+    navigation.navigate('UserDetailsScreen', { userId: userId });
   };
 
   return (
@@ -73,7 +73,7 @@ const SearchScreen = ({ token, serverUrl, navigation }) => {
 
         <View style={styles.recentSearchesContainer}>
           <Text style={styles.recentSearchesTitle}>Recent searches</Text>
-          <FlatList
+          {/* <FlatList
             data={recentSearches}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
@@ -81,13 +81,13 @@ const SearchScreen = ({ token, serverUrl, navigation }) => {
                 <Text style={styles.recentSearchItem}>{item.username}</Text>
               </TouchableOpacity>
             )}
-          />
+          /> */}
           <View style={styles.horizontalLine} />
         </View>
 
         <View style={styles.interactionsContainer}>
           <Text style={styles.interactionsTitle}>Interactions</Text>
-          <FlatList
+          {/* <FlatList
             data={interactions}
             keyExtractor={item => item.id.toString()}
             renderItem={({ item }) => (
@@ -95,7 +95,7 @@ const SearchScreen = ({ token, serverUrl, navigation }) => {
                 <Text style={styles.interactionItem}>{item.username}</Text>
               </TouchableOpacity>
             )}
-          />
+          /> */}
         </View>
         <View style={{ flex : 1 }} />
       </View>
