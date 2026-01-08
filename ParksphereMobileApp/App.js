@@ -26,6 +26,7 @@ import RequestsScreen from './components/RequestsScreen';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
+import RatingModal from './components/RatingModal';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -136,6 +137,32 @@ export default function App() {
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [userToRate, setUserToRate] = useState(null);
+
+  const handleRate = async (rating) => {
+    if (!userToRate) return;
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to submit rating');
+      }
+      addNotification('Rating submitted successfully!', 'green');
+      setShowRatingModal(false);
+      setUserToRate(null);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      addNotification('Failed to submit rating', 'red');
+    }
+  };
 
   const handleConfirmTransaction = () => {
     if (socket.current && arrivalConfirmationData) {
@@ -145,9 +172,12 @@ export default function App() {
       });
       setArrivalConfirmationModalOpen(false);
       addNotification('Arrival confirmed!', 'green');
+      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+      setShowRatingModal(true);
       setArrivalConfirmationData(null);
     }
   };
+
 
   const handleCloseArrivalModal = () => {
     setArrivalConfirmationModalOpen(false);
@@ -312,19 +342,45 @@ export default function App() {
 
   // Socket.IO setup for real-time updates
   useEffect(() => {
-    socket.current = io(serverUrl, { transports: ['websocket'] }); // Connect to your server
+    if (!isLoggedIn || !userId || !currentUsername) {
+      // If not logged in or user info is missing, ensure socket is disconnected
+      if (socket.current) {
+        console.log('Mobile App: Disconnecting socket due to missing user info.');
+        socket.current.disconnect();
+        socket.current = null;
+      }
+      return;
+    }
 
-    socket.current.on('connect', () => {
-      console.log('Mobile App: Connected to Socket.IO server!');
-      if (userId && currentUsername) {
+    // Only connect if we have user info and are logged in, and socket is not already connected
+    if (!socket.current || !socket.current.connected) {
+      socket.current = io(serverUrl, { transports: ['websocket'] });
+
+      socket.current.on('connect', () => {
+        console.log('Mobile App: Connected to Socket.IO server!');
         console.log(`Mobile App: Emitting register event for userId: ${userId}, username: ${currentUsername}, socketId: ${socket.current.id}`);
         socket.current.emit('register', { userId, username: currentUsername });
-      } else {
-        console.log('Mobile App: Connected, but userId or currentUsername not available yet.');
-      }
-    });
+      });
 
-    socket.current.on('newParkingSpot', (newSpot) => {
+      socket.current.on('disconnect', () => {
+        console.log('Mobile App: Disconnected from Socket.IO server.');
+      });
+
+      // Add a general error listener for debugging
+      socket.current.on('connect_error', (error) => {
+        console.error('Mobile App: Socket.IO connection error:', error.message);
+      });
+    }
+
+    // ... rest of the socket event listeners ...
+    // Ensure these listeners are only added once per socket instance
+    // and are removed on cleanup to prevent memory leaks or duplicate listeners.
+    // For simplicity, I'm keeping them inside this useEffect, but in a larger app,
+    // you might want to abstract them or use a separate effect for listeners.
+
+    const currentSocket = socket.current; // Capture current socket for cleanup
+
+    currentSocket.on('newParkingSpot', (newSpot) => {
       console.log('Mobile App: newSpot received:', newSpot);
       const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id }; // Map user_id to ownerId
       console.log('Mobile App: spotWithOwnerId:', spotWithOwnerId);
@@ -334,20 +390,20 @@ export default function App() {
       });
     });
 
-    socket.current.on('spotDeleted', ({ spotId }) => {
+    currentSocket.on('spotDeleted', ({ spotId }) => {
       console.log('Mobile App: spotDeleted received:', spotId);
       setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
       setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
     });
 
-    socket.current.on('spotUpdated', (updatedSpot) => {
+    currentSocket.on('spotUpdated', (updatedSpot) => {
       console.log('Mobile App: Spot updated received:', updatedSpot);
       setParkingSpots((prevSpots) =>
         prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
       );
     });
 
-    socket.current.on('spotRequest', (data) => {
+    currentSocket.on('spotRequest', (data) => {
       console.log('Mobile App: Spot request received:', data);
       setSpotRequests(prevRequests => [...prevRequests, data]);
       setHasNewRequests(true);
@@ -355,12 +411,12 @@ export default function App() {
       playSound();
     });
 
-    socket.current.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
+    currentSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
       console.log(`Mobile App: Received confirmation that request ${requestId} for spot ${spotId} was processed.`);
       setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
     });
 
-    socket.current.on('requestResponse', (data) => {
+    currentSocket.on('requestResponse', (data) => {
       console.log('Mobile App: Request response received:', data);
       Alert.alert('Spot Request Update', data.message);
       if (data.spot) {
@@ -371,7 +427,7 @@ export default function App() {
       }
     });
 
-    socket.current.on('requesterArrived', (data) => {
+    currentSocket.on('requesterArrived', (data) => {
       console.log('Mobile App: Requester arrived notification received:', data);
       const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
       addNotification(message, 'default');
@@ -380,18 +436,24 @@ export default function App() {
       setArrivalConfirmationModalOpen(true);
     });
 
-    socket.current.on('disconnect', () => {
-      console.log('Mobile App: Disconnected from Socket.IO server.');
-    });
-
-    socket.current.on('disconnect', () => {
-      console.log('Disconnected from Socket.IO server.');
-    });
-
     return () => {
-      socket.current.disconnect(); // Clean up on component unmount
+      if (currentSocket) {
+        console.log('Mobile App: Cleaning up Socket.IO connection.');
+        currentSocket.off('connect');
+        currentSocket.off('disconnect');
+        currentSocket.off('connect_error');
+        currentSocket.off('newParkingSpot');
+        currentSocket.off('spotDeleted');
+        currentSocket.off('spotUpdated');
+        currentSocket.off('spotRequest');
+        currentSocket.off('requestAcceptedOrDeclined');
+        currentSocket.off('requestResponse');
+        currentSocket.off('requesterArrived');
+        currentSocket.disconnect(); // Clean up on component unmount
+        socket.current = null;
+      }
     };
-  }, [serverUrl, userId, currentUsername]); // Reconnect if serverUrl changes
+  }, [serverUrl, isLoggedIn, userId, currentUsername]); // Reconnect if these dependencies change
 
   // Request location permissions and get initial location
   useEffect(() => {
@@ -902,6 +964,12 @@ setCurrentUsername(data.username);
         onNotIdentified={handleNotIdentified}
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
+      />
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        requester={userToRate}
+        onRate={handleRate}
       />
     </>
   );
