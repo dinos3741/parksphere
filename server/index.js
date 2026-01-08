@@ -28,6 +28,7 @@ const userSockets = {}; // Map userId to socketId
 
 io.on('connection', (socket) => {
   console.log('Server: A user connected:', socket.id);
+  console.log('Server: userSockets on connection:', userSockets);
 
   socket.on('register', (payload) => {
     const { userId, username } = payload;
@@ -41,6 +42,7 @@ io.on('connection', (socket) => {
     if (!userSockets[userId].find(s => s.socketId === socket.id)) {
       userSockets[userId].push({ socketId: socket.id, username });
       console.log(`Server: Registering user ${username} (ID: ${userId}) with socket ${socket.id}. Current userSockets:`, userSockets);
+      console.log('Server: userSockets after register:', userSockets);
     }
   });
 
@@ -56,6 +58,7 @@ io.on('connection', (socket) => {
           console.log(`Server: User ${userId} has no more active sockets. Removed from userSockets.`);
         }
         console.log('Server: Current userSockets after unregister:', userSockets);
+        console.log('Server: userSockets after unregister:', userSockets);
       }
     }
   });
@@ -94,6 +97,7 @@ io.on('connection', (socket) => {
       const spot = fullSpotResult.rows[0];
       spot.username = ownerUsername; // Add username to the spot object
 
+      console.log('Server: userSockets before emitting requestResponse:', userSockets);
       if (requesterSockets) {
         console.log('Server: Emitting requestResponse to requester sockets...');
         requesterSockets.forEach(s => {
@@ -283,8 +287,14 @@ io.on('connection', (socket) => {
 
       const ownerSockets = userSockets[ownerId];
       if (ownerSockets) {
+        const requesterResult = await client.query('SELECT username FROM users WHERE id = $1', [requesterId]);
+        const requesterUsername = requesterResult.rows[0].username;
         ownerSockets.forEach(s => {
-          io.to(s.socketId).emit('transactionComplete', { message: `Transaction for spot ${spotId} complete. You have received ${price} credits.` });
+          io.to(s.socketId).emit('transactionComplete', { 
+            message: `Transaction for spot ${spotId} complete. You have received ${price} credits.`,
+            requesterId: requesterId,
+            requesterUsername: requesterUsername
+          });
         });
       }
 
@@ -332,6 +342,7 @@ io.on('connection', (socket) => {
         break;
       }
     }
+    console.log('Server: userSockets on disconnect:', userSockets);
   });
 });
 const port = 3001;
@@ -380,7 +391,7 @@ app.get('/api/users/interactions', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT DISTINCT owner_id, requester_id, responded_at
        FROM requests
-       WHERE (owner_id = $1 OR requester_id = $1) AND status = 'fulfilled'
+       WHERE (owner_id = $1 OR requester_id = $1) AND (status = 'fulfilled' OR status = 'accepted')
        ORDER BY responded_at DESC
        LIMIT 20`,
       [userId]
@@ -1132,11 +1143,21 @@ app.post('/api/users/rate', authenticateToken, async (req, res) => {
   const rater_id = req.user.userId;
 
   try {
-    await pool.query(
-      'INSERT INTO user_ratings (rater_id, rated_user_id, rating) VALUES ($1, $2, $3)',
-      [rater_id, rated_user_id, rating]
-    );
-    res.status(201).json({ message: 'Rating submitted successfully!' });
+      await pool.query('INSERT INTO user_ratings (rater_id, rated_user_id, rating) VALUES ($1, $2, $3)', [rater_id, rated_user_id, rating]);
+
+      // Recalculate average rating for the rated user and update the users table
+      const avgRatingResult = await pool.query(
+        'SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = $1',
+        [rated_user_id]
+      );
+      const newAverageRating = avgRatingResult.rows[0].avg;
+
+      await pool.query(
+        'UPDATE users SET average_rating = $1 WHERE id = $2',
+        [newAverageRating, rated_user_id]
+      );
+
+      res.status(201).json({ message: 'Rating submitted successfully!' });
   } catch (error) {
     console.error('Error submitting rating:', error);
     res.status(500).json({ message: 'Server error submitting rating.' });
