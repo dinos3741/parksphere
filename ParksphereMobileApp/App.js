@@ -4,6 +4,7 @@ import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackgroun
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack'; // Import createNativeStackNavigator
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
@@ -799,6 +800,16 @@ setCurrentUsername(data.username);
     return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
   }
 
+  const SearchStack = createNativeStackNavigator();
+
+  function SearchStackScreen({ navigation }) {
+    return (
+      <SearchStack.Navigator screenOptions={{ headerShown: false }}>
+        <SearchStack.Screen name="SearchScreen" component={WrappedSearchScreen} />
+      </SearchStack.Navigator>
+    );
+  }
+
   function ProfileScreen() {
     if (isEditingProfile) {
       return (
@@ -862,7 +873,7 @@ setCurrentUsername(data.username);
                     if (hasNewRequests) {
                       showBadge = true;
                     }
-                  } else if (route.name === 'Search') {
+                  } else if (route.name === 'SearchTab') {
                     iconName = 'search';
                   } else if (route.name === 'Profile') {
                     return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
@@ -907,8 +918,7 @@ setCurrentUsername(data.username);
                   },
                 }}
               />
-              <Tab.Screen name="Search" component={WrappedSearchScreen} />
-              <Tab.Screen name="UserDetails" component={WrappedUserDetails} options={{ tabBarButton: () => null }} />
+              <Tab.Screen name="SearchTab" component={SearchStackScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
             {activeScreen === 'Home' && (
