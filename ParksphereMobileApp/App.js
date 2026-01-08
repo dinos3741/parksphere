@@ -792,7 +792,7 @@ setCurrentUsername(data.username);
 
 
   function WrappedSearchScreen(props) {
-    return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;
+    return <SearchScreen {...props} token={token} serverUrl={serverUrl} navigation={props.navigation} />;
   }
 
   function WrappedRequestsScreen(props) {
@@ -821,6 +821,10 @@ setCurrentUsername(data.username);
         onRefresh={handleRefresh}
       />
     );
+  }
+
+  function WrappedUserDetails(props) {
+    return <UserDetails {...props} token={token} serverUrl={serverUrl} route={props.route} />;
   }
 
   return (
@@ -904,6 +908,7 @@ setCurrentUsername(data.username);
                 }}
               />
               <Tab.Screen name="Search" component={WrappedSearchScreen} />
+              <Tab.Screen name="UserDetails" component={WrappedUserDetails} options={{ tabBarButton: () => null }} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
             {activeScreen === 'Home' && (

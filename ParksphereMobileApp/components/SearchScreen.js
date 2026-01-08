@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-const SearchScreen = ({ token, serverUrl }) => {
+const SearchScreen = ({ token, serverUrl, navigation }) => {
   const [username, setUsername] = useState('');
   const [recentSearches, setRecentSearches] = useState([
     { id: '1', username: 'john_doe' },
@@ -22,15 +22,14 @@ const SearchScreen = ({ token, serverUrl }) => {
           },
         });
 
-          if (response.ok) {
-            const data = await response.json();
-            setInteractions(data);
-          } else {
-            const errorText = await response.text();
-            console.error('Failed to fetch interactions:', response.status, errorText);
-            Alert.alert('Error', 'Failed to fetch interactions.');
-          }
-
+        if (response.ok) {
+          const data = await response.json();
+          setInteractions(data);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to fetch interactions:', response.status, errorText);
+          Alert.alert('Error', 'Failed to fetch interactions.');
+        }
       } catch (error) {
         console.error('Error fetching interactions:', error);
         Alert.alert('Error', 'Could not connect to the server to fetch interactions.');
@@ -47,6 +46,10 @@ const SearchScreen = ({ token, serverUrl }) => {
       setRecentSearches(prev => [{ id: Date.now().toString(), username }, ...prev]);
     }
     Keyboard.dismiss();
+  };
+
+  const handleUserClick = (userId) => {
+    navigation.navigate('UserDetails', { userId: userId });
   };
 
   return (
@@ -74,7 +77,7 @@ const SearchScreen = ({ token, serverUrl }) => {
             data={recentSearches}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setUsername(item.username)}>
+              <TouchableOpacity onPress={() => handleUserClick(item.id)}>
                 <Text style={styles.recentSearchItem}>{item.username}</Text>
               </TouchableOpacity>
             )}
@@ -88,7 +91,7 @@ const SearchScreen = ({ token, serverUrl }) => {
             data={interactions}
             keyExtractor={item => item.id.toString()}
             renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setUsername(item.username)}>
+              <TouchableOpacity onPress={() => handleUserClick(item.id)}>
                 <Text style={styles.interactionItem}>{item.username}</Text>
               </TouchableOpacity>
             )}

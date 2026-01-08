@@ -1,13 +1,76 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from 'react-native';
+import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome for the back icon
 
-const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refreshing }) => {
-  if (!user) {
-    return null;
+const UserDetails = ({ token, serverUrl, route, navigation }) => {
+  const { userId } = route.params;
+  const [displayedUser, setDisplayedUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchUserDetails = async () => {
+    if (!token || !serverUrl || !userId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const response = await fetch(`${serverUrl}/api/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setDisplayedUser(data);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to fetch user details:', response.status, errorText);
+        Alert.alert('Error', 'Failed to fetch user details.');
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      Alert.alert('Error', 'Could not connect to the server to fetch user details.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserDetails();
+  }, [userId, token, serverUrl]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchUserDetails();
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text>Loading user details...</Text>
+      </View>
+    );
+  }
+
+  if (!displayedUser) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text>User not found or an error occurred.</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <FontAwesome name="arrow-left" size={24} color="#007bff" />
+          <Text style={styles.backButtonText}>Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <FontAwesome name="arrow-left" size={24} color="#007bff" />
+        <Text style={styles.backButtonText}>Back</Text>
+      </TouchableOpacity>
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -15,68 +78,62 @@ const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refresh
       >
         <View style={styles.profileDetailsTwoColumn}>
           <View style={styles.profileLeftColumn}>
-            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
-            <Text style={styles.username}>{user.username}</Text>
-            <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
-              <Text style={styles.editButtonText}>Edit Profile</Text>
-            </TouchableOpacity>
+            <Image source={{ uri: displayedUser.avatar_url }} style={styles.avatar} />
+            <Text style={styles.username}>{displayedUser.username}</Text>
           </View>
           <View style={styles.profileRightColumn}>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Plate number:</Text>
-              <Text style={styles.profileValue}>{(user.plate_number || '').toUpperCase()}</Text>
+              <Text style={styles.profileValue}>{(displayedUser.plate_number || '').toUpperCase()}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Car color:</Text>
-              <Text style={styles.profileValue}>{user.car_color}</Text>
+              <Text style={styles.profileValue}>{displayedUser.car_color}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Car type:</Text>
-              <Text style={styles.profileValue}>{user.car_type}</Text>
+              <Text style={styles.profileValue}>{displayedUser.car_type}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Credits:</Text>
-              <Text style={styles.profileValue}>{user.credits}</Text>
+              <Text style={styles.profileValue}>{displayedUser.credits}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.profileLabel}>Account created:</Text>
-              <Text style={styles.profileValue}>{new Date(user.created_at).toLocaleDateString()}</Text>
+              <Text style={styles.profileValue}>{new Date(displayedUser.created_at).toLocaleDateString()}</Text>
             </View>
           </View>
         </View>
         <View style={styles.myStatsSection}>
-          <Text style={styles.myStatsLabel}>My Stats</Text>
+          <Text style={styles.myStatsLabel}>User Stats</Text>
           <View style={styles.infoRow}>
             <Text style={styles.profileLabel}>Spots declared:</Text>
-            <Text style={styles.profileValue}>{user.spots_declared}</Text>
+            <Text style={styles.profileValue}>{displayedUser.spots_declared}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.profileLabel}>Spots taken:</Text>
-            <Text style={styles.profileValue}>{user.spots_taken}</Text>
+            <Text style={styles.profileValue}>{displayedUser.spots_taken}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.profileLabel}>Average arrival time:</Text>
             <Text style={styles.profileValue}>
-              {user.completed_transactions_count > 0
-                ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
+              {displayedUser.completed_transactions_count > 0
+                ? (displayedUser.total_arrival_time / displayedUser.completed_transactions_count).toFixed(2) + ' min'
                 : 'N/A'}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.profileLabel}>Rating:</Text>
             <Text style={styles.profileValue}>
-              {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
+              {displayedUser.rating !== null ? parseFloat(displayedUser.rating).toFixed(1) + '/5 (' + displayedUser.rating_count + ' ratings)' : 'N/A'}
             </Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.profileLabel}>Rank:</Text>
-            <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
+            <Text style={styles.profileValue}>{displayedUser.rank !== null && !isNaN(displayedUser.rank) ? 'top ' + displayedUser.rank + '%' : 'N/A'}</Text>
           </View>
         </View>
       </ScrollView>
-      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -85,16 +142,31 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: 50, // Add padding for the back button
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
   },
   backButton: {
     position: 'absolute',
     top: 40,
     left: 20,
     zIndex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButtonText: {
     fontSize: 18,
     color: '#007bff',
+    marginLeft: 5,
   },
   avatar: {
     width: 80,
