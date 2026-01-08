@@ -44,13 +44,7 @@ const Map = ({
             }
           }}
         >
-          {locationPermissionGranted && userLocation && (
-            <Marker
-              coordinate={{ latitude: userLocation.latitude, longitude: userLocation.longitude }}
-              title="Your Location"
-              pinColor="blue"
-            />
-          )}
+
 
           {parkingSpots.map((spot) => (
             <React.Fragment key={spot.id}>
