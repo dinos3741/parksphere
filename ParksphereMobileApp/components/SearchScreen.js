@@ -22,15 +22,15 @@ const SearchScreen = ({ token, serverUrl }) => {
           },
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          setInteractions(data);
-          console.log('Fetched interactions:', data); // Add this line
-        } else {
-          const errorText = await response.text();
-          console.error('Failed to fetch interactions:', response.status, errorText);
-          Alert.alert('Error', 'Failed to fetch interactions.');
-        }
+          if (response.ok) {
+            const data = await response.json();
+            setInteractions(data);
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to fetch interactions:', response.status, errorText);
+            Alert.alert('Error', 'Failed to fetch interactions.');
+          }
+
       } catch (error) {
         console.error('Error fetching interactions:', error);
         Alert.alert('Error', 'Could not connect to the server to fetch interactions.');
