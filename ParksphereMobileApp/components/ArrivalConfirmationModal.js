@@ -61,6 +61,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     width: '100%',
   },
+  confirmButton: {
+    backgroundColor: '#4CAF50', // Green for confirm
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    alignItems: 'center',
+    width: 140, // Fixed width for equal length
+    borderWidth: 1, // Add border
+    borderColor: '#ccc', // Light grey border
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  notIdentifiedButton: {
+    backgroundColor: '#F44336', // Red for not identified
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 8,
+    alignItems: 'center',
+    width: 140, // Fixed width for equal length
+    borderWidth: 1, // Add border
+    borderColor: '#ccc', // Light grey border
+  },
 });
 
 export default ArrivalConfirmationModal;
