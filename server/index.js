@@ -89,10 +89,12 @@ io.on('connection', (socket) => {
       );
 
       // Record the interaction: owner accepted requester
-      await client.query(
+      console.log(`Server: Recording interaction: ownerId=${ownerId}, requesterId=${requesterId}`);
+      const interactionResult = await client.query(
         `INSERT INTO user_interactions (user_id, interacted_user_id) VALUES ($1, $2) ON CONFLICT (user_id, interacted_user_id) DO NOTHING`,
         [ownerId, requesterId]
       );
+      console.log('Server: Interaction recording result:', interactionResult.command, interactionResult.rowCount);
 
       // Reserve the funds in the requester's account
       await client.query('UPDATE users SET reserved_amount = $1 WHERE id = $2', [price, requesterId]);
@@ -393,6 +395,7 @@ app.get('/api/car-types', (req, res) => {
 
 app.get('/api/users/interactions', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
+    console.log(`Server: Fetching interactions for userId: ${userId}`);
     try {
       const result = await pool.query(
         `SELECT DISTINCT ui.interacted_user_id as id, u.username, u.avatar_url
@@ -401,6 +404,7 @@ app.get('/api/users/interactions', authenticateToken, async (req, res) => {
          WHERE ui.user_id = $1`,
         [userId]
       );
+      console.log(`Server: Interactions fetched for userId ${userId}:`, result.rows);
       res.status(200).json(result.rows);
     } catch (error) {
       console.error('Error fetching user interactions:', error);
