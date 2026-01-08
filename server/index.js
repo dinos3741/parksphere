@@ -88,6 +88,12 @@ io.on('connection', (socket) => {
         [requestId, spotId, ownerId]
       );
 
+      // Record the interaction: owner accepted requester
+      await client.query(
+        `INSERT INTO user_interactions (user_id, interacted_user_id) VALUES ($1, $2) ON CONFLICT (user_id, interacted_user_id) DO NOTHING`,
+        [ownerId, requesterId]
+      );
+
       // Reserve the funds in the requester's account
       await client.query('UPDATE users SET reserved_amount = $1 WHERE id = $2', [price, requesterId]);
 
@@ -360,6 +366,7 @@ createParkingSpotsTable();
 createRequestsTable(); // Ensure requests table exists
 createUserRatingsTable();
 createMessagesTable();
+  createUserInteractionsTable();
 
 // Middleware to authenticate JWT
 function authenticateToken(req, res, next) {
@@ -385,36 +392,21 @@ app.get('/api/car-types', (req, res) => {
 });
 
 app.get('/api/users/interactions', authenticateToken, async (req, res) => {
-  const userId = req.user.userId;
-
-  try {
-    const result = await pool.query(
-      `SELECT DISTINCT owner_id, requester_id, responded_at
-       FROM requests
-       WHERE (owner_id = $1 OR requester_id = $1) AND (status = 'fulfilled' OR status = 'accepted')
-       ORDER BY responded_at DESC
-       LIMIT 20`,
-      [userId]
-    );
-
-    const interactionUserIds = result.rows.map(row => row.owner_id === userId ? row.requester_id : row.owner_id);
-    const uniqueUserIds = [...new Set(interactionUserIds)];
-
-    if (uniqueUserIds.length === 0) {
-      return res.status(200).json([]);
+    const userId = req.user.userId;
+    try {
+      const result = await pool.query(
+        `SELECT DISTINCT ui.interacted_user_id as id, u.username, u.avatar_url
+         FROM user_interactions ui
+         JOIN users u ON ui.interacted_user_id = u.id
+         WHERE ui.user_id = $1`,
+        [userId]
+      );
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error('Error fetching user interactions:', error);
+      res.status(500).send('Server error fetching user interactions.');
     }
-
-    const usersResult = await pool.query(
-      `SELECT id, username, avatar_url FROM users WHERE id = ANY($1::int[])`,
-      [uniqueUserIds]
-    );
-
-    res.status(200).json(usersResult.rows);
-  } catch (error) {
-    console.error('Error fetching user interactions:', error);
-    res.status(500).send('Server error fetching user interactions.');
-  }
-});
+  });
 
 app.get('/api/users/:id', authenticateToken, async (req, res) => {
   const userId = req.params.id;
