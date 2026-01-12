@@ -4,7 +4,7 @@ import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackgroun
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack'; // Import createNativeStackNavigator
+import { createStackNavigator } from '@react-navigation/stack';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
@@ -29,8 +29,8 @@ import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import th
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import RatingModal from './components/RatingModal';
 
-import { enableScreens } from 'react-native-screens';
-enableScreens(true);
+// import { enableScreens } from 'react-native-screens';
+// enableScreens(false);
 
 const Tab = createBottomTabNavigator();
 
@@ -800,17 +800,17 @@ setCurrentUsername(data.username);
     return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
   }
 
-  const SearchStack = createNativeStackNavigator();
+  const SearchStack = createStackNavigator();
 
   function SearchStackScreen({ navigation }) {
     return (
-      <SearchStack.Navigator>
+      <SearchStack.Navigator screenOptions={{ headerShown: false }}>
         <SearchStack.Screen name="SearchScreen" component={WrappedSearchScreen} />
       </SearchStack.Navigator>
     );
   }
 
-  function ProfileScreen() {
+  function ProfileScreen({ navigation }) {
     if (isEditingProfile) {
       return (
         <Profile
@@ -822,14 +822,18 @@ setCurrentUsername(data.username);
       );
     }
 
+    const profileRoute = {
+      params: {
+        userId: userId,
+      },
+    };
+
     return (
       <UserDetails
-        user={currentUser}
-        onBack={() => {}} // Or handle back navigation if needed
-        onEditProfile={() => setIsEditingProfile(true)}
-        onLogout={handleLogout}
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
+        token={token}
+        serverUrl={serverUrl}
+        route={profileRoute}
+        navigation={navigation}
       />
     );
   }
