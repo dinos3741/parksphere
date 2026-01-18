@@ -101,13 +101,22 @@ export default function App() {
 
 
   useEffect(() => {
-    async function loadFont() {
+    async function loadApp() {
       await Font.loadAsync({
         'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
       });
       setFontLoaded(true);
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
+        interruptionModeIOS: 'DoNotMix',
+        staysActiveInBackground: false,
+        interruptionModeAndroid: 'DoNotMix',
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
     }
-    loadFont();
+    loadApp();
   }, []);
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
