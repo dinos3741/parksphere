@@ -311,6 +311,16 @@ function MainAppContent({ serverUrl }) {
       register(currentUserId, currentUsername);
     }
 
+    const handleConnect = () => {
+      console.log('Web App: Connected to Socket.IO server!');
+      if (currentUserId && currentUsername) {
+        console.log(`Web App: Re-registering user ${currentUsername} (ID: ${currentUserId})`);
+        register(currentUserId, currentUsername);
+      }
+    };
+
+    socket.on('connect', handleConnect);
+
     socket.on('newParkingSpot', handleNewSpot);
     socket.on('spotDeleted', handleSpotDeleted);
     socket.on('spotUpdated', (updatedSpotFromServer) => {
@@ -408,6 +418,7 @@ function MainAppContent({ serverUrl }) {
     });
 
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
       socket.off('spotUpdated');

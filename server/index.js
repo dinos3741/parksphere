@@ -76,7 +76,7 @@ io.on('connection', (socket) => {
       await client.query('BEGIN');
 
       // Get the spot price
-      const spotResult = await client.query('SELECT price FROM parking_spots WHERE id = $1', [spotId]);
+      const spotResult = await client.query('SELECT price FROM parking_spots WHERE id = $1 FOR UPDATE', [spotId]);
       if (spotResult.rows.length === 0) {
         await client.query('ROLLBACK');
         // maybe emit an error to the owner
