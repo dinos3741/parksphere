@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
-import { Audio } from 'expo-audio';
+import { Audio } from 'expo-av';
 import io from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
@@ -101,22 +101,13 @@ export default function App() {
 
 
   useEffect(() => {
-    async function loadApp() {
+    async function loadFont() {
       await Font.loadAsync({
         'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
       });
       setFontLoaded(true);
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        allowsRecordingIOS: false,
-        interruptionModeIOS: 'DoNotMix',
-        staysActiveInBackground: false,
-        interruptionModeAndroid: 'DoNotMix',
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
     }
-    loadApp();
+    loadFont();
   }, []);
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
@@ -720,7 +711,7 @@ setCurrentUsername(data.username);
     }
   };
 
-  const handleDeclineRequest = (request) => {
+  const handleDeclineRequest = (request) => {.
     if (socket.current) {
       socket.current.emit('declineRequest', {
         requestId: request.requestId,
@@ -1189,7 +1180,7 @@ const styles = StyleSheet.create({
   fabText: {
     color: 'white',
     fontSize: 48,
-    fontWeight: '300',
+    fontWeight: '300',.
     lineHeight: 48,
   },
   fabTextSmall: {
