@@ -13,7 +13,9 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3002",
   "http://192.168.1.70:3000",
-  "http://192.168.1.70:8081"
+  "http://192.168.1.70:8081",
+  "http://192.168.1.22:8081",
+  "http://192.168.1.22:19000"
 ];
 
 const server = http.createServer(app); // Create http server

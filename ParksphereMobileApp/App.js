@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
-import { Audio } from 'expo-av';
+import { Audio } from 'expo-audio';
 import io from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
