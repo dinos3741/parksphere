@@ -711,7 +711,7 @@ setCurrentUsername(data.username);
     }
   };
 
-  const handleDeclineRequest = (request) => {.
+  const handleDeclineRequest = (request) => {
     if (socket.current) {
       socket.current.emit('declineRequest', {
         requestId: request.requestId,
@@ -1180,7 +1180,7 @@ const styles = StyleSheet.create({
   fabText: {
     color: 'white',
     fontSize: 48,
-    fontWeight: '300',.
+    fontWeight: '300',
     lineHeight: 48,
   },
   fabTextSmall: {
