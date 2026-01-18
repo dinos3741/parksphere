@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useIsFocused } from '@react-navigation/native';
 
 const SearchScreen = ({ token, serverUrl }) => {
   const [username, setUsername] = useState('');
@@ -10,6 +11,7 @@ const SearchScreen = ({ token, serverUrl }) => {
     { id: '3', username: 'peter_jones' },
   ]);
   const [interactions, setInteractions] = useState([]); // Initialize as empty array
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     const fetchInteractions = async () => {
@@ -37,8 +39,10 @@ const SearchScreen = ({ token, serverUrl }) => {
       }
     };
 
-    fetchInteractions();
-  }, [token, serverUrl]); // Re-fetch if token or serverUrl changes
+    if (isFocused) {
+      fetchInteractions();
+    }
+  }, [isFocused, token, serverUrl]); // Re-fetch if token or serverUrl changes
 
   const handleSearch = () => {
     // Handle the search logic here
