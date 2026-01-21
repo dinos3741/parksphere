@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert, Image } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -10,7 +10,8 @@ const SearchScreen = ({ token, serverUrl }) => {
     { id: '2', username: 'jane_doe' },
     { id: '3', username: 'peter_jones' },
   ]);
-  const [interactions, setInteractions] = useState([]); // Initialize as empty array
+  const [interactions, setInteractions] = useState([]);
+  const [searchedUser, setSearchedUser] = useState(null);
   const isFocused = useIsFocused();
 
   useEffect(() => {
@@ -27,7 +28,6 @@ const SearchScreen = ({ token, serverUrl }) => {
         if (response.ok) {
           const data = await response.json();
           setInteractions(data);
-          console.log('Fetched interactions:', data); // Add this line
         } else {
           const errorText = await response.text();
           console.error('Failed to fetch interactions:', response.status, errorText);
@@ -41,16 +41,75 @@ const SearchScreen = ({ token, serverUrl }) => {
 
     if (isFocused) {
       fetchInteractions();
+      setSearchedUser(null); // Reset search when screen is focused
+      setUsername(''); // Also clear the username input
     }
-  }, [isFocused, token, serverUrl]); // Re-fetch if token or serverUrl changes
+  }, [isFocused, token, serverUrl]);
 
-  const handleSearch = () => {
-    // Handle the search logic here
-    console.log('Searching for:', username);
+  const handleSearch = async () => {
+    if (!username.trim()) {
+      Alert.alert('Please enter a username to search.');
+      return;
+    }
+    Keyboard.dismiss();
     if (username && !recentSearches.find(item => item.username === username)) {
       setRecentSearches(prev => [{ id: Date.now().toString(), username }, ...prev]);
     }
-    Keyboard.dismiss();
+
+    try {
+      const response = await fetch(`${serverUrl}/api/users/username/${username.trim()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setSearchedUser(data);
+      } else if (response.status === 404) {
+        setSearchedUser({ notFound: true });
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to search user:', response.status, errorText);
+        Alert.alert('Error', 'Failed to search for the user.');
+        setSearchedUser(null);
+      }
+    } catch (error) {
+      console.error('Error searching user:', error);
+      Alert.alert('Error', 'Could not connect to the server to perform the search.');
+      setSearchedUser(null);
+    }
+  };
+
+  const renderUserDetails = () => {
+    if (!searchedUser) return null;
+
+    if (searchedUser.notFound) {
+      return (
+        <View style={styles.userDetailsContainer}>
+          <TouchableOpacity onPress={() => setSearchedUser(null)} style={styles.closeButton}>
+<FontAwesome name="close" size={24} color="gray" />
+          </TouchableOpacity>
+          <Text style={styles.notFoundText}>User not found.</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.userDetailsContainer}>
+        <TouchableOpacity onPress={() => setSearchedUser(null)} style={styles.closeButton}>
+          <FontAwesome name="close" size={24} color="gray" />
+        </TouchableOpacity>
+        <Image source={{ uri: searchedUser.avatar_url }} style={styles.avatar} />
+        <Text style={styles.userUsername}>{searchedUser.username}</Text>
+        <Text>Member since: {new Date(searchedUser.created_at).toLocaleDateString()}</Text>
+        <Text>Average Rating: {parseFloat(searchedUser.average_rating).toFixed(2) || 'Not rated yet'}</Text>
+        <Text>Rank: Top {searchedUser.rank}%</Text>
+        <Text>Car Type: {searchedUser.car_type}</Text>
+        <Text>Spots Declared: {searchedUser.spots_declared}</Text>
+        <Text>Spots Taken: {searchedUser.spots_taken}</Text>
+      </View>
+    );
   };
 
   return (
@@ -66,38 +125,43 @@ const SearchScreen = ({ token, serverUrl }) => {
             placeholder="enter username"
             value={username}
             onChangeText={setUsername}
+            autoCapitalize="none"
           />
           <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
             <FontAwesome name="search" size={20} color="white" />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.recentSearchesContainer}>
-          <Text style={styles.recentSearchesTitle}>Recent searches</Text>
-          <FlatList
-            data={recentSearches}
-            keyExtractor={item => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setUsername(item.username)}>
-                <Text style={styles.recentSearchItem}>{item.username}</Text>
-              </TouchableOpacity>
-            )}
-          />
-          <View style={styles.horizontalLine} />
-        </View>
+        {searchedUser ? renderUserDetails() : (
+          <>
+            <View style={styles.recentSearchesContainer}>
+              <Text style={styles.recentSearchesTitle}>Recent searches</Text>
+              <FlatList
+                data={recentSearches}
+                keyExtractor={item => item.id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={() => setUsername(item.username)}>
+                    <Text style={styles.recentSearchItem}>{item.username}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+              <View style={styles.horizontalLine} />
+            </View>
 
-        <View style={styles.interactionsContainer}>
-          <Text style={styles.interactionsTitle}>Interactions</Text>
-          <FlatList
-            data={interactions}
-            keyExtractor={item => item.id.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity onPress={() => setUsername(item.username)}>
-                <Text style={styles.interactionItem}>{item.username}</Text>
-              </TouchableOpacity>
-            )}
-          />
-        </View>
+            <View style={styles.interactionsContainer}>
+              <Text style={styles.interactionsTitle}>Interactions</Text>
+              <FlatList
+                data={interactions}
+                keyExtractor={item => item.id.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity onPress={() => setUsername(item.username)}>
+                    <Text style={styles.interactionItem}>{item.username}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </>
+        )}
         <View style={{ flex : 1 }} />
       </View>
     </KeyboardAvoidingView>
@@ -172,6 +236,35 @@ const styles = StyleSheet.create({
   interactionItem: {
     fontSize: 16,
     paddingVertical: 13,
+  },
+  userDetailsContainer: {
+    marginTop: 20,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 10,
+  },
+  userUsername: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  notFoundText: {
+    marginTop: 20,
+    fontSize: 18,
+    color: 'red',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
   },
 });
 
