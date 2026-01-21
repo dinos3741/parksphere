@@ -903,7 +903,7 @@ setCurrentUsername(data.username);
                   },
                 }}
               />
-              <Tab.Screen name="Search" component={SearchScreen} />
+              <Tab.Screen name="Search" component={WrappedSearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
             {activeScreen === 'Home' && (
