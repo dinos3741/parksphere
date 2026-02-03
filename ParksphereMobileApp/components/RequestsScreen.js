@@ -45,7 +45,9 @@ const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineReques
     if (isRequestAccepted) {
       return (
         <View style={styles.requestItem}>
-          <Text style={styles.requestText}>You have accepted the request from <Text style={styles.username}>{item.requesterUsername}</Text></Text>
+          <TouchableOpacity onPress={() => handleUserPress(item.requesterId)}>
+            <Text style={styles.requestText}>You have accepted the request from <Text style={styles.username}>{item.requesterUsername}</Text></Text>
+          </TouchableOpacity>
         </View>
       );
     }
