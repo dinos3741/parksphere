@@ -134,6 +134,7 @@ export default function App() {
   const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
   const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
   const [spotRequests, setSpotRequests] = useState([]);
+  const [acceptedRequest, setAcceptedRequest] = useState(null);
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
@@ -707,7 +708,8 @@ setCurrentUsername(data.username);
         ownerUsername: currentUsername,
         ownerId: userId,
       });
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== request.requestId));
+      setAcceptedRequest(request);
+      setSpotRequests([]);
     }
   };
 
@@ -796,7 +798,8 @@ setCurrentUsername(data.username);
   }
 
   function WrappedRequestsScreen(props) {
-    return <RequestsScreen {...props} spotRequests={spotRequests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
+    const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
+    return <RequestsScreen {...props} spotRequests={requests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
   }
 
   function ProfileScreen() {
@@ -894,12 +897,13 @@ setCurrentUsername(data.username);
             >
               <Tab.Screen name="Home" component={WrappedHomeScreen} />
               <Tab.Screen name="Chat" component={WrappedChatTab} />
-              <Tab.Screen 
-                name="Requests" 
-                component={WrappedRequestsScreen} 
+              <Tab.Screen
+                name="Requests"
+                component={WrappedRequestsScreen}
                 listeners={{
                   tabPress: (e) => {
                     setHasNewRequests(false);
+                    setAcceptedRequest(null);
                   },
                 }}
               />
