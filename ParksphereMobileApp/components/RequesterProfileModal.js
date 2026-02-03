@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
+import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
 const RequesterProfileModal = ({ user, visible, onClose }) => {
   if (!user) {
@@ -8,110 +9,67 @@ const RequesterProfileModal = ({ user, visible, onClose }) => {
 
   return (
     <Modal
-      animationType="slide"
-      transparent={false}
+      animationType="fade" // Changed to fade for a smoother transition
+      transparent={true} // Make the modal transparent to show the overlay
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <ScrollView>
-          <View style={styles.profileDetailsTwoColumn}>
-            <View style={styles.profileLeftColumn}>
-              <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
-              <Text style={styles.username}>{user.username}</Text>
-            </View>
-            <View style={styles.profileRightColumn}>
-              <View style={styles.infoRow}>
-                <Text style={styles.profileLabel}>Plate number:</Text>
-                <Text style={styles.profileValue}>{(user.plate_number || '').toUpperCase()}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.profileLabel}>Car color:</Text>
-                <Text style={styles.profileValue}>{user.car_color}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.profileLabel}>Car type:</Text>
-                <Text style={styles.profileValue}>{user.car_type}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.profileLabel}>Credits:</Text>
-                <Text style={styles.profileValue}>{user.credits}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.profileLabel}>Account created:</Text>
-                <Text style={styles.profileValue}>{new Date(user.created_at).toLocaleDateString()}</Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.myStatsSection}>
-            <Text style={styles.myStatsLabel}>My Stats</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Spots declared:</Text>
-              <Text style={styles.profileValue}>{user.spots_declared}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Spots taken:</Text>
-              <Text style={styles.profileValue}>{user.spots_taken}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Average arrival time:</Text>
-              <Text style={styles.profileValue}>
-                {user.completed_transactions_count > 0
-                  ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
-                  : 'N/A'}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Rating:</Text>
-              <Text style={styles.profileValue}>
-                {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
-              </Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Rank:</Text>
-              <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
-            </View>
-          </View>
-        </ScrollView>
-        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <Text style={styles.closeButtonText}>Close</Text>
-        </TouchableOpacity>
+      <View style={styles.modalOverlay}>
+        <View style={styles.userDetailsContainer}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <FontAwesome name="close" size={24} color="gray" />
+          </TouchableOpacity>
+          <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          <Text style={styles.username}>{user.username}</Text>
+          <Text>Member since: {new Date(user.created_at).toLocaleDateString()}</Text>
+          <Text>Average Rating: {parseFloat(user.average_rating).toFixed(2) || 'Not rated yet'}</Text>
+          <Text>Rank: Top {user.rank}%</Text>
+          <Text>Car Type: {user.car_type}</Text>
+          <Text>Spots Declared: {user.spots_declared}</Text>
+          <Text>Spots Taken: {user.spots_taken}</Text>
+        </View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: '#fff',
-    paddingTop: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Dim the background
+  },
+  userDetailsContainer: {
+    marginTop: 0, // Adjusted for modal
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    width: '90%', // Adjust width as needed
+    maxWidth: 350, // Max width for larger screens
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   avatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
+    marginBottom: 10,
   },
   username: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginTop: 10,
+    marginBottom: 10,
   },
-  profileDetailsTwoColumn: {
+  infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-start',
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  profileLeftColumn: {
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  profileRightColumn: {
-    flexDirection: 'column',
-    width: '50%', // Adjust as needed
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 5,
   },
   profileLabel: {
     fontWeight: 'bold',
@@ -120,35 +78,11 @@ const styles = StyleSheet.create({
   profileValue: {
     // No specific style for now, will inherit from Text
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 5,
-  },
-  myStatsSection: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  myStatsLabel: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
   closeButton: {
     position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#007bff',
-    borderRadius: 10,
-  },
-  closeButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+    top: 10,
+    right: 10,
+    padding: 5,
   },
 });
 
