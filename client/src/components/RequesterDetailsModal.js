@@ -1,27 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import './RequesterDetailsModal.css';
-import MessageComposerModal from './MessageComposerModal';
-import { sendAuthenticatedRequest } from '../utils/api';
 
-const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
-  const [showMessageModal, setShowMessageModal] = useState(false);
-
+const RequesterDetailsModal = ({ isOpen, onClose, requester, onOpenChat }) => {
   const handleMessageIconClick = (e) => {
-    e.stopPropagation(); // Prevent the modal from closing
-    setShowMessageModal(true);
-  };
-
-  const handleCloseMessageComposerModal = () => {
-    setShowMessageModal(false);
-  };
-
-  const handleSendMessage = async (message) => {
-    try {
-      await sendAuthenticatedRequest('/messages', 'POST', { to: requester.id, message });
-      setShowMessageModal(false);
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
+    e.stopPropagation();
+    onOpenChat(requester);
+    onClose(); // Close the modal after opening the chat
   };
 
   useEffect(() => {
@@ -69,11 +53,6 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester }) => {
           </div>
         </div>
       </div>
-      {showMessageModal && <MessageComposerModal 
-        recipient={requester} 
-        onClose={handleCloseMessageComposerModal} 
-        onSend={handleSendMessage} 
-      />}
     </div>
   );
 };

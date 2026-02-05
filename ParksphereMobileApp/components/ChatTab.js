@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConversationsList from './ConversationsList';
 import ConversationScreen from './ConversationScreen';
 
-const ChatTab = ({ userId, token, socket, onBack }) => {
+const ChatTab = ({ userId, token, socket, onBack, route }) => {
   const [selectedOtherUserId, setSelectedOtherUserId] = useState(null);
   const [selectedOtherUsername, setSelectedOtherUsername] = useState(null);
+
+  useEffect(() => {
+    if (route.params?.recipient) {
+      setSelectedOtherUserId(route.params.recipient.id);
+      setSelectedOtherUsername(route.params.recipient.username);
+    }
+  }, [route.params?.recipient]);
 
   const handleSelectConversation = (otherUserId, otherUsername) => {
     setSelectedOtherUserId(otherUserId);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
@@ -27,6 +27,7 @@ import RequestsScreen from './components/RequestsScreen';
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import RatingModal from './components/RatingModal';
+import RequesterProfileModal from './components/RequesterProfileModal'; // Import RequesterProfileModal
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -140,6 +141,16 @@ export default function App() {
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [userToRate, setUserToRate] = useState(null);
+  const navigationRef = useNavigationContainerRef(); // Get a ref to the navigation container
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterProfileModal
+  const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
+
+  const handleOpenChat = (user) => {
+    // Navigate to the Chat tab and pass the user as a parameter
+    navigationRef.current?.navigate('Chat', { recipient: user });
+    setShowRequesterDetailsModal(false); // Close the modal after opening chat
+    setSelectedRequester(null); // Clear the selected requester
+  };
 
   const handleRate = async (rating) => {
     if (!userToRate) return;
@@ -799,7 +810,7 @@ setCurrentUsername(data.username);
 
   function WrappedRequestsScreen(props) {
     const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
-    return <RequestsScreen {...props} spotRequests={requests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} />;
+    return <RequestsScreen {...props} spotRequests={requests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} onOpenChat={handleOpenChat} />;
   }
 
   function ProfileScreen() {
@@ -829,7 +840,7 @@ setCurrentUsername(data.username);
   return (
     <>
       <StatusBar style="auto" />
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         {isLoggedIn && currentUser ? (
           <View style={styles.fullContainer}>
             <View style={styles.header}>
@@ -974,6 +985,12 @@ setCurrentUsername(data.username);
         onClose={() => setShowRatingModal(false)}
         requester={userToRate}
         onRate={handleRate}
+      />
+      <RequesterProfileModal
+        visible={showRequesterDetailsModal}
+        onClose={() => setShowRequesterDetailsModal(false)}
+        user={selectedRequester}
+        onOpenChat={handleOpenChat}
       />
     </>
   );

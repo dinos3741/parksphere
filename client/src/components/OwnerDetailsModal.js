@@ -1,27 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import './OwnerDetailsModal.css';
-import MessageComposerModal from './MessageComposerModal';
-import { sendAuthenticatedRequest } from '../utils/api';
 
-const OwnerDetailsModal = ({ owner, onClose }) => {
-  const [showMessageModal, setShowMessageModal] = useState(false);
-
+const OwnerDetailsModal = ({ owner, onClose, onOpenChat }) => {
   const handleMessageIconClick = (e) => {
-    e.stopPropagation(); // Prevent the modal from closing
-    setShowMessageModal(true);
-  };
-
-  const handleCloseMessageComposerModal = () => {
-    setShowMessageModal(false);
-  };
-
-  const handleSendMessage = async (message) => {
-    try {
-      await sendAuthenticatedRequest('/messages', 'POST', { to: owner.id, message });
-      setShowMessageModal(false);
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
+    e.stopPropagation();
+    onOpenChat(owner);
+    onClose();
   };
 
   useEffect(() => {
@@ -67,11 +51,6 @@ const OwnerDetailsModal = ({ owner, onClose }) => {
           </div>
         </div>
       </div>
-      {showMessageModal && <MessageComposerModal 
-        recipient={owner} 
-        onClose={handleCloseMessageComposerModal} 
-        onSend={handleSendMessage} 
-      />}
     </div>
   );
 };

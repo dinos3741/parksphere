@@ -181,7 +181,7 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
           </div>
         </div>
       )}
-      {showOwnerModal && <OwnerDetailsModal owner={ownerDetails} onClose={() => setShowOwnerModal(false)} />}
+      {showOwnerModal && <OwnerDetailsModal owner={ownerDetails} onClose={() => setShowOwnerModal(false)} onOpenChat={onOpenChat} />}
       <ArrivalConfirmationModal
         isOpen={showArrivalConfirmation}
         onClose={() => setShowArrivalConfirmation(false)}

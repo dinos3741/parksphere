@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
-const RequesterProfileModal = ({ user, visible, onClose }) => {
+const RequesterProfileModal = ({ user, visible, onClose, onOpenChat }) => {
   if (!user) {
     return null;
   }
@@ -16,6 +16,9 @@ const RequesterProfileModal = ({ user, visible, onClose }) => {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.userDetailsContainer}>
+          <TouchableOpacity onPress={() => onOpenChat(user)} style={styles.chatButton}>
+            <FontAwesome name="comment" size={24} color="gray" />
+          </TouchableOpacity>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <FontAwesome name="close" size={24} color="gray" />
           </TouchableOpacity>
@@ -82,6 +85,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     right: 10,
+    padding: 5,
+  },
+  chatButton: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
     padding: 5,
   },
 });

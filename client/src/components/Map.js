@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -81,8 +81,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
   const [newRequestSpotIds, setNewRequestSpotIds] = useState([]); // New state for spots with new requests
-  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
-  const [selectedRequester, setSelectedRequester] = useState(null);
 
   useEffect(() => {
     if (acceptedSpot) {
@@ -180,26 +178,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     setShowDeleteConfirmationModal(false);
     setSpotToDeleteId(null);
     setDrawerSpot(null); // Close the SideDrawer after deletion
-  };
-
-  const handleOpenRequesterDetails = async (requester) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/users/username/${requester.requester_username}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setSelectedRequester(data);
-        setShowRequesterDetailsModal(true);
-      } else {
-        console.error('Failed to fetch requester details');
-      }
-    } catch (error) {
-      console.error('Error fetching requester details:', error);
-    }
   };
 
   useEffect(() => {
@@ -629,7 +607,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         currentUsername={currentUsername}
         onOpenChat={onOpenChat}
         unreadMessages={unreadMessages}
-        onOpenRequesterDetails={handleOpenRequesterDetails}
+        onOpenRequesterDetails={onOpenRequesterDetails}
         onRateRequester={onRateRequester}
       />
       <RequesterSideDrawer
@@ -659,14 +637,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
           onClose={() => setShowDeleteConfirmationModal(false)}
           onConfirm={confirmDeleteSpot}
           message={`Are you sure you want to delete parking spot #${spotToDeleteId}? This action cannot be undone.`}
-        />
-      )}
-
-      {showRequesterDetailsModal && (
-        <RequesterDetailsModal
-          isOpen={showRequesterDetailsModal}
-          onClose={() => setShowRequesterDetailsModal(false)}
-          requester={selectedRequester}
         />
       )}
     </>

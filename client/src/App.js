@@ -833,6 +833,7 @@ function MainAppContent({ serverUrl }) {
               setPinnedLocation={setPinnedLocation}
               setShowLeavingOverlay={setShowLeavingOverlay}
               onRateRequester={handleRateRequester}
+              onOpenRequesterDetails={handleShowRequesterDetails}
               isMessagesDrawerOpen={isMessagesDrawerOpen}
               setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
               serverUrl={serverUrl}
@@ -946,6 +947,7 @@ function MainAppContent({ serverUrl }) {
             isOpen={showRequesterDetailsModal}
             onClose={() => setShowRequesterDetailsModal(false)}
             requester={selectedRequester}
+            onOpenChat={handleOpenChat}
           />
         )}
       </>
