@@ -83,6 +83,7 @@ function MainAppContent({ serverUrl }) {
   const [spotRequests, setSpotRequests] = useState([]);
   const [isLogoAnimating, setIsLogoAnimating] = useState(false);
   const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
+  const [expiredSpotIds, setExpiredSpotIds] = useState([]); // New state for expired spot IDs
 
   console.log('MainAppContent: After useState declarations.'); // NEW LOG HERE
 
@@ -484,12 +485,13 @@ function MainAppContent({ serverUrl }) {
           if (minutesSinceDeclared > spot.time_to_leave) {
             addNotification(`Spot ${spot.id} expired`, 'red');
             setExpiredNotifiedSpots(prev => [...prev, spot.id]);
+            setExpiredSpotIds(prev => [...prev, spot.id]); // Add spot ID to expiredSpotIds
           }
         }
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [filteredParkingSpots, expiredNotifiedSpots, addNotification]);
+  }, [filteredParkingSpots, expiredNotifiedSpots, addNotification, expiredSpotIds]); // Add expiredSpotIds to dependencies
 
   const handleClickOutside = useCallback((event) => {
     if (dropdownRef.current && !dropdownRef.current.contains(event.target) && !event.target.closest('.hamburger-menu')) {
@@ -837,6 +839,7 @@ function MainAppContent({ serverUrl }) {
               isMessagesDrawerOpen={isMessagesDrawerOpen}
               setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
               serverUrl={serverUrl}
+              expiredSpotIds={expiredSpotIds} // Pass expiredSpotIds to Map
             />
           ) : (
             <div>Loading map or getting your location...</div>

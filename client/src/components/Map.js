@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl, expiredSpotIds }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -157,6 +157,16 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
       emitter.off('closeOwnerDrawer', handleCloseDrawer);
     };
   }, []);
+
+  // Effect to close side drawers if the spot expires
+  useEffect(() => {
+    if (drawerSpot && expiredSpotIds.includes(drawerSpot.id)) {
+      setDrawerSpot(null);
+    }
+    if (requesterDrawerSpot && expiredSpotIds.includes(requesterDrawerSpot.id)) {
+      setRequesterDrawerSpot(null);
+    }
+  }, [expiredSpotIds, drawerSpot, requesterDrawerSpot]);
 
 
 
