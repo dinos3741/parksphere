@@ -66,9 +66,9 @@ const Map = ({
                   <Marker
                     coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                     onPress={() => handleSpotPress(spot)}
-                    tracksViewChanges={false}
+                    anchor={{ x: 0.5, y: 0.5 }}
                   >
-                    <View style={{ width: 20, height: 20, backgroundColor: 'transparent' }}></View>
+                    <View style={{ width: 40, height: 40, opacity: 0 }} />
                   </Marker>
                 </>
               )}
