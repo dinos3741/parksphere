@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -239,32 +239,6 @@ export default function App() {
     }
   };
 
-  const fetchUserData = async () => {
-    if (isLoggedIn && userId && token) {
-      try {
-        const response = await fetch(`${serverUrl}/api/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUser(data);
-        } else {
-          console.error('Failed to fetch user data');
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setIsRefreshing(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    fetchUserData();
-  }, [isLoggedIn, userId, token]);
-
   const handleRefresh = () => {
     setIsRefreshing(true);
     fetchUserData();
@@ -322,150 +296,168 @@ export default function App() {
     loadToken();
   }, []);
 
-  // Fetch parking spots when logged in or location changes
-  useEffect(() => {
-    const fetchParkingSpots = async () => {
-      if (!isLoggedIn || !token) {
-        return;
-      }
+  const fetchUserData = useCallback(async () => {
+    if (isLoggedIn && userId && token) {
       try {
-        const response = await fetch(`${serverUrl}/api/parkingspots`, {
+        const response = await fetch(`${serverUrl}/api/users/${userId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
         if (response.ok) {
           const data = await response.json();
-          const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
-          setParkingSpots(transformedData);
-        } else if (response.status === 401 || response.status === 403) {
-          console.error('Authentication failed. Logging out...', response.status);
-          handleLogout(); // Log out user if token is invalid or expired
+          setCurrentUser(data);
         } else {
-          console.error('Failed to fetch parking spots:', response.status, response.statusText);
+          console.error('Failed to fetch user data');
         }
       } catch (error) {
-        console.error('Error fetching parking spots:', error);
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsRefreshing(false);
       }
-    };
+    }
+  }, [isLoggedIn, userId, token, serverUrl]);
 
-    fetchParkingSpots();
-  }, [isLoggedIn, token, userLocation]); // Depend on isLoggedIn, token, and userLocation
+  const handleLogout = useCallback(async () => {
+    try {
+      if (socket.current && userId) {
+        socket.current.emit('unregister', userId);
+      }
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('username');
+      setToken(null);
+      setUserId(null);
+      setCurrentUsername(null);
+      setIsLoggedIn(false);
+      setMessage('Logged out. Please log in.');
+      setNotifications([]); // Clear notifications on logout
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  }, [userId]);
 
-  // Socket.IO setup for real-time updates
   useEffect(() => {
-    if (!isLoggedIn || !userId || !currentUsername) {
-      // If not logged in or user info is missing, ensure socket is disconnected
+    if (isLoggedIn && token && userId && currentUsername) {
+      // All authentication details are present, proceed with setup
+
+      // 1. Fetch initial data
+      fetchUserData();
+
+      const fetchParkingSpots = async () => {
+        try {
+          const response = await fetch(`${serverUrl}/api/parkingspots`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
+            setParkingSpots(transformedData);
+          } else if (response.status === 401 || response.status === 403) {
+            console.error('Authentication failed when fetching spots. Logging out...', response.status);
+            handleLogout();
+          } else {
+            console.error('Failed to fetch parking spots:', response.status, response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching parking spots:', error);
+        }
+      };
+      fetchParkingSpots();
+
+      // 2. Setup Socket.IO connection
+      if (!socket.current || !socket.current.connected) {
+        const newSocket = io(serverUrl, { transports: ['websocket'] });
+        socket.current = newSocket;
+
+        newSocket.on('connect', () => {
+          console.log('Mobile App: Connected to Socket.IO server!');
+          newSocket.emit('register', { userId, username: currentUsername });
+        });
+
+        newSocket.on('disconnect', () => {
+          console.log('Mobile App: Disconnected from Socket.IO server.');
+        });
+
+        newSocket.on('connect_error', (error) => {
+          console.error('Mobile App: Socket.IO connection error:', error.message);
+        });
+
+        newSocket.on('newParkingSpot', (newSpot) => {
+          console.log('Mobile App: newSpot received:', newSpot);
+          const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
+          setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
+        });
+
+        newSocket.on('spotDeleted', ({ spotId }) => {
+          console.log('Mobile App: spotDeleted received:', spotId);
+          setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
+          setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
+        });
+
+        newSocket.on('spotUpdated', (updatedSpot) => {
+          console.log('Mobile App: Spot updated received:', updatedSpot);
+          setParkingSpots((prevSpots) =>
+            prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
+          );
+        });
+
+        newSocket.on('spotRequest', (data) => {
+          console.log('Mobile App: Spot request received:', data);
+          setSpotRequests(prevRequests => [...prevRequests, data]);
+          setHasNewRequests(true);
+          addNotification(data.message);
+          playSound();
+        });
+
+        newSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
+          console.log(`Mobile App: Received confirmation that request ${requestId} for spot ${spotId} was processed.`);
+          setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
+        });
+
+        newSocket.on('requestResponse', (data) => {
+          console.log('Mobile App: Request response received:', data);
+          Alert.alert('Spot Request Update', data.message);
+          if (data.spot) {
+            setAcceptedSpot(data.spot);
+            setArrivalConfirmed(false);
+          } else {
+            setAcceptedSpot(null);
+          }
+        });
+
+        newSocket.on('requesterArrived', (data) => {
+          console.log('Mobile App: Requester arrived notification received:', data);
+          const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+          addNotification(message, 'default');
+          playSoundArrived();
+          setArrivalConfirmationData(data);
+          setArrivalConfirmationModalOpen(true);
+        });
+      }
+    } else {
+      // User is logged out, perform cleanup
       if (socket.current) {
-        console.log('Mobile App: Disconnecting socket due to missing user info.');
+        console.log('Mobile App: Disconnecting socket due to logout.');
         socket.current.disconnect();
         socket.current = null;
       }
-      return;
+      setParkingSpots([]);
+      setCurrentUser(null);
     }
 
-    // Only connect if we have user info and are logged in, and socket is not already connected
-    if (!socket.current || !socket.current.connected) {
-      socket.current = io(serverUrl, { transports: ['websocket'] });
-
-      socket.current.on('connect', () => {
-        console.log('Mobile App: Connected to Socket.IO server!');
-        console.log(`Mobile App: Emitting register event for userId: ${userId}, username: ${currentUsername}, socketId: ${socket.current.id}`);
-        socket.current.emit('register', { userId, username: currentUsername });
-      });
-
-      socket.current.on('disconnect', () => {
-        console.log('Mobile App: Disconnected from Socket.IO server.');
-      });
-
-      // Add a general error listener for debugging
-      socket.current.on('connect_error', (error) => {
-        console.error('Mobile App: Socket.IO connection error:', error.message);
-      });
-    }
-
-    // ... rest of the socket event listeners ...
-    // Ensure these listeners are only added once per socket instance
-    // and are removed on cleanup to prevent memory leaks or duplicate listeners.
-    // For simplicity, I'm keeping them inside this useEffect, but in a larger app,
-    // you might want to abstract them or use a separate effect for listeners.
-
-    const currentSocket = socket.current; // Capture current socket for cleanup
-
-    currentSocket.on('newParkingSpot', (newSpot) => {
-      console.log('Mobile App: newSpot received:', newSpot);
-      const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id }; // Map user_id to ownerId
-      console.log('Mobile App: spotWithOwnerId:', spotWithOwnerId);
-      setParkingSpots((prevSpots) => {
-        const updatedSpots = [...prevSpots, spotWithOwnerId];
-        return updatedSpots;
-      });
-    });
-
-    currentSocket.on('spotDeleted', ({ spotId }) => {
-      console.log('Mobile App: spotDeleted received:', spotId);
-      setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
-      setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
-    });
-
-    currentSocket.on('spotUpdated', (updatedSpot) => {
-      console.log('Mobile App: Spot updated received:', updatedSpot);
-      setParkingSpots((prevSpots) =>
-        prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
-      );
-    });
-
-    currentSocket.on('spotRequest', (data) => {
-      console.log('Mobile App: Spot request received:', data);
-      setSpotRequests(prevRequests => [...prevRequests, data]);
-      setHasNewRequests(true);
-      addNotification(data.message);
-      playSound();
-    });
-
-    currentSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
-      console.log(`Mobile App: Received confirmation that request ${requestId} for spot ${spotId} was processed.`);
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
-    });
-
-    currentSocket.on('requestResponse', (data) => {
-      console.log('Mobile App: Request response received:', data);
-      Alert.alert('Spot Request Update', data.message);
-      if (data.spot) {
-        setAcceptedSpot(data.spot);
-        setArrivalConfirmed(false); // Reset for new accepted spot
-      } else {
-        setAcceptedSpot(null); // Clear accepted spot if request was declined or cancelled
-      }
-    });
-
-    currentSocket.on('requesterArrived', (data) => {
-      console.log('Mobile App: Requester arrived notification received:', data);
-      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-      addNotification(message, 'default');
-      playSoundArrived();
-      setArrivalConfirmationData(data);
-      setArrivalConfirmationModalOpen(true);
-    });
-
+    // Cleanup function for the effect
     return () => {
-      if (currentSocket) {
-        console.log('Mobile App: Cleaning up Socket.IO connection.');
-        currentSocket.off('connect');
-        currentSocket.off('disconnect');
-        currentSocket.off('connect_error');
-        currentSocket.off('newParkingSpot');
-        currentSocket.off('spotDeleted');
-        currentSocket.off('spotUpdated');
-        currentSocket.off('spotRequest');
-        currentSocket.off('requestAcceptedOrDeclined');
-        currentSocket.off('requestResponse');
-        currentSocket.off('requesterArrived');
-        currentSocket.disconnect(); // Clean up on component unmount
+      if (socket.current) {
+        console.log('Mobile App: Cleaning up Socket.IO connection on effect cleanup.');
+        socket.current.disconnect();
         socket.current = null;
       }
     };
-  }, [serverUrl, isLoggedIn, userId, currentUsername]); // Reconnect if these dependencies change
+  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout]);
+
 
   // Request location permissions and get initial location
   useEffect(() => {
@@ -573,29 +565,9 @@ export default function App() {
   const handleLogin = (data) => {
     setToken(data.token);
     setUserId(data.userId);
-setCurrentUsername(data.username);
+    setCurrentUsername(data.username);
     setIsLoggedIn(true);
     addNotification(`Welcome ${data.username}!`);
-  };
-
-  const handleLogout = async () => {
-    try {
-      if (socket.current && userId) {
-        socket.current.emit('unregister', userId);
-      }
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userId');
-      await AsyncStorage.removeItem('username');
-      setToken(null);
-      setUserId(null);
-      setCurrentUsername(null);
-      setIsLoggedIn(false);
-      setMessage('Logged out. Please log in.');
-      setNotifications([]); // Clear notifications on logout
-      // Alert.alert('Logged Out', 'You have been logged out.'); // Removed logout notification
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
   };
 
   const handleSpotPress = (spot) => {
