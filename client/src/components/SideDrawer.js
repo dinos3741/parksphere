@@ -16,6 +16,11 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
   const drawerRef = useRef(null);
 
   const handleConfirmRequest = (request) => {
+    if (spot.requests.some(r => r.status === 'accepted')) {
+      addNotification("A request has already been accepted for this spot.", 'red');
+      return;
+    }
+
     socket.emit('acceptRequest', {
       requestId: request.id,
       requesterId: request.requester_id,
@@ -40,7 +45,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
     emitter.emit('request-rejected-by-owner', request.id);
   };
 
-
+  const hasAcceptedRequest = spot?.requests?.some(r => r.status === 'accepted');
 
   return (
     <div ref={drawerRef} className={`side-drawer ${spot || userAddress ? 'open' : ''}`}>
@@ -81,7 +86,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                         <div className={`request-distance ${request.status === 'accepted' ? 'accepted' : ''}`}>
                           {typeof request.distance === 'number' && !isNaN(request.distance) ? `${request.distance.toFixed(2)} km` : 'N/A'}
                         </div>
-                        {request.status === 'pending' && (
+                        {!hasAcceptedRequest && request.status === 'pending' && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleConfirmRequest(request); }}
                             style={{
@@ -102,7 +107,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                             <i className="fas fa-check-circle"></i>
                           </button>
                         )}
-                        {request.status === 'pending' && (
+                        {!hasAcceptedRequest && request.status === 'pending' && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleRejectRequest(request); }}
                             style={{

@@ -68,65 +68,89 @@ io.on('connection', (socket) => {
   socket.on('acceptRequest', async (data) => {
     console.log('Server: acceptRequest event received with data:', data);
     const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
-    const requesterSockets = userSockets[requesterId];
-    console.log('Server: Found requester sockets:', requesterSockets);
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // Get the spot price
+      // 1. Check if the spot still exists and get its price
       const spotResult = await client.query('SELECT price FROM parking_spots WHERE id = $1 FOR UPDATE', [spotId]);
       if (spotResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        // maybe emit an error to the owner
         return;
       }
       const { price } = spotResult.rows[0];
 
-      // Update the request status in the database
+      // 2. Check if the request is still pending
+      const requestCheck = await client.query('SELECT status FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
+      if (requestCheck.rows.length === 0 || requestCheck.rows[0].status !== 'pending') {
+        await client.query('ROLLBACK');
+        return;
+      }
+
+      // 3. Update the accepted request
       await client.query(
         `UPDATE requests SET status = 'accepted', responded_at = NOW(), accepted_at = NOW() WHERE id = $1 AND spot_id = $2 AND owner_id = $3`,
         [requestId, spotId, ownerId]
       );
 
-      // Reserve the funds in the requester's account
+      // 4. Reject all other pending requests for this spot
+      const otherRequestsResult = await client.query(
+        `UPDATE requests SET status = 'rejected', responded_at = NOW() 
+         WHERE spot_id = $1 AND id != $2 AND status = 'pending' 
+         RETURNING requester_id`,
+        [spotId, requestId]
+      );
+      const rejectedRequesterIds = otherRequestsResult.rows.map(r => r.requester_id);
+
+      // 5. Reserve the funds in the requester's account
       await client.query('UPDATE users SET reserved_amount = $1 WHERE id = $2', [price, requesterId]);
 
       await client.query('COMMIT');
 
+      // --- Notifications ---
+
+      // Notify the accepted requester
+      const requesterSockets = userSockets[requesterId];
       const fullSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
       const spot = fullSpotResult.rows[0];
-      spot.username = ownerUsername; // Add username to the spot object
+      spot.username = ownerUsername;
 
-      console.log('Server: userSockets before emitting requestResponse:', userSockets);
       if (requesterSockets) {
-        console.log('Server: Emitting requestResponse to requester sockets...');
         requesterSockets.forEach(s => {
-          const payload = {
+          io.to(s.socketId).emit('requestResponse', {
             message: `Your request for spot ${spotId} was ACCEPTED by ${ownerUsername}! Please get to the spot before the expiration time.`,
-            spot: spot, // Include the full spot object
-            ownerUsername: ownerUsername
-          };
-          io.to(s.socketId).emit('requestResponse', payload);
-          console.log(`Server: Emitted requestResponse to socket ${s.socketId} with payload:`, payload);
+            spot: spot,
+            ownerUsername: ownerUsername,
+            requestId: requestId
+          });
         });
       }
-      // Emit to owner to update their requests list
-      console.log('Server: Attempting to find owner socket for ownerId:', ownerId);
+
+      // Notify all rejected requesters
+      rejectedRequesterIds.forEach(rejectedId => {
+        const rejectedSockets = userSockets[rejectedId];
+        if (rejectedSockets) {
+          rejectedSockets.forEach(s => {
+            io.to(s.socketId).emit('requestResponse', {
+              message: `Your request for spot ${spotId} was DECLINED by ${ownerUsername}.`,
+              spotId: spotId,
+              status: 'rejected'
+            });
+          });
+        }
+      });
+
+      // Notify owner to update their UI
       const ownerSocketInfo = userSockets[ownerId];
-      console.log('Server: Found owner socket info:', ownerSocketInfo);
       if (ownerSocketInfo) {
-        console.log('Server: Emitting requestAcceptedOrDeclined to owner...');
         ownerSocketInfo.forEach(s => {
           io.to(s.socketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
-          console.log(`Server: Emitted requestAcceptedOrDeclined to owner socket ${s.socketId}`);
         });
       }
     } catch (error) {
       await client.query('ROLLBACK');
-      console.error('Error accepting request and updating DB:', error);
-      // Optionally, send an error message back to the owner or requester
+      console.error('Error accepting request:', error);
     } finally {
       client.release();
     }
