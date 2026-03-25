@@ -605,7 +605,7 @@ app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT
           r.id,
-          r.spot_id,
+          r.spot_id AS "spotId",
           r.requester_id,
           r.requested_at,
           u.username AS requester_username,

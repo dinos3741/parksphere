@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl, expiredSpotIds }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl, expiredSpotIds, spotToOpenDrawer }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -81,6 +81,17 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   const [showDeleteConfirmationModal, setShowDeleteConfirmationModal] = useState(false); // New state for delete modal
   const [spotToDeleteId, setSpotToDeleteId] = useState(null); // New state to store spot ID to delete
   const [newRequestSpotIds, setNewRequestSpotIds] = useState([]); // New state for spots with new requests
+
+  useEffect(() => {
+    console.log('Map.js: spotRequests prop updated:', JSON.stringify(spotRequests, null, 2)); // DEBUG LOG
+  }, [spotRequests]);
+
+  useEffect(() => {
+    if (spotToOpenDrawer) {
+      console.log('Map.js: Opening drawer for spotToOpenDrawer:', spotToOpenDrawer);
+      handleOwnerSpotClick(spotToOpenDrawer);
+    }
+  }, [spotToOpenDrawer]);
 
   useEffect(() => {
     if (acceptedSpot) {
@@ -168,10 +179,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     }
   }, [expiredSpotIds, drawerSpot, requesterDrawerSpot]);
 
-
-
   const handleNewButtonClick = (spot) => {
-    console.log(`Edit button clicked for spot ID: ${spot.id}`);
     if (spot && onEditSpot) {
       onEditSpot(spot); // Call the callback from App.js
       setDrawerSpot(null); // Close the drawer
@@ -335,10 +343,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     }
   }, [isPinDropMode, mapRef, setPinnedLocation, setPinDropMode, setShowLeavingOverlay]);
 
-  if (!appUserLocation || isNaN(appUserLocation[0]) || isNaN(appUserLocation[1])) {
-    return <div>Loading map or getting your location...</div>;
-  }
-
   // Helper function to determine circle color based on remaining time
   const getCircleColor = (declaredAt, timeToLeave) => {
     const declaredTime = new Date(declaredAt).getTime(); // Convert declared_at to milliseconds
@@ -395,8 +399,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
     const requesterLat = appUserLocation[0];
     const requesterLon = appUserLocation[1];
 
-    console.log(`Attempting to send request for spot ID: ${spotId}`);
-
     try {
       const response = await fetch('/api/request-spot', {
         method: 'POST',
@@ -406,8 +408,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         },
         body: JSON.stringify({ spotId, requesterLat, requesterLon }), // Add requesterLat and requesterLon
       });
-
-      console.log('Response from /api/request-spot:', response);
 
       if (response.ok) {
         appAddNotification(`Request for spot #${spotId} sent successfully.`, 'green');
@@ -432,8 +432,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
       return;
     }
 
-    console.log(`Attempting to send cancel request for spot ID: ${spotId}`);
-
     try {
       const response = await fetch(`${serverUrl}/api/cancel-request`, {
         method: 'POST',
@@ -443,8 +441,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         },
         body: JSON.stringify({ spotId }),
       });
-
-      console.log('Response from /api/cancel-request:', response);
 
       if (response.ok) {
         appAddNotification(`Request for spot #${spotId} cancelled successfully.`, 'default');
@@ -464,7 +460,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
   };
 
   const handleArrived = (spotId) => {
-    console.log(`Web app: Emitting 'requester-arrived' for spotId: ${spotId}`);
     socket.emit('requester-arrived', { spotId });
     appAddNotification(`You have arrived at spot ${spotId}. The owner has been notified.`, 'default');
     if (mapRef.current) {
@@ -474,11 +469,33 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
 
   const handleOwnerSpotClick = async (spot) => {
     setUserAddress(null);
+    // Just set the spot, let the useEffect handle populating requests
     setDrawerSpot(spot);
     setNewRequestSpotIds(prev => prev.filter(id => id !== spot.id)); // Clear red dot
   };
 
-  
+  // Effect to update drawerSpot with latest data from parkingSpots or spotRequests
+  useEffect(() => {
+    if (drawerSpot) { // Only update if a drawer is currently open
+      const currentSpotId = drawerSpot.id;
+      const updatedSpotData = parkingSpots.find(spot => spot.id === currentSpotId);
+      if (updatedSpotData) {
+        const relevantRequests = spotRequests.filter(req => req.spotId === currentSpotId);
+        const newDrawerSpot = { ...updatedSpotData, requests: relevantRequests };
+        console.log('Map.js: useEffect updating drawerSpot - newDrawerSpot:', JSON.stringify(newDrawerSpot, null, 2)); // DEBUG LOG
+        // Only update if the content of the requests array has changed
+        // Or if the spot data itself has changed (e.g., time_to_leave)
+        if (JSON.stringify(drawerSpot.requests) !== JSON.stringify(relevantRequests) ||
+            JSON.stringify(drawerSpot) !== JSON.stringify(newDrawerSpot)) { // Added check for overall spot data change
+          setDrawerSpot(newDrawerSpot);
+        }
+      }
+    }
+  }, [parkingSpots, spotRequests, drawerSpot]); // Added drawerSpot to dependencies to ensure it re-runs when drawerSpot itself changes
+
+  if (!appUserLocation || isNaN(appUserLocation[0]) || isNaN(appUserLocation[1])) {
+    return <div>Loading map or getting your location...</div>;
+  }
 
   const isSpotExpired = (spot) => {
     const declaredTime = new Date(spot.declared_at).getTime();
@@ -611,7 +628,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         onEdit={handleNewButtonClick}
         onDelete={handleDelete}
         formatRemainingTime={formatRemainingTime}
-        spotRequests={spotRequests.filter(req => req.spotId === drawerSpot?.id)}
         currentUserId={currentUserId}
         addNotification={appAddNotification}
         currentUsername={currentUsername}
