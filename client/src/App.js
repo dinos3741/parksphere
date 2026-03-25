@@ -84,10 +84,7 @@ function MainAppContent({ serverUrl }) {
   const [isLogoAnimating, setIsLogoAnimating] = useState(false);
   const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
   const [expiredSpotIds, setExpiredSpotIds] = useState([]); // New state for expired spot IDs
-
-  console.log('MainAppContent: After useState declarations.'); // NEW LOG HERE
-
-
+  const [spotToOpenDrawer, setSpotToOpenDrawer] = useState(null); // New state to trigger opening a specific spot's drawer
 
   const formatTimestamp = (date) => {
     const year = date.getFullYear();
@@ -253,7 +250,9 @@ function MainAppContent({ serverUrl }) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
+      console.log('App.js: fetchSpotRequests - data received:', JSON.stringify(data, null, 2)); // DEBUG LOG
       setSpotRequests(data);
+      console.log('App.js: spotRequests state after update:', JSON.stringify(data, null, 2)); // DEBUG LOG
     } catch (error) {
       console.error('Error fetching spot requests:', error);
     }
@@ -348,10 +347,17 @@ function MainAppContent({ serverUrl }) {
     });
 
     socket.on('spotRequest', (data) => {
+      console.log('App.js: Received spotRequest socket event:', JSON.stringify(data, null, 2)); // DEBUG LOG
       addNotification(data.message, 'blue');
       playSound();
       fetchPendingRequests();
       fetchSpotRequests(); // Call the new function
+      // Find the spot in filteredParkingSpots and set it to spotToOpenDrawer
+      const requestedSpot = filteredParkingSpots.find(spot => spot.id === data.spotId);
+      if (requestedSpot) {
+        setSpotToOpenDrawer(requestedSpot);
+      }
+      console.log('App.js: spotRequests state after spotRequest event (should be updated by fetchSpotRequests):', JSON.stringify(spotRequests, null, 2)); // DEBUG LOG
     });
 
     socket.on('requestResponse', (data) => {
@@ -430,7 +436,7 @@ function MainAppContent({ serverUrl }) {
       socket.off('transactionComplete');
       socket.off('privateMessage');
     };
-  }, [currentUserId, currentUsername, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient]);
+  }, [currentUserId, currentUsername, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots]);
 
 
   useEffect(() => {
@@ -840,6 +846,7 @@ function MainAppContent({ serverUrl }) {
               setIsMessagesDrawerOpen={setIsMessagesDrawerOpen}
               serverUrl={serverUrl}
               expiredSpotIds={expiredSpotIds} // Pass expiredSpotIds to Map
+              spotToOpenDrawer={spotToOpenDrawer} // Pass spotToOpenDrawer to Map
             />
           ) : (
             <div>Loading map or getting your location...</div>

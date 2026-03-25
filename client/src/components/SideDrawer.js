@@ -11,7 +11,8 @@ import './SideDrawer.css';
 import socket from '../utils/socket';
 import emitter from '../utils/emitter';
 
-const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, spotRequests, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages, onOpenRequesterDetails, onRateRequester }) => {
+const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, onDelete, formatRemainingTime, currentUserId, addNotification, currentUsername, onOpenChat, unreadMessages, onOpenRequesterDetails, onRateRequester }) => {
+  console.log('SideDrawer.js: spot.requests prop:', JSON.stringify(spot?.requests, null, 2)); // DEBUG LOG
   const drawerRef = useRef(null);
 
   const handleConfirmRequest = (request) => {
@@ -65,9 +66,9 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
             </div>
             <div className="requests-section">
               <h3>Requests</h3>
-              {spotRequests && spotRequests.length > 0 ? (
+              {spot.requests && spot.requests.length > 0 ? (
                 <div className="requests-list">
-                  {spotRequests.map((request, index) => {
+                  {spot.requests.map((request, index) => {
                     const hasUnread = unreadMessages && unreadMessages[request.requester_id];
                     return (
                       <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`}>
