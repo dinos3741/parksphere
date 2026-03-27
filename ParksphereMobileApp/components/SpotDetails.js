@@ -1,11 +1,16 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, onOpenChat }) => {
   if (!spot) return null;
 
   const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
   const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
+
+  const handleUsernameClick = () => {
+    onClose();
+    onOpenChat({ id: spot.user_id, username: spot.username });
+  };
 
   return (
     <Modal
@@ -26,7 +31,12 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
           {isAccepted && (
             <>
               <Text style={{fontWeight: 'bold', marginTop: 10}}>Owner Details:</Text>
-              <Text>Username: {spot.username}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text>Username: </Text>
+                <TouchableOpacity onPress={handleUsernameClick}>
+                  <Text style={{ color: '#007AFF', textDecorationLine: 'underline' }}>{spot.username}</Text>
+                </TouchableOpacity>
+              </View>
               <Text>Car Color: {spot.car_color}</Text>
               <Text>Plate Number: {spot.plate_number}</Text>
             </>

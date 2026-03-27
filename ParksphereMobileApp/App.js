@@ -933,11 +933,12 @@ export default function App() {
         spot={selectedSpot}
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
-        currentUserId={userId} // Pass the current user's ID
+        currentUserId={userId}
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
         userLocation={userLocation} // Pass userLocation here
         acceptedSpot={acceptedSpot}
+        onOpenChat={handleOpenChat}
       />
       <Modal
         visible={showAboutScreen}
