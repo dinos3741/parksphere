@@ -174,6 +174,7 @@ io.on('connection', (socket) => {
             spotId: spotId,
             ownerUsername: ownerUsername
           });
+          io.to(s.socketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
         });
       }
       // Emit to owner to update their requests list
@@ -905,45 +906,15 @@ app.post('/api/request-spot', authenticateToken, async (req, res) => {
 
     // Check if a request already exists for this spot by this requester (any status)
     const existingRequest = await pool.query(
-      `SELECT id, status FROM requests WHERE spot_id = $1 AND requester_id = $2`,
+      `SELECT id, status FROM requests WHERE spot_id = $1 AND requester_id = $2 AND (status = 'pending' OR status = 'accepted')`,
       [spotId, requesterId]
     );
 
     if (existingRequest.rows.length > 0) {
-      const currentRequest = existingRequest.rows[0];
-      if (currentRequest.status === 'cancelled' || currentRequest.status === 'rejected') {
-        // Reactivate the request
-        await pool.query(
-          `UPDATE requests SET status = 'pending', responded_at = NULL, accepted_at = NULL, distance = $2 WHERE id = $1 RETURNING id`,
-          [currentRequest.id, distance]
-        );
-        const requestId = currentRequest.id; // Use the existing request ID
-        const requesterResult = await pool.query('SELECT username FROM users WHERE id = $1', [requesterId]);
-        if (requesterResult.rows.length === 0) {
-          console.log(`Requester with ID ${requesterId} not found.`);
-          return res.status(404).send('Requester not found.');
-        }
-        const requesterUsername = requesterResult.rows[0].username;
-        // Re-send notification to owner if they are connected
-        const ownerSocketInfo = userSockets[ownerId];
-        const ownerUsername = ownerSocketInfo ? ownerSocketInfo.username : 'Unknown Owner';
-        if (ownerSocketInfo && ownerSocketInfo.socketId) {
-          io.to(ownerSocketInfo.socketId).emit('spotRequest', {
-            spotId,
-            requesterId,
-            requesterUsername,
-            ownerUsername,
-            requestId,
-            message: `User ${requesterUsername} has re-requested your parking spot!`
-          });
-        }
-        return res.status(200).json({ message: 'Your request has been reactivated!', requestId });
-      } else if (currentRequest.status === 'pending' || currentRequest.status === 'accepted') {
-        return res.status(409).json({ message: 'You already have an active request for this spot.' });
-      }
+      return res.status(409).json({ message: 'You already have an active request for this spot.' });
     }
 
-    // If no existing request or if it was not active, create a new one (original logic)
+    // Always create a new request if no active (pending/accepted) request exists
     const requestResult = await pool.query(
       `INSERT INTO requests (spot_id, requester_id, owner_id, status, distance) VALUES ($1, $2, $3, 'pending', $4) RETURNING id`,
       [spotId, requesterId, ownerId, distance]
