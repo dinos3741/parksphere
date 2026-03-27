@@ -360,6 +360,11 @@ function MainAppContent({ serverUrl }) {
       console.log('App.js: spotRequests state after spotRequest event (should be updated by fetchSpotRequests):', JSON.stringify(spotRequests, null, 2)); // DEBUG LOG
     });
 
+    socket.on('requestAcceptedOrDeclined', (data) => {
+      console.log('App.js: Received requestAcceptedOrDeclined socket event:', JSON.stringify(data, null, 2)); // DEBUG LOG
+      fetchSpotRequests();
+    });
+
     socket.on('requestResponse', (data) => {
       if (data.message.includes('ACCEPTED')) {
         setAcceptedRequestOwnerUsername(data.ownerUsername);
@@ -430,6 +435,7 @@ function MainAppContent({ serverUrl }) {
       socket.off('spotDeleted', handleSpotDeleted);
       socket.off('spotUpdated');
       socket.off('spotRequest');
+      socket.off('requestAcceptedOrDeclined');
       socket.off('requestResponse');
       socket.off('requesterArrived');
       socket.off('requestCancelled');

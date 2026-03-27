@@ -1,10 +1,11 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot }) => {
   if (!spot) return null;
 
   const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
+  const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
 
   return (
     <Modal
@@ -23,12 +24,18 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
           <Text>Comments: {spot.comments}</Text>
 
           {!isOwner && ( // Only show Request Spot button if not the owner
-            <TouchableOpacity
-              style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
-              onPress={() => onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude)}
-            >
-              <Text style={styles.textStyle}>Request Spot</Text>
-            </TouchableOpacity>
+            isAccepted ? (
+              <View style={{ ...styles.openButton, backgroundColor: '#4CAF50' }}>
+                <Text style={styles.textStyle}>Request Accepted</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
+                onPress={() => onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude)}
+              >
+                <Text style={styles.textStyle}>Request Spot</Text>
+              </TouchableOpacity>
+            )
           )}
 
           {isOwner ? (

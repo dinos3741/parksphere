@@ -177,9 +177,11 @@ io.on('connection', (socket) => {
         });
       }
       // Emit to owner to update their requests list
-      const ownerSocketId = userSockets[ownerId]?.socketId;
-      if (ownerSocketId) {
-        io.to(ownerSocketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
+      const ownerSocketInfo = userSockets[ownerId];
+      if (ownerSocketInfo) {
+        ownerSocketInfo.forEach(s => {
+          io.to(s.socketId).emit('requestAcceptedOrDeclined', { spotId, requestId });
+        });
       }
     } catch (error) {
       console.error('Error declining request and updating DB:', error);

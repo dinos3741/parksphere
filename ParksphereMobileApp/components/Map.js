@@ -15,6 +15,7 @@ const Map = ({
   setIsAddingSpot,
   setNewSpotCoordinates,
   setShowTimeOptionsModal,
+  acceptedSpot,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -46,34 +47,39 @@ const Map = ({
         >
 
 
-          {parkingSpots.map((spot) => (
-            <React.Fragment key={spot.id}>
-              {spot.ownerId === userId ? (
-                <Marker
-                  coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                  onPress={() => handleSpotPress(spot)}
-                  pinColor="red"
-                />
-              ) : (
-                <>
-                  <Circle
-                    center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                    radius={200}
-                    fillColor="rgba(255,0,0,0.2)"
-                    strokeColor="rgba(255,0,0,0.8)"
-                    strokeWidth={2}
-                  />
+          {parkingSpots.map((spot) => {
+            const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
+            const displaySpot = isAccepted ? acceptedSpot : spot;
+            
+            return (
+              <React.Fragment key={spot.id}>
+                {spot.ownerId === userId || isAccepted ? (
                   <Marker
-                    coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
-                    onPress={() => handleSpotPress(spot)}
-                    anchor={{ x: 0.5, y: 0.5 }}
-                  >
-                    <View style={{ width: 40, height: 40, opacity: 0 }} />
-                  </Marker>
-                </>
-              )}
-            </React.Fragment>
-          ))}
+                    coordinate={{ latitude: parseFloat(displaySpot.latitude), longitude: parseFloat(displaySpot.longitude) }}
+                    onPress={() => handleSpotPress(displaySpot)}
+                    pinColor={spot.ownerId === userId ? "red" : "green"}
+                  />
+                ) : (
+                  <>
+                    <Circle
+                      center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
+                      radius={200}
+                      fillColor="rgba(255,0,0,0.2)"
+                      strokeColor="rgba(255,0,0,0.8)"
+                      strokeWidth={2}
+                    />
+                    <Marker
+                      coordinate={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
+                      onPress={() => handleSpotPress(spot)}
+                      anchor={{ x: 0.5, y: 0.5 }}
+                    >
+                      <View style={{ width: 40, height: 40, opacity: 0 }} />
+                    </Marker>
+                  </>
+                )}
+              </React.Fragment>
+            );
+          })}
         </MapView>
       ) : (
         <Text style={styles.messageText}>Getting your location...</Text>

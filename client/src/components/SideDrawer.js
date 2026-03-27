@@ -40,6 +40,7 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
       requesterId: request.requester_id,
       spotId: spot.id,
       ownerUsername: currentUsername, // Pass owner's username
+      ownerId: currentUserId, // Pass owner's ID
     });
     addNotification(`Request from ${request.requester_username} rejected!`, 'red');
     emitter.emit('request-rejected-by-owner', request.id);

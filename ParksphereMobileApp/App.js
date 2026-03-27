@@ -49,7 +49,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -67,6 +67,7 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           setIsAddingSpot={setIsAddingSpot}
           setNewSpotCoordinates={setNewSpotCoordinates}
           setShowTimeOptionsModal={setShowTimeOptionsModal}
+          acceptedSpot={acceptedSpot}
         />
       </View>
       <Notifications notifications={notifications} />
@@ -423,6 +424,16 @@ export default function App() {
           if (data.spot) {
             setAcceptedSpot(data.spot);
             setArrivalConfirmed(false);
+
+            // Animate to the accepted spot
+            if (mapViewRef.current) {
+              mapViewRef.current.animateToRegion({
+                latitude: parseFloat(data.spot.latitude),
+                longitude: parseFloat(data.spot.longitude),
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }, 1000);
+            }
           } else {
             setAcceptedSpot(null);
           }
@@ -446,6 +457,7 @@ export default function App() {
       }
       setParkingSpots([]);
       setCurrentUser(null);
+      setAcceptedSpot(null); // Clear accepted spot on logout
     }
 
     // Cleanup function for the effect
@@ -594,7 +606,7 @@ export default function App() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Spot requested successfully!');
+        // Successfully requested
       } else {
         Alert.alert('Error', data.message || 'Failed to request spot.');
       }
@@ -768,7 +780,7 @@ export default function App() {
   }
 
   function WrappedHomeScreen(props) {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} />;
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
   }
 
   function WrappedChatTab(props) {
@@ -925,6 +937,7 @@ export default function App() {
         onDeleteSpot={handleDeleteSpot} // Pass the delete handler
         onEditSpot={handleEditSpot} // Pass the edit handler
         userLocation={userLocation} // Pass userLocation here
+        acceptedSpot={acceptedSpot}
       />
       <Modal
         visible={showAboutScreen}
