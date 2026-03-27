@@ -41,7 +41,7 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             </TouchableOpacity>
           )}
 
-          {isOwner ? (
+          {isOwner && (
             <>
               <TouchableOpacity
                 style={{ ...styles.openButton, backgroundColor: '#4CAF50' }} // Green color for Edit
@@ -56,13 +56,6 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
                 <Text style={styles.textStyle}>Delete Spot</Text>
               </TouchableOpacity>
             </>
-          ) : (
-            <TouchableOpacity
-              style={{ ...styles.openButton, backgroundColor: '#f44336' }}
-              onPress={onClose}
-            >
-              <Text style={styles.textStyle}>Close</Text>
-            </TouchableOpacity>
           )}
         </View>
       </View>
