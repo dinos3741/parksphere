@@ -46,18 +46,18 @@ const SearchScreen = ({ token, serverUrl }) => {
     }
   }, [isFocused, token, serverUrl]);
 
-  const handleSearch = async () => {
-    if (!username.trim()) {
+  const performSearch = async (searchUsername) => {
+    if (!searchUsername.trim()) {
       Alert.alert('Please enter a username to search.');
       return;
     }
     Keyboard.dismiss();
-    if (username && !recentSearches.find(item => item.username === username)) {
-      setRecentSearches(prev => [{ id: Date.now().toString(), username }, ...prev]);
+    if (searchUsername && !recentSearches.find(item => item.username === searchUsername)) {
+      setRecentSearches(prev => [{ id: Date.now().toString(), username: searchUsername }, ...prev]);
     }
 
     try {
-      const response = await fetch(`${serverUrl}/api/users/username/${username.trim()}`, {
+      const response = await fetch(`${serverUrl}/api/users/username/${searchUsername.trim()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -79,6 +79,10 @@ const SearchScreen = ({ token, serverUrl }) => {
       Alert.alert('Error', 'Could not connect to the server to perform the search.');
       setSearchedUser(null);
     }
+  };
+
+  const handleSearch = () => {
+    performSearch(username);
   };
 
   const renderUserDetails = () => {
@@ -140,7 +144,10 @@ const SearchScreen = ({ token, serverUrl }) => {
                 data={recentSearches}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => setUsername(item.username)}>
+                  <TouchableOpacity onPress={() => {
+                    setUsername(item.username);
+                    performSearch(item.username);
+                  }}>
                     <Text style={styles.recentSearchItem}>{item.username}</Text>
                   </TouchableOpacity>
                 )}
@@ -154,7 +161,10 @@ const SearchScreen = ({ token, serverUrl }) => {
                 data={interactions}
                 keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => setUsername(item.username)}>
+                  <TouchableOpacity onPress={() => {
+                    setUsername(item.username);
+                    performSearch(item.username);
+                  }}>
                     <Text style={styles.interactionItem}>{item.username}</Text>
                   </TouchableOpacity>
                 )}
