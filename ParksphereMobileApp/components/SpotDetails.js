@@ -23,19 +23,22 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
           <Text>Car Type: {spot.declared_car_type}</Text>
           <Text>Comments: {spot.comments}</Text>
 
-          {!isOwner && ( // Only show Request Spot button if not the owner
-            isAccepted ? (
-              <View style={{ ...styles.openButton, backgroundColor: '#4CAF50' }}>
-                <Text style={styles.textStyle}>Request Accepted</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
-                onPress={() => onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude)}
-              >
-                <Text style={styles.textStyle}>Request Spot</Text>
-              </TouchableOpacity>
-            )
+          {isAccepted && (
+            <>
+              <Text style={{fontWeight: 'bold', marginTop: 10}}>Owner Details:</Text>
+              <Text>Username: {spot.username}</Text>
+              <Text>Car Color: {spot.car_color}</Text>
+              <Text>Plate Number: {spot.plate_number}</Text>
+            </>
+          )}
+
+          {!isOwner && !isAccepted && ( // Only show Request Spot button if not the owner and not accepted
+            <TouchableOpacity
+              style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
+              onPress={() => onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude)}
+            >
+              <Text style={styles.textStyle}>Request Spot</Text>
+            </TouchableOpacity>
           )}
 
           {isOwner ? (
