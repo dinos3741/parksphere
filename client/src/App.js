@@ -321,9 +321,16 @@ function MainAppContent({ serverUrl }) {
 
     socket.on('connect', handleConnect);
 
+    return () => {
+      socket.off('connect', handleConnect);
+    };
+  }, [currentUserId, currentUsername]);
+
+  useEffect(() => {
     socket.on('newParkingSpot', handleNewSpot);
     socket.on('spotDeleted', handleSpotDeleted);
-    socket.on('spotUpdated', (updatedSpotFromServer) => {
+    
+    const handleSpotUpdated = (updatedSpotFromServer) => {
       setFilteredParkingSpots(prevSpots =>
         prevSpots.map(spot =>
           spot.id === updatedSpotFromServer.id
@@ -344,28 +351,31 @@ function MainAppContent({ serverUrl }) {
             : spot
         )
       );
-    });
+    };
+    socket.on('spotUpdated', handleSpotUpdated);
 
-    socket.on('spotRequest', (data) => {
+    const handleSpotRequest = (data) => {
       console.log('App.js: Received spotRequest socket event:', JSON.stringify(data, null, 2)); // DEBUG LOG
       addNotification(data.message, 'blue');
       playSound();
       fetchPendingRequests();
       fetchSpotRequests(); // Call the new function
       // Find the spot in filteredParkingSpots and set it to spotToOpenDrawer
-      const requestedSpot = filteredParkingSpots.find(spot => spot.id === data.spotId);
-      if (requestedSpot) {
-        setSpotToOpenDrawer(requestedSpot);
-      }
+      setSpotToOpenDrawer(prev => {
+         const requestedSpot = filteredParkingSpots.find(spot => spot.id === data.spotId);
+         return requestedSpot || prev;
+      });
       console.log('App.js: spotRequests state after spotRequest event (should be updated by fetchSpotRequests):', JSON.stringify(spotRequests, null, 2)); // DEBUG LOG
-    });
+    };
+    socket.on('spotRequest', handleSpotRequest);
 
-    socket.on('requestAcceptedOrDeclined', (data) => {
+    const handleRequestAcceptedOrDeclined = (data) => {
       console.log('App.js: Received requestAcceptedOrDeclined socket event:', JSON.stringify(data, null, 2)); // DEBUG LOG
       fetchSpotRequests();
-    });
+    };
+    socket.on('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
 
-    socket.on('requestResponse', (data) => {
+    const handleRequestResponse = (data) => {
       if (data.message.includes('ACCEPTED')) {
         setAcceptedRequestOwnerUsername(data.ownerUsername);
         setShowAcceptedRequestModal(true);
@@ -396,53 +406,57 @@ function MainAppContent({ serverUrl }) {
           setPendingRequests(prevRequests => [...prevRequests, data.spotId || data.spot.id]);
         }
       }
-    });
+    };
+    socket.on('requestResponse', handleRequestResponse);
 
-    socket.on('requesterArrived', (data) => {
+    const handleRequesterArrived = (data) => {
       const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
       addNotification(message, 'default');
       playSoundArrived();
       setArrivalConfirmationData(data);
       setArrivalConfirmationModalOpen(true);
-    });
+    };
+    socket.on('requesterArrived', handleRequesterArrived);
 
-    socket.on('requestCancelled', (data) => {
+    const handleRequestCancelled = (data) => {
       const message = `User ${data.requesterUsername} has cancelled their request for your spot ${data.spotId}.`;
       addNotification(message, 'purple');
       playSoundRemoveRequest();
       setSpotRequests(prevRequests => prevRequests.filter(req => req.id !== data.requestId));
-    });
+    };
+    socket.on('requestCancelled', handleRequestCancelled);
 
-    socket.on('transactionComplete', (data) => {
+    const handleTransactionComplete = (data) => {
       fetchProfileData();
       if (data.ownerId && data.ownerUsername) {
         handleRateRequester({ requester_id: data.ownerId, requester_username: data.ownerUsername });
       }
-    });
+    };
+    socket.on('transactionComplete', handleTransactionComplete);
 
-    socket.on('privateMessage', (message) => {
+    const handlePrivateMessage = (message) => {
       const fromId = message.from;
       const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
       setAllChatMessages(prev => ({ ...prev, [fromId]: [...(prev[fromId] || []), messageWithTimestamp] }));
       if (!isChatOpen || (chatRecipient && chatRecipient.id !== fromId)) {
         setUnreadMessages(prev => ({ ...prev, [fromId]: (prev[fromId] || 0) + 1 }));
       }
-    });
+    };
+    socket.on('privateMessage', handlePrivateMessage);
 
     return () => {
-      socket.off('connect', handleConnect);
       socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
-      socket.off('spotUpdated');
-      socket.off('spotRequest');
-      socket.off('requestAcceptedOrDeclined');
-      socket.off('requestResponse');
-      socket.off('requesterArrived');
-      socket.off('requestCancelled');
-      socket.off('transactionComplete');
-      socket.off('privateMessage');
+      socket.off('spotUpdated', handleSpotUpdated);
+      socket.off('spotRequest', handleSpotRequest);
+      socket.off('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
+      socket.off('requestResponse', handleRequestResponse);
+      socket.off('requesterArrived', handleRequesterArrived);
+      socket.off('requestCancelled', handleRequestCancelled);
+      socket.off('transactionComplete', handleTransactionComplete);
+      socket.off('privateMessage', handlePrivateMessage);
     };
-  }, [currentUserId, currentUsername, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots]);
+  }, [currentUserId, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots]);
 
 
   useEffect(() => {
