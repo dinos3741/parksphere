@@ -449,6 +449,16 @@ export default function App() {
           setArrivalConfirmationData(data);
           setArrivalConfirmationModalOpen(true);
         });
+
+        newSocket.on('transactionComplete', (data) => {
+          console.log('Mobile App: Transaction complete received:', data);
+          Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
+          addNotification(data.message, 'green');
+          if (data.ownerId && data.ownerUsername) {
+            setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+            setShowRatingModal(true);
+          }
+        });
       }
     } else {
       // User is logged out, perform cleanup
