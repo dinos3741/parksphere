@@ -1190,9 +1190,9 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    width: 79,
-    height: 79,
-    borderRadius: 44,
+    width: 91,
+    height: 91,
+    borderRadius: 46,
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1207,20 +1207,20 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: 'white',
-    fontSize: 48,
+    fontSize: 55,
     fontWeight: '300',
-    lineHeight: 48,
+    lineHeight: 55,
   },
   fabTextSmall: {
     color: 'red',
-    fontSize: 30,
+    fontSize: 35,
     fontWeight: '300',
-    lineHeight: 30,
+    lineHeight: 35,
     top: 3, // Lower the X symbol by 3 pixels
   },
   fabTextArrived: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
   logoutText: {

@@ -125,9 +125,9 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    width: 79,
-    height: 79,
-    borderRadius: 44,
+    width: 91,
+    height: 91,
+    borderRadius: 46,
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   },
   fabTextArrived: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
   },
 });
