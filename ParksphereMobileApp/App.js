@@ -229,7 +229,9 @@ export default function App() {
 
 
   const handleFabPress = () => {
-    if (isAddingSpot) {
+    if (acceptedSpot) {
+      handleConfirmArrival();
+    } else if (isAddingSpot) {
       // If currently adding a spot, cancel it
       setIsAddingSpot(false);
       setNewSpotCoordinates(null);
@@ -508,6 +510,7 @@ export default function App() {
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
       setAcceptedSpot(null); // Clear accepted spot after confirmation
       setArrivalConfirmed(true); // Prevent re-triggering
+      setSpotDetailsVisible(false); // Close the modal
     }
   };
 
@@ -911,7 +914,9 @@ export default function App() {
                   style={styles.fab} 
                   onPress={handleFabPress}
                 >
-                  <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>{isAddingSpot ? 'X' : '+'}</Text>
+                  <Text style={acceptedSpot ? styles.fabTextArrived : (isAddingSpot ? styles.fabTextSmall : styles.fabText)}>
+                    {acceptedSpot ? 'Arrived' : (isAddingSpot ? 'X' : '+')}
+                  </Text>
                 </TouchableOpacity>
               </>
             )}
@@ -939,6 +944,7 @@ export default function App() {
         userLocation={userLocation} // Pass userLocation here
         acceptedSpot={acceptedSpot}
         onOpenChat={handleOpenChat}
+        onConfirmArrival={handleConfirmArrival}
       />
       <Modal
         visible={showAboutScreen}
@@ -1196,6 +1202,11 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     lineHeight: 30,
     top: 3, // Lower the X symbol by 3 pixels
+  },
+  fabTextArrived: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   logoutText: {
     color: 'red',

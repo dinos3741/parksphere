@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, onOpenChat }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, onOpenChat, onConfirmArrival }) => {
   if (!spot) return null;
 
   const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
@@ -68,6 +68,14 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             </>
           )}
         </View>
+        {isAccepted && (
+          <TouchableOpacity 
+            style={styles.fab} 
+            onPress={onConfirmArrival}
+          >
+            <Text style={styles.fabTextArrived}>Arrived</Text>
+          </TouchableOpacity>
+        )}
       </View>
       </TouchableWithoutFeedback>
     </Modal>
@@ -114,6 +122,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: 'bold',
     fontSize: 20,
+  },
+  fab: {
+    position: 'absolute',
+    width: 79,
+    height: 79,
+    borderRadius: 44,
+    backgroundColor: '#9b59b6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    bottom: 170,
+    alignSelf: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  fabTextArrived: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
