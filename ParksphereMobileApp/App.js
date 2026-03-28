@@ -261,6 +261,8 @@ export default function App() {
   const [acceptedSpot, setAcceptedSpot] = useState(null); // New state for accepted spot
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); // To prevent multiple alerts
 
+  const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
+
   // Helper function to calculate distance between two coordinates (Haversine formula)
   const getDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // metres
@@ -925,8 +927,12 @@ export default function App() {
             {activeScreen === 'Home' && (
               <>
                 <TouchableOpacity 
-                  style={styles.fab} 
+                  style={[
+                    styles.fab,
+                    (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
+                  ]} 
                   onPress={handleFabPress}
+                  disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
                 >
                   <Text style={(acceptedSpot && !arrivalConfirmed) ? styles.fabTextArrived : (isAddingSpot ? styles.fabTextSmall : styles.fabText)}>
                     {(acceptedSpot && !arrivalConfirmed) ? 'Arrived' : (isAddingSpot ? 'X' : '+')}
