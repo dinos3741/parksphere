@@ -934,9 +934,13 @@ export default function App() {
                   onPress={handleFabPress}
                   disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
                 >
-                  <Text style={(acceptedSpot && !arrivalConfirmed) ? styles.fabTextArrived : (isAddingSpot ? styles.fabTextSmall : styles.fabText)}>
-                    {(acceptedSpot && !arrivalConfirmed) ? 'Arrived' : (isAddingSpot ? 'X' : '+')}
-                  </Text>
+                  {(acceptedSpot && !arrivalConfirmed) ? (
+                    <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
+                  ) : (
+                    <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
+                      {isAddingSpot ? 'X' : '+'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </>
             )}
@@ -1228,6 +1232,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  fabIcon: {
+    width: 55,
+    height: 55,
+    resizeMode: 'contain',
   },
   logoutText: {
     color: 'red',

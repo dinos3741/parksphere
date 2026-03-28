@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, Image } from 'react-native';
 
 const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, arrivalConfirmed, onOpenChat, onConfirmArrival }) => {
   if (!spot) return null;
@@ -73,7 +73,7 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             style={styles.fab} 
             onPress={onConfirmArrival}
           >
-            <Text style={styles.fabTextArrived}>Arrived</Text>
+            <Image source={require('../assets/images/arrived.png')} style={styles.fabIcon} />
           </TouchableOpacity>
         )}
       </View>
@@ -143,6 +143,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  fabIcon: {
+    width: 55,
+    height: 55,
+    resizeMode: 'contain',
   },
 });
 
