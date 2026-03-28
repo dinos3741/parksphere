@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, onOpenChat, onConfirmArrival }) => {
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, arrivalConfirmed, onOpenChat, onConfirmArrival }) => {
   if (!spot) return null;
 
   const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
@@ -68,7 +68,7 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId
             </>
           )}
         </View>
-        {isAccepted && (
+        {isAccepted && !arrivalConfirmed && (
           <TouchableOpacity 
             style={styles.fab} 
             onPress={onConfirmArrival}

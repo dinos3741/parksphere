@@ -155,7 +155,13 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         setRequesterDrawerSpot(null);
       }
     }
-  }, [parkingSpots, requesterDrawerSpot]);
+    if (drawerSpot) {
+      const spotExists = parkingSpots.some(spot => spot.id === drawerSpot.id);
+      if (!spotExists) {
+        setDrawerSpot(null);
+      }
+    }
+  }, [parkingSpots, requesterDrawerSpot, drawerSpot]);
 
   useEffect(() => {
     const handleCloseDrawer = () => {

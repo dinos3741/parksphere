@@ -229,7 +229,7 @@ export default function App() {
 
 
   const handleFabPress = () => {
-    if (acceptedSpot) {
+    if (acceptedSpot && !arrivalConfirmed) {
       handleConfirmArrival();
     } else if (isAddingSpot) {
       // If currently adding a spot, cancel it
@@ -398,6 +398,7 @@ export default function App() {
           console.log('Mobile App: spotDeleted received:', spotId);
           setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
           setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
+          setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
         });
 
         newSocket.on('spotUpdated', (updatedSpot) => {
@@ -438,6 +439,7 @@ export default function App() {
             }
           } else {
             setAcceptedSpot(null);
+            setArrivalConfirmed(false);
           }
         });
 
@@ -454,6 +456,8 @@ export default function App() {
           console.log('Mobile App: Transaction complete received:', data);
           Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
           addNotification(data.message, 'green');
+          setAcceptedSpot(null);
+          setArrivalConfirmed(false);
           if (data.ownerId && data.ownerUsername) {
             setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
             setShowRatingModal(true);
@@ -519,7 +523,6 @@ export default function App() {
         requesterUsername: currentUsername,
       });
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
-      setAcceptedSpot(null); // Clear accepted spot after confirmation
       setArrivalConfirmed(true); // Prevent re-triggering
       setSpotDetailsVisible(false); // Close the modal
     }
@@ -925,8 +928,8 @@ export default function App() {
                   style={styles.fab} 
                   onPress={handleFabPress}
                 >
-                  <Text style={acceptedSpot ? styles.fabTextArrived : (isAddingSpot ? styles.fabTextSmall : styles.fabText)}>
-                    {acceptedSpot ? 'Arrived' : (isAddingSpot ? 'X' : '+')}
+                  <Text style={(acceptedSpot && !arrivalConfirmed) ? styles.fabTextArrived : (isAddingSpot ? styles.fabTextSmall : styles.fabText)}>
+                    {(acceptedSpot && !arrivalConfirmed) ? 'Arrived' : (isAddingSpot ? 'X' : '+')}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -954,6 +957,7 @@ export default function App() {
         onEditSpot={handleEditSpot} // Pass the edit handler
         userLocation={userLocation} // Pass userLocation here
         acceptedSpot={acceptedSpot}
+        arrivalConfirmed={arrivalConfirmed}
         onOpenChat={handleOpenChat}
         onConfirmArrival={handleConfirmArrival}
       />
