@@ -26,6 +26,7 @@ import RequestsScreen from './components/RequestsScreen';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
+import RequesterArrivalModal from './components/RequesterArrivalModal';
 import RatingModal from './components/RatingModal';
 import RequesterProfileModal from './components/RequesterProfileModal'; // Import RequesterProfileModal
 
@@ -139,6 +140,7 @@ export default function App() {
   const [acceptedRequest, setAcceptedRequest] = useState(null);
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
+  const [isRequesterArrivalModalOpen, setRequesterArrivalModalOpen] = useState(false);
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [userToRate, setUserToRate] = useState(null);
@@ -230,7 +232,7 @@ export default function App() {
 
   const handleFabPress = () => {
     if (acceptedSpot && !arrivalConfirmed) {
-      handleConfirmArrival();
+      setRequesterArrivalModalOpen(true);
     } else if (isAddingSpot) {
       // If currently adding a spot, cancel it
       setIsAddingSpot(false);
@@ -527,6 +529,7 @@ export default function App() {
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
       setArrivalConfirmed(true); // Prevent re-triggering
       setSpotDetailsVisible(false); // Close the modal
+      setRequesterArrivalModalOpen(false); // Close the confirmation modal
     }
   };
 
@@ -553,15 +556,7 @@ export default function App() {
 
             if (distance <= 10 && !arrivalConfirmed) { // Within 10 meters
               setArrivalConfirmed(true); // Set to true to prevent multiple alerts
-              Alert.alert(
-                'Confirm Arrival',
-                'You are close to your spot. Confirm your arrival to notify the owner?',
-                [
-                  { text: 'Cancel', style: 'cancel', onPress: () => setAcceptedSpot(null) }, // Option to cancel and clear spot
-                  { text: 'Confirm', onPress: handleConfirmArrival },
-                ],
-                { cancelable: false }
-              );
+              setRequesterArrivalModalOpen(true);
             }
           }
         );
@@ -969,7 +964,7 @@ export default function App() {
         acceptedSpot={acceptedSpot}
         arrivalConfirmed={arrivalConfirmed}
         onOpenChat={handleOpenChat}
-        onConfirmArrival={handleConfirmArrival}
+        onConfirmArrival={() => setRequesterArrivalModalOpen(true)}
       />
       <Modal
         visible={showAboutScreen}
@@ -996,6 +991,14 @@ export default function App() {
         onNotIdentified={handleNotIdentified}
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
+      />
+      <RequesterArrivalModal
+        isOpen={isRequesterArrivalModalOpen}
+        onClose={() => {
+          setRequesterArrivalModalOpen(false);
+          setArrivalConfirmed(false); // Reset so it can be triggered again by proximity
+        }}
+        onConfirm={handleConfirmArrival}
       />
       <RatingModal
         isOpen={showRatingModal}
