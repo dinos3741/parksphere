@@ -503,9 +503,10 @@ export default function App() {
   // Function to handle arrival confirmation
   const handleConfirmArrival = () => {
     if (socket.current && acceptedSpot && userId) {
-      socket.current.emit('confirmArrival', {
+      socket.current.emit('requester-arrived', {
         spotId: acceptedSpot.id,
         requesterId: userId,
+        requesterUsername: currentUsername,
       });
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
       setAcceptedSpot(null); // Clear accepted spot after confirmation
