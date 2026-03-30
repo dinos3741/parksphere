@@ -1,4 +1,5 @@
-Parksphere is an application to help people park easier.
+Parksphere is a real-time parking coordination platform with web and mobile apps that helps drivers share and find available parking spots more efficiently. Users can register, post when they are leaving a spot, browse nearby opportunities on a map, and send requests to claim a space, while the system manages acceptance, arrival, and completion updates through live notifications and chat. The backend handles authentication, location-aware data, and transaction flow, so both drivers and spot holders can coordinate quickly and safely from start to finish.
+
 Project Structure
 client — React web app
 server — Node/Express backend + Socket.IO + PostgreSQL
