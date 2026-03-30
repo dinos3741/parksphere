@@ -66,7 +66,7 @@ L.control.pinDropInstructions = function(opts) {
 
 
 
-const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl, expiredSpotIds, spotToOpenDrawer }) => {
+const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, acceptedSpot, requesterEta, requesterArrived, onAcknowledgeArrival, onSpotDeleted, onEditSpot, addNotification: appAddNotification, onRequestStatusChange, currentUsername, pendingRequests, spotRequests, onOpenChat, unreadMessages, isPinDropMode, setPinDropMode, pinnedLocation, setPinnedLocation, setShowLeavingOverlay, onRateRequester, onOpenRequesterDetails, isMessagesDrawerOpen, setIsMessagesDrawerOpen, serverUrl, expiredSpotIds, spotToOpenDrawer, arrivalRejectedSpotId }) => {
   const mapRef = useRef(null);
   const popupRef = useRef(null);
   
@@ -661,6 +661,7 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
         userLocation={appUserLocation}
         addNotification={appAddNotification}
         currentTime={currentTime}
+        arrivalRejectedSpotId={arrivalRejectedSpotId}
       />
 
       {showDeleteConfirmationModal && (

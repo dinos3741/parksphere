@@ -14,7 +14,7 @@ import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 import DistanceWarningModal from './DistanceWarningModal';
 import { getDistance } from '../utils/geoUtils';
 
-const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages, userLocation, addNotification, currentTime }) => {
+const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelRequest, hasPendingRequest, isAcceptedSpot, onArrived, ownerCarDetails, onClose, onRejected, onOpenChat, unreadMessages, userLocation, addNotification, currentTime, arrivalRejectedSpotId }) => {
   const drawerRef = useRef(null);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [rejectedSpot, setRejectedSpot] = useState(null);
@@ -22,6 +22,13 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
   const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [ownerDetails, setOwnerDetails] = useState(null);
   const [arrivedClicked, setArrivedClicked] = useState(false);
+
+  useEffect(() => {
+    if (arrivalRejectedSpotId && spot && arrivalRejectedSpotId === spot.id) {
+      setArrivedClicked(false);
+    }
+  }, [arrivalRejectedSpotId, spot]);
+
   const [showArrivalConfirmation, setShowArrivalConfirmation] = useState(false);
   const [showDistanceWarningModal, setShowDistanceWarningModal] = useState(false);
   const [distanceWarningMessage, setDistanceWarningMessage] = useState('');

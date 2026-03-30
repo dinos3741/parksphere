@@ -243,6 +243,16 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('reject-arrival', (data) => {
+    const { spotId, requesterId } = data;
+    const requesterSockets = userSockets[requesterId];
+    if (requesterSockets) {
+      requesterSockets.forEach(s => {
+        io.to(s.socketId).emit('arrivalRejected', { spotId });
+      });
+    }
+  });
+
   socket.on('confirm-transaction', async (data) => {
     const { spotId, requesterId } = data;
     const client = await pool.connect();

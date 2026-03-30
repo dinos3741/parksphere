@@ -85,6 +85,7 @@ function MainAppContent({ serverUrl }) {
   const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
   const [expiredSpotIds, setExpiredSpotIds] = useState([]); // New state for expired spot IDs
   const [spotToOpenDrawer, setSpotToOpenDrawer] = useState(null); // New state to trigger opening a specific spot's drawer
+  const [arrivalRejectedSpotId, setArrivalRejectedSpotId] = useState(null); // New state for arrival rejection
 
   const formatTimestamp = (date) => {
     const year = date.getFullYear();
@@ -434,6 +435,16 @@ function MainAppContent({ serverUrl }) {
     };
     socket.on('transactionComplete', handleTransactionComplete);
 
+    const handleArrivalRejected = (data) => {
+      console.log('Web Client: Arrival rejected received:', data);
+      addNotification(`The owner of spot ${data.spotId} did not confirm your arrival. Please try again.`, 'default');
+      // This will trigger a re-render and can be passed down if needed
+      setArrivalRejectedSpotId(data.spotId);
+      // Reset it after a short delay so the drawer can react
+      setTimeout(() => setArrivalRejectedSpotId(null), 1000);
+    };
+    socket.on('arrivalRejected', handleArrivalRejected);
+
     const handlePrivateMessage = (message) => {
       const fromId = message.from;
       const messageWithTimestamp = { ...message, timestamp: message.created_at || new Date().toISOString() };
@@ -454,6 +465,7 @@ function MainAppContent({ serverUrl }) {
       socket.off('requesterArrived', handleRequesterArrived);
       socket.off('requestCancelled', handleRequestCancelled);
       socket.off('transactionComplete', handleTransactionComplete);
+      socket.off('arrivalRejected', handleArrivalRejected);
       socket.off('privateMessage', handlePrivateMessage);
     };
   }, [currentUserId, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots]);
@@ -665,6 +677,10 @@ function MainAppContent({ serverUrl }) {
   const handleNotIdentified = () => {
     if (arrivalConfirmationData) {
       console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
+      socket.emit('reject-arrival', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
       addNotification(`You have indicated that the requester was not identified.`, 'default');
     }
     setArrivalConfirmationModalOpen(false);
@@ -867,6 +883,7 @@ function MainAppContent({ serverUrl }) {
               serverUrl={serverUrl}
               expiredSpotIds={expiredSpotIds} // Pass expiredSpotIds to Map
               spotToOpenDrawer={spotToOpenDrawer} // Pass spotToOpenDrawer to Map
+              arrivalRejectedSpotId={arrivalRejectedSpotId} // Pass arrivalRejectedSpotId to Map
             />
           ) : (
             <div>Loading map or getting your location...</div>

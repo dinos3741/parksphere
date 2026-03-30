@@ -202,6 +202,10 @@ export default function App() {
   const handleNotIdentified = () => {
     if (arrivalConfirmationData) {
       console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
+      socket.current.emit('reject-arrival', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
       addNotification(`You have indicated that the requester was not identified.`, 'default');
     }
     setArrivalConfirmationModalOpen(false);
@@ -231,8 +235,12 @@ export default function App() {
 
 
   const handleFabPress = () => {
-    if (acceptedSpot && !arrivalConfirmed) {
-      setRequesterArrivalModalOpen(true);
+    if (acceptedSpot) {
+      if (!arrivalConfirmed) {
+        setRequesterArrivalModalOpen(true);
+      } else {
+        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
+      }
     } else if (isAddingSpot) {
       // If currently adding a spot, cancel it
       setIsAddingSpot(false);
@@ -466,6 +474,12 @@ export default function App() {
             setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
             setShowRatingModal(true);
           }
+        });
+
+        newSocket.on('arrivalRejected', (data) => {
+          console.log('Mobile App: Arrival rejected notification received:', data);
+          Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
+          setArrivalConfirmed(false); // Reset so it can be triggered again
         });
       }
     } else {
@@ -929,7 +943,7 @@ export default function App() {
                   onPress={handleFabPress}
                   disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
                 >
-                  {(acceptedSpot && !arrivalConfirmed) ? (
+                  {(acceptedSpot) ? (
                     <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
                   ) : (
                     <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
