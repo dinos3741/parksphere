@@ -840,11 +840,14 @@ export default function App() {
     return (
       <UserDetails
         user={currentUser}
+        token={token}
         onBack={() => {}} // Or handle back navigation if needed
         onEditProfile={() => setIsEditingProfile(true)}
         onLogout={handleLogout}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
+        onProfileUpdate={handleProfileUpdate}
+        serverUrl={serverUrl}
       />
     );
   }
@@ -1025,6 +1028,7 @@ export default function App() {
         onClose={() => setShowRequesterDetailsModal(false)}
         user={selectedRequester}
         onOpenChat={handleOpenChat}
+        serverUrl={serverUrl}
       />
     </>
   );

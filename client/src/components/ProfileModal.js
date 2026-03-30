@@ -1,14 +1,59 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import './ProfileModal.css';
 import logo from '../assets/images/logo.png'; // Assuming logo is accessible from here
 import UpdateCredentialsModal from './UpdateCredentialsModal'; // Import the new modal
 import ChangeCarTypeModal from './ChangeCarTypeModal'; // Import the new modal
 
-const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCarDetailsUpdated }) => {
+const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCarDetailsUpdated, onProfileUpdate }) => {
   const [showUpdateCredentialsModal, setShowUpdateCredentialsModal] = useState(false);
   const [showChangeCarTypeModal, setShowChangeCarTypeModal] = useState(false); // New state
+  const fileInputRef = useRef(null);
 
-  
+  const handleAvatarClick = () => {
+    fileInputRef.current.click();
+  };
+
+  const handleFileChange = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Basic validation
+    if (!file.type.startsWith('image/')) {
+      addNotification('Please select an image file.', 'red');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const token = localStorage.getItem('token');
+
+    try {
+      const response = await fetch('http://localhost:3001/api/users/avatar', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        addNotification('Avatar updated successfully!', 'green');
+        if (onProfileUpdate) {
+          onProfileUpdate();
+        }
+      } else {
+        addNotification('Failed to update avatar.', 'red');
+      }
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      addNotification('An error occurred during upload.', 'red');
+    } finally {
+      if (event.target) {
+        event.target.value = '';
+      }
+    }
+  };
 
   const handleUpdateCredentialsClick = () => {
     setShowUpdateCredentialsModal(true);
@@ -24,6 +69,19 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
 
   const handleCloseChangeCarTypeModal = () => { // New handler
     setShowChangeCarTypeModal(false);
+  };
+
+  const getAvatarUri = () => {
+    if (!userData.avatar_url) {
+      return `https://i.pravatar.cc/150?u=${userData.username}`;
+    }
+
+    if (userData.avatar_url.startsWith('http')) {
+      return userData.avatar_url;
+    }
+
+    // Relative path, prepend server URL (assuming it's the same host as the web app or hardcoded to localhost:3001)
+    return `http://localhost:3001${userData.avatar_url}`;
   };
 
   return (
@@ -44,9 +102,21 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
             <> {/* Start of React.Fragment */}
               <div className="profile-details-two-column"> {/* Main container for two columns */}
                 <div className="profile-left-column"> {/* Left column for avatar and username */}
-                  <div className="user-avatar-only"> {/* Avatar circle only */}
-                    <img src={`https://i.pravatar.cc/150?u=${userData.username}`} alt={userData.username} className="user-avatar" />
+                  <div className="user-avatar-only" onClick={handleAvatarClick} title="Click to change avatar"> {/* Avatar circle only */}
+                    <img 
+                      src={getAvatarUri()} 
+                      alt={userData.username} 
+                      className="user-avatar" 
+                    />
+                    <div className="avatar-edit-overlay">Edit</div>
                   </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: 'none' }}
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
                   <span className="user-full-name-left-column">{userData.username}</span> {/* Username in left column */}
                 </div>
                 <div className="profile-right-column"> {/* Right column for details */}

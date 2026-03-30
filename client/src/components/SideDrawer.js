@@ -79,7 +79,11 @@ const SideDrawer = ({ spot, userAddress, currentUserCarType, onClose, onEdit, on
                     return (
                       <div key={index} className={`request-item ${request.status === 'accepted' ? 'accepted' : ''}`}>
                         <div className={`requester-avatar ${request.status === 'accepted' ? 'accepted' : ''}`}>
-                          <img src={request.requester_avatar_url || `https://i.pravatar.cc/80?u=${request.requester_username}`} alt={request.requester_username} style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} />
+                          <img 
+                            src={request.requester_avatar_url ? (request.requester_avatar_url.startsWith('http') ? request.requester_avatar_url : `http://localhost:3001${request.requester_avatar_url}`) : `https://i.pravatar.cc/80?u=${request.requester_username}`} 
+                            alt={request.requester_username} 
+                            style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}} 
+                          />
                         </div>
                         <div className="request-details">
                           <div className={`requester-username ${request.status === 'accepted' ? 'accepted' : ''}`} onClick={(e) => { e.stopPropagation(); onOpenRequesterDetails(request); }} style={{cursor: 'pointer', color: '#007bff'}}>{request.requester_username}</div>

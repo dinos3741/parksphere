@@ -1,10 +1,118 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
-const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refreshing }) => {
+const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, refreshing, onProfileUpdate, serverUrl }) => {
   if (!user) {
     return null;
   }
+
+  const getAvatarUri = () => {
+    if (!user.avatar_url) {
+      return `https://i.pravatar.cc/150?u=${user.username}`;
+    }
+    
+    // If it's already a full URL but contains localhost, replace it with serverUrl
+    if (user.avatar_url.startsWith('http')) {
+      if (user.avatar_url.includes('localhost')) {
+        return user.avatar_url.replace('http://localhost:3001', serverUrl);
+      }
+      return user.avatar_url;
+    }
+
+    // If it's a relative path, prepend serverUrl
+    return `${serverUrl}${user.avatar_url}`;
+  };
+
+  const pickImage = async () => {
+    // Ask for permissions
+    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
+      Alert.alert('Permission Denied', 'Permissions to access camera and library are required.');
+      return;
+    }
+
+    Alert.alert(
+      'Update Avatar',
+      'Choose an option',
+      [
+        {
+          text: 'Camera',
+          onPress: () => launchImagePicker(true),
+        },
+        {
+          text: 'Gallery',
+          onPress: () => launchImagePicker(false),
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const launchImagePicker = async (isCamera) => {
+    let result;
+    if (isCamera) {
+      result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+    }
+
+    if (!result.canceled) {
+      uploadImage(result.assets[0].uri);
+    }
+  };
+
+  const uploadImage = async (uri) => {
+    const formData = new FormData();
+    const uriParts = uri.split('.');
+    const fileType = uriParts[uriParts.length - 1];
+
+    formData.append('avatar', {
+      uri,
+      name: `avatar.${fileType}`,
+      type: `image/${fileType}`,
+    });
+
+    try {
+      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/avatar`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Avatar updated successfully.');
+        if (onProfileUpdate) {
+          onProfileUpdate();
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to upload image:', errorText);
+        Alert.alert('Error', 'Failed to update avatar.');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'An error occurred during upload.');
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -15,7 +123,12 @@ const UserDetails = ({ user, onBack, onEditProfile, onLogout, onRefresh, refresh
       >
         <View style={styles.profileDetailsTwoColumn}>
           <View style={styles.profileLeftColumn}>
-            <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+            <TouchableOpacity onPress={pickImage}>
+              <Image source={{ uri: getAvatarUri() }} style={styles.avatar} />
+              <View style={styles.editBadge}>
+                <Text style={styles.editBadgeText}>Edit</Text>
+              </View>
+            </TouchableOpacity>
             <Text style={styles.username}>{user.username}</Text>
             <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
               <Text style={styles.editButtonText}>Edit Profile</Text>
@@ -100,6 +213,19 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
+  },
+  editBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  editBadgeText: {
+    color: 'white',
+    fontSize: 10,
   },
   username: {
     fontSize: 22,

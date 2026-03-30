@@ -7,7 +7,30 @@ const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
 const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
 const app = express();
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, 'uploads', 'avatars');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer configuration
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -397,6 +420,27 @@ const { CAR_SIZE_HIERARCHY } = require('./utils/carTypes');
 
 app.use(bodyParser.json());
 app.use(cors({ origin: allowedOrigins })); // Enable CORS for all routes
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Serve uploads statically
+
+// Endpoint for avatar upload
+app.post('/api/users/avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded.');
+  }
+
+  const userId = req.user.userId;
+  // Store only the relative path in the database.
+  // The client will prepend the server's base URL.
+  const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+  try {
+    await pool.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [avatarUrl, userId]);
+    res.status(200).json({ avatar_url: avatarUrl });
+  } catch (error) {
+    console.error('Error updating user avatar:', error);
+    res.status(500).send('Server error updating avatar.');
+  }
+});
 
 // Ensure tables exist on server start
 createUsersTable();

@@ -89,6 +89,7 @@ const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineReques
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
           onOpenChat={onOpenChat}
+          serverUrl={serverUrl}
         />
       )}
     </View>

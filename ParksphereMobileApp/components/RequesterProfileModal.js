@@ -2,10 +2,27 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
-const RequesterProfileModal = ({ user, visible, onClose, onOpenChat }) => {
+const RequesterProfileModal = ({ user, visible, onClose, onOpenChat, serverUrl }) => {
   if (!user) {
     return null;
   }
+
+  const getAvatarUri = () => {
+    if (!user.avatar_url) {
+      return `https://i.pravatar.cc/150?u=${user.username}`;
+    }
+    
+    // If it's already a full URL but contains localhost, replace it with serverUrl
+    if (user.avatar_url.startsWith('http')) {
+      if (user.avatar_url.includes('localhost')) {
+        return user.avatar_url.replace('http://localhost:3001', serverUrl);
+      }
+      return user.avatar_url;
+    }
+
+    // If it's a relative path, prepend serverUrl
+    return `${serverUrl}${user.avatar_url}`;
+  };
 
   return (
     <Modal
@@ -22,7 +39,7 @@ const RequesterProfileModal = ({ user, visible, onClose, onOpenChat }) => {
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <FontAwesome name="close" size={24} color="gray" />
           </TouchableOpacity>
-          <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+          <Image source={{ uri: getAvatarUri() }} style={styles.avatar} />
           <Text style={styles.username}>{user.username}</Text>
           <Text>Member since: {new Date(user.created_at).toLocaleDateString()}</Text>
           <Text>Average Rating: {parseFloat(user.average_rating).toFixed(2) || 'Not rated yet'}</Text>

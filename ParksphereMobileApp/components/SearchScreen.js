@@ -99,12 +99,29 @@ const SearchScreen = ({ token, serverUrl }) => {
       );
     }
 
+    const getAvatarUri = (avatarUrl, username) => {
+      if (!avatarUrl) {
+        return `https://i.pravatar.cc/150?u=${username}`;
+      }
+      
+      // If it's already a full URL but contains localhost, replace it with serverUrl
+      if (avatarUrl.startsWith('http')) {
+        if (avatarUrl.includes('localhost')) {
+          return avatarUrl.replace('http://localhost:3001', serverUrl);
+        }
+        return avatarUrl;
+      }
+
+      // If it's a relative path, prepend serverUrl
+      return `${serverUrl}${avatarUrl}`;
+    };
+
     return (
       <View style={styles.userDetailsContainer}>
         <TouchableOpacity onPress={() => setSearchedUser(null)} style={styles.closeButton}>
           <FontAwesome name="close" size={24} color="gray" />
         </TouchableOpacity>
-        <Image source={{ uri: searchedUser.avatar_url }} style={styles.avatar} />
+        <Image source={{ uri: getAvatarUri(searchedUser.avatar_url, searchedUser.username) }} style={styles.avatar} />
         <Text style={styles.userUsername}>{searchedUser.username}</Text>
         <Text>Member since: {new Date(searchedUser.created_at).toLocaleDateString()}</Text>
         <Text>Average Rating: {parseFloat(searchedUser.average_rating).toFixed(2) || 'Not rated yet'}</Text>

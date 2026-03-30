@@ -36,7 +36,11 @@ const RequesterDetailsModal = ({ isOpen, onClose, requester, onOpenChat }) => {
         <div className="RequesterDetailsModal__separator"></div>
         <div className="RequesterDetailsModal__grid">
           <div className="RequesterDetailsModal__left">
-            <img src={requester.avatar_url || "https://i.pravatar.cc/80"} alt="Requester Avatar" className="RequesterDetailsModal__avatar" />
+            <img 
+              src={requester.avatar_url ? (requester.avatar_url.startsWith('http') ? requester.avatar_url : `http://localhost:3001${requester.avatar_url}`) : "https://i.pravatar.cc/80"} 
+              alt="Requester Avatar" 
+              className="RequesterDetailsModal__avatar" 
+            />
             <div className="username-and-message-icon-requester">
               <p><strong>{requester.username}</strong></p>
               <span className="send-message-icon-requester" onClick={handleMessageIconClick}>✉️</span>

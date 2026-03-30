@@ -34,7 +34,11 @@ const OwnerDetailsModal = ({ owner, onClose, onOpenChat }) => {
         <div className="owner-details-separator"></div>
         <div className="owner-details-grid">
           <div className="owner-details-left">
-            <img src={owner.avatar_url || "https://i.pravatar.cc/80"} alt="Owner Avatar" className="owner-avatar" />
+            <img 
+              src={owner.avatar_url ? (owner.avatar_url.startsWith('http') ? owner.avatar_url : `http://localhost:3001${owner.avatar_url}`) : "https://i.pravatar.cc/80"} 
+              alt="Owner Avatar" 
+              className="owner-avatar" 
+            />
             <div className="username-and-message-icon-owner">
               <p><strong>{owner.username}</strong></p>
               <span className="send-message-icon-owner" onClick={handleMessageIconClick}>✉️</span>

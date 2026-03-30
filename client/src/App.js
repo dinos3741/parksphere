@@ -952,6 +952,7 @@ function MainAppContent({ serverUrl }) {
           currentUserId={currentUserId}
           addNotification={addNotification}
           onCarDetailsUpdated={handleCarDetailsUpdated}
+          onProfileUpdate={fetchProfileData}
         />
       )}
       <ArrivalConfirmationModal
