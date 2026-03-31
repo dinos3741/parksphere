@@ -250,11 +250,12 @@ const styles = StyleSheet.create({
   profileLeftColumn: {
     flexDirection: 'column',
     alignItems: 'center',
+    marginLeft: -10, // Shifted another 5px left
   },
   profileRightColumn: {
     flexDirection: 'column',
-    width: '60%', // Increased width to fit longer text
-    marginLeft: -5, // Move column to the left
+    width: '60%', 
+    marginLeft: -15, // Shifted another 5px left
   },
   profileLabel: {
     fontWeight: 'bold',
@@ -281,6 +282,7 @@ const styles = StyleSheet.create({
   },
   editButton: {
     marginTop: 10,
+    marginLeft: 10, // Move button to the right
     paddingVertical: 5,
     paddingHorizontal: 10,
     backgroundColor: '#D8BFD8',
