@@ -128,7 +128,7 @@ const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, 
             </TouchableOpacity>
             <Text style={styles.username}>{user.username}</Text>
             <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
-              <Text style={styles.editButtonText}>Edit Profile</Text>
+              <Text style={styles.editButtonText}>Edit Car Details</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.profileRightColumn}>
