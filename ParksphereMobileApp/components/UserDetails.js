@@ -234,7 +234,8 @@ const styles = StyleSheet.create({
   },
   profileRightColumn: {
     flexDirection: 'column',
-    width: '50%', // Adjust as needed
+    width: '60%', // Increased width to fit longer text
+    marginLeft: -5, // Move column to the left
   },
   profileLabel: {
     fontWeight: 'bold',
