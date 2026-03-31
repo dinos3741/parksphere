@@ -674,29 +674,48 @@ export default function App() {
       return;
     }
 
-    try {
-      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+    const executeDelete = async () => {
+      try {
+        const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
 
-      if (response.ok) {
-        addNotification(`Spot ${spotId} deleted successfully!`);
-        setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
-        setSpotDetailsVisible(false); // Close the modal after deletion
-      } else if (response.status === 401 || response.status === 403) {
-        console.error('Authentication failed for deleting spot. Logging out...');
-        handleLogout();
-      } else {
-        const data = await response.json();
-        Alert.alert('Error', `Failed to delete spot: ${data.message || 'Unknown error'}`);
+        if (response.ok) {
+          addNotification(`Spot ${spotId} deleted successfully!`);
+          setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
+          setSpotDetailsVisible(false); // Close the modal after deletion
+        } else if (response.status === 401 || response.status === 403) {
+          console.error('Authentication failed for deleting spot. Logging out...');
+          handleLogout();
+        } else {
+          const data = await response.json();
+          Alert.alert('Error', `Failed to delete spot: ${data.message || 'Unknown error'}`);
+        }
+      } catch (error) {
+        console.error('Error deleting spot:', error);
+        Alert.alert('Error', 'Could not connect to the server to delete spot.');
       }
-    } catch (error) {
-      console.error('Error deleting spot:', error);
-      Alert.alert('Error', 'Could not connect to the server to delete spot.');
-    }
+    };
+
+    Alert.alert(
+      'Confirm Deletion',
+      'Are you sure you want to delete this parking spot?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: executeDelete,
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleEditSpot = (spot) => { // Pass the full spot object
