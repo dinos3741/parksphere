@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConversationsList from './ConversationsList';
 import ConversationScreen from './ConversationScreen';
 
-const ChatTab = ({ userId, token, socket, onBack, route }) => {
+const ChatTab = ({ userId, token, socket, onBack, route, serverUrl, currentUser }) => {
   const [selectedOtherUserId, setSelectedOtherUserId] = useState(null);
   const [selectedOtherUsername, setSelectedOtherUsername] = useState(null);
 
@@ -34,12 +34,15 @@ const ChatTab = ({ userId, token, socket, onBack, route }) => {
           otherUserId={selectedOtherUserId}
           socket={socket}
           otherUsername={selectedOtherUsername} // Pass username to ConversationScreen
+          serverUrl={serverUrl}
+          currentUser={currentUser}
         />
       ) : (
         <ConversationsList
           userId={userId}
           token={token}
           onSelectConversation={handleSelectConversation}
+          serverUrl={serverUrl}
         />
       )}
     </View>

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Alert } from 'react-native';
 
-const ConversationsList = ({ userId, token, onSelectConversation }) => {
+const ConversationsList = ({ userId, token, onSelectConversation, serverUrl }) => {
   const [conversations, setConversations] = useState([]);
-  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -33,9 +32,24 @@ const ConversationsList = ({ userId, token, onSelectConversation }) => {
     fetchConversations();
   }, [userId, token]);
 
+  const getAvatarUri = (avatarUrl, username) => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${username}`;
+    }
+
+    if (avatarUrl.startsWith('http')) {
+      if (avatarUrl.includes('localhost')) {
+        return avatarUrl.replace('http://localhost:3001', serverUrl);
+      }
+      return avatarUrl;
+    }
+
+    return `${serverUrl}${avatarUrl}`;
+  };
+
   const renderConversationItem = ({ item }) => (
     <TouchableOpacity style={styles.conversationItem} onPress={() => onSelectConversation(item.other_user_id, item.other_username)}>
-      <Image source={{ uri: item.other_avatar_url }} style={styles.avatar} />
+      <Image source={{ uri: getAvatarUri(item.other_avatar_url, item.other_username) }} style={styles.avatar} />
       <View style={styles.conversationContent}>
         <Text style={styles.username}>{item.other_username}</Text>
         <Text style={styles.lastMessage} numberOfLines={1}>{item.message}</Text>

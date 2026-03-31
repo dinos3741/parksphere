@@ -812,7 +812,7 @@ export default function App() {
   }
 
   function WrappedChatTab(props) {
-    return <ChatTab {...props} userId={userId} token={token} socket={socket} />;
+    return <ChatTab {...props} userId={userId} token={token} socket={socket} serverUrl={serverUrl} currentUser={currentUser} />;
   }
 
 

@@ -2,8 +2,23 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { GiftedChat } from 'react-native-gifted-chat';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 
-const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherUsername }) => {
+const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherUsername, serverUrl, currentUser }) => {
   const [messages, setMessages] = useState([]);
+
+  const getAvatarUri = (avatarUrl, username) => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${username}`;
+    }
+
+    if (avatarUrl.startsWith('http')) {
+      if (avatarUrl.includes('localhost')) {
+        return avatarUrl.replace('http://localhost:3001', serverUrl);
+      }
+      return avatarUrl;
+    }
+
+    return `${serverUrl}${avatarUrl}`;
+  };
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -11,7 +26,7 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
         return;
       }
       try {
-        const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/messages/conversations/${otherUserId}`, {
+        const response = await fetch(`${serverUrl}/api/messages/conversations/${otherUserId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -22,13 +37,14 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
         if (response.ok) {
           // GiftedChat expects messages in a specific format:
           // { _id, text, createdAt, user: { _id, name, avatar } }
-          // Assuming your backend returns messages with sender_id, receiver_id, message, created_at
           const formattedMessages = data.map(msg => ({
             _id: msg.created_at + msg.sender_id, // Unique ID for the message
             text: msg.message,
             createdAt: new Date(msg.created_at),
             user: {
               _id: msg.sender_id, // The sender of the message
+              name: msg.sender_username,
+              avatar: getAvatarUri(msg.sender_avatar_url, msg.sender_username),
             },
           })).reverse(); // GiftedChat displays messages in reverse order (newest at bottom)
           setMessages(formattedMessages);
@@ -42,7 +58,7 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
     };
 
     fetchMessages();
-  }, [otherUserId, token]);
+  }, [otherUserId, token, serverUrl]);
 
   const onSend = useCallback((messages = []) => {
     const { _id, text, user } = messages[0];
@@ -55,7 +71,7 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
     setMessages((previousMessages) =>
       GiftedChat.append(previousMessages, messages)
     );
-  }, []);
+  }, [userId, otherUserId, socket]);
 
   useEffect(() => {
     if (socket.current) {
@@ -70,6 +86,8 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
                 createdAt: new Date(message.created_at),
                 user: {
                   _id: message.from,
+                  name: message.sender_username,
+                  avatar: getAvatarUri(message.sender_avatar_url, message.sender_username),
                 },
               },
             ])
@@ -99,7 +117,10 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
         onSend={(messages) => onSend(messages)}
         user={{
           _id: userId,
+          name: currentUser?.username,
+          avatar: getAvatarUri(currentUser?.avatar_url, currentUser?.username),
         }}
+        showUserAvatar={true}
       />
     </View>
   );

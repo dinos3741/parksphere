@@ -384,9 +384,19 @@ io.on('connection', (socket) => {
       );
       const created_at = result.rows[0].created_at;
 
+      const senderResult = await pool.query('SELECT username, avatar_url FROM users WHERE id = $1', [from]);
+      const sender = senderResult.rows[0];
+
       if (recipientSockets) {
         recipientSockets.forEach(s => {
-          io.to(s.socketId).emit('privateMessage', { from, to, message, created_at });
+          io.to(s.socketId).emit('privateMessage', { 
+            from, 
+            to, 
+            message, 
+            created_at,
+            sender_username: sender ? sender.username : 'Unknown User',
+            sender_avatar_url: sender ? sender.avatar_url : null
+          });
         });
       }
     } catch (error) {
@@ -1296,10 +1306,11 @@ app.get('/api/messages/conversations/:otherUserId', authenticateToken, async (re
 
   try {
     const result = await pool.query(
-      `SELECT sender_id, receiver_id, message, created_at
-       FROM messages
-       WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)
-       ORDER BY created_at ASC`,
+      `SELECT m.sender_id, m.receiver_id, m.message, m.created_at, u.avatar_url AS sender_avatar_url, u.username AS sender_username
+       FROM messages m
+       JOIN users u ON m.sender_id = u.id
+       WHERE (m.sender_id = $1 AND m.receiver_id = $2) OR (m.sender_id = $2 AND m.receiver_id = $1)
+       ORDER BY m.created_at ASC`,
       [userId, otherUserId]
     );
 
