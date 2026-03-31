@@ -125,9 +125,6 @@ const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, 
           <View style={styles.profileLeftColumn}>
             <TouchableOpacity onPress={pickImage}>
               <Image source={{ uri: getAvatarUri() }} style={styles.avatar} />
-              <View style={styles.editBadge}>
-                <Text style={styles.editBadgeText}>Edit</Text>
-              </View>
             </TouchableOpacity>
             <Text style={styles.username}>{user.username}</Text>
             <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
@@ -213,19 +210,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  editBadgeText: {
-    color: 'white',
-    fontSize: 10,
   },
   username: {
     fontSize: 22,
