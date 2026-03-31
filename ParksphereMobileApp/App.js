@@ -234,10 +234,32 @@ export default function App() {
   }, [arrivedSound]);
 
 
+  const handleManualArrivalClick = () => {
+    if (acceptedSpot && userLocation) {
+      const spotLat = parseFloat(acceptedSpot.latitude);
+      const spotLon = parseFloat(acceptedSpot.longitude);
+      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
+      
+      const distanceThreshold = 100; // 100 meters
+
+      if (distance > distanceThreshold) {
+        Alert.alert(
+          'Too Far',
+          `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`
+        );
+        return;
+      }
+      
+      setRequesterArrivalModalOpen(true);
+    } else {
+      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
+    }
+  };
+
   const handleFabPress = () => {
     if (acceptedSpot) {
       if (!arrivalConfirmed) {
-        setRequesterArrivalModalOpen(true);
+        handleManualArrivalClick();
       } else {
         Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
       }
@@ -981,8 +1003,8 @@ export default function App() {
         acceptedSpot={acceptedSpot}
         arrivalConfirmed={arrivalConfirmed}
         onOpenChat={handleOpenChat}
-        onConfirmArrival={() => setRequesterArrivalModalOpen(true)}
-      />
+        onConfirmArrival={handleManualArrivalClick}
+        />
       <Modal
         visible={showAboutScreen}
         animationType="slide"
