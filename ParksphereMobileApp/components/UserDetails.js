@@ -114,6 +114,25 @@ const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, 
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Confirm Logout',
+      'Are you sure you want to log out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: onLogout,
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -184,7 +203,7 @@ const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, 
           </View>
         </View>
       </ScrollView>
-      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Logout</Text>
       </TouchableOpacity>
     </View>
