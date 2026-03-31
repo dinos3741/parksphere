@@ -488,7 +488,6 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
       if (updatedSpotData) {
         const relevantRequests = spotRequests.filter(req => req.spotId === currentSpotId);
         const newDrawerSpot = { ...updatedSpotData, requests: relevantRequests };
-        console.log('Map.js: useEffect updating drawerSpot - newDrawerSpot:', JSON.stringify(newDrawerSpot, null, 2)); // DEBUG LOG
         // Only update if the content of the requests array has changed
         // Or if the spot data itself has changed (e.g., time_to_leave)
         if (JSON.stringify(drawerSpot.requests) !== JSON.stringify(relevantRequests) ||
@@ -498,6 +497,17 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
       }
     }
   }, [parkingSpots, spotRequests, drawerSpot]); // Added drawerSpot to dependencies to ensure it re-runs when drawerSpot itself changes
+
+  // Effect to update requesterDrawerSpot with latest data from parkingSpots
+  useEffect(() => {
+    if (requesterDrawerSpot) {
+      const currentSpotId = requesterDrawerSpot.id;
+      const updatedSpotData = parkingSpots.find(spot => spot.id === currentSpotId);
+      if (updatedSpotData && JSON.stringify(requesterDrawerSpot) !== JSON.stringify(updatedSpotData)) {
+        setRequesterDrawerSpot(updatedSpotData);
+      }
+    }
+  }, [parkingSpots, requesterDrawerSpot]);
 
   if (!appUserLocation || isNaN(appUserLocation[0]) || isNaN(appUserLocation[1])) {
     return <div>Loading map or getting your location...</div>;

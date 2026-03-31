@@ -95,11 +95,19 @@ const RequesterSideDrawer = ({ spot, formatRemainingTime, onRequest, onCancelReq
       return;
     }
 
+    const spotLat = spot.lat ?? parseFloat(spot.latitude);
+    const spotLng = spot.lng ?? parseFloat(spot.longitude);
+
+    if (isNaN(spotLat) || isNaN(spotLng)) {
+      addNotification('Error: Spot location data is incomplete.', 'red');
+      return;
+    }
+
     const distance = getDistance(
       userLocation[0],
       userLocation[1],
-      spot.lat,
-      spot.lng
+      spotLat,
+      spotLng
     );
 
     const distanceThreshold = 0.1; // 100 meters in kilometers

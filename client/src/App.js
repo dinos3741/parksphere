@@ -384,17 +384,18 @@ function MainAppContent({ serverUrl }) {
       }
       addNotification(data.message, 'default');
       if (data.spot) {
-        setAcceptedSpot(data.spot);
+        const formattedAcceptedSpot = {
+          ...data.spot,
+          lat: parseFloat(data.spot.latitude),
+          lng: parseFloat(data.spot.longitude),
+          isExactLocation: true,
+        };
+        setAcceptedSpot(formattedAcceptedSpot);
         setFilteredParkingSpots(prevSpots => {
           const index = prevSpots.findIndex(s => s.id === data.spot.id);
           if (index !== -1) {
             const newSpots = [...prevSpots];
-            newSpots[index] = {
-              ...newSpots[index],
-              lat: parseFloat(data.spot.latitude),
-              lng: parseFloat(data.spot.longitude),
-              isExactLocation: true,
-            };
+            newSpots[index] = formattedAcceptedSpot;
             return newSpots;
           }
           return prevSpots;
