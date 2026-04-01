@@ -19,6 +19,7 @@ import logo from './assets/images/logo.png';
 
 import ProfileModal from './components/ProfileModal';
 import SettingsModal from './components/SettingsModal';
+import AboutModal from './components/AboutModal';
 import NotificationLog from './components/NotificationLog';
 import AcceptedRequestModal from './components/AcceptedRequestModal';
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -78,6 +79,7 @@ function MainAppContent({ serverUrl }) {
   const requesterEta = null;
   const [menuOpen, setMenuOpen] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const [spotRequests, setSpotRequests] = useState([]);
@@ -843,6 +845,17 @@ function MainAppContent({ serverUrl }) {
               type="button"
               className="hamburger-menu-item"
               role="menuitem"
+              onClick={() => { setShowAboutModal(true); setMenuOpen(false); }}
+            >
+              <span className="hamburger-menu-item__icon" aria-hidden>
+                <i className="fas fa-info-circle" />
+              </span>
+              <span className="hamburger-menu-item__label">About</span>
+            </button>
+            <button
+              type="button"
+              className="hamburger-menu-item"
+              role="menuitem"
               onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}
             >
               <span className="hamburger-menu-item__icon" aria-hidden>
@@ -980,6 +993,11 @@ function MainAppContent({ serverUrl }) {
         requesterUsername={arrivalConfirmationData?.requesterUsername}
         spotId={arrivalConfirmationData?.spotId}
       />
+      {showAboutModal && (
+        <AboutModal
+          onClose={() => setShowAboutModal(false)}
+        />
+      )}
       {showSettingsModal && (
         <SettingsModal 
           onClose={() => setShowSettingsModal(false)} 
