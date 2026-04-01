@@ -1,24 +1,50 @@
-import React from 'react';
+import React, { useState, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 
+import HeaderUserInfo from './HeaderUserInfo';
 import './Filter.css';
 
-const Filter = ({ selectedFilter, onFilterChange, currentUsername, onLogout, currentUserAvatarUrl, onAvatarClick, showSearchUserModal, setShowSearchUserModal, setIsMessagesDrawerOpen, unreadMessages }) => {
+const Filter = ({
+  currentUsername,
+  currentUserAvatarUrl,
+  onAvatarClick,
+  showSearchUserModal,
+  setShowSearchUserModal,
+  setIsMessagesDrawerOpen,
+  unreadMessages,
+}) => {
   const unreadCount = Object.values(unreadMessages).reduce((acc, count) => acc + count, 0);
+  const [headerUserMount, setHeaderUserMount] = useState(null);
+
+  useLayoutEffect(() => {
+    const header = document.querySelector('.App-header');
+    if (!header) return undefined;
+    const el = document.createElement('div');
+    el.className = 'header-user-info-portal-root';
+    header.appendChild(el);
+    setHeaderUserMount(el);
+    return () => {
+      el.remove();
+      setHeaderUserMount(null);
+    };
+  }, []);
 
   return (
-    <div className="filter-container">
-      <i className={`fas fa-search search-icon ${showSearchUserModal ? 'highlighted' : ''}`} onClick={() => setShowSearchUserModal(true)}></i>
-      <div className="message-icon-container">
-        <i className="fas fa-envelope message-icon" onClick={() => setIsMessagesDrawerOpen(true)}></i>
-        {unreadCount > 0 && <span className="notification-badge"></span>}
-      </div>
-      <div className="user-info">
-        <img src={currentUserAvatarUrl} alt="User Avatar" className="user-avatar" onClick={onAvatarClick} />
-        <div className="welcome-text-container">
-          Welcome {currentUsername}!
-        </div>
-      </div>
-    </div>
+    <>
+      {headerUserMount &&
+        createPortal(
+          <HeaderUserInfo
+            avatarUrl={currentUserAvatarUrl}
+            username={currentUsername}
+            onAvatarClick={onAvatarClick}
+            onSearchClick={() => setShowSearchUserModal(true)}
+            onMessagesClick={() => setIsMessagesDrawerOpen(true)}
+            unreadCount={unreadCount}
+            isSearchHighlighted={showSearchUserModal}
+          />,
+          headerUserMount
+        )}
+    </>
   );
 };
 

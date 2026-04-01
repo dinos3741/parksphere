@@ -818,35 +818,50 @@ function MainAppContent({ serverUrl }) {
   return (
     <div className="App">
       <header className="App-header">
-        <div className="logo-title-container">
-          <img
-            src={logo}
-            className={`logo-img ${isLogoAnimating ? 'logo-animate' : ''}`}
-            alt="Parksphere Logo"
-            onClick={handleLogoClick}
-          />
-          <div className="logo-container">
-            <h1 className="logo">PARKSPHERE</h1>
-            <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
+        <div className="header-brand-row">
+          <div className="hamburger-menu" onClick={() => setMenuOpen(!menuOpen)}>
+            <div className="bar"></div>
+            <div className="bar"></div>
+            <div className="bar"></div>
+          </div>
+          <div className="logo-title-container">
+            <img
+              src={logo}
+              className={`logo-img ${isLogoAnimating ? 'logo-animate' : ''}`}
+              alt="Parksphere Logo"
+              onClick={handleLogoClick}
+            />
+            <div className="logo-container">
+              <h1 className="logo">PARKSPHERE</h1>
+              <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
+            </div>
           </div>
         </div>
-        <div className="hamburger-menu" onClick={() => setMenuOpen(!menuOpen)}>
-          <div className="bar"></div>
-          <div className="bar"></div>
-          <div className="bar"></div>
-        </div>
         {menuOpen && (
-          <div className="hamburger-dropdown" ref={dropdownRef}>
-            <button onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}>Settings</button>
-            <button onClick={handleLogout}>Logout</button>
+          <div className="hamburger-dropdown" ref={dropdownRef} role="menu">
+            <button
+              type="button"
+              className="hamburger-menu-item"
+              role="menuitem"
+              onClick={() => { setShowSettingsModal(true); setMenuOpen(false); }}
+            >
+              <span className="hamburger-menu-item__icon" aria-hidden>
+                <i className="fas fa-sliders-h" />
+              </span>
+              <span className="hamburger-menu-item__label">Settings</span>
+            </button>
+            <button type="button" className="hamburger-menu-item hamburger-menu-item--danger" role="menuitem" onClick={handleLogout}>
+              <span className="hamburger-menu-item__icon" aria-hidden>
+                <i className="fas fa-right-from-bracket" />
+              </span>
+              <span className="hamburger-menu-item__label">Log out</span>
+            </button>
           </div>
         )}
       </header>
       
       <div className="main-content">
         <Filter 
-          selectedFilter={selectedFilter} 
-          onFilterChange={setSelectedFilter} 
           currentUsername={currentUsername} 
           currentUserAvatarUrl={profileUserData?.avatar_url}
           onAvatarClick={() => { setShowProfileModal(true); fetchProfileData(); }}

@@ -1,8 +1,14 @@
 .filter-container {
   display: flex;
   align-items: center;
-  padding: 10px;
-  background-color: #f0f0f0;
+  padding: 10px 20px;
+  background: #f0f0f0;
+}
+
+.header-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .filter-container label {
@@ -11,49 +17,6 @@
 
 .filter-container select {
   margin-right: 20px;
-}
-
-.user-info {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  font-weight: bold;
-}
-
-.welcome-text-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%; /* Ensure it takes full height of parent flex item */
-  margin-top: -28px;
-}
-
-.user-info span {
-  margin-right: 10px;
-  font-weight: bold;
-}
-
-.user-info button {
-  padding: 10px 20px;
-  font-size: 1em;
-  border: none;
-  border-radius: 25px; /* More rounded corners */
-  background-color: #dc3545; /* Red color for logout */
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
-}
-
-.user-avatar {
-  width: 52px !important;
-  height: 52px !important;
-  border-radius: 50%;
-  margin-right: 10px;
-  object-fit: cover;
-  border: 2px solid #603aac;
-  margin-top: -20px;
-  cursor: pointer;
 }
 
 .message-icon-container {
@@ -69,16 +32,6 @@
   height: 10px;
   background-color: red;
   border-radius: 50%;
-}
-
-.user-info span {
-  margin-right: 10px;
-  font-weight: bold;
-}
-
-.user-info button:hover {
-  background-color: #c82333;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
 
 .search-icon {

@@ -20,7 +20,9 @@ body {
 
 .main-content {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  /* overflow-y: auto here clipped .user-info when it was translated upward */
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -28,20 +30,40 @@ body {
 
 .App-header {
   background: linear-gradient(to right, #512da8, #1976d2);
-  padding: 10px; /* Adjusted padding for mobile */
+  padding: 10px 16px;
   color: white;
   display: flex;
-  flex-direction: row; /* Always row for header content */
-  justify-content: space-between; /* Space out logo and menu */
-  align-items: center; /* Vertically center content */
-  text-align: center; /* Center text within header */
-  position: relative; /* For absolute positioning of dropdown */
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  text-align: center;
+  position: relative;
+  container-type: inline-size;
+  container-name: app-header;
 }
 
 @media (min-width: 768px) {
   .App-header {
-    padding: 10px 20px; /* Original padding for desktop */
+    padding: 10px 24px;
   }
+}
+
+/* Hamburger + logo/title share one row; vertical centering matches logo image */
+.header-brand-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 10px;
+}
+
+/* Portal wrapper: children lay out as flex items of .App-header */
+.header-user-info-portal-root {
+  display: contents;
 }
 
 .header-title-group {
@@ -80,9 +102,11 @@ body {
 }
 
 .map-container {
-  flex-grow: 1;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   border: 2px solid #333; /* Border around the map */
-  margin: 10px; /* Add some margin around the map */
+  margin: 5px; /* Add some margin around the map */
 }
 
 .filter-container {
@@ -311,9 +335,10 @@ body {
 .logo-title-container {
   display: flex;
   flex-direction: row;
-  align-items: center; /* Aligns items to the center */
+  align-items: center;
   justify-content: center;
-  flex-grow: 1; /* Allow it to take available space */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 
@@ -384,6 +409,150 @@ body {
   }
 }
 
+/* Header: logged-in user (wraps below logo when header is narrow — container query) */
+.header-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-action-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.header-action-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.header-action-btn:active {
+  transform: translateY(1px);
+}
+
+.header-action-btn.is-active {
+  background: rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.header-action-btn--messages {
+  position: relative;
+}
+
+.header-action-badge {
+  position: absolute;
+  top: 6px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px rgba(81, 45, 168, 0.85);
+}
+
+@container app-header (max-width: 560px) {
+  .logo-title-container {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .header-user-info {
+    flex-basis: 100%;
+    justify-content: center;
+    margin-left: 0;
+  }
+
+  .header-actions {
+    order: 1;
+  }
+
+  .header-welcome-text {
+    text-align: center;
+    white-space: normal;
+    max-width: none;
+  }
+}
+
+/* Approximate fallback when container queries are not supported */
+@media (max-width: 560px) {
+  .App-header .logo-title-container {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
+  .App-header .header-user-info {
+    flex-basis: 100%;
+    justify-content: center;
+    margin-left: 0;
+  }
+
+  .App-header .header-actions {
+    order: 1;
+  }
+
+  .App-header .header-welcome-text {
+    text-align: center;
+    white-space: normal;
+    max-width: none;
+  }
+}
+
+.header-user-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.header-welcome-text {
+  font-family: 'Open Sans', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: white;
+  white-space: nowrap;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(100%, 55vw);
+}
+
+@media (max-width: 767px) {
+  .header-welcome-text {
+    font-size: 0.9rem;
+  }
+
+  .header-user-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .header-action-btn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
 /* Hamburger menu styles */
 .hamburger-menu {
   display: flex;
@@ -392,59 +561,138 @@ body {
   width: 28px;
   height: 20px;
   cursor: pointer;
-  z-index: 1100; /* Ensure it's above other content */
-  margin-left: auto; /* Push to the right */
+  z-index: 3100; /* Ensure it's above other content including its dropdown */
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: 0;
 }
 
 /* The bars */
 .hamburger-menu .bar {
-  height: 3px;
+  height: 2px;
   width: 100%;
-  background: white; /* or use gradient to match background */
+  background: rgba(255, 255, 255, 0.9); /* slightly transparent white */
   border-radius: 2px;
   transition: all 0.3s ease;
 }
 
-/* Dropdown menu container */
+/* Dropdown panel */
 .hamburger-dropdown {
   position: absolute;
-  top: 60px; /* Adjust based on header height */
-  right: 20px;
-  background: rgba(255, 255, 255, 0.8); /* semi-transparent light background */
-  color: white;
-  padding: 10px;
-  border-radius: 10px;
+  top: 100%;
+  left: 12px;
+  right: auto;
+  margin-top: 6px;
+  min-width: 220px;
+  padding: 6px;
+  background: #ffffff;
+  color: #1a1a1e;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.08),
+    0 12px 24px -4px rgba(0, 0, 0, 0.14);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
-  z-index: 1000; /* Ensure it's above other content but below menu icon */
+  gap: 2px;
+  z-index: 3000;
 }
 
 .hamburger-dropdown button {
-  background-color: rgba(96, 58, 172, 0.7); /* More transparent deep purple */
-  color: white;
-  padding: 10px 15px; /* Reduced height */
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 1em;
-  font-weight: 600;
-  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  transition: background-color 0.3s ease, transform 0.2s ease;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  margin: 0;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+.hamburger-dropdown button .hamburger-menu-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: rgba(81, 45, 168, 0.1);
+  color: #512da8;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.hamburger-dropdown button.hamburger-menu-item--danger .hamburger-menu-item__icon {
+  background: rgba(220, 53, 69, 0.1);
+  color: #c62828;
+}
+
+/* Plain-text buttons (no inner icon): FA6 icons via ::before */
+.hamburger-dropdown button:not(:has(.hamburger-menu-item__icon))::before {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: rgba(81, 45, 168, 0.1);
+  color: #512da8;
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.hamburger-dropdown button:not(:has(.hamburger-menu-item__icon)):first-of-type::before {
+  content: '\f1de';
+}
+
+.hamburger-dropdown button:not(:has(.hamburger-menu-item__icon)):last-of-type::before {
+  content: '\f2f5';
+  background: rgba(220, 53, 69, 0.1);
+  color: #c62828;
 }
 
 .hamburger-dropdown button:hover {
-  background-color: rgba(123, 77, 204, 0.8); /* More transparent lighter purple on hover */
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  background: rgba(81, 45, 168, 0.07);
+}
+
+.hamburger-dropdown button:last-of-type:hover {
+  background: rgba(220, 53, 69, 0.08);
+  color: #b71c1c;
+}
+
+.hamburger-dropdown button.hamburger-menu-item--danger:hover {
+  background: rgba(220, 53, 69, 0.08);
+  color: #b71c1c;
 }
 
 .hamburger-dropdown button:active {
-  transform: translateY(0); /* Reset on click */
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: rgba(81, 45, 168, 0.11);
+}
+
+.hamburger-dropdown button:last-of-type:active {
+  background: rgba(220, 53, 69, 0.12);
+}
+
+.hamburger-dropdown button.hamburger-menu-item--danger:active {
+  background: rgba(220, 53, 69, 0.12);
+}
+
+.hamburger-dropdown button .hamburger-menu-item__label {
+  flex: 1;
+  min-width: 0;
 }
 
 
