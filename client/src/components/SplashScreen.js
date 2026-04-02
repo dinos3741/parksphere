@@ -1,11 +1,21 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import './SplashScreen.css';
 import parkingBackground from '../assets/images/parking_background.png';
 import logo from '../assets/images/logo.png';
+import { getToken, isTokenExpired } from '../utils/auth';
 
 
 const SplashScreen = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const token = getToken();
+    if (token && !isTokenExpired(token)) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
   return (
     <div className="container">
       <div className="top-header">

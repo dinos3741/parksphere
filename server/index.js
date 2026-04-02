@@ -1178,7 +1178,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).send('Invalid username or password.');
     }
 
-    const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '1d' });
+    const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '30d' });
 
     res.status(200).json({ message: 'Login successful!', token: accessToken, userId: user.id, username: user.username });
   } catch (error) {
@@ -1208,7 +1208,7 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
     const updatedUser = updatedUserResult.rows[0];
 
     // Re-issue JWT with updated carType
-    const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type }, JWT_SECRET, { expiresIn: '1d' });
+    const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type }, JWT_SECRET, { expiresIn: '30d' });
 
     res.status(200).json({ message: 'Car details updated successfully!', token: newAccessToken });
   } catch (error) {
