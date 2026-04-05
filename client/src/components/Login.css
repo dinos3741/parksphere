@@ -36,6 +36,42 @@
   color: #4dd0e1;
 }
 
+.social-login-separator {
+  margin: 25px 0;
+  text-align: center;
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+
+.social-login-separator::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #eee;
+  z-index: 1;
+}
+
+.social-login-separator span {
+  background-color: #fff;
+  padding: 0 15px;
+  color: #999;
+  font-size: 0.9rem;
+  position: relative;
+  z-index: 2;
+  border-radius: 5px;
+}
+
+.google-login-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+  width: 100%;
+}
+
 .App-footer {
   text-align: center;
   font-size: 1rem;

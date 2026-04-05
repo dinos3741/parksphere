@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Import cors
@@ -5,12 +6,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
+const { OAuth2Client } = require('google-auth-library');
 const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
 
 // Ensure uploads directory exists
@@ -422,9 +425,9 @@ io.on('connection', (socket) => {
     console.log('Server: userSockets on disconnect:', userSockets);
   });
 });
-const port = 3001;
+const PORT = process.env.PORT || 3001;
 
-const JWT_SECRET = 'supersecretjwtkey';
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 
 const { CAR_SIZE_HIERARCHY } = require('./utils/carTypes');
 
@@ -1178,14 +1181,84 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).send('Invalid username or password.');
     }
 
-    const accessToken = jwt.sign({ userId: user.id, username: user.username, carType: user.car_type }, JWT_SECRET, { expiresIn: '30d' });
+    const accessToken = jwt.sign(
+      { userId: user.id, username: user.username, carType: user.car_type },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
-    res.status(200).json({ message: 'Login successful!', token: accessToken, userId: user.id, username: user.username });
-  } catch (error) {
+    res.status(200).json({
+      message: 'Login successful!',
+      token: accessToken,
+      userId: user.id,
+      username: user.username
+    });
+    } catch (error) {
     console.error('Error during login:', error);
     res.status(500).send('Server error during login.');
-  }
-});
+    }
+    });
+
+    app.post('/api/auth/google', async (req, res) => {
+    const { idToken } = req.body;
+
+    try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+
+    // Check if user exists with this google_id
+    let result = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    let user = result.rows[0];
+
+    if (!user) {
+      // Check if user exists with this email (link accounts)
+      result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      user = result.rows[0];
+
+      if (user) {
+        // Link google account to existing email account
+        await pool.query('UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3', [googleId, picture, user.id]);
+        // Refresh user data
+        const refreshResult = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
+        user = refreshResult.rows[0];
+      } else {
+        // Create new user
+        // Generate a unique username if 'name' is taken
+        let username = name.replace(/\s+/g, '').toLowerCase();
+        const checkUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+        if (checkUser.rows.length > 0) {
+          username = `${username}_${Date.now()}`;
+        }
+
+        const newUserResult = await pool.query(
+          'INSERT INTO users (username, email, google_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username',
+          [username, email, googleId, picture]
+        );
+        user = { id: newUserResult.rows[0].id, username: newUserResult.rows[0].username, car_type: null };
+      }
+    }
+
+    const accessToken = jwt.sign(
+      { userId: user.id, username: user.username, carType: user.car_type },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(200).json({
+      message: 'Google login successful!',
+      token: accessToken,
+      userId: user.id,
+      username: user.username
+    });
+    } catch (error) {
+    console.error('Error during Google auth:', error);
+    res.status(401).send('Invalid Google token.');
+    }
+    });
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;

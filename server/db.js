@@ -20,13 +20,38 @@ async function createUsersTable() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        plate_number VARCHAR(255) NOT NULL,
-        car_color VARCHAR(255) NOT NULL,
+        password VARCHAR(255), -- Made nullable for OAuth users
+        email VARCHAR(255) UNIQUE, -- Added for OAuth and general use
+        google_id VARCHAR(255) UNIQUE, -- Added for Google OAuth
+        plate_number VARCHAR(255), -- Made nullable for OAuth users
+        car_color VARCHAR(255), -- Made nullable for OAuth users
         car_type VARCHAR(255), -- New column for car type
         avatar_url VARCHAR(255), -- New column for avatar URL
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Alter password column to be nullable if it's currently NOT NULL
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+    `);
+
+    // Alter plate_number and car_color to be nullable
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN plate_number DROP NOT NULL;
+      ALTER TABLE users ALTER COLUMN car_color DROP NOT NULL;
+    `);
+
+    // Add email column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+    `);
+
+    // Add google_id column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
     `);
 
     // Add car_type column if it doesn't exist

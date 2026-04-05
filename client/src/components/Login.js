@@ -1,11 +1,37 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import './Login.css';
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idToken: credentialResponse.credential }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('welcomeMessage', `Welcome, ${data.username}!`);
+        navigate('/dashboard');
+      } else {
+        const errorData = await response.text();
+        alert(`Google login failed: ${errorData}`);
+      }
+    } catch (error) {
+      console.error('Error during Google login:', error);
+      alert('An error occurred during Google login.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,6 +95,19 @@ const Login = () => {
           </div>
           <button type="submit">Login</button>
         </form>
+        <div className="social-login-separator">
+          <span>OR</span>
+        </div>
+        <div className="google-login-container">
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => {
+              console.log('Login Failed');
+              alert('Google Login Failed');
+            }}
+            useOneTap
+          />
+        </div>
         <p>
           Don't have an account? <Link to="/register">Register here</Link>
         </p>
