@@ -1208,7 +1208,7 @@ app.post('/api/login', async (req, res) => {
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     const payload = ticket.getPayload();
-    const { sub: googleId, email, name, picture } = payload;
+    const { sub: googleId, email, name, picture, given_name } = payload;
 
     // Check if user exists with this google_id
     let result = await pool.query('SELECT * FROM users WHERE google_id = $1', [googleId]);
@@ -1227,8 +1227,10 @@ app.post('/api/login', async (req, res) => {
         user = refreshResult.rows[0];
       } else {
         // Create new user
-        // Generate a unique username if 'name' is taken
-        let username = name.replace(/\s+/g, '').toLowerCase();
+        // Use given_name if available, otherwise use first word of name
+        let usernameBase = given_name || name.split(' ')[0];
+        let username = usernameBase.toLowerCase();
+        
         const checkUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         if (checkUser.rows.length > 0) {
           username = `${username}_${Date.now()}`;
