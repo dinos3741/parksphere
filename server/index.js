@@ -1419,6 +1419,6 @@ async function checkAndRemoveExpiredSpots() {
 setInterval(checkAndRemoveExpiredSpots, 15000);
 
 
-server.listen(port, () => {
-  console.log(`Server listening at http://0.0.0.0:${port}`);
+server.listen(PORT, () => {
+  console.log(`Server listening at http://0.0.0.0:${PORT}`);
 });
