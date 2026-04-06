@@ -33,7 +33,7 @@
 }
 
 .spacer {
-  height: 30px; /* Adjust this value to control the vertical position */
+  height: 10px; /* Reduced from 30px */
 }
 
 .auth-container {
@@ -41,7 +41,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 20px;
+  padding: 10px; /* Reduced from 20px */
   position: relative;
   z-index: 1;
   margin-top: 0px; /* Pushes the form up */
@@ -49,7 +49,8 @@
 
 .auth-container h2 {
   color: #FFFFFF !important; /* Change heading color to white for contrast */
-  padding-top: 40px;
+  padding-top: 30px; /* Set to 30px as requested */
+  margin-bottom: 10px; /* Reduced margin */
 }
 
 .auth-container label {
@@ -57,18 +58,18 @@
 }
 
 .auth-container p {
-  margin-top: 20px;
+  margin-top: 10px; /* Reduced from 20px */
   color: #FFFFFF !important; /* Made text brighter */
 }
 
 .auth-container form {
   background-color: white;
-  padding: 20px 30px; /* Reduced top/bottom padding */
+  padding: 12px 20px; /* Reduced from 15px 25px */
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 12px; /* Reduced gap from 15px */
+  gap: 5px; /* Reduced from 8px */
   width: 100%;
   max-width: 400px;
 }
@@ -79,28 +80,29 @@
 }
 
 .auth-container label {
-  margin-bottom: 3px; /* Reduced from 5px */
+  margin-bottom: 0px; /* Minimal margin */
   font-weight: bold;
   color: #332294;
+  font-size: 0.9rem; /* Slightly smaller font */
 }
 
 .auth-container input,
 .auth-container select {
-  padding: 8px; /* Reduced from 10px */
+  padding: 5px; /* Reduced from 6px */
   border: 1px solid #ccc;
   border-radius: 5px;
-  font-size: 1em;
+  font-size: 0.9rem; /* Slightly smaller font */
 }
 
 .auth-container button {
-  padding: 10px 15px;
+  padding: 6px 15px; /* Reduced from 8px 15px */
   background-color: #007bff;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 1.1em;
-  margin-top: 5px; /* Reduced from 10px */
+  font-size: 1rem; /* Slightly smaller font */
+  margin-top: 2px;
 }
 
 .auth-container button:hover {
@@ -108,7 +110,7 @@
 }
 
 .social-login-separator {
-  margin: 10px 0; /* Reduced from 25px */
+  margin: 2px 0; /* Reduced from 5px */
   text-align: center;
   position: relative;
   width: 100%;
@@ -139,7 +141,7 @@
 .google-login-container {
   display: flex;
   justify-content: center;
-  margin-bottom: 5px; /* Reduced from 10px */
+  margin-bottom: 0; /* Reduced from 5px */
   width: 100%;
 }
 
