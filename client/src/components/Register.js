@@ -59,7 +59,7 @@ const Register = () => {
         const data = await response.json();
         localStorage.setItem('token', data.token);
         sessionStorage.setItem('welcomeMessage', `Welcome, ${data.username}!`);
-        alert('Registration with Google successful!');
+        alert(data.message); // Use the message from the server (Registration vs Login)
         navigate('/dashboard');
       } else {
         const errorData = await response.text();
@@ -73,6 +73,10 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!username || !password) {
+      alert('Username and password are required for traditional registration.');
+      return;
+    }
     try {
       const response = await fetch('/api/register', {
         method: 'POST',
@@ -114,7 +118,6 @@ const Register = () => {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              required
             />
           </div>
           <div className="form-group">
@@ -124,7 +127,6 @@ const Register = () => {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
             />
           </div>
           <div className="form-group">

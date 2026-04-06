@@ -1220,6 +1220,7 @@ app.post('/api/auth/google', async (req, res) => {
       user = result.rows[0];
     }
 
+    let isNewUser = false;
     // If user exists, check if they have car details
     if (user) {
       // If car details are missing and not provided in request, ask for them
@@ -1227,10 +1228,10 @@ app.post('/api/auth/google', async (req, res) => {
         return res.status(428).send('Car details required');
       }
 
-      // Update user with google_id and car details if provided
+      // Update user only with missing details to avoid overwriting existing ones
       await pool.query(
         'UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2), plate_number = COALESCE(plate_number, $3), car_color = COALESCE(car_color, $4), car_type = COALESCE(car_type, $5) WHERE id = $6',
-        [googleId, picture, plateNumber || user.plate_number, carColor || user.car_color, carType || user.car_type, user.id]
+        [googleId, picture, plateNumber, carColor, carType, user.id]
       );
       
       const refreshResult = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
@@ -1240,6 +1241,7 @@ app.post('/api/auth/google', async (req, res) => {
       if (!plateNumber || !carColor || !carType) {
         return res.status(428).send('Car details required');
       }
+      isNewUser = true;
 
       let usernameBase = given_name || name.split(' ')[0];
       let username = usernameBase.toLowerCase();
@@ -1263,10 +1265,11 @@ app.post('/api/auth/google', async (req, res) => {
     );
 
     res.status(200).json({
-      message: 'Google login successful!',
+      message: isNewUser ? 'Google registration successful!' : 'Google login successful!',
       token: accessToken,
       userId: user.id,
-      username: user.username
+      username: user.username,
+      isNewUser
     });
   } catch (error) {
     console.error('Error during Google auth:', error);
