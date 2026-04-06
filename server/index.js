@@ -1199,10 +1199,10 @@ app.post('/api/login', async (req, res) => {
     }
     });
 
-    app.post('/api/auth/google', async (req, res) => {
-    const { idToken } = req.body;
+app.post('/api/auth/google', async (req, res) => {
+  const { idToken, plateNumber, carColor, carType } = req.body;
 
-    try {
+  try {
     const ticket = await googleClient.verifyIdToken({
       idToken,
       audience: process.env.GOOGLE_CLIENT_ID,
@@ -1218,30 +1218,42 @@ app.post('/api/login', async (req, res) => {
       // Check if user exists with this email (link accounts)
       result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
       user = result.rows[0];
+    }
 
-      if (user) {
-        // Link google account to existing email account
-        await pool.query('UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3', [googleId, picture, user.id]);
-        // Refresh user data
-        const refreshResult = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
-        user = refreshResult.rows[0];
-      } else {
-        // Create new user
-        // Use given_name if available, otherwise use first word of name
-        let usernameBase = given_name || name.split(' ')[0];
-        let username = usernameBase.toLowerCase();
-        
-        const checkUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-        if (checkUser.rows.length > 0) {
-          username = `${username}_${Date.now()}`;
-        }
-
-        const newUserResult = await pool.query(
-          'INSERT INTO users (username, email, google_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username',
-          [username, email, googleId, picture]
-        );
-        user = { id: newUserResult.rows[0].id, username: newUserResult.rows[0].username, car_type: null };
+    // If user exists, check if they have car details
+    if (user) {
+      // If car details are missing and not provided in request, ask for them
+      if ((!user.plate_number || !user.car_color || !user.car_type) && (!plateNumber || !carColor || !carType)) {
+        return res.status(428).send('Car details required');
       }
+
+      // Update user with google_id and car details if provided
+      await pool.query(
+        'UPDATE users SET google_id = $1, avatar_url = COALESCE(avatar_url, $2), plate_number = COALESCE(plate_number, $3), car_color = COALESCE(car_color, $4), car_type = COALESCE(car_type, $5) WHERE id = $6',
+        [googleId, picture, plateNumber || user.plate_number, carColor || user.car_color, carType || user.car_type, user.id]
+      );
+      
+      const refreshResult = await pool.query('SELECT * FROM users WHERE id = $1', [user.id]);
+      user = refreshResult.rows[0];
+    } else {
+      // New user - MUST have car details
+      if (!plateNumber || !carColor || !carType) {
+        return res.status(428).send('Car details required');
+      }
+
+      let usernameBase = given_name || name.split(' ')[0];
+      let username = usernameBase.toLowerCase();
+      
+      const checkUser = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+      if (checkUser.rows.length > 0) {
+        username = `${username}_${Date.now()}`;
+      }
+
+      const newUserResult = await pool.query(
+        'INSERT INTO users (username, email, google_id, avatar_url, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, car_type',
+        [username, email, googleId, picture, plateNumber, carColor, carType]
+      );
+      user = newUserResult.rows[0];
     }
 
     const accessToken = jwt.sign(
@@ -1256,11 +1268,11 @@ app.post('/api/login', async (req, res) => {
       userId: user.id,
       username: user.username
     });
-    } catch (error) {
+  } catch (error) {
     console.error('Error during Google auth:', error);
     res.status(401).send('Invalid Google token.');
-    }
-    });
+  }
+});
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;

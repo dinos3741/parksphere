@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import './Register.css';
 
 const Register = () => {
@@ -33,6 +34,42 @@ const Register = () => {
 
     fetchCarTypes();
   }, []);
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (!plateNumber || !carColor || !carType) {
+      alert('Please fill in your plate number, car color, and car type before registering with Google.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          idToken: credentialResponse.credential,
+          plateNumber,
+          carColor,
+          carType
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('welcomeMessage', `Welcome, ${data.username}!`);
+        alert('Registration with Google successful!');
+        navigate('/dashboard');
+      } else {
+        const errorData = await response.text();
+        alert(`Google registration failed: ${errorData}`);
+      }
+    } catch (error) {
+      console.error('Error during Google registration:', error);
+      alert('An error occurred during Google registration.');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -121,6 +158,26 @@ const Register = () => {
             </select>
           </div>
           <button type="submit">Register</button>
+          
+          <div className="social-login-separator">
+            <span>OR</span>
+          </div>
+          <div 
+            className="google-login-container" 
+            style={{ 
+              opacity: (plateNumber && carColor && carType) ? 1 : 0.5,
+              pointerEvents: (plateNumber && carColor && carType) ? 'auto' : 'none'
+            }}
+          >
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => {
+                console.log('Login Failed');
+                alert('Google Login Failed');
+              }}
+              useOneTap
+            />
+          </div>
         </form>
         <p>
           Already have an account? <Link to="/login">Login here</Link>

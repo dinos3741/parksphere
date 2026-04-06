@@ -120,9 +120,9 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
                   <span className="user-full-name-left-column">{userData.username}</span> {/* Username in left column */}
                 </div>
                 <div className="profile-right-column"> {/* Right column for details */}
-                  <p><span className="profile-label">Plate Number:</span> <span className="profile-value">{userData.plate_number.toUpperCase()}</span></p>
-                  <p><span className="profile-label">Car Color:</span> <span className="profile-value">{userData.car_color}</span></p>
-                  <p><span className="profile-label">Car Type:</span> <span className="profile-value">{userData.car_type}</span></p>
+                  <p><span className="profile-label">Plate Number:</span> <span className="profile-value">{userData.plate_number ? userData.plate_number.toUpperCase() : 'N/A'}</span></p>
+                  <p><span className="profile-label">Car Color:</span> <span className="profile-value">{userData.car_color || 'N/A'}</span></p>
+                  <p><span className="profile-label">Car Type:</span> <span className="profile-value">{userData.car_type || 'N/A'}</span></p>
                   <p><span className="profile-label">Account Created:</span> <span className="profile-value">{new Date(userData.created_at).toLocaleDateString()}</span></p>
                   <p><span className="profile-label">Credits:</span> <span className="profile-value">{userData.credits}</span></p>
                 </div>
