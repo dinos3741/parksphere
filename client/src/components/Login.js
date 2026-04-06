@@ -170,20 +170,20 @@ const Login = () => {
                 />
               </div>
               <button type="submit">Login</button>
+              <div className="social-login-separator">
+                <span>OR</span>
+              </div>
+              <div className="google-login-container">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => {
+                    console.log('Login Failed');
+                    alert('Google Login Failed');
+                  }}
+                  useOneTap
+                />
+              </div>
             </form>
-            <div className="social-login-separator">
-              <span>OR</span>
-            </div>
-            <div className="google-login-container">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => {
-                  console.log('Login Failed');
-                  alert('Google Login Failed');
-                }}
-                useOneTap
-              />
-            </div>
           </>
         )}
         <p>
