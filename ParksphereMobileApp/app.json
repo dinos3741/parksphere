@@ -2,6 +2,7 @@
   "expo": {
     "name": "ParksphereMobileApp",
     "slug": "ParksphereMobileApp",
+    "scheme": "parksphere",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,20 +15,24 @@
     },
     "ios": {
       "supportsTablet": true,
-      "homeIndicator": "hidden"
+      "homeIndicator": "hidden",
+      "bundleIdentifier": "com.konstantinos.parksphere"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.konstantinos.parksphere",
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-web-browser",
+      "expo-audio"
     ]
   }
 }
