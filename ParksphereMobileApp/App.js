@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
 import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
-import { Audio } from 'expo-av';
+import { useAudioPlayer } from 'expo-audio';
 import io from "socket.io-client"; // Import socket.io-client
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
@@ -81,27 +81,19 @@ export default function App() {
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const socket = useRef(null);
   const mapViewRef = useRef(null);
-  const [sound, setSound] = useState();
 
-  async function playSound() {
-    console.log('Loading Sound');
-    const { sound } = await Audio.Sound.createAsync( require('./assets/sounds/new-request.wav')
-    );
-    setSound(sound);
+  const newRequestPlayer = useAudioPlayer(require('./assets/sounds/new-request.wav'));
+  const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
 
+  function playSound() {
     console.log('Playing Sound');
-    await sound.playAsync();
+    newRequestPlayer.play();
   }
 
-  useEffect(() => {
-    return sound
-      ? () => {
-          console.log('Unloading Sound');
-          sound.unloadAsync();
-        }
-      : undefined;
-  }, [sound]);
-
+  function playSoundArrived() {
+    console.log('Playing Arrived Sound');
+    arrivedPlayer.play();
+  }
 
   useEffect(() => {
     async function loadFont() {
@@ -211,28 +203,6 @@ export default function App() {
     setArrivalConfirmationModalOpen(false);
     setArrivalConfirmationData(null);
   };
-
-  const [arrivedSound, setArrivedSound] = useState();
-
-  async function playSoundArrived() {
-    console.log('Loading Arrived Sound');
-    const { sound } = await Audio.Sound.createAsync( require('./assets/sounds/arrived.wav')
-    );
-    setArrivedSound(sound);
-
-    console.log('Playing Arrived Sound');
-    await sound.playAsync();
-  }
-
-  useEffect(() => {
-    return arrivedSound
-      ? () => {
-          console.log('Unloading Arrived Sound');
-          arrivedSound.unloadAsync();
-        }
-      : undefined;
-  }, [arrivedSound]);
-
 
   const handleManualArrivalClick = () => {
     if (acceptedSpot && userLocation) {
