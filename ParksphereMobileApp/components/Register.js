@@ -20,6 +20,8 @@ const Register = ({ onBack, onLogin }) => {
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     iosClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     androidClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
+  }, {
+    scheme: 'parksphere',
   });
 
   useEffect(() => {
