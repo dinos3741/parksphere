@@ -17,14 +17,15 @@ const Register = ({ onBack, onLogin }) => {
   const [plateNumber, setPlateNumber] = useState('');
   const [carColor, setCarColor] = useState('');
 
+  const redirectUri = 'https://auth.expo.io/@anonymous/ParksphereMobileApp';
+
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     iosClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
     androidClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
-    redirectUri: AuthSession.makeRedirectUri({
-      useProxy: true,
-      projectNameForProxy: 'ParksphereMobileApp',
-    }),
+    redirectUri,
+  }, {
+    useProxy: true,
   });
 
   useEffect(() => {

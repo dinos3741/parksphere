@@ -19,14 +19,17 @@ const Login = ({ onLogin, onRegister }) => {
   const [showCarDetailsFields, setShowCarDetailsFields] = useState(false);
   const [tempIdToken, setTempIdToken] = useState(null);
 
+  // Hardcode the Expo Go proxy URL for testing since makeRedirectUri is returning exp://
+  const redirectUri = 'https://auth.expo.io/@anonymous/ParksphereMobileApp';
+  console.log('Using Redirect URI:', redirectUri);
+
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     iosClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
     androidClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
-    redirectUri: AuthSession.makeRedirectUri({
-      useProxy: true,
-      projectNameForProxy: 'ParksphereMobileApp',
-    }),
+    redirectUri,
+  }, {
+    useProxy: true,
   });
 
   useEffect(() => {
