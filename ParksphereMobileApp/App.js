@@ -999,7 +999,7 @@ export default function App() {
             )}
           </View>
         ) : showRegister ? (
-          <Register onBack={() => setShowRegister(false)} />
+          <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
         ) : (
           <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
         )}

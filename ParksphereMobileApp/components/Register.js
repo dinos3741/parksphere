@@ -1,20 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image, ScrollView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import logo from '../assets/images/logo.png'; // Import the logo image
+
+WebBrowser.maybeCompleteAuthSession();
 
 const carTypes = ['motorcycle', 'city car', 'hatchback', 'sedan', 'family car', 'SUV', 'van', 'truck'];
 
-
-const Register = ({ onBack }) => {
+const Register = ({ onBack, onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [carType, setCarType] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
   const [carColor, setCarColor] = useState('');
 
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      handleGoogleSuccess(id_token);
+    }
+  }, [response]);
+
+  const handleGoogleSuccess = async (idToken) => {
+    if (!plateNumber || !carColor || !carType) {
+      Alert.alert('Details Needed', 'Please fill in your plate number, car color, and car type before registering with Google.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          idToken,
+          plateNumber,
+          carColor,
+          carType
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        await AsyncStorage.setItem('userToken', data.token);
+        await AsyncStorage.setItem('userId', String(data.userId));
+        await AsyncStorage.setItem('username', data.username);
+        if (onLogin) onLogin(data);
+      } else {
+        const errorData = await res.text();
+        Alert.alert('Google Registration Failed', errorData);
+      }
+    } catch (error) {
+      console.error('Error during Google registration:', error);
+      Alert.alert('Error', 'An error occurred during Google registration.');
+    }
+  };
+
   const handleRegister = async () => {
-    // TODO: Implement registration logic
-    Alert.alert('Registration', `Username: ${username}, Car Type: ${carType}, Plate Number: ${plateNumber}, Car Color: ${carColor}`);
+    if (!username || !password || !plateNumber || !carColor || !carType) {
+      Alert.alert('Error', 'All fields are required.');
+      return;
+    }
+    try {
+      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password, plateNumber, carColor, carType }),
+      });
+
+      if (response.ok) {
+        Alert.alert('Success', 'Registration successful! Please log in.');
+        onBack();
+      } else {
+        const errorData = await response.text();
+        Alert.alert('Registration Failed', errorData);
+      }
+    } catch (error) {
+      console.error('Error during registration:', error);
+      Alert.alert('Error', 'Could not connect to the server for registration.');
+    }
   };
 
   return (
@@ -81,6 +154,28 @@ const Register = ({ onBack }) => {
             <TouchableOpacity style={styles.loginButton} onPress={handleRegister}>
               <Text style={styles.loginButtonText}>Register</Text>
             </TouchableOpacity>
+
+            <View style={styles.separatorContainer}>
+              <View style={styles.separatorLine} />
+              <Text style={styles.separatorText}>OR</Text>
+              <View style={styles.separatorLine} />
+            </View>
+
+            <TouchableOpacity 
+              style={[
+                styles.googleButton, 
+                (!plateNumber || !carColor || !carType) && { opacity: 0.5 }
+              ]} 
+              onPress={() => promptAsync()}
+              disabled={!request || !plateNumber || !carColor || !carType}
+            >
+              <Image 
+                source={{ uri: 'https://img.icons8.com/color/48/000000/google-logo.png' }} 
+                style={styles.googleIcon} 
+              />
+              <Text style={styles.googleButtonText}>Sign up with Google</Text>
+            </TouchableOpacity>
+
             <View style={styles.registerPrompt}>
               <Text style={styles.registerText}>Already have an account?</Text>
               <TouchableOpacity onPress={onBack}>
@@ -225,6 +320,48 @@ const styles = StyleSheet.create({
     color: '#007bff',
     fontWeight: 'bold',
     textDecorationLine: 'underline',
+  },
+  separatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+    width: '100%',
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  separatorText: {
+    marginHorizontal: 10,
+    color: '#888',
+    fontSize: 14,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    backgroundColor: 'white',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+  },
+  googleButtonText: {
+    color: '#555',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
