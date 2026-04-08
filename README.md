@@ -50,9 +50,15 @@ Both client and ParksphereMobileApp use JWT auth, call REST endpoints, and subsc
 Main product flow appears shared across web/mobile: post parking spot -> request/accept flow -> arrival/transaction updates -> rating/chat.
 Location logic is split between server-side geo utilities and client/mobile map UI.
 
-Google OAuth Client ID:
+Google OAuth web application credentials
+Client ID:
 320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com
 Creation date
 April 4, 2026, 3:05:06 PM GMT+3
 Last used date
 April 4, 2026 (Note: this data could be delayed by a day or more.)
+
+google ios client ID:
+320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com
+
+google android client ID:

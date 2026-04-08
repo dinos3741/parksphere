@@ -38,10 +38,13 @@ const upload = multer({ storage: storage });
 const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3002",
+  "http://localhost:8081",
   "http://192.168.1.70:3000",
   "http://192.168.1.70:8081",
+  "http://192.168.1.22:3000",
   "http://192.168.1.22:8081",
-  "http://192.168.1.22:19000"
+  "http://192.168.1.22:19000",
+  "http://192.168.1.22:19006"
 ];
 
 const server = http.createServer(app); // Create http server
@@ -1205,7 +1208,7 @@ app.post('/api/auth/google', async (req, res) => {
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: [process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_MOBILE_CLIENT_ID],
     });
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture, given_name } = payload;
@@ -1252,7 +1255,7 @@ app.post('/api/auth/google', async (req, res) => {
       }
 
       const newUserResult = await pool.query(
-        'INSERT INTO users (username, email, google_id, avatar_url, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, car_type',
+        'INSERT INTO users (username, email, google_id, avatar_url, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, car_type, avatar_url',
         [username, email, googleId, picture, plateNumber, carColor, carType]
       );
       user = newUserResult.rows[0];
@@ -1269,6 +1272,7 @@ app.post('/api/auth/google', async (req, res) => {
       token: accessToken,
       userId: user.id,
       username: user.username,
+      avatar_url: user.avatar_url,
       isNewUser
     });
   } catch (error) {

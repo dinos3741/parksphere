@@ -3,7 +3,6 @@ import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, T
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
 WebBrowser.maybeCompleteAuthSession();
@@ -17,15 +16,10 @@ const Register = ({ onBack, onLogin }) => {
   const [plateNumber, setPlateNumber] = useState('');
   const [carColor, setCarColor] = useState('');
 
-  const redirectUri = 'https://auth.expo.io/@anonymous/ParksphereMobileApp';
-
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     iosClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
-    androidClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
-    redirectUri,
-  }, {
-    useProxy: true,
+    androidClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
   });
 
   useEffect(() => {

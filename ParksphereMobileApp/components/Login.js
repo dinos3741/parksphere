@@ -4,7 +4,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { Picker } from '@react-native-picker/picker';
-import * as AuthSession from 'expo-auth-session';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
 WebBrowser.maybeCompleteAuthSession();
@@ -19,17 +18,10 @@ const Login = ({ onLogin, onRegister }) => {
   const [showCarDetailsFields, setShowCarDetailsFields] = useState(false);
   const [tempIdToken, setTempIdToken] = useState(null);
 
-  // Hardcode the Expo Go proxy URL for testing since makeRedirectUri is returning exp://
-  const redirectUri = 'https://auth.expo.io/@anonymous/ParksphereMobileApp';
-  console.log('Using Redirect URI:', redirectUri);
-
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
     iosClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
-    androidClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
-    redirectUri,
-  }, {
-    useProxy: true,
+    androidClientId: '320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com',
   });
 
   useEffect(() => {
@@ -49,6 +41,7 @@ const Login = ({ onLogin, onRegister }) => {
   }, []);
 
   useEffect(() => {
+    console.log('Google Auth Response:', response);
     if (response?.type === 'success') {
       const { id_token } = response.params;
       handleGoogleSuccess(id_token);

@@ -205,9 +205,10 @@ function MainAppContent({ serverUrl }) {
   const fetchProfileData = useCallback(async () => {
     if (!currentUserId) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/users/${currentUserId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const token = getToken();
+      const response = await fetch(`/api/users/${currentUserId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        cache: 'no-store'
       });
       if (!response.ok) {
         const errorText = await response.text();
@@ -471,7 +472,7 @@ function MainAppContent({ serverUrl }) {
       socket.off('arrivalRejected', handleArrivalRejected);
       socket.off('privateMessage', handlePrivateMessage);
     };
-  }, [currentUserId, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots]);
+  }, [currentUserId, handleNewSpot, handleSpotDeleted, addNotification, playSound, fetchPendingRequests, fetchSpotRequests, playSoundAcceptedRequest, playSoundArrived, playSoundRemoveRequest, fetchProfileData, handleRateRequester, isChatOpen, chatRecipient, filteredParkingSpots, spotRequests]);
 
 
   useEffect(() => {

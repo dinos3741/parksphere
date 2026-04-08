@@ -9,6 +9,16 @@ export default function HeaderUserInfo({
   unreadCount,
   isSearchHighlighted,
 }) {
+  const getAvatarUri = () => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${username}`;
+    }
+    if (avatarUrl.startsWith('http')) {
+      return avatarUrl;
+    }
+    return avatarUrl; // Let the proxy handle it or it's a relative path from the same host
+  };
+
   return (
     <div className="header-user-info">
       <div className="header-actions">
@@ -31,10 +41,11 @@ export default function HeaderUserInfo({
         </button>
       </div>
       <img
-        src={avatarUrl}
+        src={getAvatarUri()}
         alt="User Avatar"
         className="header-user-avatar"
         onClick={onAvatarClick}
+        referrerPolicy="no-referrer"
       />
       <div className="header-welcome-text">Welcome {username}!</div>
     </div>
