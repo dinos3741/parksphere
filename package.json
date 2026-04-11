@@ -1,0 +1,15 @@
+{
+  "name": "parksphere-root",
+  "version": "1.0.0",
+  "description": "Root orchestration for Parksphere project",
+  "scripts": {
+    "docker": "docker-compose up -d",
+    "server": "cd server && npm start",
+    "client": "cd client && npm start",
+    "mobile": "cd ParksphereMobileApp && npm start",
+    "dev": "npm run docker && npx concurrently \"npm run server\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

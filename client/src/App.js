@@ -176,23 +176,37 @@ function MainAppContent({ serverUrl }) {
   }, [chatRecipient, addNotification]);
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
+    const fetchMe = async () => {
+      const token = getToken();
+      if (!token) return;
+
       if (isTokenExpired(token)) {
         logout();
-      } else {
-        try {
-          const decodedToken = jwtDecode(token);
-          setCurrentUserId(decodedToken.userId);
-          setCurrentUsername(decodedToken.username);
-          setCurrentUserCarType(decodedToken.carType);
-          console.log(`Web App: currentUserId and currentUsername set: ${decodedToken.username} (ID: ${decodedToken.userId})`);
-        } catch (error) {
-          console.error("Error decoding token:", error);
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUserId(userData.id);
+          setCurrentUsername(userData.username);
+          setCurrentUserCarType(userData.car_type);
+          setProfileUserData(userData);
+          console.log(`Web App: Logged in as ${userData.username} (Internal ID: ${userData.id})`);
+        } else {
+          console.error("Failed to fetch user profile, logging out...");
           logout();
         }
+      } catch (error) {
+        console.error("Error fetching me profile:", error);
       }
-    }
+    };
+
+    fetchMe();
   }, []);
 
 

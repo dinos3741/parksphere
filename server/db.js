@@ -20,9 +20,9 @@ async function createUsersTable() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255), -- Made nullable for OAuth users
+        keycloak_id VARCHAR(255) UNIQUE, -- New column for Keycloak linking
         email VARCHAR(255) UNIQUE, -- Added for OAuth and general use
-        google_id VARCHAR(255) UNIQUE, -- Added for Google OAuth
+        google_id VARCHAR(255) UNIQUE, -- Legacy column
         plate_number VARCHAR(255), -- Made nullable for OAuth users
         car_color VARCHAR(255), -- Made nullable for OAuth users
         car_type VARCHAR(255), -- New column for car type
@@ -31,9 +31,15 @@ async function createUsersTable() {
       );
     `);
 
-    // Alter password column to be nullable if it's currently NOT NULL
+    // Drop the password column if it exists
     await client.query(`
-      ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+      ALTER TABLE users DROP COLUMN IF EXISTS password;
+    `);
+
+    // Add keycloak_id column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS keycloak_id VARCHAR(255) UNIQUE;
     `);
 
     // Alter plate_number and car_color to be nullable

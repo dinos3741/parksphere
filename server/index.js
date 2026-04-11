@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Import cors
+const { auth } = require('express-oauth2-jwt-bearer');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
@@ -465,19 +466,90 @@ createRequestsTable(); // Ensure requests table exists
 createUserRatingsTable();
 createMessagesTable();
 
-// Middleware to authenticate JWT
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+const jwtCheck = auth({
+  audience: ['parksphere-client', 'account'],
+  issuerBaseURL: 'http://localhost:8080/realms/Parksphere',
+  tokenSigningAlg: 'RS256'
+});
 
-  if (token == null) return res.status(401).json({ message: 'Unauthorized: No token provided.' });
+// Middleware to authenticate Keycloak JWT
+async function authenticateToken(req, res, next) {
+  jwtCheck(req, res, async (err) => {
+    if (err) {
+      console.error('JWT Validation Error:', err);
+      return res.status(401).json({ message: 'Unauthorized: Invalid token.' });
+    }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ message: 'Forbidden: Invalid token.' });
-    req.user = user;
-    next();
+    // Keycloak 'sub' is the unique user ID, 'preferred_username' is the username
+    const keycloakId = req.auth.payload.sub;
+    const username = req.auth.payload.preferred_username;
+    const email = req.auth.payload.email;
+
+    try {
+      // 1. First, check if a user already exists with this Keycloak ID
+      let result = await pool.query('SELECT id, username, car_type, credits FROM users WHERE keycloak_id = $1', [keycloakId]);
+      let user = result.rows[0];
+
+      if (!user) {
+        // 2. If not, check if a user with the SAME USERNAME exists from the old database
+        result = await pool.query('SELECT id, keycloak_id FROM users WHERE username = $1', [username]);
+        user = result.rows[0];
+
+        if (user && !user.keycloak_id) {
+          // 3. Link this existing user to the new Keycloak ID
+          console.log(`Server: Linking existing user ${username} (ID: ${user.id}) to Keycloak ID: ${keycloakId}`);
+          await pool.query('UPDATE users SET keycloak_id = $1 WHERE id = $2', [keycloakId, user.id]);
+        } else if (!user) {
+          // 4. Create new user from Keycloak data
+          console.log(`Server: Creating new user for Keycloak user: ${username}`);
+          const newUserResult = await pool.query(
+            'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id',
+            [username, email, keycloakId, `https://i.pravatar.cc/80?u=${username}`]
+          );
+          user = newUserResult.rows[0];
+        }
+      }
+
+      // Attach our internal database ID to the request
+      req.user = { userId: user.id, username: username, keycloakId: keycloakId };
+      next();
+    } catch (dbError) {
+      console.error('Database Sync Error:', dbError);
+      res.status(500).send('Server error during user sync.');
+    }
   });
 }
+
+app.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+        u.id, 
+        u.username, 
+        u.plate_number, 
+        u.car_color, 
+        u.car_type, 
+        u.credits, 
+        u.spots_declared, 
+        u.spots_taken, 
+        u.avatar_url,
+        (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
+      FROM users u 
+      WHERE u.id = $1`,
+      [req.user.userId]
+    );
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).send('User not found.');
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error('Error fetching me profile:', error);
+    res.status(500).send('Server error fetching profile.');
+  }
+});
 
 app.get('/api', (req, res) => {
   res.json({ message: 'Hello from the server!' });

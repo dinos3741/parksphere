@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
+import keycloak from '../utils/keycloak';
+import { setToken } from '../utils/auth';
 import './Login.css';
 
 const Login = () => {
@@ -75,26 +77,48 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/login', {
+      // Use Keycloak's Token Endpoint (Direct Access Grant)
+      const details = {
+        'client_id': 'parksphere-client',
+        'username': username,
+        'password': password,
+        'grant_type': 'password',
+        'scope': 'openid profile email'
+      };
+
+      const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
+
+      const response = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
         },
-        body: JSON.stringify({ username, password }),
+        body: formBody
       });
 
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem('token', data.token);
+        
+        // Save token to localStorage so the app recognizes the session
+        setToken(data.access_token);
+        
+        // Manually update the Keycloak object state
+        keycloak.token = data.access_token;
+        keycloak.refreshToken = data.refresh_token;
+        keycloak.idToken = data.id_token;
+        keycloak.authenticated = true;
+
         sessionStorage.setItem('welcomeMessage', `Welcome, ${username}!`);
-        navigate('/dashboard'); // Redirect to dashboard on successful login
+        
+        // Hard redirect to dashboard to trigger a fresh app state
+        window.location.href = '/dashboard';
       } else {
-        const errorData = await response.text();
-        alert(`Login failed: ${errorData}`);
+        const errorData = await response.json();
+        alert(`Login failed: ${errorData.error_description || errorData.error}`);
       }
     } catch (error) {
       console.error('Error during login:', error);
-      alert('An error occurred while declaring the spot.');
+      alert('An error occurred during login.');
     }
   };
 
