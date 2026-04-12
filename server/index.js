@@ -472,11 +472,31 @@ const jwtCheck = auth({
   tokenSigningAlg: 'RS256'
 });
 
-// Middleware to authenticate Keycloak JWT
+// Middleware to authenticate both Local JWT (HS256) and Keycloak JWT (RS256)
 async function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: 'Unauthorized: No token provided.' });
+  }
+
+  // 1. Try to verify as a Local JWT (HS256) first
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    // If successful, it's a local token issued by our server (e.g., Google login)
+    req.user = decoded; // { userId, username, carType }
+    return next();
+  } catch (err) {
+    // If HS256 verification fails, proceed to try Keycloak (RS256)
+    // Only continue if it's an algorithm mismatch or invalid signature, 
+    // not if the token is completely malformed or expired (though jwtCheck will handle those too)
+  }
+
+  // 2. Fallback: Try to verify as a Keycloak JWT (RS256)
   jwtCheck(req, res, async (err) => {
     if (err) {
-      console.error('JWT Validation Error:', err);
+      console.error('JWT Validation Error (Keycloak):', err);
       return res.status(401).json({ message: 'Unauthorized: Invalid token.' });
     }
 
@@ -1435,7 +1455,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;
-  const { car_type, car_color } = req.body;
+  const { car_type, car_color, plate_number } = req.body;
 
   // Ensure the authenticated user is updating their own details
   if (req.user.userId !== parseInt(userId)) {
@@ -1443,10 +1463,11 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Update car_type and car_color in the database
+    // Update car_type, car_color, and plate_number in the database
+    // We use COALESCE to keep existing values if some are not provided
     await pool.query(
-      'UPDATE users SET car_type = $1, car_color = $2 WHERE id = $3',
-      [car_type, car_color, userId]
+      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number) WHERE id = $4',
+      [car_type, car_color, plate_number, userId]
     );
 
     // Fetch the updated user data to create a new JWT

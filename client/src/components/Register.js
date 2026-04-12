@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import keycloak from '../utils/keycloak';
+import { GoogleLogin } from '@react-oauth/google';
 import './Register.css';
 
 const Register = () => {
@@ -35,12 +35,49 @@ const Register = () => {
     fetchCarTypes();
   }, []);
 
-  const handleGoogleLogin = () => {
+  const handleGoogleSuccess = async (credentialResponse) => {
     if (!plateNumber || !carColor || !carType) {
       alert('Please fill in your plate number, car color, and car type before registering with Google.');
       return;
     }
-    keycloak.login({ idpHint: 'google' });
+
+    const idToken = credentialResponse.credential;
+    try {
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          idToken,
+          plateNumber,
+          carColor,
+          carType
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        sessionStorage.setItem('welcomeMessage', `Welcome, ${data.username}!`);
+        // Navigate to the map/dashboard
+        navigate('/');
+        // Trigger a reload or state update if necessary, 
+        // but App.js should pick up the token on its own or through some emitter
+        window.location.reload(); 
+      } else {
+        const errorData = await response.text();
+        alert(`Google registration failed: ${errorData}`);
+      }
+    } catch (error) {
+      console.error('Error during Google registration:', error);
+      alert('An error occurred during Google registration.');
+    }
+  };
+
+  const handleGoogleError = () => {
+    console.error('Google registration failed');
+    alert('Google registration failed. Please try again.');
   };
 
   const handleSubmit = async (e) => {
@@ -147,11 +184,14 @@ const Register = () => {
             <div className="social-login-separator">
               <span>OR</span>
             </div>
-            <div className="google-login-container">
-              <button type="button" className="google-button" onClick={handleGoogleLogin}>
-                <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google logo" />
-                Sign up with Google
-              </button>
+            <div className="google-login-container" style={{ display: 'flex', justifyContent: 'center' }}>
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                text="signup_with"
+                shape="rectangular"
+                width="100%"
+              />
             </div>
           </form>
           <p>

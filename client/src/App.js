@@ -197,6 +197,41 @@ function MainAppContent({ serverUrl }) {
           setCurrentUserCarType(userData.car_type);
           setProfileUserData(userData);
           console.log(`Web App: Logged in as ${userData.username} (Internal ID: ${userData.id})`);
+
+          // SYNC PENDING CAR DETAILS (for Google Sign-up)
+          const pendingDetails = localStorage.getItem('pendingCarDetails');
+          if (pendingDetails && (!userData.car_type || !userData.plate_number)) {
+            const { plateNumber, carColor, carType } = JSON.parse(pendingDetails);
+            console.log('Web App: Syncing pending car details after Google login...');
+            
+            const syncResponse = await fetch(`/api/users/${userData.id}/car-details`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ plate_number: plateNumber, car_color: carColor, car_type: carType }),
+            });
+
+            if (syncResponse.ok) {
+              const syncData = await syncResponse.json();
+              localStorage.setItem('token', syncData.token); // Store the updated token
+              localStorage.removeItem('pendingCarDetails'); // Clear the pending details
+              
+              // Update local state with the newly synced details
+              setCurrentUserCarType(carType);
+              setProfileUserData(prev => ({ 
+                ...prev, 
+                plate_number: plateNumber, 
+                car_color: carColor, 
+                car_type: carType 
+              }));
+              console.log('Web App: Car details synced successfully!');
+            }
+          } else if (pendingDetails) {
+            // Already have car details, just clear the pending ones
+            localStorage.removeItem('pendingCarDetails');
+          }
         } else {
           console.error("Failed to fetch user profile, logging out...");
           logout();
