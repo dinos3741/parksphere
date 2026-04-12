@@ -78,43 +78,30 @@ const Login = () => {
     e.preventDefault();
     try {
       // Use Keycloak's Token Endpoint (Direct Access Grant)
-      const details = {
-        'client_id': 'parksphere-client',
-        'username': username,
-        'password': password,
-        'grant_type': 'password',
-        'scope': 'openid profile email'
-      };
-
-      const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
-
-      const response = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          'Content-Type': 'application/json'
         },
-        body: formBody
+        body: JSON.stringify({ username, password })
       });
 
       if (response.ok) {
         const data = await response.json();
         
-        // Save token to localStorage so the app recognizes the session
-        setToken(data.access_token);
+        // Save token to localStorage
+        setToken(data.token);
         
-        // Manually update the Keycloak object state
-        keycloak.token = data.access_token;
-        keycloak.refreshToken = data.refresh_token;
-        keycloak.idToken = data.id_token;
-        keycloak.authenticated = true;
+        // Note: We are no longer manually updating the Keycloak object here
+        // as we are using local tokens now.
 
         sessionStorage.setItem('welcomeMessage', `Welcome, ${username}!`);
         
-        // Hard redirect to dashboard to trigger a fresh app state
+        // Hard redirect to dashboard
         window.location.href = '/dashboard';
       } else {
         const errorData = await response.json();
-        alert(`Login failed: ${errorData.error_description || errorData.error}`);
+        alert(`Login failed: ${errorData.message || 'Invalid username or password'}`);
       }
     } catch (error) {
       console.error('Error during login:', error);

@@ -1343,19 +1343,54 @@ app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
-    const user = result.rows[0];
+    // 1. Authenticate with Keycloak using Resource Owner Password Credentials Grant
+    const details = {
+      'client_id': 'parksphere-client',
+      'username': username,
+      'password': password,
+      'grant_type': 'password',
+      'scope': 'openid profile email'
+    };
+
+    const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
+
+    const kcResponse = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+      },
+      body: formBody
+    });
+
+    if (!kcResponse.ok) {
+      const errorData = await kcResponse.json();
+      console.error('Keycloak Login Error:', errorData);
+      return res.status(401).json({ message: 'Invalid username or password.' });
+    }
+
+    const kcData = await kcResponse.json();
+    // Keycloak token successfully obtained!
+
+    // 2. Get user info from local database (or sync from Keycloak if it's the first time)
+    let result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
+    let user = result.rows[0];
 
     if (!user) {
-      return res.status(400).send('Invalid username or password.');
+      // If user exists in Keycloak but not locally (e.g. manual Keycloak entry), create local record
+      // We can decode the ID token to get email and keycloak_id (sub)
+      const decodedIdToken = jwt.decode(kcData.id_token);
+      const email = decodedIdToken.email;
+      const keycloakId = decodedIdToken.sub;
+      
+      console.log(`Server: Creating local record for Keycloak user ${username}`);
+      const newUserResult = await pool.query(
+        'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username, car_type',
+        [username, email, keycloakId, `https://i.pravatar.cc/80?u=${username}`]
+      );
+      user = newUserResult.rows[0];
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(400).send('Invalid username or password.');
-    }
-
+    // 3. Issue our Local JWT (HS256) for the app to use
     const accessToken = jwt.sign(
       { userId: user.id, username: user.username, carType: user.car_type },
       JWT_SECRET,
@@ -1366,13 +1401,15 @@ app.post('/api/login', async (req, res) => {
       message: 'Login successful!',
       token: accessToken,
       userId: user.id,
-      username: user.username
+      username: user.username,
+      carType: user.car_type
     });
-    } catch (error) {
+
+  } catch (error) {
     console.error('Error during login:', error);
-    res.status(500).send('Server error during login.');
-    }
-    });
+    res.status(500).json({ message: 'Server error during login.' });
+  }
+});
 
 app.post('/api/auth/google', async (req, res) => {
   const { idToken, plateNumber, carColor, carType } = req.body;
