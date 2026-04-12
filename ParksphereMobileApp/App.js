@@ -818,6 +818,23 @@ export default function App() {
     return null;
   }
 
+  const getAvatarUri = (avatarUrl, username) => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${username}`;
+    }
+    
+    // If it's already a full URL but contains localhost, replace it with serverUrl
+    if (avatarUrl.startsWith('http')) {
+      if (avatarUrl.includes('localhost')) {
+        return avatarUrl.replace('http://localhost:3001', serverUrl);
+      }
+      return avatarUrl;
+    }
+
+    // If it's a relative path, prepend serverUrl
+    return `${serverUrl}${avatarUrl}`;
+  };
+
   function WrappedHomeScreen(props) {
     return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
   }
@@ -901,7 +918,7 @@ export default function App() {
                   } else if (route.name === 'Search') {
                     iconName = 'search';
                   } else if (route.name === 'Profile') {
-                    return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
+                    return <Image source={{ uri: getAvatarUri(currentUser.avatar_url, currentUser.username) }} style={styles.tabBarIcon} />;
                   }
 
                   return (
