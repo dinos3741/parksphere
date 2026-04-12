@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
+import keycloak from '../utils/keycloak';
 import './Register.css';
 
 const Register = () => {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
   const [carColor, setCarColor] = useState('');
-  const [carType, setCarType] = useState(''); // Initialize as empty string
-  const [carTypes, setCarTypes] = useState([]); // New state for fetched car types
+  const [carType, setCarType] = useState('');
+  const [carTypes, setCarTypes] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,11 +23,10 @@ const Register = () => {
         const data = await response.json();
         setCarTypes(data);
         if (data.length > 0) {
-          setCarType(data[0]); // Set default car type to the first one in the list
+          setCarType(data[0]);
         }
       } catch (error) {
         console.error('Error fetching car types:', error);
-        // Fallback to a default list or show an error to the user
         setCarTypes(['city car', 'hatchback', 'sedan', 'SUV', 'family car', 'van', 'truck', 'motorcycle']);
         setCarType('city car');
       }
@@ -35,46 +35,18 @@ const Register = () => {
     fetchCarTypes();
   }, []);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
+  const handleGoogleLogin = () => {
     if (!plateNumber || !carColor || !carType) {
       alert('Please fill in your plate number, car color, and car type before registering with Google.');
       return;
     }
-
-    try {
-      const response = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          idToken: credentialResponse.credential,
-          plateNumber,
-          carColor,
-          carType
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem('token', data.token);
-        sessionStorage.setItem('welcomeMessage', `Welcome, ${data.username}!`);
-        alert(data.message); // Use the message from the server (Registration vs Login)
-        navigate('/dashboard');
-      } else {
-        const errorData = await response.text();
-        alert(`Google registration failed: ${errorData}`);
-      }
-    } catch (error) {
-      console.error('Error during Google registration:', error);
-      alert('An error occurred during Google registration.');
-    }
+    keycloak.login({ idpHint: 'google' });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username || !password) {
-      alert('Username and password are required for traditional registration.');
+    if (!username || !password || !email) {
+      alert('Username, email and password are required for registration.');
       return;
     }
     try {
@@ -83,7 +55,7 @@ const Register = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password, plateNumber, carColor, carType }),
+        body: JSON.stringify({ username, email, password, plateNumber, carColor, carType }),
       });
 
       if (response.ok) {
@@ -110,85 +82,86 @@ const Register = () => {
         <div className="spacer"></div>
         <div className="auth-container">
           <h2>Register</h2>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="username">Username:</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Password:</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="plateNumber">Plate Number:</label>
-            <input
-              type="text"
-              id="plateNumber"
-              value={plateNumber}
-              onChange={(e) => setPlateNumber(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="carColor">Car Color:</label>
-            <input
-              type="text"
-              id="carColor"
-              value={carColor}
-              onChange={(e) => setCarColor(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="carType">Car Type:</label>
-            <select id="carType" value={carType} onChange={(e) => setCarType(e.target.value)}>
-              {carTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="submit">Register</button>
-          
-          <div className="social-login-separator">
-            <span>OR</span>
-          </div>
-          <div 
-            className="google-login-container" 
-            style={{ 
-              opacity: (plateNumber && carColor && carType) ? 1 : 0.5,
-              pointerEvents: (plateNumber && carColor && carType) ? 'auto' : 'none'
-            }}
-          >
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => {
-                console.log('Login Failed');
-                alert('Google Login Failed');
-              }}
-              useOneTap
-            />
-          </div>
-        </form>
-        <p>
-          Already have an account? <Link to="/login">Login here</Link>
-        </p>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="username">Username:</label>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="email">Email:</label>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="password">Password:</label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="plateNumber">Plate Number:</label>
+              <input
+                type="text"
+                id="plateNumber"
+                value={plateNumber}
+                onChange={(e) => setPlateNumber(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="carColor">Car Color:</label>
+              <input
+                type="text"
+                id="carColor"
+                value={carColor}
+                onChange={(e) => setCarColor(e.target.value)}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="carType">Car Type:</label>
+              <select id="carType" value={carType} onChange={(e) => setCarType(e.target.value)}>
+                {carTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit">Register</button>
+            <div className="social-login-separator">
+              <span>OR</span>
+            </div>
+            <div className="google-login-container">
+              <button type="button" className="google-button" onClick={handleGoogleLogin}>
+                <img src="https://developers.google.com/identity/images/g-logo.png" alt="Google logo" />
+                Sign up with Google
+              </button>
+            </div>
+          </form>
+          <p>
+            Already have an account? <Link to="/login">Login here</Link>
+          </p>
+        </div>
+        <footer className="App-footer">
+          <p>Konstantinos Dimou &copy; 2025</p>
+        </footer>
       </div>
-      <footer className="App-footer">
-        <p>Konstantinos Dimou &copy; 2025</p>
-      </footer>
-    </div>
     </>
   );
 };

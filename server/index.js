@@ -1219,23 +1219,103 @@ app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/register', async (req, res) => {
-  const { username, password, plateNumber, carColor, carType } = req.body;
+  const { username, email, password, plateNumber, carColor, carType } = req.body;
   const avatarUrl = `https://i.pravatar.cc/80?u=${username}`;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // 1. Get an Admin Token from Keycloak
+    const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        client_id: 'admin-cli',
+        username: 'admin',
+        password: 'admin'
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to get Keycloak admin token');
+    }
+    const tokenData = await tokenResponse.json();
+    const adminToken = tokenData.access_token;
+
+    // 2. Create the User in Keycloak (Base Info)
+    const createUserResponse = await fetch('http://localhost:8080/admin/realms/Parksphere/users', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username,
+        email,
+        firstName: username, // Providing names to satisfy 'Update Profile' requirement
+        lastName: 'User',
+        enabled: true,
+        emailVerified: true,
+        requiredActions: []
+      })
+    });
+
+    if (!createUserResponse.ok) {
+      const errorText = await createUserResponse.text();
+      if (createUserResponse.status === 409) {
+        return res.status(409).send('Username or Email already exists.');
+      }
+      throw new Error(`Failed to create user in Keycloak: ${errorText}`);
+    }
+
+    // 3. Get the Keycloak ID (UUID) from the Location header
+    const locationHeader = createUserResponse.headers.get('Location');
+    const keycloakId = locationHeader.split('/').pop();
+
+    // 4. Set the Password explicitly
+    const setPasswordResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${keycloakId}/reset-password`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        type: 'password',
+        value: password,
+        temporary: false
+      })
+    });
+
+    if (!setPasswordResponse.ok) {
+      throw new Error('Failed to set user password in Keycloak.');
+    }
+
+    // 5. FINAL AGGRESSIVE SYNC: Force-clear everything again
+    await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${keycloakId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        emailVerified: true,
+        firstName: username,
+        lastName: 'User',
+        requiredActions: [] // This is the crucial line
+      })
+    });
+
+    // 6. Save to Local Database
     const result = await pool.query(
-      'INSERT INTO users (username, password, plate_number, car_color, car_type, avatar_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-      [username, hashedPassword, plateNumber, carColor, carType, avatarUrl]
+      'INSERT INTO users (username, email, keycloak_id, plate_number, car_color, car_type, avatar_url) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [username, email, keycloakId, plateNumber, carColor, carType, avatarUrl]
     );
+
+    console.log(`Server: Successfully registered user ${username} with Keycloak ID ${keycloakId}`);
     res.status(201).json({ message: 'User registered successfully!', userId: result.rows[0].id });
+
   } catch (error) {
     console.error('Error during registration:', error);
-    if (error.code === '23505') {
-      res.status(409).send('Username already exists.');
-    } else {
-      res.status(500).send('Server error during registration.');
-    }
+    res.status(500).send(`Server error during registration: ${error.message}`);
   }
 });
 

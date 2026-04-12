@@ -48,28 +48,28 @@
 }
 
 .auth-container h2 {
-  color: #FFFFFF !important; /* Change heading color to white for contrast */
-  padding-top: 30px; /* Set to 30px as requested */
-  margin-bottom: 10px; /* Reduced margin */
+  color: #FFFFFF !important;
+  padding-top: 10px; /* Reduced from 30px */
+  margin-bottom: 5px; /* Reduced margin */
 }
 
 .auth-container label {
-  color: white; /* Change label color to white for contrast */
+  color: white;
 }
 
 .auth-container p {
-  margin-top: 10px; /* Reduced from 20px */
-  color: #FFFFFF !important; /* Made text brighter */
+  margin-top: 5px; /* Reduced from 10px */
+  color: #FFFFFF !important;
 }
 
 .auth-container form {
   background-color: white;
-  padding: 12px 20px; /* Reduced from 15px 25px */
+  padding: 10px 20px; /* Reduced padding */
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  gap: 5px; /* Reduced from 8px */
+  gap: 4px; /* Even tighter gap */
   width: 100%;
   max-width: 400px;
 }
@@ -80,28 +80,28 @@
 }
 
 .auth-container label {
-  margin-bottom: 0px; /* Minimal margin */
+  margin-bottom: 0px;
   font-weight: bold;
   color: #332294;
-  font-size: 0.9rem; /* Slightly smaller font */
+  font-size: 0.85rem; /* Slightly smaller font */
 }
 
 .auth-container input,
 .auth-container select {
-  padding: 5px; /* Reduced from 6px */
+  padding: 4px 8px; /* Tighter padding */
   border: 1px solid #ccc;
   border-radius: 5px;
-  font-size: 0.9rem; /* Slightly smaller font */
+  font-size: 0.85rem;
 }
 
 .auth-container button {
-  padding: 6px 15px; /* Reduced from 8px 15px */
+  padding: 6px 15px;
   background-color: #007bff;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 1rem; /* Slightly smaller font */
+  font-size: 0.95rem;
   margin-top: 2px;
 }
 
@@ -110,7 +110,7 @@
 }
 
 .social-login-separator {
-  margin: 2px 0; /* Reduced from 5px */
+  margin: 2px 0;
   text-align: center;
   position: relative;
   width: 100%;
@@ -130,9 +130,9 @@
 
 .social-login-separator span {
   background-color: #fff;
-  padding: 0 15px;
+  padding: 0 10px;
   color: #999;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   position: relative;
   z-index: 2;
   border-radius: 5px;
@@ -141,8 +141,36 @@
 .google-login-container {
   display: flex;
   justify-content: center;
-  margin-bottom: 0; /* Reduced from 5px */
+  margin-bottom: 0;
   width: 100%;
+}
+
+.google-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: white !important;
+  color: #757575 !important;
+  border: 1px solid #dadce0 !important;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  width: 100%;
+  padding: 6px 15px !important; /* Fixed padding */
+  font-size: 0.9rem !important;
+  transition: background-color 0.3s, box-shadow 0.3s;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.google-button img {
+  width: 18px;
+  height: 18px;
+}
+
+.google-button:hover {
+  background-color: #f8f9fa !important;
+  box-shadow: 0 1px 3px 0 rgba(60,64,67,0.30), 0 4px 8px 3px rgba(60,64,67,0.15);
 }
 
 .auth-container a {
