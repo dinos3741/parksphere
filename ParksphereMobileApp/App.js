@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -86,12 +86,12 @@ export default function App() {
   const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
 
   function playSound() {
-    console.log('Playing Sound');
+    // console.log('Playing Sound'); // Removed log
     newRequestPlayer.play();
   }
 
   function playSoundArrived() {
-    console.log('Playing Arrived Sound');
+    // console.log('Playing Arrived Sound'); // Removed log
     arrivedPlayer.play();
   }
 
@@ -139,6 +139,7 @@ export default function App() {
   const navigationRef = useNavigationContainerRef(); // Get a ref to the navigation container
   const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterProfileModal
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
+  const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
 
   const handleOpenChat = (user) => {
     // Navigate to the Chat tab and pass the user as a parameter
@@ -339,6 +340,7 @@ export default function App() {
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
       setNotifications([]); // Clear notifications on logout
+      setTotalUnreadMessagesCount(0); // Reset unread count on logout
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -382,6 +384,7 @@ export default function App() {
         newSocket.on('connect', () => {
           console.log('Mobile App: Connected to Socket.IO server!');
           newSocket.emit('register', { userId, username: currentUsername });
+          console.log('Mobile App: Emitted register event.');
         });
 
         newSocket.on('disconnect', () => {
@@ -533,7 +536,7 @@ export default function App() {
         requesterUsername: currentUsername,
       });
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
-      setArrivalConfirmed(true); // Prevent re-triggering
+      setArrivalConfirmed(true); // Set to true to prevent multiple alerts
       setSpotDetailsVisible(false); // Close the modal
       setRequesterArrivalModalOpen(false); // Close the confirmation modal
     }
@@ -646,7 +649,7 @@ export default function App() {
 
     const executeDelete = async () => {
       try {
-        const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+        const response = await fetch(`http://localhost:3001/api/parkingspots/${spotId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -814,46 +817,25 @@ export default function App() {
     }
   };
 
-  if (!fontLoaded) {
-    return null;
-  }
-
-  const getAvatarUri = (avatarUrl, username) => {
-    if (!avatarUrl) {
-      return `https://i.pravatar.cc/150?u=${username}`;
-    }
-    
-    // If it's already a full URL but contains localhost, replace it with serverUrl
-    if (avatarUrl.startsWith('http')) {
-      if (avatarUrl.includes('localhost')) {
-        return avatarUrl.replace('http://localhost:3001', serverUrl);
-      }
-      return avatarUrl;
-    }
-
-    // If it's a relative path, prepend serverUrl
-    return `${serverUrl}${avatarUrl}`;
-  };
-
-  function WrappedHomeScreen(props) {
+  const WrappedHomeScreen = useMemo(() => (props) => {
     return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
-  }
+  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot]);
 
-  function WrappedChatTab(props) {
-    return <ChatTab {...props} userId={userId} token={token} socket={socket} serverUrl={serverUrl} currentUser={currentUser} />;
-  }
+  // Pass setTotalUnreadMessagesCount to ChatTab
+  const WrappedChatTab = useMemo(() => (props) => {
+    return <ChatTab {...props} userId={userId} token={token} socket={socket} serverUrl={serverUrl} currentUser={currentUser} setTotalUnreadMessagesCount={setTotalUnreadMessagesCount} />;
+  }, [userId, token, socket, serverUrl, currentUser, setTotalUnreadMessagesCount]);
 
-
-  function WrappedSearchScreen(props) {
+  const WrappedSearchScreen = useMemo(() => (props) => {
     return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;
-  }
+  }, [token, serverUrl]);
 
-  function WrappedRequestsScreen(props) {
+  const WrappedRequestsScreen = useMemo(() => (props) => {
     const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
     return <RequestsScreen {...props} spotRequests={requests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} onOpenChat={handleOpenChat} />;
-  }
+  }, [acceptedRequest, spotRequests, handleAcceptRequest, handleDeclineRequest, token, serverUrl, handleOpenChat]);
 
-  function ProfileScreen() {
+  const ProfileScreen = useMemo(() => (props) => {
     if (isEditingProfile) {
       return (
         <Profile
@@ -878,7 +860,31 @@ export default function App() {
         serverUrl={serverUrl}
       />
     );
+  }, [isEditingProfile, currentUser, token, handleProfileUpdate, handleLogout, isRefreshing, handleRefresh, serverUrl]);
+
+  if (!fontLoaded) {
+    return null;
   }
+
+  const getAvatarUri = (avatarUrl, username) => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${username}`;
+    }
+    
+    // If it's already a full URL but contains localhost, replace it with serverUrl
+    if (avatarUrl.startsWith('http')) {
+      if (avatarUrl.includes('localhost')) {
+        return avatarUrl.replace('http://localhost:3001', serverUrl);
+      }
+      return avatarUrl;
+    }
+
+    // If it's a relative path, prepend serverUrl
+    return `${serverUrl}${avatarUrl}`;
+  };
+
+  // Log total unread count in App.js for debugging
+  // console.log('App.js: Rendering TabNavigator. Current totalUnreadMessagesCount:', totalUnreadMessagesCount); // Removed log
 
   return (
     <>
@@ -904,16 +910,18 @@ export default function App() {
               screenOptions={({ route }) => ({
                 tabBarIcon: ({ focused, color, size }) => {
                   let iconName;
-                  let showBadge = false;
+                  let showRequestBadge = false; // Renamed for clarity
+                  let showChatBadge = false; // New state for chat badge
 
                   if (route.name === 'Home') {
                     iconName = 'home';
                   } else if (route.name === 'Chat') {
                     iconName = 'comments';
+                    showChatBadge = totalUnreadMessagesCount > 0; // Use the new total unread count
                   } else if (route.name === 'Requests') {
                     iconName = 'list-alt';
                     if (hasNewRequests) {
-                      showBadge = true;
+                      showRequestBadge = true;
                     }
                   } else if (route.name === 'Search') {
                     iconName = 'search';
@@ -924,7 +932,7 @@ export default function App() {
                   return (
                     <View>
                       <FontAwesome name={iconName} size={size} color={color} />
-                      {showBadge && (
+                      {(showRequestBadge || showChatBadge) && ( // Conditionally render badge if either is true
                         <View
                           style={{
                             position: 'absolute',
@@ -937,8 +945,7 @@ export default function App() {
                             justifyContent: 'center',
                             alignItems: 'center',
                           }}
-                        >
-                        </View>
+                        />
                       )}
                     </View>
                   );

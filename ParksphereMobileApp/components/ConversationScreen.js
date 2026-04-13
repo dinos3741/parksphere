@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 
-const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherUsername, serverUrl, currentUser }) => {
+const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherUsername, serverUrl, currentUser, onNewMessageReceived }) => { // Added onNewMessageReceived
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef(null);
@@ -41,29 +41,14 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
     fetchMessages();
   }, [otherUserId, token, serverUrl]);
 
-  useEffect(() => {
-    if (socket.current) {
-      const handlePrivateMessage = (message) => {
-        if ((message.from === otherUserId && message.to === userId) || (message.from === userId && message.to === otherUserId)) {
-          setMessages((prev) => [...prev, {
-            id: message.created_at + message.from,
-            text: message.message,
-            senderId: message.from,
-            senderUsername: message.sender_username,
-            avatar: getAvatarUri(message.sender_avatar_url, message.sender_username),
-            createdAt: new Date(message.created_at),
-          }]);
-        }
-      };
-      socket.current.on('privateMessage', handlePrivateMessage);
-      return () => socket.current.off('privateMessage');
-    }
-  }, [socket, userId, otherUserId]);
+  // Removed socket listener from here. It will be handled in ChatTab.js
 
   const onSend = () => {
     if (!inputText.trim()) return;
     const message = { from: userId, to: otherUserId, message: inputText };
-    if (socket.current) socket.current.emit('privateMessage', message);
+    if (socket && socket.current) { // Ensure socket.current is available
+      socket.current.emit('privateMessage', message);
+    }
     setMessages((prev) => [...prev, {
       id: Date.now().toString(),
       text: inputText,
@@ -102,7 +87,8 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })} // Added animated for smoother scrolling
+        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })} // Ensure scroll on initial layout
         contentContainerStyle={{ flexGrow: 1 }}
       />
       <View style={styles.inputContainer}>

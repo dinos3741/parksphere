@@ -439,6 +439,10 @@ body {
   transition: background-color 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 
+.header-action-btn i {
+  font-size: 1.2em;
+}
+
 .header-action-btn:hover {
   background: rgba(255, 255, 255, 0.28);
   border-color: rgba(255, 255, 255, 0.45);
