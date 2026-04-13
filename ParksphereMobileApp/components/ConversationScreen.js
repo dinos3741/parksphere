@@ -120,7 +120,7 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
 
 const styles = StyleSheet.create({
   fullContainer: { flex: 1, backgroundColor: '#f0f0f0' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 15, paddingTop: 50, backgroundColor: '#512da8' },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 15, paddingTop: 10, backgroundColor: '#512da8' },
   backButtonText: { color: 'white', fontSize: 18 },
   headerTitle: { flex: 1, textAlign: 'center', color: 'white', fontSize: 20, fontWeight: 'bold' },
   messageRow: { flexDirection: 'row', margin: 10, alignItems: 'flex-end' },
