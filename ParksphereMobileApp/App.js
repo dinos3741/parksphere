@@ -81,19 +81,26 @@ export default function App() {
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const socket = useRef(null);
   const mapViewRef = useRef(null);
+  const activeChatPartnerRef = useRef(null); // Track the user currently being chatted with
 
   const newRequestPlayer = useAudioPlayer(require('./assets/sounds/new-request.wav'));
   const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
+  const messagePlayer = useAudioPlayer(require('./assets/sounds/message-sound.wav'));
 
-  function playSound() {
+  const playSound = useCallback(() => {
     // console.log('Playing Sound'); // Removed log
     newRequestPlayer.play();
-  }
+  }, [newRequestPlayer]);
 
-  function playSoundArrived() {
+  const playSoundArrived = useCallback(() => {
     // console.log('Playing Arrived Sound'); // Removed log
     arrivedPlayer.play();
-  }
+  }, [arrivedPlayer]);
+
+  const playSoundMessage = useCallback(() => {
+    // console.log('Playing Message Sound'); // Removed log
+    messagePlayer.play();
+  }, [messagePlayer]);
 
   useEffect(() => {
     async function loadFont() {
@@ -140,6 +147,31 @@ export default function App() {
   const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterProfileModal
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
+  const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
+
+  // Update total unread count whenever unreadConversations changes
+  useEffect(() => {
+    const currentTotalUnread = Object.keys(unreadConversations).length;
+    setTotalUnreadMessagesCount(currentTotalUnread);
+  }, [unreadConversations]);
+
+  // Function to mark a specific conversation as read
+  const handleMarkAsRead = useCallback((otherUserId) => {
+    setUnreadConversations(prev => {
+      const newState = { ...prev };
+      if (newState[otherUserId]) {
+        delete newState[otherUserId];
+      }
+      return newState;
+    });
+  }, []);
+
+  // Function to mark a specific conversation as unread
+  const handleMarkAsUnread = useCallback((otherUserId) => {
+    setUnreadConversations(prev => {
+      return { ...prev, [otherUserId]: true };
+    });
+  }, []);
 
   const handleOpenChat = (user) => {
     // Navigate to the Chat tab and pass the user as a parameter
@@ -476,6 +508,17 @@ export default function App() {
           Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
           setArrivalConfirmed(false); // Reset so it can be triggered again
         });
+
+        newSocket.on('privateMessage', (message) => {
+          console.log('Mobile App: Private message received:', message);
+          if (message.to === userId && message.from !== userId) {
+            playSoundMessage();
+            // If the message is not from the user currently being chatted with, mark as unread
+            if (activeChatPartnerRef.current !== message.from) {
+              handleMarkAsUnread(message.from);
+            }
+          }
+        });
       }
     } else {
       // User is logged out, perform cleanup
@@ -497,7 +540,7 @@ export default function App() {
         socket.current = null;
       }
     };
-  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout]);
+  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout, playSoundMessage, handleMarkAsUnread]);
 
 
   // Request location permissions and get initial location
@@ -821,10 +864,23 @@ export default function App() {
     return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
   }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot]);
 
-  // Pass setTotalUnreadMessagesCount to ChatTab
+  // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {
-    return <ChatTab {...props} userId={userId} token={token} socket={socket} serverUrl={serverUrl} currentUser={currentUser} setTotalUnreadMessagesCount={setTotalUnreadMessagesCount} />;
-  }, [userId, token, socket, serverUrl, currentUser, setTotalUnreadMessagesCount]);
+    return (
+      <ChatTab 
+        {...props} 
+        userId={userId} 
+        token={token} 
+        socket={socket} 
+        serverUrl={serverUrl} 
+        currentUser={currentUser} 
+        setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
+        unreadConversations={unreadConversations}
+        onMarkAsRead={handleMarkAsRead}
+        activeChatPartnerRef={activeChatPartnerRef}
+      />
+    );
+  }, [userId, token, socket, serverUrl, currentUser, setTotalUnreadMessagesCount, unreadConversations, handleMarkAsRead]);
 
   const WrappedSearchScreen = useMemo(() => (props) => {
     return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;

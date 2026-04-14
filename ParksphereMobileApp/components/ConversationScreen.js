@@ -41,7 +41,27 @@ const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherU
     fetchMessages();
   }, [otherUserId, token, serverUrl]);
 
-  // Removed socket listener from here. It will be handled in ChatTab.js
+  useEffect(() => {
+    if (socket && socket.current) {
+      const handleIncomingMessage = (message) => {
+        if (message.from === otherUserId && message.to === userId) {
+          setMessages((prev) => [...prev, {
+            id: Date.now().toString(),
+            text: message.message,
+            senderId: message.from,
+            senderUsername: otherUsername,
+            avatar: getAvatarUri(null, otherUsername), // Avatar will be fetched via helper
+            createdAt: new Date(),
+          }]);
+        }
+      };
+
+      socket.current.on('privateMessage', handleIncomingMessage);
+      return () => {
+        socket.current.off('privateMessage', handleIncomingMessage);
+      };
+    }
+  }, [socket, otherUserId, userId, otherUsername]);
 
   const onSend = () => {
     if (!inputText.trim()) return;
