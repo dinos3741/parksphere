@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
+import { Pedometer } from 'expo-sensors';
 
 const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 
@@ -26,6 +27,7 @@ class ParkDetectionService {
     this.currentState = STATE.IDLE;
     this.lastTransitionTime = Date.now();
     this.parkedLocation = null;
+    this.stepsAtParking = 0;
     
     // Probabilistic scores (0.0 to 1.0)
     this.confidence = {
@@ -42,6 +44,7 @@ class ParkDetectionService {
         this.currentState = parsed.state || STATE.IDLE;
         this.lastTransitionTime = parsed.timestamp || Date.now();
         this.parkedLocation = parsed.parkedLocation || null;
+        this.stepsAtParking = parsed.stepsAtParking || 0;
         this.confidence = parsed.confidence || { [STATE.IN_VEHICLE]: 0, [STATE.PARKED]: 0 };
       } catch (e) {
         console.error('[ParkDetection] Failed to parse saved state', e);
@@ -54,6 +57,7 @@ class ParkDetectionService {
       state: this.currentState,
       timestamp: this.lastTransitionTime,
       parkedLocation: this.parkedLocation,
+      stepsAtParking: this.stepsAtParking,
       confidence: this.confidence,
     }));
   }
@@ -62,6 +66,25 @@ class ParkDetectionService {
     if (this.currentState === newState) return;
 
     console.log(`[ParkDetection] Transition: ${this.currentState} -> ${newState} (Confidence: ${this.confidence[newState] || 1.0})`);
+    
+    // If we just parked, record the current steps
+    if (newState === STATE.PARKED) {
+      const isAvailable = await Pedometer.isAvailableAsync();
+      if (isAvailable) {
+        const end = new Date();
+        const start = new Date();
+        start.setHours(0,0,0,0); // Get steps since start of day as a baseline
+        try {
+          const result = await Pedometer.getStepCountAsync(start, end);
+          this.stepsAtParking = result.steps;
+          console.log(`[ParkDetection] Steps at parking recorded: ${this.stepsAtParking}`);
+        } catch (e) {
+          console.error('[ParkDetection] Error getting step count:', e);
+          this.stepsAtParking = 0;
+        }
+      }
+    }
+
     this.currentState = newState;
     this.lastTransitionTime = Date.now();
     
@@ -150,9 +173,28 @@ class ParkDetectionService {
             this.parkedLocation.latitude, this.parkedLocation.longitude
           );
           
-          // Signal: Distance from parked spot
-          // If we move away without high speed, it's likely walking (EXIT_CONFIRMED)
-          if (distance > DISTANCE_EXIT_CONFIRM && speedKmH < 10) {
+          // Signal: Step count increase (Walking)
+          let stepsTaken = 0;
+          const isPedometerAvailable = await Pedometer.isAvailableAsync();
+          if (isPedometerAvailable) {
+            const end = new Date();
+            const start = new Date();
+            start.setHours(0,0,0,0);
+            try {
+              const result = await Pedometer.getStepCountAsync(start, end);
+              stepsTaken = result.steps - this.stepsAtParking;
+            } catch (e) {
+              console.error('[ParkDetection] Error checking steps during park:', e);
+            }
+          }
+
+          console.log(`[ParkDetection] PARKED | Distance: ${distance.toFixed(1)}m | Steps taken: ${stepsTaken}`);
+
+          // Signal: Distance + Walking (or just distance if pedometer is missing)
+          const hasMovedFar = distance > DISTANCE_EXIT_CONFIRM;
+          const isWalking = !isPedometerAvailable || stepsTaken > 15;
+
+          if (hasMovedFar && isWalking && speedKmH < 10) {
             await this.transitionTo(STATE.EXIT_CONFIRMED);
           }
         }
