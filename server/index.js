@@ -628,9 +628,11 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
         u.spots_declared, 
         u.spots_taken, 
         u.total_arrival_time, 
-        u.completed_transactions_count, 
+        u.completed_transactions_count,
         u.avatar_url,
+        u.auto_detection_enabled,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
+
         (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
       FROM users u 
       WHERE u.id = $1`,
@@ -1492,7 +1494,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;
-  const { car_type, car_color, plate_number } = req.body;
+  const { car_type, car_color, plate_number, auto_detection_enabled } = req.body;
 
   // Ensure the authenticated user is updating their own details
   if (req.user.userId !== parseInt(userId)) {
@@ -1500,11 +1502,11 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Update car_type, car_color, and plate_number in the database
+    // Update car_type, car_color, plate_number, and auto_detection_enabled in the database
     // We use COALESCE to keep existing values if some are not provided
     await pool.query(
-      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number) WHERE id = $4',
-      [car_type, car_color, plate_number, userId]
+      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detection_enabled = COALESCE($4, auto_detection_enabled) WHERE id = $5',
+      [car_type, car_color, plate_number, auto_detection_enabled, userId]
     );
 
     // Fetch the updated user data to create a new JWT
@@ -1518,6 +1520,23 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating car details:', error);
     res.status(500).json({ message: 'Server error updating car details.' });
+  }
+});
+
+app.put('/api/users/:id/auto-detection', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { enabled } = req.body;
+
+  if (req.user.userId !== parseInt(userId)) {
+    return res.status(403).json({ message: 'Forbidden.' });
+  }
+
+  try {
+    await pool.query('UPDATE users SET auto_detection_enabled = $1 WHERE id = $2', [enabled, userId]);
+    res.status(200).json({ message: 'Auto detection setting updated.' });
+  } catch (error) {
+    console.error('Error updating auto detection:', error);
+    res.status(500).json({ message: 'Failed to update auto detection.' });
   }
 });
 

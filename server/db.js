@@ -112,6 +112,12 @@ async function createUsersTable() {
       ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3, 2) DEFAULT 0.00;
     `);
 
+    // Add auto_detection_enabled column if it doesn't exist
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS auto_detection_enabled BOOLEAN DEFAULT FALSE;
+    `);
+
     // Check and alter credits column type if it's not INTEGER
     const creditsColumnTypeResult = await client.query(`
       SELECT data_type FROM information_schema.columns

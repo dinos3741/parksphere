@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
+import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,6 +23,8 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
+import { startParkDetection, stopParkDetection } from './utils/parkDetectionService';
+import * as ExpoNotifications from 'expo-notifications';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -148,6 +150,72 @@ export default function App() {
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
   const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
+
+  // Notification and Auto-Detection setup
+  useEffect(() => {
+    // Test notification to verify UI
+    addNotification("Notification system ready.");
+
+    // 1. Register listener FIRST
+    console.log('App.js: Registering parkDetectionUpdate listener');
+    const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
+      console.log('App.js: Received park detection update:', data.message);
+      addNotification(data.message);
+    });
+
+    const setupNotificationsAndDetection = async () => {
+      console.log('App.js: setupNotificationsAndDetection triggered. isLoggedIn:', isLoggedIn, 'hasCurrentUser:', !!currentUser);
+      
+      // 2. Request Notification Permissions
+      const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
+      console.log('App.js: Notification permission status:', existingStatus);
+      if (existingStatus !== 'granted') {
+        const { status } = await ExpoNotifications.requestPermissionsAsync();
+        console.log('App.js: Requested Notification permission. New status:', status);
+      }
+      
+      // 3. Initial check for Auto-Detection
+      if (currentUser) {
+        console.log('App.js: currentUser.auto_detection_enabled:', currentUser.auto_detection_enabled);
+        const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+        if (currentUser.auto_detection_enabled) {
+          console.log('App.js: Auto-detection is ENABLED on server. Starting service...');
+          await AsyncStorage.setItem('autoDetectionEnabled', 'true');
+          startParkDetection();
+          addNotification('Auto-detection active: IDLE');
+        } else if (autoDetectionEnabled === 'true') {
+          // Sync local with server if they differ
+          console.log('App.js: Auto-detection DISABLED on server, syncing local state...');
+          await AsyncStorage.setItem('autoDetectionEnabled', 'false');
+          stopParkDetection();
+        }
+      }
+    };
+    
+    if (isLoggedIn && currentUser) {
+      setupNotificationsAndDetection();
+    }
+
+    // Check periodically if background task needs to be toggled
+    const interval = setInterval(async () => {
+      const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+      const isStarted = await Location.hasStartedLocationUpdatesAsync('PARK_DETECTION_TASK');
+      
+      if (autoDetectionEnabled === 'true' && !isStarted) {
+        console.log('App.js: Service not started but enabled, starting now...');
+        startParkDetection();
+      } else if (autoDetectionEnabled !== 'true' && isStarted) {
+        console.log('App.js: Service started but disabled, stopping now...');
+        stopParkDetection();
+      }
+    }, 5000);
+
+    return () => {
+      console.log('App.js: Cleaning up park detection setup');
+      clearInterval(interval);
+      detectionSubscription.remove();
+    };
+  }, [isLoggedIn, currentUser]);
 
   // Update total unread count whenever unreadConversations changes
   useEffect(() => {

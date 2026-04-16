@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity, KeyboardAvoidingView, ScrollView, Platform, Switch } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const carTypes = [
   'motorcycle',
@@ -16,13 +17,42 @@ const carTypes = [
 const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
+  const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detection_enabled : false);
 
   useEffect(() => {
     if (user) {
       setCarType(user.car_type);
       setCarColor(user.car_color);
+      setAutoDetectionEnabled(user.auto_detection_enabled);
     }
   }, [user]);
+
+  const toggleAutoDetection = async (value) => {
+    try {
+      setAutoDetectionEnabled(value);
+      // Update locally for immediate effect
+      await AsyncStorage.setItem('autoDetectionEnabled', JSON.stringify(value));
+      
+      // Update on server
+      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}/auto-detection`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ enabled: value }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to sync auto detection with server');
+      } else {
+        if (onProfileUpdate) onProfileUpdate(); // Refresh user data in App.js
+      }
+    } catch (error) {
+      console.error('Error saving auto detection settings:', error);
+      Alert.alert('Error', 'Failed to save auto detection setting.');
+    }
+  };
 
   const handleUpdate = async () => {
     try {
@@ -32,7 +62,11 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ car_type: carType, car_color: carColor }),
+        body: JSON.stringify({ 
+          car_type: carType, 
+          car_color: carColor,
+          auto_detection_enabled: autoDetectionEnabled 
+        }),
       });
 
       const data = await response.json();
@@ -97,6 +131,19 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
           />
         </View>
 
+        <View style={styles.settingRow}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Auto spot detection</Text>
+            <Text style={styles.settingDescription}>Automatically detect when you park or leave a spot.</Text>
+          </View>
+          <Switch
+            trackColor={{ false: '#767577', true: '#512da8' }}
+            thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
+            onValueChange={toggleAutoDetection}
+            value={autoDetectionEnabled}
+          />
+        </View>
+
         <TouchableOpacity style={styles.button} onPress={handleUpdate}>
           <Text style={styles.buttonText}>Save Changes</Text>
         </TouchableOpacity>
@@ -158,6 +205,31 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 180, // Standard height for picker
     color: '#333',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  settingTextContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  settingDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   button: {
     backgroundColor: '#512da8',
