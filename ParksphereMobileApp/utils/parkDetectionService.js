@@ -32,6 +32,7 @@ class ParkDetectionService {
     this.liveSteps = 0;
     this.pedometerSubscription = null;
     this.isInitialized = false;
+    this.heartbeatInterval = null;
     
     this.confidence = {
       [STATE.IN_VEHICLE]: 0,
@@ -73,6 +74,10 @@ class ParkDetectionService {
       }
     }
     
+    // Start heartbeat for time-based checks when stationary
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+    this.heartbeatInterval = setInterval(() => this.runTimeBasedChecks(), 10000); // Every 10 seconds
+    
     this.isInitialized = true;
     console.log('[ParkDetection] Service Initialized');
   }
@@ -81,9 +86,30 @@ class ParkDetectionService {
     console.log('[ParkDetection] Starting live step streaming...');
     if (this.pedometerSubscription) this.pedometerSubscription.remove();
     this.pedometerSubscription = Pedometer.watchStepCount(result => {
-      // Pedometer.watchStepCount returns total steps since the watch started
       this.liveSteps = result.steps;
     });
+  }
+
+  async runTimeBasedChecks() {
+    const isEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+    if (isEnabled !== 'true') return;
+
+    const now = Date.now();
+    const timeSinceLastTransition = now - this.lastTransitionTime;
+
+    if (this.currentState === STATE.WALKING && timeSinceLastTransition > 60000) {
+      console.log('[ParkDetection] Heartbeat: Walking timeout reached. Returning to IDLE.');
+      await this.transitionTo(STATE.IDLE);
+    }
+    
+    if (this.currentState === STATE.POSSIBLE_PARK) {
+      // Possible park also depends on time
+      this.confidence[STATE.PARKED] = Math.min(1, timeSinceLastTransition / DURATION_PARKED_CONFIRM);
+      if (this.confidence[STATE.PARKED] > CONFIDENCE_THRESHOLD) {
+        console.log('[ParkDetection] Heartbeat: Possible park confirmed via time.');
+        await this.transitionTo(STATE.PARKED);
+      }
+    }
   }
 
   async transitionTo(newState) {
