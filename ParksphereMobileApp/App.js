@@ -153,9 +153,6 @@ export default function App() {
 
   // Notification and Auto-Detection setup
   useEffect(() => {
-    // Test notification to verify UI
-    addNotification("Notification system ready.");
-
     // 1. Register listener FIRST
     console.log('App.js: Registering parkDetectionUpdate listener');
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
