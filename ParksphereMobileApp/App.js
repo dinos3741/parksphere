@@ -175,7 +175,6 @@ export default function App() {
             await AsyncStorage.setItem('autoDetectionEnabled', 'true');
           }
           startParkDetection();
-          addNotification('Auto-detection active: IDLE');
         }
       }
     };

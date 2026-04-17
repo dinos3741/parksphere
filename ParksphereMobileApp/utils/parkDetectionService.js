@@ -80,6 +80,9 @@ class ParkDetectionService {
     
     this.isInitialized = true;
     console.log('[ParkDetection] Service Initialized');
+    
+    // Emit initial status message
+    DeviceEventEmitter.emit('parkDetectionUpdate', { message: 'Monitoring for activity...' });
   }
 
   startStepStreaming() {
