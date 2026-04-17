@@ -97,7 +97,7 @@ class ParkDetectionService {
     const now = Date.now();
     const timeSinceLastTransition = now - this.lastTransitionTime;
 
-    if (this.currentState === STATE.WALKING && timeSinceLastTransition > 60000) {
+    if (this.currentState === STATE.WALKING && timeSinceLastTransition > 30000) {
       console.log('[ParkDetection] Heartbeat: Walking timeout reached. Returning to IDLE.');
       await this.transitionTo(STATE.IDLE);
     }
@@ -199,7 +199,7 @@ class ParkDetectionService {
         if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
           await this.transitionTo(STATE.IN_VEHICLE);
         } else if (speedKmH < SPEED_THRESHOLD_IDLE) {
-          if (now - this.lastTransitionTime > 60000) {
+          if (now - this.lastTransitionTime > 30000) {
             await this.transitionTo(STATE.IDLE);
           }
         }
