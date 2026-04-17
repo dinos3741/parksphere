@@ -112,11 +112,29 @@ async function createUsersTable() {
       ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3, 2) DEFAULT 0.00;
     `);
 
-    // Add auto_detection_enabled column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS auto_detection_enabled BOOLEAN DEFAULT FALSE;
+    // Migration: Handle auto_detection_enabled -> auto_detect
+    const checkColumns = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name IN ('auto_detection_enabled', 'auto_detect');
     `);
+    
+    const columns = checkColumns.rows.map(r => r.column_name);
+    
+    if (columns.includes('auto_detection_enabled') && !columns.includes('auto_detect')) {
+      console.log('Renaming auto_detection_enabled to auto_detect...');
+      await client.query(`ALTER TABLE users RENAME COLUMN auto_detection_enabled TO auto_detect;`);
+    } else if (!columns.includes('auto_detect')) {
+      console.log('Adding auto_detect column...');
+      await client.query(`ALTER TABLE users ADD COLUMN auto_detect BOOLEAN DEFAULT FALSE;`);
+    }
+    // If auto_detect already exists, we do nothing.
+    // If both exist (shouldn't happen with this logic), we might want to drop the old one, 
+    // but better to be safe and just leave it or handle it if we really want to clean up.
+    if (columns.includes('auto_detection_enabled') && columns.includes('auto_detect')) {
+       console.log('Both auto_detection_enabled and auto_detect exist. Dropping the old one...');
+       await client.query(`ALTER TABLE users DROP COLUMN auto_detection_enabled;`);
+    }
 
     // Check and alter credits column type if it's not INTEGER
     const creditsColumnTypeResult = await client.query(`

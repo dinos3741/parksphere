@@ -17,41 +17,18 @@ const carTypes = [
 const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
-  const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detection_enabled : false);
+  const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
 
   useEffect(() => {
     if (user) {
       setCarType(user.car_type);
       setCarColor(user.car_color);
-      setAutoDetectionEnabled(user.auto_detection_enabled);
+      setAutoDetectionEnabled(user.auto_detect);
     }
   }, [user]);
 
-  const toggleAutoDetection = async (value) => {
-    try {
-      setAutoDetectionEnabled(value);
-      // Update locally for immediate effect
-      await AsyncStorage.setItem('autoDetectionEnabled', JSON.stringify(value));
-      
-      // Update on server
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}/auto-detection`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ enabled: value }),
-      });
-
-      if (!response.ok) {
-        console.error('Failed to sync auto detection with server');
-      } else {
-        if (onProfileUpdate) onProfileUpdate(); // Refresh user data in App.js
-      }
-    } catch (error) {
-      console.error('Error saving auto detection settings:', error);
-      Alert.alert('Error', 'Failed to save auto detection setting.');
-    }
+  const toggleAutoDetection = (value) => {
+    setAutoDetectionEnabled(value);
   };
 
   const handleUpdate = async () => {
@@ -65,7 +42,7 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
         body: JSON.stringify({ 
           car_type: carType, 
           car_color: carColor,
-          auto_detection_enabled: autoDetectionEnabled 
+          auto_detect: autoDetectionEnabled 
         }),
       });
 

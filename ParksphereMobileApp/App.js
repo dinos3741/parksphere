@@ -176,9 +176,9 @@ export default function App() {
       
       // 3. Initial check for Auto-Detection
       if (currentUser) {
-        console.log('App.js: currentUser.auto_detection_enabled:', currentUser.auto_detection_enabled);
+        console.log('App.js: currentUser.auto_detect:', currentUser.auto_detect);
         const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
-        if (currentUser.auto_detection_enabled) {
+        if (currentUser.auto_detect) {
           console.log('App.js: Auto-detection is ENABLED on server. Starting service...');
           await AsyncStorage.setItem('autoDetectionEnabled', 'true');
           startParkDetection();
@@ -350,9 +350,11 @@ export default function App() {
     fetchUserData();
   };
 
-  const handleProfileUpdate = () => {
+  const handleProfileUpdate = (shouldClose = true) => {
     fetchUserData();
-    setIsEditingProfile(false); // Go back to details view after update
+    if (shouldClose === true) {
+      setIsEditingProfile(false); // Go back to details view after update
+    }
   };
 
   // Map related states
