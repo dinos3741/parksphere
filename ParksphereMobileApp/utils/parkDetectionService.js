@@ -142,6 +142,7 @@ class ParkDetectionService {
     }));
 
     let uiMessage = '';
+    if (newState === STATE.IDLE) uiMessage = 'Monitoring for activity...';
     if (newState === STATE.WALKING) uiMessage = 'Walking detected...';
     if (newState === STATE.IN_VEHICLE) uiMessage = 'Driving detected...';
     if (newState === STATE.POSSIBLE_PARK) uiMessage = 'Possible parking detected...';
