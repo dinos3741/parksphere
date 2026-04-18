@@ -33,6 +33,7 @@ class ParkDetectionService {
     this.currentState = STATE.IDLE;
     this.lastTransitionTime = Date.now();
     this.parkedLocation = null;
+    this.currentSpotId = null;
     this.stepsAtParking = 0;
     this.baselineSteps = 0;
     this.liveSteps = 0;
@@ -40,6 +41,7 @@ class ParkDetectionService {
     this.isInitialized = false;
     this.heartbeatInterval = null;
     this.lastLowSpeedTime = 0;
+    this.tempLocation = null;
 
     this.confidence = {
       [STATE.DRIVING]: 0,
@@ -47,9 +49,9 @@ class ParkDetectionService {
     };
 
     this.autoDetectionEnabled = false;
-  }
+    }
 
-  async initialize() {
+    async initialize() {
     if (this.isInitialized) return;
 
     try {
@@ -71,7 +73,7 @@ class ParkDetectionService {
       try {
         const parsed = JSON.parse(savedState);
         this.currentState = parsed.state || STATE.IDLE;
-        
+
         // Safety check: If we think we are PARKED but have no location, reset to IDLE
         if (this.currentState === STATE.PARKED && !parsed.parkedLocation) {
           console.warn('[ParkDetection] Invalid PARKED state detected (no location). Resetting to IDLE.');
@@ -80,6 +82,7 @@ class ParkDetectionService {
 
         this.lastTransitionTime = parsed.timestamp || Date.now();
         this.parkedLocation = parsed.parkedLocation || null;
+        this.currentSpotId = parsed.currentSpotId || null;
         this.stepsAtParking = parsed.stepsAtParking || 0;
         this.baselineSteps = parsed.baselineSteps || 0;
         this.confidence = parsed.confidence || this.confidence;
@@ -88,19 +91,19 @@ class ParkDetectionService {
 
     this.heartbeatInterval = setInterval(() => this.runTimeBasedChecks(), 10000);
     this.isInitialized = true;
-    console.log(`[ParkDetection] Initialized. Current state: ${this.currentState}, Parked location: ${JSON.stringify(this.parkedLocation)}`);
+    console.log(`[ParkDetection] Initialized. Current state: ${this.currentState}, Parked location: ${JSON.stringify(this.parkedLocation)}, Spot ID: ${this.currentSpotId}`);
 
     DeviceEventEmitter.emit('parkDetectionUpdate', { message: 'Idle' });
-  }
+    }
 
-  startStepStreaming() {
+    startStepStreaming() {
     if (this.pedometerSubscription) this.pedometerSubscription.remove();
     this.pedometerSubscription = Pedometer.watchStepCount(result => {
       this.liveSteps = result.steps;
     });
-  }
+    }
 
-  async runTimeBasedChecks() {
+    async runTimeBasedChecks() {
     if (!this.autoDetectionEnabled) return;
 
     const now = Date.now();
@@ -116,13 +119,16 @@ class ParkDetectionService {
         await this.transitionTo(STATE.PARKED);
       }
     }
-  }
+    }
 
-  async transitionTo(newState) {
+    async transitionTo(newState) {
     if (this.currentState === newState) return;
 
     if (newState === STATE.PARKED) {
       this.stepsAtParking = this.liveSteps;
+      if (this.parkedLocation) {
+        await this.declareParkingSpot(this.parkedLocation.latitude, this.parkedLocation.longitude);
+      }
     }
 
     if (newState === STATE.IDLE || newState === STATE.WALKING) {
@@ -140,6 +146,7 @@ class ParkDetectionService {
       state: this.currentState,
       timestamp: this.lastTransitionTime,
       parkedLocation: this.parkedLocation,
+      currentSpotId: this.currentSpotId,
       stepsAtParking: this.stepsAtParking,
       baselineSteps: this.baselineSteps,
       confidence: this.confidence,
@@ -162,7 +169,11 @@ class ParkDetectionService {
 
     if (newState === STATE.LEFT_SPOT) {
       msg = 'Leaving spot...';
+      if (this.currentSpotId) {
+        await this.removeParkingSpot();
+      }
       this.parkedLocation = null;
+      this.currentSpotId = null;
     }
 
     if (newState === STATE.EXIT_CONFIRMED) {
@@ -173,16 +184,102 @@ class ParkDetectionService {
     if (msg) {
       DeviceEventEmitter.emit('parkDetectionUpdate', { message: msg });
     }
-  }
+    }
 
-  async notifyUser(title, body) {
-    await Notifications.scheduleNotificationAsync({
+    async declareParkingSpot(latitude, longitude) {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const userId = await AsyncStorage.getItem('userId');
+      const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
+
+      if (!token || !userId) {
+        console.warn('[ParkDetection] No token or userId found, cannot declare spot.');
+        return;
+      }
+
+      console.log(`[ParkDetection] Attempting to declare spot at ${latitude}, ${longitude}`);
+
+      const response = await fetch(`${serverUrl}/api/declare-spot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: parseInt(userId, 10),
+          latitude,
+          longitude,
+          timeToLeave: 60, // Default to 60 minutes for auto-detected spots
+          costType: 'free',
+          price: 0,
+          declaredCarType: 'sedan', // Should ideally come from user profile
+          comments: 'Auto-detected parking spot',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        this.currentSpotId = data.spotId;
+        console.log('[ParkDetection] Spot declared successfully:', this.currentSpotId);
+
+        // Save state again with currentSpotId
+        await AsyncStorage.setItem('park_detection_state', JSON.stringify({
+          state: this.currentState,
+          timestamp: this.lastTransitionTime,
+          parkedLocation: this.parkedLocation,
+          currentSpotId: this.currentSpotId,
+          stepsAtParking: this.stepsAtParking,
+          baselineSteps: this.baselineSteps,
+          confidence: this.confidence,
+        }));
+
+        // await this.notifyUser('Spot Shared', 'Your parking spot has been automatically shared.');
+      } else {
+        const errorData = await response.json();
+        console.error('[ParkDetection] Failed to declare spot:', response.status, errorData.message);
+      }
+    } catch (error) {
+      console.error('[ParkDetection] Error declaring spot:', error);
+    }
+    }
+
+    async removeParkingSpot() {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
+
+      if (!token || !this.currentSpotId) {
+        console.warn('[ParkDetection] No token or spotId found, cannot remove spot.');
+        return;
+      }
+
+      console.log(`[ParkDetection] Attempting to remove spot ${this.currentSpotId}`);
+
+      const response = await fetch(`${serverUrl}/api/parkingspots/${this.currentSpotId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        console.log('[ParkDetection] Spot removed successfully:', this.currentSpotId);
+        this.currentSpotId = null;
+      } else {
+        console.error('[ParkDetection] Failed to remove spot:', response.status);
+      }
+    } catch (error) {
+      console.error('[ParkDetection] Error removing spot:', error);
+    }
+    }
+
+    async notifyUser(title, body) {    await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
       trigger: null,
     });
-  }
+    }
 
-  async handleLocationUpdate(location) {
+    async handleLocationUpdate(location) {
     if (!this.isInitialized) await this.initialize();
     if (!this.autoDetectionEnabled) return;
 
@@ -217,10 +314,13 @@ class ParkDetectionService {
           await this.transitionTo(STATE.DRIVING);
         break;
 
-      case STATE.DRIVING:        if (speedKmH < SPEED_THRESHOLD_IDLE) {
+      case STATE.DRIVING:
+        if (speedKmH < SPEED_THRESHOLD_IDLE) {
           if (this.lastLowSpeedTime === 0) {
             this.lastLowSpeedTime = Date.now();
+            this.tempLocation = { latitude, longitude };
           } else if ((Date.now() - this.lastLowSpeedTime) > DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK) {
+            this.parkedLocation = this.tempLocation;
             await this.transitionTo(STATE.POSSIBLE_PARK);
             this.lastLowSpeedTime = 0; // Reset after transition
           }
