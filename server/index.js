@@ -837,20 +837,17 @@ app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
+  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 
   try {
     if (filter) {
-      if (filter === 'available') { // This filter now refers to spots that are not occupied by anyone
-        // We don't have an 'is_occupied' column anymore.
-        // If 'available' means not currently taken, we need a different way to determine this.
-        // For now, I'll remove this condition as it's based on the old 'is_free' meaning.
-        // conditions.push('ps.is_free = TRUE');
-      } else if (filter === 'occupied') { // This filter now refers to spots that are currently taken by someone
-        // conditions.push('ps.is_free = FALSE');
-      } else if (!isNaN(parseInt(filter))) { // Check if filter is a number
+      if (filter === 'available') { 
+        conditions.push("ps.status IN ('free', 'soon_free')");
+      } else if (filter === 'occupied') { 
+        conditions.push("ps.status = 'occupied'");
+      } else if (!isNaN(parseInt(filter))) { 
         const minutes = parseInt(filter);
         // Spots that will be empty within 'minutes' from now
                 conditions.push(`ps.declared_at + (ps.time_to_leave * INTERVAL '1 minute') <= NOW() + (INTERVAL '1 minute' * $1::integer) AND ps.declared_at + (ps.time_to_leave * INTERVAL '1 minute') > NOW()`);
@@ -928,8 +925,8 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
 
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at', // Changed is_free to cost_type
-      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Changed isFree to costType
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at, status', // Changed is_free to cost_type
+      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon, 'occupied'] // Changed isFree to costType
     );
     const newSpot = result.rows[0];
     await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
@@ -953,6 +950,38 @@ app.post('/api/seed-spot-notification', async (req, res) => {
     res.status(200).json({ message: 'Spot notification emitted.' });
   } else {
     res.status(400).json({ message: 'No spot data provided.' });
+  }
+});
+
+app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
+  const spotId = req.params.id;
+  const { status } = req.body;
+  const userId = req.user.userId;
+
+  if (!['occupied', 'soon_free', 'free'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status.' });
+  }
+
+  try {
+    const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spotResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Spot not found.' });
+    }
+    if (spotResult.rows[0].user_id !== userId) {
+      return res.status(403).json({ message: 'Unauthorized.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE parking_spots SET status = $1 WHERE id = $2 RETURNING *',
+      [status, spotId]
+    );
+
+    const updatedSpot = result.rows[0];
+    io.emit('spotStatusUpdated', updatedSpot);
+    res.status(200).json({ message: 'Status updated successfully.', spot: updatedSpot });
+  } catch (error) {
+    console.error('Error updating spot status:', error);
+    res.status(500).json({ message: 'Server error updating status.' });
   }
 });
 

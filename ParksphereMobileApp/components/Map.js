@@ -50,22 +50,42 @@ const Map = ({
           {parkingSpots.map((spot) => {
             const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
             const displaySpot = isAccepted ? acceptedSpot : spot;
-            
+
+            const getStatusColor = (status) => {
+              switch (status) {
+                case 'soon_free': return 'orange';
+                case 'free': return 'green';
+                case 'occupied':
+                default: return 'red';
+              }
+            };
+
+            const getStatusRgba = (status, alpha) => {
+              switch (status) {
+                case 'soon_free': return `rgba(255, 165, 0, ${alpha})`;
+                case 'free': return `rgba(0, 128, 0, ${alpha})`;
+                case 'occupied':
+                default: return `rgba(255, 0, 0, ${alpha})`;
+              }
+            };
+
+            const statusColor = getStatusColor(displaySpot.status);
+
             return (
               <React.Fragment key={spot.id}>
-                {spot.ownerId === userId || isAccepted ? (
+                {spot.user_id === userId || isAccepted ? (
                   <Marker
                     coordinate={{ latitude: parseFloat(displaySpot.latitude), longitude: parseFloat(displaySpot.longitude) }}
                     onPress={() => handleSpotPress(displaySpot)}
-                    pinColor={spot.ownerId === userId ? "red" : "green"}
+                    pinColor={isAccepted ? "green" : statusColor}
                   />
                 ) : (
                   <>
                     <Circle
                       center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                       radius={200}
-                      fillColor="rgba(255,0,0,0.2)"
-                      strokeColor="rgba(255,0,0,0.8)"
+                      fillColor={getStatusRgba(spot.status, 0.2)}
+                      strokeColor={getStatusRgba(spot.status, 0.8)}
                       strokeWidth={2}
                     />
                     <Marker

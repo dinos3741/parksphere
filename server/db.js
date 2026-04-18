@@ -184,6 +184,7 @@ async function createParkingSpotsTable() {
         cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
         price INTEGER DEFAULT 0,
         comments TEXT, -- New column for comments
+        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied', 'soon_free', 'free'
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -220,6 +221,12 @@ async function createParkingSpotsTable() {
     await client.query(`
       ALTER TABLE parking_spots
       ADD COLUMN IF NOT EXISTS comments TEXT;
+    `);
+
+    // Add status column if it doesn't exist
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'occupied';
     `);
 
     // Add fuzzed location columns if they don't exist

@@ -518,6 +518,13 @@ export default function App() {
           );
         });
 
+        newSocket.on('spotStatusUpdated', (updatedSpot) => {
+          console.log('Mobile App: Spot status updated received:', updatedSpot);
+          setParkingSpots((prevSpots) =>
+            prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
+          );
+        });
+
         newSocket.on('spotRequest', (data) => {
           console.log('Mobile App: Spot request received:', data);
           setSpotRequests(prevRequests => [...prevRequests, data]);

@@ -165,12 +165,17 @@ class ParkDetectionService {
       await this.notifyUser('Parking Detected', 'Walk away to confirm.');
     }
 
-    if (newState === STATE.POSSIBLE_RETURN) msg = 'Returning to vehicle...';
+    if (newState === STATE.POSSIBLE_RETURN) {
+      msg = 'Returning to vehicle...';
+      if (this.currentSpotId) {
+        await this.updateParkingSpotStatus('soon_free');
+      }
+    }
 
     if (newState === STATE.LEFT_SPOT) {
       msg = 'Leaving spot...';
       if (this.currentSpotId) {
-        await this.removeParkingSpot();
+        await this.updateParkingSpotStatus('free');
       }
       this.parkedLocation = null;
       this.currentSpotId = null;
@@ -243,33 +248,35 @@ class ParkDetectionService {
     }
     }
 
-    async removeParkingSpot() {
+    async updateParkingSpotStatus(status) {
     try {
       const token = await AsyncStorage.getItem('userToken');
       const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
       if (!token || !this.currentSpotId) {
-        console.warn('[ParkDetection] No token or spotId found, cannot remove spot.');
+        console.warn('[ParkDetection] No token or spotId found, cannot update status.');
         return;
       }
 
-      console.log(`[ParkDetection] Attempting to remove spot ${this.currentSpotId}`);
+      console.log(`[ParkDetection] Attempting to update spot ${this.currentSpotId} status to ${status}`);
 
-      const response = await fetch(`${serverUrl}/api/parkingspots/${this.currentSpotId}`, {
-        method: 'DELETE',
+      const response = await fetch(`${serverUrl}/api/parkingspots/${this.currentSpotId}/status`, {
+        method: 'PUT',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
+        body: JSON.stringify({ status }),
       });
 
       if (response.ok) {
-        console.log('[ParkDetection] Spot removed successfully:', this.currentSpotId);
-        this.currentSpotId = null;
+        console.log('[ParkDetection] Spot status updated successfully:', status);
       } else {
-        console.error('[ParkDetection] Failed to remove spot:', response.status);
+        const errorData = await response.json();
+        console.error('[ParkDetection] Failed to update spot status:', response.status, errorData.message);
       }
     } catch (error) {
-      console.error('[ParkDetection] Error removing spot:', error);
+      console.error('[ParkDetection] Error updating spot status:', error);
     }
     }
 
