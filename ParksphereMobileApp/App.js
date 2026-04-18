@@ -195,8 +195,11 @@ export default function App() {
     };
 
     if (isLoggedIn && currentUser) {
-      setupNotificationsAndDetection();
-      setupForegroundFallback();
+      const initializeAll = async () => {
+        await setupNotificationsAndDetection();
+        await setupForegroundFallback();
+      };
+      initializeAll();
     }
 
     return () => {
@@ -204,6 +207,7 @@ export default function App() {
         foregroundSubscription.remove();
       }
       detectionSubscription.remove();
+      stopParkDetection(); // Ensure detection stops when unmounting or user changes
     };
   }, [isLoggedIn, currentUser]);
 
@@ -407,8 +411,11 @@ export default function App() {
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
+        } else if (response.status === 401 || response.status === 403) {
+          console.error('Authentication failed when fetching user data. Logging out...', response.status);
+          await handleLogout();
         } else {
-          console.error('Failed to fetch user data');
+          console.error('Failed to fetch user data', response.status);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -429,10 +436,14 @@ export default function App() {
       setToken(null);
       setUserId(null);
       setCurrentUsername(null);
+      setCurrentUser(null);
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
       setNotifications([]); // Clear notifications on logout
       setTotalUnreadMessagesCount(0); // Reset unread count on logout
+      
+      // Stop park detection on logout
+      await stopParkDetection();
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -458,7 +469,7 @@ export default function App() {
             setParkingSpots(transformedData);
           } else if (response.status === 401 || response.status === 403) {
             console.error('Authentication failed when fetching spots. Logging out...', response.status);
-            handleLogout();
+            await handleLogout();
           } else {
             console.error('Failed to fetch parking spots:', response.status, response.statusText);
           }
