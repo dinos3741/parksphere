@@ -10,11 +10,12 @@ export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 const STATE = {
   IDLE: 'IDLE',
   WALKING: 'WALKING',
-  IN_VEHICLE: 'IN_VEHICLE',
+  DRIVING: 'DRIVING',
   POSSIBLE_PARK: 'POSSIBLE_PARK',
   PARKED: 'PARKED',
-  POSSIBLE_PARK_OUT: 'POSSIBLE_PARK_OUT',
+  POSSIBLE_WALK_AWAY: 'POSSIBLE_WALK_AWAY',
   LEFT_SPOT: 'LEFT_SPOT',
+  POSSIBLE_RETURN: 'POSSIBLE_RETURN',
   EXIT_CONFIRMED: 'EXIT_CONFIRMED',
 };
 
@@ -23,6 +24,9 @@ const SPEED_THRESHOLD_IDLE = 3;
 const CONFIDENCE_THRESHOLD = 0.8;
 const DURATION_PARKED_CONFIRM = 300000;
 const DISTANCE_EXIT_CONFIRM = 50;
+const DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK = 30000;
+const DISTANCE_NEAR_CAR_WALKING = 10;
+const DISTANCE_RETURN_TO_CAR = 20;
 
 class ParkDetectionService {
   constructor() {
@@ -35,9 +39,10 @@ class ParkDetectionService {
     this.pedometerSubscription = null;
     this.isInitialized = false;
     this.heartbeatInterval = null;
+    this.lastLowSpeedTime = 0;
 
     this.confidence = {
-      [STATE.IN_VEHICLE]: 0,
+      [STATE.DRIVING]: 0,
       [STATE.PARKED]: 0,
     };
 
@@ -144,15 +149,16 @@ class ParkDetectionService {
 
     if (newState === STATE.IDLE) msg = 'Idle';
     if (newState === STATE.WALKING) msg = 'Walking detected...';
-    if (newState === STATE.IN_VEHICLE) msg = 'Driving detected...';
+    if (newState === STATE.DRIVING) msg = 'Driving detected...';
     if (newState === STATE.POSSIBLE_PARK) msg = 'Possible parking detected...';
+    if (newState === STATE.POSSIBLE_WALK_AWAY) msg = 'Walking away detected...';
 
     if (newState === STATE.PARKED) {
       msg = 'Parking spot identified!';
       await this.notifyUser('Parking Detected', 'Walk away to confirm.');
     }
 
-    if (newState === STATE.POSSIBLE_PARK_OUT) msg = 'Returning to vehicle...';
+    if (newState === STATE.POSSIBLE_RETURN) msg = 'Returning to vehicle...';
 
     if (newState === STATE.LEFT_SPOT) {
       msg = 'Leaving spot...';
@@ -184,13 +190,13 @@ class ParkDetectionService {
     const speedKmH = (speed || 0) * 3.6;
 
     if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-      this.confidence[STATE.IN_VEHICLE] = Math.min(1, this.confidence[STATE.IN_VEHICLE] + 0.2);
+      this.confidence[STATE.DRIVING] = Math.min(1, this.confidence[STATE.DRIVING] + 0.2);
     } else {
-      this.confidence[STATE.IN_VEHICLE] = Math.max(0, this.confidence[STATE.IN_VEHICLE] - 0.1);
+      this.confidence[STATE.DRIVING] = Math.max(0, this.confidence[STATE.DRIVING] - 0.1);
     }
 
     let steps = this.liveSteps - this.baselineSteps;
-    // If the baseline from storage is higher than current live steps, the pedometer likely reset. 
+    // If the baseline from storage is higher than current live steps, the pedometer likely reset.
     // Reset baseline to current live steps to normalize.
     if (steps < 0 && this.baselineSteps > 0) {
       this.baselineSteps = this.liveSteps;
@@ -202,23 +208,28 @@ class ParkDetectionService {
         if (steps > 3) {
             await this.transitionTo(STATE.WALKING);
         }
-        else if (this.confidence[STATE.IN_VEHICLE] > CONFIDENCE_THRESHOLD)
-          await this.transitionTo(STATE.IN_VEHICLE);
+        else if (this.confidence[STATE.DRIVING] > CONFIDENCE_THRESHOLD)
+          await this.transitionTo(STATE.DRIVING);
         break;
 
       case STATE.WALKING:
         if (speedKmH > SPEED_THRESHOLD_VEHICLE)
-          await this.transitionTo(STATE.IN_VEHICLE);
+          await this.transitionTo(STATE.DRIVING);
         break;
 
-      case STATE.IN_VEHICLE:
-        if (speedKmH < SPEED_THRESHOLD_IDLE)
-          await this.transitionTo(STATE.POSSIBLE_PARK);
+      case STATE.DRIVING:        if (speedKmH < SPEED_THRESHOLD_IDLE) {
+          if (this.lastLowSpeedTime === 0) {
+            this.lastLowSpeedTime = Date.now();
+          } else if ((Date.now() - this.lastLowSpeedTime) > DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK) {
+            await this.transitionTo(STATE.POSSIBLE_PARK);
+            this.lastLowSpeedTime = 0; // Reset after transition
+          }
+        } else {
+          this.lastLowSpeedTime = 0; // Reset if speed increases
+        }
         break;
 
       case STATE.PARKED:
-        // Even if we are in PARKED, if we detect significant movement or speed, 
-        // we should re-evaluate.
         if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
           await this.transitionTo(STATE.LEFT_SPOT);
         } else if (this.parkedLocation) {
@@ -228,17 +239,86 @@ class ParkDetectionService {
             this.parkedLocation.latitude,
             this.parkedLocation.longitude
           );
-
           const stepsAway = this.liveSteps - this.stepsAtParking;
 
-          if (d > DISTANCE_EXIT_CONFIRM && stepsAway > 15)
+          if (stepsAway > 5 && d < DISTANCE_NEAR_CAR_WALKING) {
+            await this.transitionTo(STATE.POSSIBLE_WALK_AWAY);
+          } else if (d > DISTANCE_EXIT_CONFIRM && stepsAway > 15) {
             await this.transitionTo(STATE.EXIT_CONFIRMED);
+          }
+        }
+        break;
+
+      case STATE.POSSIBLE_WALK_AWAY:
+        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
+          await this.transitionTo(STATE.LEFT_SPOT);
+        } else if (this.parkedLocation) {
+          const d = this.getDistance(
+            latitude,
+            longitude,
+            this.parkedLocation.latitude,
+            this.parkedLocation.longitude
+          );
+          const stepsAway = this.liveSteps - this.stepsAtParking;
+
+          if (d > DISTANCE_EXIT_CONFIRM && stepsAway > 15) {
+            await this.transitionTo(STATE.EXIT_CONFIRMED);
+          } else if (stepsAway < 5 && d < DISTANCE_NEAR_CAR_WALKING) { // User came back or stopped walking
+            await this.transitionTo(STATE.PARKED);
+          }
         }
         break;
 
       case STATE.EXIT_CONFIRMED:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE)
+        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
           await this.transitionTo(STATE.LEFT_SPOT);
+        } else if (this.parkedLocation) {
+          const d = this.getDistance(
+            latitude,
+            longitude,
+            this.parkedLocation.latitude,
+            this.parkedLocation.longitude
+          );
+          if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
+            await this.transitionTo(STATE.POSSIBLE_RETURN);
+          }
+        }
+        break;
+
+      case STATE.LEFT_SPOT: // Also check if returned to car after leaving spot
+        if (this.parkedLocation) {
+          const d = this.getDistance(
+            latitude,
+            longitude,
+            this.parkedLocation.latitude,
+            this.parkedLocation.longitude
+          );
+          if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
+            await this.transitionTo(STATE.POSSIBLE_RETURN);
+          } else if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
+            await this.transitionTo(STATE.IN_VEHICLE);
+          }
+        } else if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
+          await this.transitionTo(STATE.IN_VEHICLE);
+        }
+        break;
+
+      case STATE.POSSIBLE_RETURN:
+        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
+          await this.transitionTo(STATE.IN_VEHICLE);
+        } else if (this.parkedLocation) {
+          const d = this.getDistance(
+            latitude,
+            longitude,
+            this.parkedLocation.latitude,
+            this.parkedLocation.longitude
+          );
+          if (d > DISTANCE_RETURN_TO_CAR) {
+            // User moved away again after possibly returning
+            // We transition to IDLE as the spot is already considered left.
+            await this.transitionTo(STATE.IDLE);
+          }
+        }
         break;
     }
   }

@@ -62,3 +62,21 @@ google ios client ID:
 320058445002-oo08jes63ti9rtqkhpo9d1jfi6fcoo31.apps.googleusercontent.com
 
 google android client ID:
+
+
+State Machine
+=============
+   * IDLE: Initial state, no specific activity detected.
+   * WALKING: User is actively walking.
+   * DRIVING: User is driving or in a moving vehicle.
+   * POSSIBLE_PARK: System suspects parking; entered when vehicle speed is below 3 km/h for over 30 seconds.
+   * PARKED: User is confirmed parked; reached from POSSIBLE_PARK after 5 minutes stationary with high
+     confidence.
+   * POSSIBLE_WALK_AWAY: User has parked and is starting to walk away (over 5 steps, within 10 meters of car).
+   * LEFT_SPOT: User has driven away from the parked spot; parkedLocation is cleared.
+   * POSSIBLE_RETURN: User is returning to the vicinity of the parkedLocation (within 20 meters, low speed)
+     after leaving. Displays "Returning to vehicle...".
+   * EXIT_CONFIRMED: User is confirmed to have left the parking spot (moved over 50 meters, took over 15 steps
+     from PARKED or POSSIBLE_WALK_AWAY).
+
+
