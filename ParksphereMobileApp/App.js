@@ -209,7 +209,6 @@ export default function App() {
            await handleLocationUpdate(location);
          });
          console.log('App.js: Foreground location fallback started for Expo Go');
-         addNotification('Foreground detection active (Expo Go fallback)');
        }
     };
 
