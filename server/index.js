@@ -924,6 +924,36 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
 
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
 
+    // --- PROXIMITY CHECK: CONSUME EXISTING FREE/SOON_FREE SPOTS ---
+    try {
+      const PROXIMITY_THRESHOLD_METERS = 10;
+      const candidates = await pool.query(
+        "SELECT id, user_id, latitude, longitude FROM parking_spots WHERE status IN ('free', 'soon_free')"
+      );
+
+      for (const cand of candidates.rows) {
+        const distKm = getDistance(latitude, longitude, parseFloat(cand.latitude), parseFloat(cand.longitude));
+        const distM = distKm * 1000;
+
+        if (distM < PROXIMITY_THRESHOLD_METERS) {
+          console.log(`[Lifecycle] Consuming nearby spot ${cand.id} (Distance: ${distM.toFixed(2)}m)`);
+          
+          // Emit deletion before actual DB delete to maintain consistency with logic elsewhere
+          const requestsResult = await pool.query('SELECT requester_id FROM requests WHERE spot_id = $1', [cand.id]);
+          const requesterIds = requestsResult.rows.map(r => r.requester_id);
+          const ownerId = cand.user_id;
+
+          await pool.query('DELETE FROM requests WHERE spot_id = $1', [cand.id]);
+          await pool.query('DELETE FROM parking_spots WHERE id = $1', [cand.id]);
+          
+          io.emit('spotDeleted', { spotId: cand.id, ownerId, requesterIds });
+        }
+      }
+    } catch (proxError) {
+      console.error('Error during proximity cleanup:', proxError);
+      // We continue even if cleanup fails
+    }
+
     const result = await pool.query(
       'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at, status', // Changed is_free to cost_type
       [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon, 'occupied'] // Changed isFree to costType
