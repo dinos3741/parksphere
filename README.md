@@ -74,9 +74,17 @@ State Machine
      confidence.
    * POSSIBLE_WALK_AWAY: User has parked and is starting to walk away (over 5 steps, within 10 meters of car).
    * LEFT_SPOT: User has driven away from the parked spot; parkedLocation is cleared.
-   * POSSIBLE_RETURN: User is returning to the vicinity of the parkedLocation (within 20 meters, low speed)
-     after leaving. Displays "Returning to vehicle...".
+   * POSSIBLE_RETURN: User is returning to the vicinity of the parkedLocation (within 20 meters, low speed) after leaving. Displays "Returning to vehicle...".
    * EXIT_CONFIRMED: User is confirmed to have left the parking spot (moved over 50 meters, took over 15 steps
      from PARKED or POSSIBLE_WALK_AWAY).
 
+✦ I've implemented a "Collision Radius" (5 meters) in the server logic to address your concern. 
+
+  Now, when a user parks (via auto-detection or manual entry), the system:
+   1. Scans the immediate area for any existing free or soon_free spots.
+   2. Consumes the old spot: If it finds one within 5 meters, it automatically deletes the old record and its associated requests.
+   3. Updates the map: Broadcasts a spotDeleted event for the old spot so other users' maps update instantly.
+   4. Places the new spot: Inserts the new occupied spot.
+
+  This ensures that "Free" markers aren't left behind as "ghosts" once someone else has physically occupied that space. The lifecycle is now self-cleaning based on proximity.
 
