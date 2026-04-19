@@ -17,11 +17,66 @@ const T_STOP_CONFIRM = 30000;
 const T_PARK_CONFIRM = 120000;
 
 const DIST_STABLE = 10;
-const DIST_LEFT = 50;
+const DIST_LEFT = 30;
 const DIST_RETURN_TRIGGER = 35;
 const DIST_RETURN_CONFIRM = 15;
 
 // ---------------- HELPERS ----------------
+async function declareSpot(location) {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const userId = await AsyncStorage.getItem('userId');
+    const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
+
+    if (!token || !userId) return;
+
+    const response = await fetch(`${serverUrl}/api/declare-spot`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        userId: parseInt(userId, 10),
+        latitude: location.latitude,
+        longitude: location.longitude,
+        timeToLeave: 60,
+        costType: 'free',
+        price: 0,
+        declaredCarType: 'sedan',
+        comments: 'Auto-detected parking spot',
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      notify('Spot successfully registered in the system!');
+      return data.spotId;
+    }
+  } catch (error) {
+    console.error('[ParkDetection] Failed to declare spot:', error);
+  }
+}
+
+async function updateSpotStatus(spotId, status) {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
+    if (!token || !spotId) return;
+
+    await fetch(`${serverUrl}/api/parkingspots/${spotId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+  } catch (error) {
+    console.error('[ParkDetection] Failed to update spot status:', error);
+  }
+}
+
 function getDistance(a, b) {
   if (!a || !b) return Infinity;
 
@@ -132,10 +187,9 @@ export async function handleLocationUpdate(arg1, arg2) {
 
       state.maxDistance = Math.max(state.maxDistance || 0, dist);
 
-      const valid =
-        speed <= SPEED_ZERO &&
-        (walking || idle) &&
-        state.maxDistance < DIST_STABLE;
+      // The condition is valid if the user is walking or idle, 
+      // even if speed is slightly higher than 'ZERO' because they are now on foot.
+      const valid = (walking || idle || speed <= SPEED_ZERO) && state.maxDistance < DIST_STABLE;
 
       if (valid) {
         state.parkTime = (state.parkTime || 0) + dt;
@@ -147,6 +201,7 @@ export async function handleLocationUpdate(arg1, arg2) {
           state.hasLeftArea = false;
         }
       } else {
+        // If they speed up too much or move too far before 2 minutes, it wasn't a park
         state.state = 'DRIVING';
         state.stopLocations = [];
       }
@@ -155,41 +210,60 @@ export async function handleLocationUpdate(arg1, arg2) {
 
     case 'PARKED': {
       const d = getDistance(state.parkedLocation, currentLoc);
-      if (d > DIST_LEFT && walking) {
+      if (speed > SPEED_DRIVING) {
+        state.state = 'IDLE';
+        state.parkedLocation = null;
+        notify('Parking spot vacated. Driving detected.');
+      } else if (d > DIST_LEFT && walking) {
         state.state = 'LEFT_AREA';
         state.hasLeftArea = true;
+        // Declare the spot to the database when the user walks away
+        state.serverSpotId = await declareSpot(state.parkedLocation);
       }
       break;
     }
 
     case 'LEFT_AREA': {
       const d = getDistance(state.parkedLocation, currentLoc);
-      if (d < DIST_RETURN_TRIGGER && speed <= SPEED_ZERO) {
+      
+      if (speed > SPEED_DRIVING) {
+        // Direct departure (e.g., car was right outside your door)
+        state.state = 'EXIT_CONFIRMED';
+        if (state.serverSpotId) {
+          await updateSpotStatus(state.serverSpotId, 'free');
+        }
+      } else if (d < DIST_RETURN_TRIGGER && (walking || idle)) {
         state.state = 'POSSIBLE_RETURN';
+        if (state.serverSpotId) {
+          await updateSpotStatus(state.serverSpotId, 'soon_free');
+        }
       }
       break;
     }
 
     case 'POSSIBLE_RETURN': {
       const d = getDistance(state.parkedLocation, currentLoc);
-      if (d < DIST_RETURN_CONFIRM && walking) {
-        state.state = 'RETURN_CONFIRMED';
-      } else if (d > DIST_LEFT) {
+      
+      if (speed > SPEED_DRIVING) {
+        state.state = 'EXIT_CONFIRMED';
+        if (state.serverSpotId) {
+          await updateSpotStatus(state.serverSpotId, 'free');
+        }
+      } else if (d > DIST_RETURN_TRIGGER) {
+        // User walked away again
         state.state = 'LEFT_AREA';
+        if (state.serverSpotId) {
+          await updateSpotStatus(state.serverSpotId, 'occupied');
+        }
       }
       break;
     }
-
-    case 'RETURN_CONFIRMED':
-      if (speed > SPEED_DRIVING) {
-        state.state = 'EXIT_CONFIRMED';
-      }
-      break;
 
     case 'EXIT_CONFIRMED':
       if (speed <= SPEED_ZERO) {
         state.state = 'IDLE';
         state.parkedLocation = null;
+        state.serverSpotId = null;
       }
       break;
   }
@@ -202,7 +276,6 @@ export async function handleLocationUpdate(arg1, arg2) {
       'PARKED': '🅿️ Parking confirmed!',
       'LEFT_AREA': '🚶 You have left the vehicle.',
       'POSSIBLE_RETURN': '📍 Approaching vehicle...',
-      'RETURN_CONFIRMED': '👋 Welcome back!',
       'EXIT_CONFIRMED': '🛫 Leaving parking spot...',
       'IDLE': '💤 System Idle.'
     };
