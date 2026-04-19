@@ -926,7 +926,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
 
     // --- PROXIMITY CHECK: CONSUME EXISTING FREE/SOON_FREE SPOTS ---
     try {
-      const PROXIMITY_THRESHOLD_METERS = 10;
+      const PROXIMITY_THRESHOLD_METERS = 5;
       const candidates = await pool.query(
         "SELECT id, user_id, latitude, longitude FROM parking_spots WHERE status IN ('free', 'soon_free')"
       );
