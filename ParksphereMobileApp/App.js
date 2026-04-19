@@ -52,7 +52,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -72,6 +72,22 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
         />
+        <TouchableOpacity
+          style={[
+            styles.fab,
+            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
+          ]}
+          onPress={handleFabPress}
+          disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
+        >
+          {(acceptedSpot) ? (
+            <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
+          ) : (
+            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
+              {isAddingSpot ? 'X' : '+'}
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
       <Notifications notifications={notifications} />
     </View>
@@ -942,8 +958,8 @@ export default function App() {
   };
 
   const WrappedHomeScreen = useMemo(() => (props) => {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
-  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot]);
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} />;
+  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress]);
 
   // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {
@@ -1108,26 +1124,6 @@ export default function App() {
               <Tab.Screen name="Search" component={WrappedSearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
-            {activeScreen === 'Home' && (
-              <>
-                <TouchableOpacity 
-                  style={[
-                    styles.fab,
-                    (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
-                  ]} 
-                  onPress={handleFabPress}
-                  disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
-                >
-                  {(acceptedSpot) ? (
-                    <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
-                  ) : (
-                    <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
-                      {isAddingSpot ? 'X' : '+'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
           </View>
         ) : showRegister ? (
           <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
@@ -1399,7 +1395,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 170,
+    bottom: 20,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
