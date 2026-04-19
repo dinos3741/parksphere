@@ -22,7 +22,7 @@ const STATE = {
 const SPEED_THRESHOLD_VEHICLE = 15;
 const SPEED_THRESHOLD_IDLE = 3;
 const CONFIDENCE_THRESHOLD = 0.8;
-const DURATION_PARKED_CONFIRM = 300000;
+const DURATION_PARKED_CONFIRM = 180000; // 3 minutes instead of 5 minutes
 const DISTANCE_EXIT_CONFIRM = 50;
 const DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK = 30000;
 const DISTANCE_NEAR_CAR_WALKING = 10;
@@ -93,9 +93,15 @@ class ParkDetectionService {
     this.isInitialized = true;
     console.log(`[ParkDetection] Initialized. Current state: ${this.currentState}, Parked location: ${JSON.stringify(this.parkedLocation)}, Spot ID: ${this.currentSpotId}`);
 
-    DeviceEventEmitter.emit('parkDetectionUpdate', { message: 'Idle' });
-    }
+    // Map internal state to a friendly message for the UI
+    let initialMsg = 'Idle';
+    if (this.currentState === STATE.WALKING) initialMsg = 'Walking detected...';
+    if (this.currentState === STATE.DRIVING) initialMsg = 'Driving detected...';
+    if (this.currentState === STATE.PARKED) initialMsg = 'Parking spot identified!';
+    if (this.currentState === STATE.EXIT_CONFIRMED) initialMsg = 'Spot confirmed!';
 
+    DeviceEventEmitter.emit('parkDetectionUpdate', { message: initialMsg });
+    }
     startStepStreaming() {
     if (this.pedometerSubscription) this.pedometerSubscription.remove();
     this.pedometerSubscription = Pedometer.watchStepCount(result => {
@@ -388,7 +394,14 @@ class ParkDetectionService {
           );
           if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
             await this.transitionTo(STATE.POSSIBLE_RETURN);
+          } else if (d > 150 && steps > 10) {
+            // User is far from the car and walking elsewhere. 
+            // Reset to IDLE to allow new parking sessions.
+            await this.transitionTo(STATE.IDLE);
           }
+        } else {
+            // No parked location but in EXIT_CONFIRMED? Reset.
+            await this.transitionTo(STATE.IDLE);
         }
         break;
 
@@ -403,16 +416,18 @@ class ParkDetectionService {
           if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
             await this.transitionTo(STATE.POSSIBLE_RETURN);
           } else if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-            await this.transitionTo(STATE.IN_VEHICLE);
+            this.confidence[STATE.DRIVING] = 1.0; // Maintain driving state
+          } else if (d > 200) {
+              await this.transitionTo(STATE.IDLE);
           }
-        } else if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-          await this.transitionTo(STATE.IN_VEHICLE);
+        } else {
+          await this.transitionTo(STATE.IDLE);
         }
         break;
 
       case STATE.POSSIBLE_RETURN:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-          await this.transitionTo(STATE.IN_VEHICLE);
+        if (speedKmH > SPEED_THRESHOLD_VEHICLE) { // User started driving away again
+          await this.transitionTo(STATE.DRIVING);
         } else if (this.parkedLocation) {
           const d = this.getDistance(
             latitude,
@@ -420,11 +435,14 @@ class ParkDetectionService {
             this.parkedLocation.latitude,
             this.parkedLocation.longitude
           );
-          if (d > DISTANCE_RETURN_TO_CAR) {
-            // User moved away again after possibly returning
-            // We transition to IDLE as the spot is already considered left.
+          if (d < DISTANCE_RETURN_TO_CAR) { // User is close enough to the parked spot
+            // Speed check is removed as per user request; proximity is the main factor.
+            await this.transitionTo(STATE.POSSIBLE_RETURN); 
+          } else { // User is far from the parked location
             await this.transitionTo(STATE.IDLE);
           }
+        } else { // No parked location but in POSSIBLE_RETURN state? Reset.
+            await this.transitionTo(STATE.IDLE);
         }
         break;
     }
