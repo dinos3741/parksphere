@@ -181,16 +181,19 @@ export default function App() {
     
     let foregroundSubscription = null;
     const setupForegroundFallback = async () => {
-       const isEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
-       if (isEnabled === 'true') {
+       const storedEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+       const isEnabled = (storedEnabled === 'true') || (currentUser && currentUser.auto_detect);
+       
+       if (isEnabled) {
          foregroundSubscription = await Location.watchPositionAsync({
            accuracy: Location.Accuracy.High,
            distanceInterval: 1,
            timeInterval: 2000
-         }, (location) => {
-           handleLocationUpdate(location);
+         }, async (location) => {
+           await handleLocationUpdate(location);
          });
          console.log('App.js: Foreground location fallback started for Expo Go');
+         addNotification('Foreground detection active (Expo Go fallback)');
        }
     };
 

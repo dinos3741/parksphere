@@ -75,8 +75,7 @@ State Machine
    * POSSIBLE_WALK_AWAY: User has parked and is starting to walk away (over 5 steps, within 10 meters of car).
    * LEFT_SPOT: User has driven away from the parked spot; parkedLocation is cleared.
    * POSSIBLE_RETURN: User is returning to the vicinity of the parkedLocation (within 20 meters, low speed) after leaving. Displays "Returning to vehicle...".
-   * EXIT_CONFIRMED: User is confirmed to have left the parking spot (moved over 50 meters, took over 15 steps
-     from PARKED or POSSIBLE_WALK_AWAY).
+   * EXIT_CONFIRMED: User is confirmed to have left the parking spot (moved over 50 meters, took over 15 steps from PARKED or POSSIBLE_WALK_AWAY).
 
 ✦ I've implemented a "Collision Radius" (5 meters) in the server logic to address your concern. 
 
@@ -88,3 +87,65 @@ State Machine
 
   This ensures that "Free" markers aren't left behind as "ghosts" once someone else has physically occupied that space. The lifecycle is now self-cleaning based on proximity.
 
+✦ To test the new functionality, you can use a combination of API simulation (to verify the
+  lifecycle/de-duplication) and mobile simulation.
+
+  1. Testing the Lifecycle & Proximity (Server Logic)
+  You can use curl to simulate two different users parking in the same spot to see the "Collision Radius" in
+  action.
+
+  Step A: User 1 declares a spot
+
+   1 curl -X POST http://localhost:3001/api/declare-spot \
+   2   -H "Authorization: Bearer <USER_1_TOKEN>" \
+   3   -H "Content-Type: application/json" \
+   4   -d '{"latitude": 37.7749, "longitude": -122.4194, "timeToLeave": 60, "costType": "free"}'
+
+  Step B: User 1 "leaves" (status changes to free)
+  Find the spotId from the previous response:
+
+   1 curl -X PUT http://localhost:3001/api/parkingspots/<SPOT_ID>/status \
+   2   -H "Authorization: Bearer <USER_1_TOKEN>" \
+   3   -H "Content-Type: application/json" \
+   4   -d '{"status": "free"}'
+  At this point, the spot should turn Green on your map.
+
+  Step C: User 2 parks 2 meters away
+
+   1 curl -X POST http://localhost:3001/api/declare-spot \
+   2   -H "Authorization: Bearer <USER_2_TOKEN>" \
+   3   -H "Content-Type: application/json" \
+   4   -d '{"latitude": 37.77491, "longitude": -122.41941, "timeToLeave": 60, "costType": "free"}'
+  Verification:
+   - The server log should say: [Lifecycle] Consuming nearby spot <SPOT_ID> (Distance: ~1.5m)
+   - The Green spot should disappear from the map.
+   - A new Red spot should appear for User 2.
+
+  ---
+
+  2. Testing Park Detection (Mobile Simulation)
+  If you are using the iOS Simulator or Android Emulator, you can simulate the movement:
+
+   1. Open the App: Ensure "Auto-Detection" is enabled in your profile/settings.
+   2. Simulate Driving: 
+       - iOS: Features -> Location -> Freeway Drive.
+       - Android: Use the Extended Controls (three dots) -> Location -> Routes and play a route.
+       - Log Check: You should see "Driving detected..." in your notification log.
+   3. Simulate Parking:
+       - Stop the location simulation (set to a fixed point).
+       - Wait 30 seconds.
+       - You should see "Possible parking detected...".
+       - After 5 minutes (or you can temporarily reduce DURATION_PARKED_CONFIRM in parkDetectionService.js to 10
+         seconds for faster testing), it will transition to PARKED and you'll see "Parking spot identified!".
+   4. Simulate Walking Away:
+       - Move the simulated location by ~10-20 meters.
+       - You should see "Walking away detected...".
+   5. Simulate Returning:
+       - Move the location back to the car's original coordinates.
+       - You should see "Returning to vehicle..." and the spot marker on the map should turn Orange.
+
+
+
+
+
+ > ok i did another test: again ssame scenario, i walked to the car, started driving, detected driving state, but when i parked and walked away from the car, it took 6 minutes to display "possible parking  detected", and i stopped walking at that time, so i suspect that in order to detect  the possible parking state, the speed needs to be less than some threshold, so if the user is walking away from the car, it doesnt detect it. so we need to change the logic: we should detect the "possible park" state, only if the previous state was driving, and if the current speed is zero, and if there is walking or idle detected after at least 30 seconds. can we do that? we should check that these conditions are met (all three) for 2 minutes, and if yes, then we should transition to the state Parked. In the state "possible park" we should save the location temporarily. Then if we transition to the state "parked", then the location will be stored as the parked location. if we dont transition to the state parked, we delete this temporary location. Also we need to store the two previous and the current state, so we can identify the sequence. Is this clear? can we do that?

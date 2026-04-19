@@ -1,502 +1,277 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter } from 'react-native';
 import { Pedometer } from 'expo-sensors';
+import { DeviceEventEmitter } from 'react-native';
 
 export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 
-const STATE = {
-  IDLE: 'IDLE',
-  WALKING: 'WALKING',
-  DRIVING: 'DRIVING',
-  POSSIBLE_PARK: 'POSSIBLE_PARK',
-  PARKED: 'PARKED',
-  POSSIBLE_WALK_AWAY: 'POSSIBLE_WALK_AWAY',
-  LEFT_SPOT: 'LEFT_SPOT',
-  POSSIBLE_RETURN: 'POSSIBLE_RETURN',
-  EXIT_CONFIRMED: 'EXIT_CONFIRMED',
-};
+// ---------------- CONSTANTS ----------------
+const STORAGE_KEY = 'PARK_STATE';
 
-const SPEED_THRESHOLD_VEHICLE = 15;
-const SPEED_THRESHOLD_IDLE = 3;
-const CONFIDENCE_THRESHOLD = 0.8;
-const DURATION_PARKED_CONFIRM = 180000; // 3 minutes instead of 5 minutes
-const DISTANCE_EXIT_CONFIRM = 50;
-const DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK = 30000;
-const DISTANCE_NEAR_CAR_WALKING = 10;
-const DISTANCE_RETURN_TO_CAR = 20;
+const SPEED_DRIVING = 15;
+const SPEED_ZERO = 0.5;
 
-class ParkDetectionService {
-  constructor() {
-    this.currentState = STATE.IDLE;
-    this.lastTransitionTime = Date.now();
-    this.parkedLocation = null;
-    this.currentSpotId = null;
-    this.stepsAtParking = 0;
-    this.baselineSteps = 0;
-    this.liveSteps = 0;
-    this.pedometerSubscription = null;
-    this.isInitialized = false;
-    this.heartbeatInterval = null;
-    this.lastLowSpeedTime = 0;
-    this.tempLocation = null;
+const T_DRIVING_CONFIRM = 60000;
+const T_STOP_CONFIRM = 30000;
+const T_PARK_CONFIRM = 120000;
 
-    this.confidence = {
-      [STATE.DRIVING]: 0,
-      [STATE.PARKED]: 0,
-    };
+const DIST_STABLE = 10;
+const DIST_LEFT = 50;
+const DIST_RETURN_TRIGGER = 35;
+const DIST_RETURN_CONFIRM = 15;
 
-    this.autoDetectionEnabled = false;
-    }
+// ---------------- HELPERS ----------------
+function getDistance(a, b) {
+  if (!a || !b) return Infinity;
 
-    async initialize() {
-    if (this.isInitialized) return;
+  const R = 6371e3;
+  const φ1 = a.latitude * Math.PI / 180;
+  const φ2 = b.latitude * Math.PI / 180;
+  const Δφ = (b.latitude - a.latitude) * Math.PI / 180;
+  const Δλ = (b.longitude - a.longitude) * Math.PI / 180;
 
-    try {
-      const isAvailable = await Pedometer.isAvailableAsync();
-      const { status } = await Pedometer.requestPermissionsAsync();
+  const x =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
 
-      if (status === 'granted' && isAvailable) {
-        this.startStepStreaming();
-      }
-    } catch (e) {
-      console.warn('Pedometer error:', e);
-    }
-
-    const savedState = await AsyncStorage.getItem('park_detection_state');
-    const isEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
-    this.autoDetectionEnabled = isEnabled === 'true';
-
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        this.currentState = parsed.state || STATE.IDLE;
-
-        // Safety check: If we think we are PARKED but have no location, reset to IDLE
-        if (this.currentState === STATE.PARKED && !parsed.parkedLocation) {
-          console.warn('[ParkDetection] Invalid PARKED state detected (no location). Resetting to IDLE.');
-          this.currentState = STATE.IDLE;
-        }
-
-        this.lastTransitionTime = parsed.timestamp || Date.now();
-        this.parkedLocation = parsed.parkedLocation || null;
-        this.currentSpotId = parsed.currentSpotId || null;
-        this.stepsAtParking = parsed.stepsAtParking || 0;
-        this.baselineSteps = parsed.baselineSteps || 0;
-        this.confidence = parsed.confidence || this.confidence;
-      } catch (e) {}
-    }
-
-    this.heartbeatInterval = setInterval(() => this.runTimeBasedChecks(), 10000);
-    this.isInitialized = true;
-    console.log(`[ParkDetection] Initialized. Current state: ${this.currentState}, Parked location: ${JSON.stringify(this.parkedLocation)}, Spot ID: ${this.currentSpotId}`);
-
-    // Map internal state to a friendly message for the UI
-    let initialMsg = 'Idle';
-    if (this.currentState === STATE.WALKING) initialMsg = 'Walking detected...';
-    if (this.currentState === STATE.DRIVING) initialMsg = 'Driving detected...';
-    if (this.currentState === STATE.PARKED) initialMsg = 'Parking spot identified!';
-    if (this.currentState === STATE.EXIT_CONFIRMED) initialMsg = 'Spot confirmed!';
-
-    DeviceEventEmitter.emit('parkDetectionUpdate', { message: initialMsg });
-    }
-    startStepStreaming() {
-    if (this.pedometerSubscription) this.pedometerSubscription.remove();
-    this.pedometerSubscription = Pedometer.watchStepCount(result => {
-      this.liveSteps = result.steps;
-    });
-    }
-
-    async runTimeBasedChecks() {
-    if (!this.autoDetectionEnabled) return;
-
-    const now = Date.now();
-    const dt = now - this.lastTransitionTime;
-
-    if (this.currentState === STATE.WALKING && dt > 30000) {
-      await this.transitionTo(STATE.IDLE);
-    }
-
-    if (this.currentState === STATE.POSSIBLE_PARK) {
-      this.confidence[STATE.PARKED] = Math.min(1, dt / DURATION_PARKED_CONFIRM);
-      if (this.confidence[STATE.PARKED] > CONFIDENCE_THRESHOLD) {
-        await this.transitionTo(STATE.PARKED);
-      }
-    }
-    }
-
-    async transitionTo(newState) {
-    if (this.currentState === newState) return;
-
-    if (newState === STATE.PARKED) {
-      this.stepsAtParking = this.liveSteps;
-      if (this.parkedLocation) {
-        await this.declareParkingSpot(this.parkedLocation.latitude, this.parkedLocation.longitude);
-      }
-    }
-
-    if (newState === STATE.IDLE || newState === STATE.WALKING) {
-      this.baselineSteps = this.liveSteps;
-    }
-
-    this.currentState = newState;
-    this.lastTransitionTime = Date.now();
-
-    Object.keys(this.confidence).forEach(k => {
-      if (k !== newState) this.confidence[k] = 0;
-    });
-
-    await AsyncStorage.setItem('park_detection_state', JSON.stringify({
-      state: this.currentState,
-      timestamp: this.lastTransitionTime,
-      parkedLocation: this.parkedLocation,
-      currentSpotId: this.currentSpotId,
-      stepsAtParking: this.stepsAtParking,
-      baselineSteps: this.baselineSteps,
-      confidence: this.confidence,
-    }));
-
-    let msg = '';
-
-    if (newState === STATE.IDLE) msg = 'Idle';
-    if (newState === STATE.WALKING) msg = 'Walking detected...';
-    if (newState === STATE.DRIVING) msg = 'Driving detected...';
-    if (newState === STATE.POSSIBLE_PARK) msg = 'Possible parking detected...';
-    if (newState === STATE.POSSIBLE_WALK_AWAY) msg = 'Walking away detected...';
-
-    if (newState === STATE.PARKED) {
-      msg = 'Parking spot identified!';
-      await this.notifyUser('Parking Detected', 'Walk away to confirm.');
-    }
-
-    if (newState === STATE.POSSIBLE_RETURN) {
-      msg = 'Returning to vehicle...';
-      if (this.currentSpotId) {
-        await this.updateParkingSpotStatus('soon_free');
-      }
-    }
-
-    if (newState === STATE.LEFT_SPOT) {
-      msg = 'Leaving spot...';
-      if (this.currentSpotId) {
-        await this.updateParkingSpotStatus('free');
-      }
-      this.parkedLocation = null;
-      this.currentSpotId = null;
-    }
-
-    if (newState === STATE.EXIT_CONFIRMED) {
-      msg = 'Spot confirmed!';
-      await this.notifyUser('Spot shared', 'Your parking spot is now public.');
-    }
-
-    if (msg) {
-      DeviceEventEmitter.emit('parkDetectionUpdate', { message: msg });
-    }
-    }
-
-    async declareParkingSpot(latitude, longitude) {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const userId = await AsyncStorage.getItem('userId');
-      const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
-
-      if (!token || !userId) {
-        console.warn('[ParkDetection] No token or userId found, cannot declare spot.');
-        return;
-      }
-
-      console.log(`[ParkDetection] Attempting to declare spot at ${latitude}, ${longitude}`);
-
-      const response = await fetch(`${serverUrl}/api/declare-spot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: parseInt(userId, 10),
-          latitude,
-          longitude,
-          timeToLeave: 60, // Default to 60 minutes for auto-detected spots
-          costType: 'free',
-          price: 0,
-          declaredCarType: 'sedan', // Should ideally come from user profile
-          comments: 'Auto-detected parking spot',
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        this.currentSpotId = data.spotId;
-        console.log('[ParkDetection] Spot declared successfully:', this.currentSpotId);
-
-        // Save state again with currentSpotId
-        await AsyncStorage.setItem('park_detection_state', JSON.stringify({
-          state: this.currentState,
-          timestamp: this.lastTransitionTime,
-          parkedLocation: this.parkedLocation,
-          currentSpotId: this.currentSpotId,
-          stepsAtParking: this.stepsAtParking,
-          baselineSteps: this.baselineSteps,
-          confidence: this.confidence,
-        }));
-
-        // await this.notifyUser('Spot Shared', 'Your parking spot has been automatically shared.');
-      } else {
-        const errorData = await response.json();
-        console.error('[ParkDetection] Failed to declare spot:', response.status, errorData.message);
-      }
-    } catch (error) {
-      console.error('[ParkDetection] Error declaring spot:', error);
-    }
-    }
-
-    async updateParkingSpotStatus(status) {
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
-
-      if (!token || !this.currentSpotId) {
-        console.warn('[ParkDetection] No token or spotId found, cannot update status.');
-        return;
-      }
-
-      console.log(`[ParkDetection] Attempting to update spot ${this.currentSpotId} status to ${status}`);
-
-      const response = await fetch(`${serverUrl}/api/parkingspots/${this.currentSpotId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
-
-      if (response.ok) {
-        console.log('[ParkDetection] Spot status updated successfully:', status);
-      } else {
-        const errorData = await response.json();
-        console.error('[ParkDetection] Failed to update spot status:', response.status, errorData.message);
-      }
-    } catch (error) {
-      console.error('[ParkDetection] Error updating spot status:', error);
-    }
-    }
-
-    async notifyUser(title, body) {    await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true },
-      trigger: null,
-    });
-    }
-
-    async handleLocationUpdate(location) {
-    if (!this.isInitialized) await this.initialize();
-    if (!this.autoDetectionEnabled) return;
-
-    const { speed, latitude, longitude } = location.coords;
-    const speedKmH = (speed || 0) * 3.6;
-
-    if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-      this.confidence[STATE.DRIVING] = Math.min(1, this.confidence[STATE.DRIVING] + 0.2);
-    } else {
-      this.confidence[STATE.DRIVING] = Math.max(0, this.confidence[STATE.DRIVING] - 0.1);
-    }
-
-    let steps = this.liveSteps - this.baselineSteps;
-    // If the baseline from storage is higher than current live steps, the pedometer likely reset.
-    // Reset baseline to current live steps to normalize.
-    if (steps < 0 && this.baselineSteps > 0) {
-      this.baselineSteps = this.liveSteps;
-      steps = 0;
-    }
-
-    switch (this.currentState) {
-      case STATE.IDLE:
-        if (steps > 3) {
-            await this.transitionTo(STATE.WALKING);
-        }
-        else if (this.confidence[STATE.DRIVING] > CONFIDENCE_THRESHOLD)
-          await this.transitionTo(STATE.DRIVING);
-        break;
-
-      case STATE.WALKING:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE)
-          await this.transitionTo(STATE.DRIVING);
-        break;
-
-      case STATE.DRIVING:
-        if (speedKmH < SPEED_THRESHOLD_IDLE) {
-          if (this.lastLowSpeedTime === 0) {
-            this.lastLowSpeedTime = Date.now();
-            this.tempLocation = { latitude, longitude };
-          } else if ((Date.now() - this.lastLowSpeedTime) > DURATION_LOW_SPEED_BEFORE_POSSIBLE_PARK) {
-            this.parkedLocation = this.tempLocation;
-            await this.transitionTo(STATE.POSSIBLE_PARK);
-            this.lastLowSpeedTime = 0; // Reset after transition
-          }
-        } else {
-          this.lastLowSpeedTime = 0; // Reset if speed increases
-        }
-        break;
-
-      case STATE.PARKED:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-          await this.transitionTo(STATE.LEFT_SPOT);
-        } else if (this.parkedLocation) {
-          const d = this.getDistance(
-            latitude,
-            longitude,
-            this.parkedLocation.latitude,
-            this.parkedLocation.longitude
-          );
-          const stepsAway = this.liveSteps - this.stepsAtParking;
-
-          if (stepsAway > 5 && d < DISTANCE_NEAR_CAR_WALKING) {
-            await this.transitionTo(STATE.POSSIBLE_WALK_AWAY);
-          } else if (d > DISTANCE_EXIT_CONFIRM && stepsAway > 15) {
-            await this.transitionTo(STATE.EXIT_CONFIRMED);
-          }
-        }
-        break;
-
-      case STATE.POSSIBLE_WALK_AWAY:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-          await this.transitionTo(STATE.LEFT_SPOT);
-        } else if (this.parkedLocation) {
-          const d = this.getDistance(
-            latitude,
-            longitude,
-            this.parkedLocation.latitude,
-            this.parkedLocation.longitude
-          );
-          const stepsAway = this.liveSteps - this.stepsAtParking;
-
-          if (d > DISTANCE_EXIT_CONFIRM && stepsAway > 15) {
-            await this.transitionTo(STATE.EXIT_CONFIRMED);
-          } else if (stepsAway < 5 && d < DISTANCE_NEAR_CAR_WALKING) { // User came back or stopped walking
-            await this.transitionTo(STATE.PARKED);
-          }
-        }
-        break;
-
-      case STATE.EXIT_CONFIRMED:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-          await this.transitionTo(STATE.LEFT_SPOT);
-        } else if (this.parkedLocation) {
-          const d = this.getDistance(
-            latitude,
-            longitude,
-            this.parkedLocation.latitude,
-            this.parkedLocation.longitude
-          );
-          if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
-            await this.transitionTo(STATE.POSSIBLE_RETURN);
-          } else if (d > 150 && steps > 10) {
-            // User is far from the car and walking elsewhere. 
-            // Reset to IDLE to allow new parking sessions.
-            await this.transitionTo(STATE.IDLE);
-          }
-        } else {
-            // No parked location but in EXIT_CONFIRMED? Reset.
-            await this.transitionTo(STATE.IDLE);
-        }
-        break;
-
-      case STATE.LEFT_SPOT: // Also check if returned to car after leaving spot
-        if (this.parkedLocation) {
-          const d = this.getDistance(
-            latitude,
-            longitude,
-            this.parkedLocation.latitude,
-            this.parkedLocation.longitude
-          );
-          if (d < DISTANCE_RETURN_TO_CAR && speedKmH < SPEED_THRESHOLD_IDLE) {
-            await this.transitionTo(STATE.POSSIBLE_RETURN);
-          } else if (speedKmH > SPEED_THRESHOLD_VEHICLE) {
-            this.confidence[STATE.DRIVING] = 1.0; // Maintain driving state
-          } else if (d > 200) {
-              await this.transitionTo(STATE.IDLE);
-          }
-        } else {
-          await this.transitionTo(STATE.IDLE);
-        }
-        break;
-
-      case STATE.POSSIBLE_RETURN:
-        if (speedKmH > SPEED_THRESHOLD_VEHICLE) { // User started driving away again
-          await this.transitionTo(STATE.DRIVING);
-        } else if (this.parkedLocation) {
-          const d = this.getDistance(
-            latitude,
-            longitude,
-            this.parkedLocation.latitude,
-            this.parkedLocation.longitude
-          );
-          if (d < DISTANCE_RETURN_TO_CAR) { // User is close enough to the parked spot
-            // Speed check is removed as per user request; proximity is the main factor.
-            await this.transitionTo(STATE.POSSIBLE_RETURN); 
-          } else { // User is far from the parked location
-            await this.transitionTo(STATE.IDLE);
-          }
-        } else { // No parked location but in POSSIBLE_RETURN state? Reset.
-            await this.transitionTo(STATE.IDLE);
-        }
-        break;
-    }
-  }
-
-  getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a =
-      Math.sin(Δφ/2) ** 2 +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ/2) ** 2;
-
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-  }
+  return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
 }
 
-const detectionService = new ParkDetectionService();
+function average(points) {
+  const lat = points.reduce((s, p) => s + p.latitude, 0) / points.length;
+  const lon = points.reduce((s, p) => s + p.longitude, 0) / points.length;
+  return { latitude: lat, longitude: lon };
+}
 
-export const handleLocationUpdate = async (location) => {
-  await detectionService.handleLocationUpdate(location);
-};
+function notify(message) {
+  console.log(`[ParkDetection] ${message}`);
+  DeviceEventEmitter.emit('parkDetectionUpdate', { message });
+}
 
-TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data }) => {
-  if (!data) return;
+// ---------------- CORE ENGINE ----------------
+export async function handleLocationUpdate(arg1, arg2) {
+  let state, location;
+  let isInternal = false;
 
-  for (const location of data.locations) {
-    await detectionService.handleLocationUpdate(location);
+  if (arg2) {
+    state = arg1;
+    location = arg2;
+    isInternal = true;
+  } else {
+    location = arg1;
+    try {
+      const saved = await AsyncStorage.getItem(STORAGE_KEY);
+      state = saved ? JSON.parse(saved) : {};
+    } catch {
+      state = {};
+    }
   }
+
+  const now = Date.now();
+  const dt = now - (state.lastUpdate || now);
+  const isFirstUpdate = !state.lastUpdate;
+  state.lastUpdate = now;
+
+  const speed = (location.coords.speed || 0) * 3.6;
+
+  const currentLoc = {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+  };
+
+  // fallback walking detection (pedometer unreliable in background)
+  const walking = speed > 1 && speed < 6;
+  const idle = speed <= 1;
+
+  const prevState = state.state || 'IDLE';
+  state.state = prevState;
+
+  if (isFirstUpdate) {
+    notify(`Service active. Initial state: ${state.state}`);
+  }
+
+  switch (state.state) {
+    case 'IDLE':
+      if (speed > SPEED_DRIVING) {
+        state.drivingTime = (state.drivingTime || 0) + dt;
+        if (state.drivingTime > T_DRIVING_CONFIRM) {
+          state.state = 'DRIVING';
+        }
+      } else if (walking) {
+        state.state = 'WALKING';
+      }
+      break;
+
+    case 'WALKING':
+      if (speed > SPEED_DRIVING) {
+        state.state = 'DRIVING';
+      } else if (idle) {
+        state.state = 'IDLE';
+      }
+      break;
+
+    case 'DRIVING':
+      if (speed <= SPEED_ZERO) {
+        state.stopTime = (state.stopTime || 0) + dt;
+
+        if (state.stopTime > T_STOP_CONFIRM) {
+          state.stopLocations = [currentLoc];
+          state.maxDistance = 0;
+          state.parkTime = 0;
+          state.state = 'POSSIBLE_PARK';
+        }
+      } else {
+        state.stopTime = 0;
+      }
+      break;
+
+    case 'POSSIBLE_PARK': {
+      const base = state.stopLocations[0];
+      const dist = getDistance(base, currentLoc);
+
+      state.maxDistance = Math.max(state.maxDistance || 0, dist);
+
+      const valid =
+        speed <= SPEED_ZERO &&
+        (walking || idle) &&
+        state.maxDistance < DIST_STABLE;
+
+      if (valid) {
+        state.parkTime = (state.parkTime || 0) + dt;
+        state.stopLocations.push(currentLoc);
+
+        if (state.parkTime > T_PARK_CONFIRM) {
+          state.parkedLocation = average(state.stopLocations);
+          state.state = 'PARKED';
+          state.hasLeftArea = false;
+        }
+      } else {
+        state.state = 'DRIVING';
+        state.stopLocations = [];
+      }
+      break;
+    }
+
+    case 'PARKED': {
+      const d = getDistance(state.parkedLocation, currentLoc);
+      if (d > DIST_LEFT && walking) {
+        state.state = 'LEFT_AREA';
+        state.hasLeftArea = true;
+      }
+      break;
+    }
+
+    case 'LEFT_AREA': {
+      const d = getDistance(state.parkedLocation, currentLoc);
+      if (d < DIST_RETURN_TRIGGER && speed <= SPEED_ZERO) {
+        state.state = 'POSSIBLE_RETURN';
+      }
+      break;
+    }
+
+    case 'POSSIBLE_RETURN': {
+      const d = getDistance(state.parkedLocation, currentLoc);
+      if (d < DIST_RETURN_CONFIRM && walking) {
+        state.state = 'RETURN_CONFIRMED';
+      } else if (d > DIST_LEFT) {
+        state.state = 'LEFT_AREA';
+      }
+      break;
+    }
+
+    case 'RETURN_CONFIRMED':
+      if (speed > SPEED_DRIVING) {
+        state.state = 'EXIT_CONFIRMED';
+      }
+      break;
+
+    case 'EXIT_CONFIRMED':
+      if (speed <= SPEED_ZERO) {
+        state.state = 'IDLE';
+        state.parkedLocation = null;
+      }
+      break;
+  }
+
+  if (state.state !== prevState) {
+    const messages = {
+      'DRIVING': '🚗 Driving detected...',
+      'WALKING': '🚶 Walking detected...',
+      'POSSIBLE_PARK': '⏱️ Vehicle stopped. Monitoring...',
+      'PARKED': '🅿️ Parking confirmed!',
+      'LEFT_AREA': '🚶 You have left the vehicle.',
+      'POSSIBLE_RETURN': '📍 Approaching vehicle...',
+      'RETURN_CONFIRMED': '👋 Welcome back!',
+      'EXIT_CONFIRMED': '🛫 Leaving parking spot...',
+      'IDLE': '💤 System Idle.'
+    };
+    notify(messages[state.state] || `System State: ${state.state}`);
+  }
+
+  if (!isInternal) {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
+  }
+
+  return state;
+}
+
+// ---------------- TASK ----------------
+TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
+  if (error || !data) return;
+
+  let state = {};
+
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    if (saved) state = JSON.parse(saved);
+  } catch {}
+
+  for (const loc of data.locations) {
+    state = await handleLocationUpdate(state, loc);
+  }
+
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {}
 });
 
+// ---------------- START ----------------
 export const startParkDetection = async () => {
-  await detectionService.initialize();
-  detectionService.autoDetectionEnabled = true;
+  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+  if (fgStatus !== 'granted') {
+    notify('Foreground location permission denied.');
+    return;
+  }
 
-  await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-    accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 2000,
-    deferredUpdatesInterval: 2000,
-    foregroundService: {
-      notificationTitle: 'Auto Detection',
-      notificationBody: 'Monitoring parking...',
-    },
-  });
+  const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+  if (bgStatus !== 'granted') {
+    notify('Background location permission denied. Auto-detection may be limited.');
+  }
+
+  const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
+  if (!started) {
+    await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
+      accuracy: Location.Accuracy.Balanced,
+      timeInterval: 5000,
+      deferredUpdatesInterval: 5000,
+      showsBackgroundLocationIndicator: true,
+    });
+    notify('Background detection started.');
+  } else {
+    notify('Detection service is already running.');
+  }
 };
 
+// ---------------- STOP ----------------
 export const stopParkDetection = async () => {
-  detectionService.autoDetectionEnabled = false;
+  const started = await Location.hasStartedLocationUpdatesAsync(
+    PARK_DETECTION_TASK
+  );
 
-  if (await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK)) {
+  if (started) {
     await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK);
   }
 };
