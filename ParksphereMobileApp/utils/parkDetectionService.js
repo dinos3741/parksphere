@@ -18,10 +18,23 @@ const T_PARK_CONFIRM = 120000;
 
 const DIST_STABLE = 10;
 const DIST_LEFT = 30;
-const DIST_RETURN_TRIGGER = 35;
+const DIST_RETURN_TRIGGER = 50; // Increased to 50m for earlier broadcast
 const DIST_RETURN_CONFIRM = 15;
 
 // ---------------- HELPERS ----------------
+function getBearing(start, end) {
+  const startLat = start.latitude * Math.PI / 180;
+  const startLon = start.longitude * Math.PI / 180;
+  const endLat = end.latitude * Math.PI / 180;
+  const endLon = end.longitude * Math.PI / 180;
+
+  const y = Math.sin(endLon - startLon) * Math.cos(endLat);
+  const x = Math.cos(startLat) * Math.sin(endLat) -
+            Math.sin(startLat) * Math.cos(endLat) * Math.cos(endLon - startLon);
+  const bearing = Math.atan2(y, x) * 180 / Math.PI;
+  return (bearing + 360) % 360;
+}
+
 async function declareSpot(location) {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -227,15 +240,37 @@ export async function handleLocationUpdate(arg1, arg2) {
       const d = getDistance(state.parkedLocation, currentLoc);
       
       if (speed > SPEED_DRIVING) {
-        // Direct departure (e.g., car was right outside your door)
         state.state = 'EXIT_CONFIRMED';
         if (state.serverSpotId) {
           await updateSpotStatus(state.serverSpotId, 'free');
         }
       } else if (d < DIST_RETURN_TRIGGER && (walking || idle)) {
-        state.state = 'POSSIBLE_RETURN';
-        if (state.serverSpotId) {
-          await updateSpotStatus(state.serverSpotId, 'soon_free');
+        // VECTOR ANALYSIS: Is the user moving TOWARDS the car?
+        let isHeadingToCar = false;
+        
+        const bearingToCar = getBearing(currentLoc, state.parkedLocation);
+        const userHeading = location.coords.heading; // 0-360 degrees
+
+        if (userHeading !== null && userHeading !== undefined && userHeading >= 0) {
+          const diff = Math.abs(userHeading - bearingToCar);
+          const angle = diff > 180 ? 360 - diff : diff;
+          if (angle < 45) isHeadingToCar = true; // Heading within 45 degrees of car
+        } else if (state.prevLoc) {
+          // Fallback: calculate heading from movement vector
+          const actualHeading = getBearing(state.prevLoc, currentLoc);
+          const diff = Math.abs(actualHeading - bearingToCar);
+          const angle = diff > 180 ? 360 - diff : diff;
+          // Use a tighter angle for movement vector to be sure
+          if (angle < 40 && getDistance(state.prevLoc, currentLoc) > 2) isHeadingToCar = true;
+        }
+
+        // Trigger if heading to car OR if very close (15m fallback)
+        if (isHeadingToCar || d < 15) {
+          state.state = 'POSSIBLE_RETURN';
+          if (state.serverSpotId) {
+            await updateSpotStatus(state.serverSpotId, 'soon_free');
+          }
+          notify('Approaching vehicle detected via vector analysis.');
         }
       }
       break;
@@ -281,6 +316,8 @@ export async function handleLocationUpdate(arg1, arg2) {
     };
     notify(messages[state.state] || `System State: ${state.state}`);
   }
+
+  state.prevLoc = currentLoc;
 
   if (!isInternal) {
     try {
