@@ -842,6 +842,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const conditions = [];
 
   try {
+    const userId = req.user.userId;
     if (filter) {
       if (filter === 'available') { 
         conditions.push("ps.status IN ('free', 'soon_free')");
@@ -854,6 +855,10 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
         queryParams.push(minutes);
       }
     }
+
+    // --- PRIVACY LOGIC: Only show occupied spots to their owners ---
+    conditions.push(`(ps.status != 'occupied' OR ps.user_id = $${queryParams.length + 1})`);
+    queryParams.push(userId);
 
     // Add car type filtering
     if (userCarType && CAR_SIZE_HIERARCHY[userCarType.toLowerCase()] !== undefined) {
@@ -965,7 +970,15 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     const username = userResult.rows[0].username;
     const spotToEmit = { ...newSpot, username };
 
-    io.emit('newParkingSpot', spotToEmit); // Emit new spot event with username
+    if (newSpot.status === 'occupied') {
+      // PRIVACY: Only emit to the owner
+      if (userSockets[userId]) {
+        userSockets[userId].forEach(s => io.to(s.socketId).emit('newParkingSpot', spotToEmit));
+      }
+    } else {
+      // PUBLIC: Emit to everyone
+      io.emit('newParkingSpot', spotToEmit);
+    }
     res.status(201).json({ message: 'Spot declared successfully!', spotId: newSpot.id });
   } catch (error) {
     console.error('Error declaring spot:', error);
@@ -993,10 +1006,11 @@ app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
   }
 
   try {
-    const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    const spotResult = await pool.query('SELECT user_id, status FROM parking_spots WHERE id = $1', [spotId]);
     if (spotResult.rows.length === 0) {
       return res.status(404).json({ message: 'Spot not found.' });
     }
+    const oldStatus = spotResult.rows[0].status;
     if (spotResult.rows[0].user_id !== userId) {
       return res.status(403).json({ message: 'Unauthorized.' });
     }
@@ -1007,7 +1021,16 @@ app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
     );
 
     const updatedSpot = result.rows[0];
-    io.emit('spotStatusUpdated', updatedSpot);
+    const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    updatedSpot.username = userResult.rows[0].username;
+
+    if (oldStatus === 'occupied' && (status === 'soon_free' || status === 'free')) {
+      // First time becoming public
+      io.emit('newParkingSpot', updatedSpot);
+    } else {
+      io.emit('spotStatusUpdated', updatedSpot);
+    }
+    
     res.status(200).json({ message: 'Status updated successfully.', spot: updatedSpot });
   } catch (error) {
     console.error('Error updating spot status:', error);
