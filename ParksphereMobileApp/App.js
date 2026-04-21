@@ -87,6 +87,7 @@ export default function App() {
   const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
   const messagePlayer = useAudioPlayer(require('./assets/sounds/message-sound.wav'));
 
+
   const playSound = useCallback(() => {
     // console.log('Playing Sound'); // Removed log
     newRequestPlayer.play();

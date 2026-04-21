@@ -1,0 +1,12 @@
+feat: Implement resizable notification windows and revert mobile FAB positioning
+
+This commit introduces resizable notification windows for both the web and mobile applications.
+
+Changes include:
+- **Web (`client/src/components/NotificationLog.js` and `.css`):** Implemented a draggable resize handle at the top of the notification log container, allowing users to adjust its height.
+- **Mobile (`ParksphereMobileApp/components/Notifications.js`):** Implemented a resizable notification area using `PanResponder` and `Animated` for touch-based height adjustments.
+
+Additionally, all attempts to dynamically position the mobile FAB button were reverted to restore the previous functionality. This includes:
+- Reverting inline styles on the FAB `TouchableOpacity`.
+- Removing temporary state (`notificationAreaHeight`) and `useMemo` (`fabBottomPosition`) related to FAB positioning.
+- Removing `onNotificationHeightChange` prop from `HomeScreen` and the `Notifications` component.

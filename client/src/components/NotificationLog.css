@@ -3,10 +3,36 @@
   border-top: 1px solid #dee2e6;
   border-bottom: 1px solid #dee2e6;
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.05);
-  height: 140px;
   box-sizing: border-box;
-  padding: 10px;
+  padding: 10px; /* Uniform padding */
   margin: 0 10px 20px 10px; /* Match map container margin */
+  display: flex;
+  flex-direction: column;
+}
+
+.resize-handle {
+  height: 10px;
+  cursor: ns-resize;
+  background-color: #cccccc; /* Make it more prominent */
+  border-bottom: 1px solid #dee2e6;
+  width: 100%; /* Fill container width */
+  margin: -10px -10px 5px -10px; /* Pull into the top padding, extend to edges */
+  border-top-left-radius: .25rem;
+  border-top-right-radius: .25rem;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0 10px; /* Visual padding for the handle itself */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resize-handle::before {
+  content: ' ';
+  height: 2px;
+  width: 40px;
+  background-color: #999999;
+  border-radius: 1px;
 }
 
 .notification-log {
@@ -14,9 +40,10 @@
   border-radius: .25rem;
   background-color: #fff;
   padding: 8px;
-  height: 100%;
+  flex-grow: 1;
   box-sizing: border-box;
-  overflow-y: auto; /* Make this element scrollable */
+  overflow-y: auto;
+  /* Removed margin-top, handle's margin-bottom creates space */
 }
 
 .notification-message {
@@ -24,6 +51,6 @@
   font-family: monospace;
   font-size: 12px;
   white-space: pre-wrap;
-  color: #000; /* Explicitly set text color to black */
+  color: #000;
   text-align: left;
 }
