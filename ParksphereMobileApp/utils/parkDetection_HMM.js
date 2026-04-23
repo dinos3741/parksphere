@@ -12,14 +12,14 @@ export const STATES = [
 
 // Transition Matrix A[from][to]
 export const A = {
-  IDLE: { IDLE: 0.8, WALKING: 0.15, DRIVING: 0.05 },
-  WALKING: { WALKING: 0.8, IDLE: 0.1, IN_CAR: 0.1 },
+  IDLE: { IDLE: 0.7, WALKING: 0.15, DRIVING: 0.05, PARKED: 0.1 },
+  WALKING: { WALKING: 0.7, IDLE: 0.1, IN_CAR: 0.1, RETURNING: 0.1 },
   DRIVING: { DRIVING: 0.85, STOPPED: 0.14, PARKED: 0.01 }, // Transition to PARKED from DRIVING is very low
-  STOPPED: { DRIVING: 0.4, STOPPED: 0.4, PARKED: 0.2 }, // Transition to PARKED from STOPPED is 0.2
+  STOPPED: { DRIVING: 0.3, STOPPED: 0.4, PARKED: 0.3 }, // Increased probability to PARKED from STOPPED
   PARKED: { PARKED: 0.7, WALKING_AWAY: 0.25, AWAY: 0.05 },
   WALKING_AWAY: { WALKING_AWAY: 0.6, AWAY: 0.4 },
-  AWAY: { AWAY: 0.8, RETURNING: 0.2 },
-  RETURNING: { RETURNING: 0.6, IN_CAR: 0.2, AWAY: 0.2 },
+  AWAY: { AWAY: 0.7, RETURNING: 0.3 }, // Increased RETURNING probability
+  RETURNING: { RETURNING: 0.6, IN_CAR: 0.3, AWAY: 0.1 },
   IN_CAR: { DRIVING: 0.7, STOPPED: 0.3 }
 };
 
@@ -61,11 +61,13 @@ export function emissionLogProb(state, obs) {
   if (apple_activity && apple_activity !== 'UNKNOWN') {
     const w = apple_confidence === 'HIGH' ? 1.0 : (apple_confidence === 'MEDIUM' ? 0.5 : 0.2);
     if (apple_activity === 'AUTOMOTIVE') {
-      logp += (state === 'DRIVING' || state === 'STOPPED') ? Math.log(1 + 2.5 * w) : Math.log(0.001);
+      logp += (state === 'DRIVING' || state === 'STOPPED' || state === 'IN_CAR') ? Math.log(1 + 3.0 * w) : Math.log(0.001);
     } else if (['WALKING', 'RUNNING'].includes(apple_activity)) {
-      logp += ['WALKING', 'WALKING_AWAY', 'RETURNING', 'AWAY'].includes(state) ? Math.log(1 + 2.0 * w) : Math.log(0.01);
+      logp += ['WALKING', 'WALKING_AWAY', 'RETURNING', 'AWAY'].includes(state) ? Math.log(1 + 2.5 * w) : Math.log(0.01);
     } else if (apple_activity === 'STATIONARY') {
-      if (['IDLE', 'STOPPED', 'PARKED', 'IN_CAR'].includes(state)) logp += Math.log(1 + 1.0 * w);
+      // Heavily favor PARKED or IDLE when stationary
+      if (['PARKED', 'IDLE', 'STOPPED'].includes(state)) logp += Math.log(1 + 4.0 * w);
+      else logp += Math.log(0.01);
     }
   }
 
@@ -156,8 +158,9 @@ export function stableStateUpdate(newBelief) {
 
   console.log(`[HMM] Best State Candidate: ${bestState} with confidence ${confidence.toFixed(4)}`); // Log best state candidate and confidence
 
-  // Update currentState only if confidence is high and the best state is different from current
-  if (bestState !== currentState && confidence > 0.85) {
+  // Update currentState only if confidence is high enough and the best state is different from current
+  // Lowered threshold from 0.85 to 0.70 for better responsiveness in field tests
+  if (bestState !== currentState && confidence > 0.70) {
     currentState = bestState;
     console.log(`[HMM] State updated to: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
   } else if (bestState === currentState) {
