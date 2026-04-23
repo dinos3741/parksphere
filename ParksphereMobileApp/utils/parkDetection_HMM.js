@@ -6,7 +6,7 @@ import { DeviceEventEmitter, Platform } from 'react-native';
  */
 
 export const STATES = [
-  'IDLE', 'WALKING', 'DRIVING', 'STOPPED', 'PARKED', 
+  'IDLE', 'WALKING', 'DRIVING', 'STOPPED', 'PARKED',
   'WALKING_AWAY', 'AWAY', 'RETURNING', 'IN_CAR'
 ];
 
@@ -14,8 +14,8 @@ export const STATES = [
 export const A = {
   IDLE: { IDLE: 0.8, WALKING: 0.15, DRIVING: 0.05 },
   WALKING: { WALKING: 0.8, IDLE: 0.1, IN_CAR: 0.1 },
-  DRIVING: { DRIVING: 0.85, STOPPED: 0.14, PARKED: 0.01 },
-  STOPPED: { DRIVING: 0.4, STOPPED: 0.4, PARKED: 0.2 },
+  DRIVING: { DRIVING: 0.85, STOPPED: 0.14, PARKED: 0.01 }, // Transition to PARKED from DRIVING is very low
+  STOPPED: { DRIVING: 0.4, STOPPED: 0.4, PARKED: 0.2 }, // Transition to PARKED from STOPPED is 0.2
   PARKED: { PARKED: 0.7, WALKING_AWAY: 0.25, AWAY: 0.05 },
   WALKING_AWAY: { WALKING_AWAY: 0.6, AWAY: 0.4 },
   AWAY: { AWAY: 0.8, RETURNING: 0.2 },
@@ -83,7 +83,7 @@ let MotionActivity = null;
 
 export function initMotionTracking() {
   if (Platform.OS === 'web') return;
-  
+
   try {
     // Lazy load the module only when needed to avoid crash at startup
     if (!MotionActivity) {
@@ -109,6 +109,7 @@ export function initMotionTracking() {
   }
 }
 
+// Modified processLocationHMM to return belief, state, candidate and confidence
 export async function processLocationHMM(location, parkedLocation) {
   // Ensure speed is not negative (invalid GPS data)
   const rawSpeed = location.coords.speed || 0;
@@ -121,13 +122,16 @@ export async function processLocationHMM(location, parkedLocation) {
     apple_activity: lastActivityType,
     apple_confidence: lastConfidence
   };
+  console.log('[HMM] Observed Data Vector:', obs); // Log observed data vector
 
   const newBelief = updateBelief(belief, obs);
-  const newState = stableStateUpdate(newBelief);
+  const { state: newState, bestState, confidence } = stableStateUpdate(newBelief); 
 
-  return { state: newState, belief: newBelief, obs };
+  // Return the new state, best candidate, confidence and belief distribution
+  return { state: newState, bestState, confidence, belief: newBelief }; 
 }
 
+// Modified updateBelief to log newBelief
 export function updateBelief(prevBelief, obs) {
   const newBelief = {};
   for (const s of STATES) {
@@ -139,19 +143,31 @@ export function updateBelief(prevBelief, obs) {
   }
   const total = Object.values(newBelief).reduce((a, b) => a + b, 0) || 1;
   for (const s of STATES) newBelief[s] /= total;
+
+  console.log('[HMM] Belief Distribution:', newBelief); // Log belief distribution
   return newBelief;
 }
 
+// Modified stableStateUpdate to return state, bestState and confidence, and log best state/confidence
 export function stableStateUpdate(newBelief) {
   const sorted = Object.entries(newBelief).sort((a, b) => b[1] - a[1]);
-  const best = sorted[0][0];
+  const bestState = sorted[0][0];
   const confidence = sorted[0][1];
 
-  if (best !== currentState && confidence > 0.85) {
-    currentState = best;
+  console.log(`[HMM] Best State Candidate: ${bestState} with confidence ${confidence.toFixed(4)}`); // Log best state candidate and confidence
+
+  // Update currentState only if confidence is high and the best state is different from current
+  if (bestState !== currentState && confidence > 0.85) {
+    currentState = bestState;
+    console.log(`[HMM] State updated to: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
+  } else if (bestState === currentState) {
+     console.log(`[HMM] State remains: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
+  } else {
+     console.log(`[HMM] State remains: ${currentState} (Confidence: ${confidence.toFixed(4)}), but candidate ${bestState} did not meet confidence threshold.`);
   }
-  belief = newBelief;
-  return currentState;
+  
+  belief = newBelief; // Update global belief
+  return { state: currentState, bestState, confidence }; // Return the actual determined state and details
 }
 
 function getDistance(a, b) {
@@ -168,4 +184,5 @@ export const resetHMM = () => {
   currentState = 'IDLE';
   belief = {};
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1.0 : 0.0;
+  console.log('[HMM] HMM Reset to IDLE state.');
 };

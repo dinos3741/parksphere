@@ -52,8 +52,6 @@ const Login = ({ onLogin, onRegister }) => {
       } else if (response.type === 'cancel') {
         console.log('Google Auth Cancelled by user');
       }
-    } else {
-      console.log('Google Auth Response is null (initial state)');
     }
   }, [response]);
 

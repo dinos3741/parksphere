@@ -170,7 +170,6 @@ export default function App() {
   // Notification and Auto-Detection setup
   useEffect(() => {
     // 1. Register listener FIRST
-    console.log('App.js: Registering parkDetectionUpdate listener');
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
       console.log('App.js: Received park detection update:', data.message);
       addNotification(data.message);
@@ -227,7 +226,7 @@ export default function App() {
       detectionSubscription.remove();
       stopParkDetection(); // Ensure detection stops when unmounting or user changes
     };
-  }, [isLoggedIn, currentUser]);
+  }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect]);
 
   // Update total unread count whenever unreadConversations changes
   useEffect(() => {
@@ -503,9 +502,7 @@ export default function App() {
         socket.current = newSocket;
 
         newSocket.on('connect', () => {
-          console.log('Mobile App: Connected to Socket.IO server!');
           newSocket.emit('register', { userId, username: currentUsername });
-          console.log('Mobile App: Emitted register event.');
         });
 
         newSocket.on('disconnect', () => {

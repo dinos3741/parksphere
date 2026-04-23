@@ -2,14 +2,15 @@ import React, { useState, useRef } from 'react';
 import { StyleSheet, View, Text, ScrollView, PanResponder } from 'react-native';
 
 const Notifications = ({ notifications }) => {
-  const [height, setHeight] = useState(100);
-  const startHeight = useRef(100);
+  // Reverted to original useState with default height of 150px
+  const [height, setHeight] = useState(150);
+  const startHeight = useRef(150); // Initialize startHeight with default
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        startHeight.current = height;
+        startHeight.current = height; // Captures current height state
       },
       onPanResponderMove: (e, gestureState) => {
         // dy is negative when dragging up
@@ -17,7 +18,7 @@ const Notifications = ({ notifications }) => {
         setHeight(newHeight);
       },
       onPanResponderRelease: () => {
-        startHeight.current = height;
+        startHeight.current = height; // Updates ref on release
       },
     })
   ).current;
