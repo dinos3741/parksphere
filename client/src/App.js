@@ -134,7 +134,7 @@ function MainAppContent({ serverUrl }) {
       time_to_leave: newSpotFromServer.time_to_leave,
       price: parseFloat(newSpotFromServer.price),
       comments: newSpotFromServer.comments || '',
-      isExactLocation: newSpotFromServer.user_id === currentUserIdRef.current,
+      isExactLocation: newSpotFromServer.isExactLocation !== undefined ? newSpotFromServer.isExactLocation : (newSpotFromServer.user_id == currentUserIdRef.current || newSpotFromServer.is_auto_detected),
       is_free: newSpotFromServer.cost_type === 'free',
       declared_at: newSpotFromServer.declared_at,
       cost_type: newSpotFromServer.cost_type,
@@ -399,7 +399,7 @@ function MainAppContent({ serverUrl }) {
                 declared_car_type: updatedSpotFromServer.declared_car_type,
                 status: updatedSpotFromServer.status,
                 is_free: updatedSpotFromServer.cost_type === 'free',
-                isExactLocation: updatedSpotFromServer.user_id === currentUserId,
+                isExactLocation: updatedSpotFromServer.isExactLocation !== undefined ? updatedSpotFromServer.isExactLocation : (updatedSpotFromServer.user_id == currentUserId || updatedSpotFromServer.is_auto_detected),
               }
             : spot
         )
@@ -681,19 +681,13 @@ function MainAppContent({ serverUrl }) {
       }
       const data = await response.json();
       const formattedSpots = data.map(spot => ({
-        id: spot.id,
-        user_id: spot.user_id,
-        username: spot.username,
+        ...spot,
         lat: parseFloat(spot.latitude),
         lng: parseFloat(spot.longitude),
-        status: spot.is_free ? 'available' : 'occupied',
-        time_to_leave: spot.time_to_leave,
         price: parseFloat(spot.price),
         comments: spot.comments || '',
-        isExactLocation: spot.user_id === currentUserId,
-        is_free: spot.is_free,
-        declared_at: spot.declared_at,
-        cost_type: spot.cost_type,
+        // Use server-provided isExactLocation, but fallback to client-side check if missing
+        isExactLocation: spot.isExactLocation !== undefined ? spot.isExactLocation : (spot.user_id == currentUserId || spot.is_auto_detected),
       }));
       setFilteredParkingSpots(formattedSpots);
     } catch (error) {

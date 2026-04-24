@@ -239,6 +239,12 @@ async function createParkingSpotsTable() {
       ADD COLUMN IF NOT EXISTS fuzzed_longitude DECIMAL(11, 8);
     `);
 
+    // Add is_auto_detected column if it doesn't exist
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS is_auto_detected BOOLEAN DEFAULT FALSE;
+    `);
+
     // Check and alter price column type if it's not INTEGER
     const priceColumnTypeResult = await client.query(`
       SELECT data_type FROM information_schema.columns

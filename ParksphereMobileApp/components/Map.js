@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
+import DebugSimulator from './DebugSimulator';
 
 const Map = ({
   userLocation,
@@ -16,6 +17,7 @@ const Map = ({
   setNewSpotCoordinates,
   setShowTimeOptionsModal,
   acceptedSpot,
+  hmmStatus,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -110,6 +112,17 @@ const Map = ({
           <View style={styles.crosshairVertical} />
         </View>
       )}
+
+      {hmmStatus && (
+        <View style={styles.statusOverlay}>
+          <Text style={styles.statusTitle}>HMM Engine</Text>
+          <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
+          <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
+          <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
+        </View>
+      )}
+
+      <DebugSimulator userLocation={userLocation} />
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
           <Text style={styles.centerButtonText}>⌖</Text>
@@ -171,6 +184,31 @@ const styles = StyleSheet.create({
     width: 2,
     height: 30,
     backgroundColor: 'black',
+  },
+  statusOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  statusTitle: {
+    color: '#aaa',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+  },
+  statusValue: {
+    fontWeight: 'bold',
+    color: '#4ade80', // green-400
   },
 });
 

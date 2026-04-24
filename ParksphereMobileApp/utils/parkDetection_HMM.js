@@ -14,12 +14,12 @@ export const STATES = [
 export const A = {
   IDLE: { IDLE: 0.7, WALKING: 0.15, DRIVING: 0.05, PARKED: 0.1 },
   WALKING: { WALKING: 0.7, IDLE: 0.1, IN_CAR: 0.1, RETURNING: 0.1 },
-  DRIVING: { DRIVING: 0.85, STOPPED: 0.14, PARKED: 0.01 }, // Transition to PARKED from DRIVING is very low
-  STOPPED: { DRIVING: 0.3, STOPPED: 0.4, PARKED: 0.3 }, // Increased probability to PARKED from STOPPED
-  PARKED: { PARKED: 0.7, WALKING_AWAY: 0.25, AWAY: 0.05 },
-  WALKING_AWAY: { WALKING_AWAY: 0.6, AWAY: 0.4 },
-  AWAY: { AWAY: 0.7, RETURNING: 0.3 }, // Increased RETURNING probability
-  RETURNING: { RETURNING: 0.6, IN_CAR: 0.3, AWAY: 0.1 },
+  DRIVING: { DRIVING: 0.85, STOPPED: 0.12, PARKED: 0.03 },
+  STOPPED: { DRIVING: 0.2, STOPPED: 0.2, PARKED: 0.4, WALKING_AWAY: 0.2 }, // Increased PARKED, added WALKING_AWAY
+  PARKED: { PARKED: 0.6, WALKING_AWAY: 0.25, AWAY: 0.05, DRIVING: 0.05, STOPPED: 0.05 },
+  WALKING_AWAY: { WALKING_AWAY: 0.7, AWAY: 0.3 },
+  AWAY: { AWAY: 0.8, RETURNING: 0.2 },
+  RETURNING: { RETURNING: 0.7, IN_CAR: 0.2, AWAY: 0.1 },
   IN_CAR: { DRIVING: 0.7, STOPPED: 0.3 }
 };
 
@@ -35,10 +35,10 @@ export function emissionLogProb(state, obs) {
 
   // Speed Models
   switch (state) {
-    case 'IDLE': logp += logGaussian(speed, 0, 0.5); break;
+    case 'IDLE': logp += logGaussian(speed, 0, 1.0); break; // Increased std for jitter
     case 'DRIVING': logp += logGaussian(speed, 40, 15); break;
-    case 'STOPPED': logp += logGaussian(speed, 0.3, 0.7); break;
-    case 'PARKED': logp += logGaussian(speed, 0.2, 0.4); break;
+    case 'STOPPED': logp += logGaussian(speed, 0.3, 1.5); break; // Increased std for jitter
+    case 'PARKED': logp += logGaussian(speed, 0.2, 0.5); break;
     case 'WALKING':
     case 'WALKING_AWAY':
     case 'RETURNING': logp += logGaussian(speed, 4.5, 1.5); break;
@@ -63,9 +63,16 @@ export function emissionLogProb(state, obs) {
     if (apple_activity === 'AUTOMOTIVE') {
       logp += (state === 'DRIVING' || state === 'STOPPED' || state === 'IN_CAR') ? Math.log(1 + 3.0 * w) : Math.log(0.001);
     } else if (['WALKING', 'RUNNING'].includes(apple_activity)) {
-      logp += ['WALKING', 'WALKING_AWAY', 'RETURNING', 'AWAY'].includes(state) ? Math.log(1 + 2.5 * w) : Math.log(0.01);
+      // If speed is very low, it's likely shaking or jitter, not actual walking
+      const isSpeedWalking = speed > 2.0;
+      if (['WALKING', 'WALKING_AWAY', 'RETURNING', 'AWAY'].includes(state)) {
+        logp += isSpeedWalking ? Math.log(1 + 2.5 * w) : Math.log(1 + 0.5 * w);
+      } else {
+        // Less penalty if speed is low, allowing IDLE/STOPPED/PARKED to stay active
+        logp += isSpeedWalking ? Math.log(0.01) : Math.log(0.1);
+      }
     } else if (apple_activity === 'STATIONARY') {
-      // Heavily favor PARKED or IDLE when stationary
+      // Heavily favor PARKED, IDLE, or STOPPED when stationary
       if (['PARKED', 'IDLE', 'STOPPED'].includes(state)) logp += Math.log(1 + 4.0 * w);
       else logp += Math.log(0.01);
     }
@@ -111,6 +118,12 @@ export function initMotionTracking() {
   }
 }
 
+export function simulateMotionActivity(type, confidence) {
+  lastActivityType = type;
+  lastConfidence = confidence;
+  console.log(`[HMM Simulation] Overriding activity to: ${type} (${confidence})`);
+}
+
 // Modified processLocationHMM to return belief, state, candidate and confidence
 export async function processLocationHMM(location, parkedLocation) {
   // Ensure speed is not negative (invalid GPS data)
@@ -127,10 +140,10 @@ export async function processLocationHMM(location, parkedLocation) {
   console.log('[HMM] Observed Data Vector:', obs); // Log observed data vector
 
   const newBelief = updateBelief(belief, obs);
-  const { state: newState, bestState, confidence } = stableStateUpdate(newBelief); 
+  const { state: newState, bestState, confidence, secondBestState, secondConfidence } = stableStateUpdate(newBelief); 
 
   // Return the new state, best candidate, confidence and belief distribution
-  return { state: newState, bestState, confidence, belief: newBelief }; 
+  return { state: newState, bestState, confidence, secondBestState, secondConfidence, belief: newBelief }; 
 }
 
 // Modified updateBelief to log newBelief
@@ -150,27 +163,30 @@ export function updateBelief(prevBelief, obs) {
   return newBelief;
 }
 
-// Modified stableStateUpdate to return state, bestState and confidence, and log best state/confidence
+// Modified stableStateUpdate to return state, top two candidates and confidences
 export function stableStateUpdate(newBelief) {
   const sorted = Object.entries(newBelief).sort((a, b) => b[1] - a[1]);
   const bestState = sorted[0][0];
   const confidence = sorted[0][1];
+  const secondBestState = sorted[1] ? sorted[1][0] : null;
+  const secondConfidence = sorted[1] ? sorted[1][1] : 0;
 
-  console.log(`[HMM] Best State Candidate: ${bestState} with confidence ${confidence.toFixed(4)}`); // Log best state candidate and confidence
+  console.log(`[HMM] Best State Candidate: ${bestState} (${confidence.toFixed(4)}), Second: ${secondBestState} (${secondConfidence.toFixed(4)})`);
 
   // Update currentState only if confidence is high enough and the best state is different from current
-  // Lowered threshold from 0.85 to 0.70 for better responsiveness in field tests
   if (bestState !== currentState && confidence > 0.70) {
     currentState = bestState;
     console.log(`[HMM] State updated to: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
-  } else if (bestState === currentState) {
-     console.log(`[HMM] State remains: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
-  } else {
-     console.log(`[HMM] State remains: ${currentState} (Confidence: ${confidence.toFixed(4)}), but candidate ${bestState} did not meet confidence threshold.`);
   }
   
-  belief = newBelief; // Update global belief
-  return { state: currentState, bestState, confidence }; // Return the actual determined state and details
+  belief = newBelief; 
+  return { 
+    state: currentState, 
+    bestState, 
+    confidence, 
+    secondBestState, 
+    secondConfidence 
+  }; 
 }
 
 function getDistance(a, b) {

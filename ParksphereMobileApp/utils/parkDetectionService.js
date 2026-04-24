@@ -3,12 +3,13 @@ import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
 // Import the modified processLocationHMM which now returns belief
-import { initMotionTracking, processLocationHMM, resetHMM } from './parkDetection_HMM';
+import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus } from './parkDetection_HMM';
 
 export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 
 // ---------------- CONSTANTS ----------------
 const STORAGE_KEY = 'PARK_STATE';
+let isInitialized = false;
 
 // ---------------- HELPERS ----------------
 async function declareSpot(location) {
@@ -38,6 +39,7 @@ async function declareSpot(location) {
         price: 0,
         declaredCarType: 'sedan', // Defaulting car type
         comments: 'Auto-detected parking spot (HMM)',
+        isAutoDetected: true,
       }),
     });
 
@@ -88,6 +90,11 @@ function notify(message) {
 
 // ---------------- CORE ENGINE (HMM) ----------------
 export async function handleLocationUpdate(arg1, arg2) {
+  if (!isInitialized) {
+    console.log('[ParkDetection] System not initialized yet, skipping location update.');
+    return arg2 ? arg1 : {}; // Return existing stateData if called internally
+  }
+
   let stateData, location;
   let isInternal = false;
 
@@ -113,15 +120,23 @@ export async function handleLocationUpdate(arg1, arg2) {
   };
 
   // Run HMM Inference
-  // processLocationHMM now returns { state: newState, bestState, confidence, belief: newBelief }
-  const { state: hmmState, bestState, confidence, belief: currentBelief } = await processLocationHMM(location, stateData.parkedLocation);
+  const {
+    state: hmmState,
+    bestState,
+    confidence,
+    secondBestState,
+    secondConfidence,
+    belief: currentBelief
+  } = await processLocationHMM(location, stateData.parkedLocation);
 
-  // Update stateData with results from HMM
+  const isFirstUpdate = !stateData.lastUpdate;
+  stateData.lastUpdate = Date.now();
   stateData.state = hmmState;
-  stateData.belief = currentBelief; // Store the belief distribution for potential future use or inspection
+  stateData.belief = currentBelief;
 
   // Handle side effects of state transitions
-  if (stateData.state !== prevState) {    const messages = {
+  if (stateData.state !== prevState || isFirstUpdate) {
+    const messages = {
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
       'STOPPED': '⏱️ Vehicle stopped...',
@@ -132,17 +147,25 @@ export async function handleLocationUpdate(arg1, arg2) {
       'IN_CAR': '🚗 Back in car...',
       'IDLE': '💤 System Idle.'
     };
-    notify(messages[stateData.state] || `System State: ${stateData.state}`);
+
+    let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%, 2nd: ${secondBestState} ${Math.round(secondConfidence*100)}%)`;
+    notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     // State Machine Side-Effects
+    if (stateData.state === 'STOPPED') {
+      stateData.stoppedLocation = currentLoc;
+      console.log('[ParkDetection] Stopped location recorded:', currentLoc);
+    }
+
     if (stateData.state === 'PARKED') {
       stateData.parkedLocation = currentLoc; // Update parked location
       console.log('[ParkDetection] Parked location recorded:', currentLoc);
     }
 
     if (stateData.state === 'WALKING_AWAY' && !stateData.serverSpotId) {
-      // Use parkedLocation from stateData which might have been updated in the PARKED state
-      stateData.serverSpotId = await declareSpot(stateData.parkedLocation || currentLoc);
+      // Use parkedLocation, then stoppedLocation, then currentLoc as fallback
+      const finalParkedLoc = stateData.parkedLocation || stateData.stoppedLocation || currentLoc;
+      stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }
 
     if (stateData.state === 'RETURNING' && stateData.serverSpotId) {
@@ -153,11 +176,22 @@ export async function handleLocationUpdate(arg1, arg2) {
       await updateSpotStatus(stateData.serverSpotId, 'free');
       stateData.serverSpotId = null;
       stateData.parkedLocation = null; // Clear parked location when back in car
+      stateData.stoppedLocation = null; // Clear stopped location
     }
   }
 
-  if (!isInternal) {
-    try {
+  // Also emit a detailed update for UI observers (live dashboard)
+  DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
+    state: stateData.state,
+    bestState,
+    confidence,
+    secondBestState,
+    secondConfidence,
+    belief: currentBelief,
+    location: currentLoc
+  });
+
+  if (!isInternal) {    try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
     } catch (e) {
       console.error('[ParkDetection] Failed to save state to storage:', e);
@@ -200,46 +234,82 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
 
 // ---------------- START/STOP ----------------
 export const startParkDetection = async () => {
-  console.log('[ParkDetection] Attempting to start park detection...');
-  const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
-  if (fgStatus !== 'granted') {
-    notify('Foreground location permission denied.');
-    return false;
-  }
+  try {
+    console.log('[ParkDetection] Attempting to start park detection...');
+    const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+    if (fgStatus !== 'granted') {
+      notify('Foreground location permission denied.');
+      return false;
+    }
+    console.log('[ParkDetection] Foreground location permissions granted.');
 
-  const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-  if (bgStatus !== 'granted') {
-    notify('Background location permission denied.');
-    // Depending on requirements, might return false here or proceed with foreground only
-  }
+    // We can consider the system "initialized" for simulation and foreground tracking
+    // even before background permissions are fully resolved.
+    isInitialized = true;
 
-  initMotionTracking(); // Initialize motion tracking
-  resetHMM(); // Reset HMM state to IDLE
+    try {
+      console.log('[ParkDetection] Requesting background location permissions...');
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      if (bgStatus !== 'granted') {
+        notify('Background location permission denied. HMM will work only in foreground.');
+        console.warn('[ParkDetection] Background location permission denied.');
+      } else {
+        console.log('[ParkDetection] Background location permissions granted.');
+      }
+    } catch (bgError) {
+      console.error('[ParkDetection] Error requesting background permissions:', bgError);
+    }
 
-  const { currentState } = getHMMStatus();
+    console.log('[ParkDetection] Initializing HMM components...');
+    initMotionTracking(); // Initialize motion tracking
+    resetHMM(); // Reset HMM state to IDLE
 
-  const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
-  if (!started) {
-    await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-      accuracy: Location.Accuracy.Balanced, // Consider Balanced for battery efficiency vs High for precision
-      timeInterval: 5000, // Update every 5 seconds
-      deferredUpdatesInterval: 5000, // Deliver deferred updates every 5 seconds
-      showsBackgroundLocationIndicator: true,
-    });
-    notify(`Background HMM detection started. State: ${currentState}`);
-    console.log('[ParkDetection] Location updates started for PARK_DETECTION_TASK.');
-    return true;
-  } else {
-    console.log('[ParkDetection] PARK_DETECTION_TASK is already running.');
+    // Clear persistent state on clean start to avoid immediate transitions from stale data
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    
+    const { currentState } = getHMMStatus();
+
+    try {
+      console.log('[ParkDetection] Checking if background task is already running...');
+      const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
+      if (!started) {
+        console.log('[ParkDetection] Starting background location updates...');
+        await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
+          accuracy: Location.Accuracy.Balanced, 
+          timeInterval: 5000, 
+          deferredUpdatesInterval: 5000, 
+          showsBackgroundLocationIndicator: true,
+        });
+        notify(`Background HMM detection started. State: ${currentState}`);
+        console.log('[ParkDetection] Location updates started for PARK_DETECTION_TASK.');
+        return true;
+      } else {
+        console.log('[ParkDetection] PARK_DETECTION_TASK is already running.');
+        notify(`Detection engine active. State: ${currentState}`);
+        return true; // Return true as it is effectively running
+      }
+    } catch (taskError) {
+      console.error('[ParkDetection] Error starting background task:', taskError);
+      notify('Foreground-only detection active (background task failed).');
+      return true;
+    }
+  } catch (error) {
+    console.error('[ParkDetection] Critical error in startParkDetection:', error);
     return false;
   }
 };
 
 export const stopParkDetection = async () => {
-  const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
-  if (started) {
-    await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK);
-    notify('Background HMM detection stopped.');
-    console.log('[ParkDetection] Location updates stopped for PARK_DETECTION_TASK.');
+  try {
+    console.log('[ParkDetection] Stopping park detection...');
+    isInitialized = false;
+    const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
+    if (started) {
+      await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK);
+      notify('Background HMM detection stopped.');
+      console.log('[ParkDetection] Location updates stopped for PARK_DETECTION_TASK.');
+    }
+  } catch (error) {
+    console.error('[ParkDetection] Error in stopParkDetection:', error);
   }
 };

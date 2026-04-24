@@ -837,7 +837,7 @@ app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
+  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status, ps.is_auto_detected FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 
@@ -892,7 +892,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     }
 
     const spotsToSend = result.rows.map(spot => {
-      const shouldBeExactLocation = Boolean(spot.user_id === currentUserId || acceptedRequests[spot.id]);
+      const shouldBeExactLocation = Boolean(spot.user_id == currentUserId || acceptedRequests[spot.id] || spot.is_auto_detected);
 
       if (shouldBeExactLocation) {
         return { ...spot, isExactLocation: true };
@@ -915,7 +915,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
 
 // Protect this route with authentication middleware
 app.post('/api/declare-spot', authenticateToken, async (req, res) => {
-  const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
+  const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, isAutoDetected } = req.body; // Changed isFree to costType
   const userId = req.user.userId;
 
   
@@ -960,8 +960,8 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at, status', // Changed is_free to cost_type
-      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon, 'occupied'] // Changed isFree to costType
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude, status, is_auto_detected) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at, status, is_auto_detected', // Changed is_free to cost_type
+      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon, 'occupied', isAutoDetected || false] // Changed isFree to costType
     );
     const newSpot = result.rows[0];
     await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
