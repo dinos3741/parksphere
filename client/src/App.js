@@ -130,11 +130,11 @@ function MainAppContent({ serverUrl }) {
       username: newSpotFromServer.username,
       lat: parseFloat(newSpotFromServer.latitude),
       lng: parseFloat(newSpotFromServer.longitude),
-      status: newSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+      status: newSpotFromServer.status,
       time_to_leave: newSpotFromServer.time_to_leave,
       price: parseFloat(newSpotFromServer.price),
       comments: newSpotFromServer.comments || '',
-      isExactLocation: newSpotFromServer.user_id === currentUserIdRef.current,
+      isExactLocation: newSpotFromServer.isExactLocation !== undefined ? newSpotFromServer.isExactLocation : (newSpotFromServer.user_id == currentUserIdRef.current || newSpotFromServer.is_auto_detected),
       is_free: newSpotFromServer.cost_type === 'free',
       declared_at: newSpotFromServer.declared_at,
       cost_type: newSpotFromServer.cost_type,
@@ -397,15 +397,29 @@ function MainAppContent({ serverUrl }) {
                 cost_type: updatedSpotFromServer.cost_type,
                 declared_at: updatedSpotFromServer.declared_at,
                 declared_car_type: updatedSpotFromServer.declared_car_type,
-                status: updatedSpotFromServer.cost_type === 'free' ? 'available' : 'occupied',
+                status: updatedSpotFromServer.status,
                 is_free: updatedSpotFromServer.cost_type === 'free',
-                isExactLocation: updatedSpotFromServer.user_id === currentUserId,
+                isExactLocation: updatedSpotFromServer.isExactLocation !== undefined ? updatedSpotFromServer.isExactLocation : (updatedSpotFromServer.user_id == currentUserId || updatedSpotFromServer.is_auto_detected),
               }
             : spot
         )
       );
     };
     socket.on('spotUpdated', handleSpotUpdated);
+
+    const handleSpotStatusUpdated = (updatedSpotFromServer) => {
+      setFilteredParkingSpots(prevSpots =>
+        prevSpots.map(spot =>
+          spot.id === updatedSpotFromServer.id
+            ? {
+                ...spot,
+                status: updatedSpotFromServer.status,
+              }
+            : spot
+        )
+      );
+    };
+    socket.on('spotStatusUpdated', handleSpotStatusUpdated);
 
     const handleSpotRequest = (data) => {
       console.log('App.js: Received spotRequest socket event:', JSON.stringify(data, null, 2)); // DEBUG LOG
@@ -512,6 +526,7 @@ function MainAppContent({ serverUrl }) {
       socket.off('newParkingSpot', handleNewSpot);
       socket.off('spotDeleted', handleSpotDeleted);
       socket.off('spotUpdated', handleSpotUpdated);
+      socket.off('spotStatusUpdated', handleSpotStatusUpdated);
       socket.off('spotRequest', handleSpotRequest);
       socket.off('requestAcceptedOrDeclined', handleRequestAcceptedOrDeclined);
       socket.off('requestResponse', handleRequestResponse);
@@ -666,19 +681,13 @@ function MainAppContent({ serverUrl }) {
       }
       const data = await response.json();
       const formattedSpots = data.map(spot => ({
-        id: spot.id,
-        user_id: spot.user_id,
-        username: spot.username,
+        ...spot,
         lat: parseFloat(spot.latitude),
         lng: parseFloat(spot.longitude),
-        status: spot.is_free ? 'available' : 'occupied',
-        time_to_leave: spot.time_to_leave,
         price: parseFloat(spot.price),
         comments: spot.comments || '',
-        isExactLocation: spot.user_id === currentUserId,
-        is_free: spot.is_free,
-        declared_at: spot.declared_at,
-        cost_type: spot.cost_type,
+        // Use server-provided isExactLocation, but fallback to client-side check if missing
+        isExactLocation: spot.isExactLocation !== undefined ? spot.isExactLocation : (spot.user_id == currentUserId || spot.is_auto_detected),
       }));
       setFilteredParkingSpots(formattedSpots);
     } catch (error) {

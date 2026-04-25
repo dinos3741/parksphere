@@ -32,7 +32,15 @@
     "plugins": [
       "expo-font",
       "expo-web-browser",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-location",
+        {
+          "locationAlwaysPermission": "Allow Parksphere to detect your parking spots automatically even when the app is in the background.",
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      "expo-notifications"
     ]
   }
 }

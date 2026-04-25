@@ -557,18 +557,26 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
 
           const isOwner = spot.user_id === currentUserId;
           const isExactLocation = spot.isExactLocation; // Use the flag from the backend
-          
-          
 
-          if (acceptedSpot) {
-          }
+          const getStatusColor = (status) => {
+            switch (status) {
+              case 'soon_free': return '#FFA500'; // Orange
+              case 'free': return '#008000'; // Green
+              case 'occupied':
+              default: return '#FF0000'; // Red
+            }
+          };
+
+          const statusColor = getStatusColor(spot.status);
+          const markerIcon = spot.status === 'free' ? markerGreen : markerRed; 
+          const markerIcon2x = spot.status === 'free' ? markerGreen2x : markerRed2x;
 
           return (
             <React.Fragment key={spot.id}>
               {isExactLocation ? (
                 <Marker
                   position={[lat, lng]}
-                  icon={createCustomIcon(markerRed, markerRed2x, isOwner && newRequestSpotIds.includes(spot.id))}
+                  icon={createCustomIcon(markerIcon, markerIcon2x, isOwner && newRequestSpotIds.includes(spot.id))}
                   eventHandlers={{
                     click: async () => {
                       if (isOwner) {
@@ -603,7 +611,11 @@ const Map = ({ parkingSpots, userLocation: appUserLocation, currentUserId, accep
                 <Circle
                   center={[lat, lng]}
                   radius={200}
-                  pathOptions={{ color: getCircleColor(spot.declared_at, spot.time_to_leave), fillColor: getCircleColor(spot.declared_at, spot.time_to_leave), fillOpacity: 0.2 }}
+                  pathOptions={{ 
+                    color: (spot.status === 'occupied' || !spot.status) ? getCircleColor(spot.declared_at, spot.time_to_leave) : statusColor, 
+                    fillColor: (spot.status === 'occupied' || !spot.status) ? getCircleColor(spot.declared_at, spot.time_to_leave) : statusColor, 
+                    fillOpacity: 0.2 
+                  }}
                   className={shouldAnimate(spot.declared_at, spot.time_to_leave) ? "pulse-opacity" : ""}
                   eventHandlers={{
                     click: () => {

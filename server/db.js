@@ -112,6 +112,30 @@ async function createUsersTable() {
       ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3, 2) DEFAULT 0.00;
     `);
 
+    // Migration: Handle auto_detection_enabled -> auto_detect
+    const checkColumns = await client.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name IN ('auto_detection_enabled', 'auto_detect');
+    `);
+    
+    const columns = checkColumns.rows.map(r => r.column_name);
+    
+    if (columns.includes('auto_detection_enabled') && !columns.includes('auto_detect')) {
+      console.log('Renaming auto_detection_enabled to auto_detect...');
+      await client.query(`ALTER TABLE users RENAME COLUMN auto_detection_enabled TO auto_detect;`);
+    } else if (!columns.includes('auto_detect')) {
+      console.log('Adding auto_detect column...');
+      await client.query(`ALTER TABLE users ADD COLUMN auto_detect BOOLEAN DEFAULT FALSE;`);
+    }
+    // If auto_detect already exists, we do nothing.
+    // If both exist (shouldn't happen with this logic), we might want to drop the old one, 
+    // but better to be safe and just leave it or handle it if we really want to clean up.
+    if (columns.includes('auto_detection_enabled') && columns.includes('auto_detect')) {
+       console.log('Both auto_detection_enabled and auto_detect exist. Dropping the old one...');
+       await client.query(`ALTER TABLE users DROP COLUMN auto_detection_enabled;`);
+    }
+
     // Check and alter credits column type if it's not INTEGER
     const creditsColumnTypeResult = await client.query(`
       SELECT data_type FROM information_schema.columns
@@ -160,6 +184,7 @@ async function createParkingSpotsTable() {
         cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
         price INTEGER DEFAULT 0,
         comments TEXT, -- New column for comments
+        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied', 'soon_free', 'free'
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -198,6 +223,12 @@ async function createParkingSpotsTable() {
       ADD COLUMN IF NOT EXISTS comments TEXT;
     `);
 
+    // Add status column if it doesn't exist
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'occupied';
+    `);
+
     // Add fuzzed location columns if they don't exist
     await client.query(`
       ALTER TABLE parking_spots
@@ -206,6 +237,12 @@ async function createParkingSpotsTable() {
     await client.query(`
       ALTER TABLE parking_spots
       ADD COLUMN IF NOT EXISTS fuzzed_longitude DECIMAL(11, 8);
+    `);
+
+    // Add is_auto_detected column if it doesn't exist
+    await client.query(`
+      ALTER TABLE parking_spots
+      ADD COLUMN IF NOT EXISTS is_auto_detected BOOLEAN DEFAULT FALSE;
     `);
 
     // Check and alter price column type if it's not INTEGER

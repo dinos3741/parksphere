@@ -628,9 +628,11 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
         u.spots_declared, 
         u.spots_taken, 
         u.total_arrival_time, 
-        u.completed_transactions_count, 
+        u.completed_transactions_count,
         u.avatar_url,
+        u.auto_detect,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
+
         (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
       FROM users u 
       WHERE u.id = $1`,
@@ -835,26 +837,28 @@ app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
+  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status, ps.is_auto_detected FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 
   try {
+    const userId = req.user.userId;
     if (filter) {
-      if (filter === 'available') { // This filter now refers to spots that are not occupied by anyone
-        // We don't have an 'is_occupied' column anymore.
-        // If 'available' means not currently taken, we need a different way to determine this.
-        // For now, I'll remove this condition as it's based on the old 'is_free' meaning.
-        // conditions.push('ps.is_free = TRUE');
-      } else if (filter === 'occupied') { // This filter now refers to spots that are currently taken by someone
-        // conditions.push('ps.is_free = FALSE');
-      } else if (!isNaN(parseInt(filter))) { // Check if filter is a number
+      if (filter === 'available') { 
+        conditions.push("ps.status IN ('free', 'soon_free')");
+      } else if (filter === 'occupied') { 
+        conditions.push("ps.status = 'occupied'");
+      } else if (!isNaN(parseInt(filter))) { 
         const minutes = parseInt(filter);
         // Spots that will be empty within 'minutes' from now
                 conditions.push(`ps.declared_at + (ps.time_to_leave * INTERVAL '1 minute') <= NOW() + (INTERVAL '1 minute' * $1::integer) AND ps.declared_at + (ps.time_to_leave * INTERVAL '1 minute') > NOW()`);
         queryParams.push(minutes);
       }
     }
+
+    // --- PRIVACY LOGIC: Only show occupied spots to their owners ---
+    conditions.push(`(ps.status != 'occupied' OR ps.user_id = $${queryParams.length + 1})`);
+    queryParams.push(userId);
 
     // Add car type filtering
     if (userCarType && CAR_SIZE_HIERARCHY[userCarType.toLowerCase()] !== undefined) {
@@ -888,7 +892,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     }
 
     const spotsToSend = result.rows.map(spot => {
-      const shouldBeExactLocation = Boolean(spot.user_id === currentUserId || acceptedRequests[spot.id]);
+      const shouldBeExactLocation = Boolean(spot.user_id == currentUserId || acceptedRequests[spot.id] || spot.is_auto_detected);
 
       if (shouldBeExactLocation) {
         return { ...spot, isExactLocation: true };
@@ -911,7 +915,7 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
 
 // Protect this route with authentication middleware
 app.post('/api/declare-spot', authenticateToken, async (req, res) => {
-  const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments } = req.body; // Changed isFree to costType
+  const { latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, isAutoDetected } = req.body; // Changed isFree to costType
   const userId = req.user.userId;
 
   
@@ -925,9 +929,39 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
 
     const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
 
+    // --- PROXIMITY CHECK: CONSUME EXISTING FREE/SOON_FREE SPOTS ---
+    try {
+      const PROXIMITY_THRESHOLD_METERS = 5;
+      const candidates = await pool.query(
+        "SELECT id, user_id, latitude, longitude FROM parking_spots WHERE status IN ('free', 'soon_free')"
+      );
+
+      for (const cand of candidates.rows) {
+        const distKm = getDistance(latitude, longitude, parseFloat(cand.latitude), parseFloat(cand.longitude));
+        const distM = distKm * 1000;
+
+        if (distM < PROXIMITY_THRESHOLD_METERS) {
+          console.log(`[Lifecycle] Consuming nearby spot ${cand.id} (Distance: ${distM.toFixed(2)}m)`);
+          
+          // Emit deletion before actual DB delete to maintain consistency with logic elsewhere
+          const requestsResult = await pool.query('SELECT requester_id FROM requests WHERE spot_id = $1', [cand.id]);
+          const requesterIds = requestsResult.rows.map(r => r.requester_id);
+          const ownerId = cand.user_id;
+
+          await pool.query('DELETE FROM requests WHERE spot_id = $1', [cand.id]);
+          await pool.query('DELETE FROM parking_spots WHERE id = $1', [cand.id]);
+          
+          io.emit('spotDeleted', { spotId: cand.id, ownerId, requesterIds });
+        }
+      }
+    } catch (proxError) {
+      console.error('Error during proximity cleanup:', proxError);
+      // We continue even if cleanup fails
+    }
+
     const result = await pool.query(
-      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at', // Changed is_free to cost_type
-      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon] // Changed isFree to costType
+      'INSERT INTO parking_spots (user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, fuzzed_latitude, fuzzed_longitude, status, is_auto_detected) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, user_id, latitude, longitude, time_to_leave, cost_type, price, declared_car_type, comments, declared_at, status, is_auto_detected', // Changed is_free to cost_type
+      [userId, latitude, longitude, timeToLeave, costType, price, declaredCarType, comments, fuzzedLat, fuzzedLon, 'occupied', isAutoDetected || false] // Changed isFree to costType
     );
     const newSpot = result.rows[0];
     await pool.query('UPDATE users SET spots_declared = spots_declared + 1 WHERE id = $1', [userId]);
@@ -936,7 +970,15 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     const username = userResult.rows[0].username;
     const spotToEmit = { ...newSpot, username };
 
-    io.emit('newParkingSpot', spotToEmit); // Emit new spot event with username
+    if (newSpot.status === 'occupied') {
+      // PRIVACY: Only emit to the owner
+      if (userSockets[userId]) {
+        userSockets[userId].forEach(s => io.to(s.socketId).emit('newParkingSpot', spotToEmit));
+      }
+    } else {
+      // PUBLIC: Emit to everyone
+      io.emit('newParkingSpot', spotToEmit);
+    }
     res.status(201).json({ message: 'Spot declared successfully!', spotId: newSpot.id });
   } catch (error) {
     console.error('Error declaring spot:', error);
@@ -951,6 +993,48 @@ app.post('/api/seed-spot-notification', async (req, res) => {
     res.status(200).json({ message: 'Spot notification emitted.' });
   } else {
     res.status(400).json({ message: 'No spot data provided.' });
+  }
+});
+
+app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
+  const spotId = req.params.id;
+  const { status } = req.body;
+  const userId = req.user.userId;
+
+  if (!['occupied', 'soon_free', 'free'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status.' });
+  }
+
+  try {
+    const spotResult = await pool.query('SELECT user_id, status FROM parking_spots WHERE id = $1', [spotId]);
+    if (spotResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Spot not found.' });
+    }
+    const oldStatus = spotResult.rows[0].status;
+    if (spotResult.rows[0].user_id !== userId) {
+      return res.status(403).json({ message: 'Unauthorized.' });
+    }
+
+    const result = await pool.query(
+      'UPDATE parking_spots SET status = $1 WHERE id = $2 RETURNING *',
+      [status, spotId]
+    );
+
+    const updatedSpot = result.rows[0];
+    const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    updatedSpot.username = userResult.rows[0].username;
+
+    if (oldStatus === 'occupied' && (status === 'soon_free' || status === 'free')) {
+      // First time becoming public
+      io.emit('newParkingSpot', updatedSpot);
+    } else {
+      io.emit('spotStatusUpdated', updatedSpot);
+    }
+    
+    res.status(200).json({ message: 'Status updated successfully.', spot: updatedSpot });
+  } catch (error) {
+    console.error('Error updating spot status:', error);
+    res.status(500).json({ message: 'Server error updating status.' });
   }
 });
 
@@ -1492,7 +1576,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;
-  const { car_type, car_color, plate_number } = req.body;
+  const { car_type, car_color, plate_number, auto_detect } = req.body;
 
   // Ensure the authenticated user is updating their own details
   if (req.user.userId !== parseInt(userId)) {
@@ -1500,11 +1584,11 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Update car_type, car_color, and plate_number in the database
+    // Update car_type, car_color, plate_number, and auto_detect in the database
     // We use COALESCE to keep existing values if some are not provided
     await pool.query(
-      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number) WHERE id = $4',
-      [car_type, car_color, plate_number, userId]
+      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detect = COALESCE($4, auto_detect) WHERE id = $5',
+      [car_type, car_color, plate_number, auto_detect, userId]
     );
 
     // Fetch the updated user data to create a new JWT
@@ -1518,6 +1602,23 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating car details:', error);
     res.status(500).json({ message: 'Server error updating car details.' });
+  }
+});
+
+app.put('/api/users/:id/auto-detection', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { enabled } = req.body;
+
+  if (req.user.userId !== parseInt(userId)) {
+    return res.status(403).json({ message: 'Forbidden.' });
+  }
+
+  try {
+    await pool.query('UPDATE users SET auto_detect = $1 WHERE id = $2', [enabled, userId]);
+    res.status(200).json({ message: 'Auto detection setting updated.' });
+  } catch (error) {
+    console.error('Error updating auto detection:', error);
+    res.status(500).json({ message: 'Failed to update auto detection.' });
   }
 });
 

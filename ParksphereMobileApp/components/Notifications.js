@@ -3,20 +3,18 @@ import { StyleSheet, View, Text, ScrollView, PanResponder, Animated, Dimensions 
 
 const Notifications = ({ notifications, onHeightChange }) => {
   const windowHeight = Dimensions.get('window').height;
-  const initialHeight = 100; // Starting height
-  const minHeight = 50;
-  const maxHeight = windowHeight * 0.5; // Max 50% of screen height
+  const initialHeight = 150; // Use the 150 from park-detection
+  const minHeight = 80;      // From park-detection
+  const maxHeight = 500;     // From park-detection
 
   const [currentHeight, setCurrentHeight] = useState(initialHeight);
   const animatedHeight = useRef(new Animated.Value(initialHeight)).current;
-  // startDragHeight will be used to store the height at the moment the drag begins
   const startDragHeight = useRef(initialHeight);
 
-  // Sync animatedHeight with currentHeight state (optional, but good for initial setup)
   useEffect(() => {
     animatedHeight.setValue(currentHeight);
     if (onHeightChange) {
-      onHeightChange(currentHeight); // Notify parent of initial height
+      onHeightChange(currentHeight);
     }
   }, [currentHeight, onHeightChange]);
 
@@ -25,24 +23,18 @@ const Notifications = ({ notifications, onHeightChange }) => {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        // When drag starts, store the current height as the base
         startDragHeight.current = animatedHeight._value;
       },
       onPanResponderMove: (evt, gestureState) => {
         let newHeight = startDragHeight.current - gestureState.dy;
-
-        // Clamp the new height within min/max bounds
         newHeight = Math.max(minHeight, Math.min(maxHeight, newHeight));
-
-        // Update the animated value directly
         animatedHeight.setValue(newHeight);
       },
       onPanResponderRelease: () => {
-        // Once the drag is released, save the final animated height to the state
         const finalHeight = animatedHeight._value;
         setCurrentHeight(finalHeight);
         if (onHeightChange) {
-          onHeightChange(finalHeight); // Notify parent of final height change
+          onHeightChange(finalHeight);
         }
       },
     })
@@ -53,7 +45,7 @@ const Notifications = ({ notifications, onHeightChange }) => {
       <View style={styles.resizeHandle} {...panResponder.panHandlers}>
         <View style={styles.handleIndicator} />
       </View>
-      <ScrollView style={styles.scrollViewContent}>
+      <ScrollView style={styles.scrollViewContent} contentContainerStyle={styles.scrollContent}>
         {notifications.map((notification, index) => (
           <Text key={index} style={styles.notificationText}>
             [{notification.timestamp}] {notification.msg}
@@ -66,44 +58,46 @@ const Notifications = ({ notifications, onHeightChange }) => {
 
 const styles = StyleSheet.create({
   notificationArea: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    paddingHorizontal: 10,
+    backgroundColor: '#ffffff', // From park-detection
     marginHorizontal: 10,
     marginBottom: 10,
     borderRadius: 8,
-    overflow: 'hidden',
-    flexDirection: 'column', // Stack children vertically
-    borderWidth: 1, // Add border to make container visible
+    borderWidth: 1,
     borderColor: '#ddd',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    overflow: 'hidden',
+    flexDirection: 'column',
   },
   resizeHandle: {
     width: '100%',
-    height: 20, // Make handle taller for easier touch
-    backgroundColor: '#f0f0f0',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    justifyContent: 'center',
+    height: 30, // Large touch area from park-detection
     alignItems: 'center',
-    marginBottom: 5, // Space between handle and content
-    // Position handle at the very top of the padding area
-    marginTop: -10,
-    marginHorizontal: -10,
-    paddingTop: 10, // Create a clickable area on top of the border
+    justifyContent: 'center',
+    backgroundColor: '#f8f8f8',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
   handleIndicator: {
     width: 40,
-    height: 4,
-    borderRadius: 2,
+    height: 5,
+    borderRadius: 3,
     backgroundColor: '#ccc',
   },
   scrollViewContent: {
-    flex: 1, // Take remaining space
-    paddingBottom: 10, // Add some bottom padding to the scroll view
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 10,
   },
   notificationText: {
     fontSize: 14,
-    color: '#333',
-    marginBottom: 5,
+    color: '#000000', // From park-detection
+    fontWeight: '600', // From park-detection
+    marginBottom: 4,
   },
 });
 

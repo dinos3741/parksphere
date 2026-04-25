@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
+import DebugSimulator from './DebugSimulator';
 
 const Map = ({
   userLocation,
@@ -16,6 +17,7 @@ const Map = ({
   setNewSpotCoordinates,
   setShowTimeOptionsModal,
   acceptedSpot,
+  hmmStatus,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -50,22 +52,42 @@ const Map = ({
           {parkingSpots.map((spot) => {
             const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
             const displaySpot = isAccepted ? acceptedSpot : spot;
-            
+
+            const getStatusColor = (status) => {
+              switch (status) {
+                case 'soon_free': return 'orange';
+                case 'free': return 'green';
+                case 'occupied':
+                default: return 'red';
+              }
+            };
+
+            const getStatusRgba = (status, alpha) => {
+              switch (status) {
+                case 'soon_free': return `rgba(255, 165, 0, ${alpha})`;
+                case 'free': return `rgba(0, 128, 0, ${alpha})`;
+                case 'occupied':
+                default: return `rgba(255, 0, 0, ${alpha})`;
+              }
+            };
+
+            const statusColor = getStatusColor(displaySpot.status);
+
             return (
               <React.Fragment key={spot.id}>
-                {spot.ownerId === userId || isAccepted ? (
+                {spot.user_id === userId || isAccepted ? (
                   <Marker
                     coordinate={{ latitude: parseFloat(displaySpot.latitude), longitude: parseFloat(displaySpot.longitude) }}
                     onPress={() => handleSpotPress(displaySpot)}
-                    pinColor={spot.ownerId === userId ? "red" : "green"}
+                    pinColor={isAccepted ? "green" : statusColor}
                   />
                 ) : (
                   <>
                     <Circle
                       center={{ latitude: parseFloat(spot.latitude), longitude: parseFloat(spot.longitude) }}
                       radius={200}
-                      fillColor="rgba(255,0,0,0.2)"
-                      strokeColor="rgba(255,0,0,0.8)"
+                      fillColor={getStatusRgba(spot.status, 0.2)}
+                      strokeColor={getStatusRgba(spot.status, 0.8)}
                       strokeWidth={2}
                     />
                     <Marker
@@ -90,6 +112,17 @@ const Map = ({
           <View style={styles.crosshairVertical} />
         </View>
       )}
+
+      {hmmStatus && (
+        <View style={styles.statusOverlay}>
+          <Text style={styles.statusTitle}>HMM Engine</Text>
+          <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
+          <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
+          <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
+        </View>
+      )}
+
+      <DebugSimulator userLocation={userLocation} />
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
           <Text style={styles.centerButtonText}>⌖</Text>
@@ -151,6 +184,31 @@ const styles = StyleSheet.create({
     width: 2,
     height: 30,
     backgroundColor: 'black',
+  },
+  statusOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  statusTitle: {
+    color: '#aaa',
+    fontSize: 10,
+    fontWeight: 'bold',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+  },
+  statusValue: {
+    fontWeight: 'bold',
+    color: '#4ade80', // green-400
   },
 });
 

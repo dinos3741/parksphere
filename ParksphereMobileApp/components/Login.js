@@ -41,10 +41,17 @@ const Login = ({ onLogin, onRegister }) => {
   }, []);
 
   useEffect(() => {
-    console.log('Google Auth Response:', response);
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      handleGoogleSuccess(id_token);
+    if (response) {
+      console.log('Google Auth Response Type:', response.type);
+      if (response.type === 'success') {
+        const { id_token } = response.params;
+        handleGoogleSuccess(id_token);
+      } else if (response.type === 'error') {
+        console.error('Google Auth Error:', response.error);
+        Alert.alert('Google Login Error', response.error?.message || 'Unknown error');
+      } else if (response.type === 'cancel') {
+        console.log('Google Auth Cancelled by user');
+      }
     }
   }, [response]);
 

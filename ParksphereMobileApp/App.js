@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal } from 'react-native';
+import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,6 +23,8 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
+import { startParkDetection, stopParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
+import * as ExpoNotifications from 'expo-notifications';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -50,7 +52,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, hmmStatus }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -69,7 +71,24 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           setNewSpotCoordinates={setNewSpotCoordinates}
           setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
+          hmmStatus={hmmStatus}
         />
+        <TouchableOpacity
+          style={[
+            styles.fab,
+            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
+          ]}
+          onPress={handleFabPress}
+          disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
+        >
+          {(acceptedSpot) ? (
+            <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
+          ) : (
+            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
+              {isAddingSpot ? 'X' : '+'}
+            </Text>
+          )}
+        </TouchableOpacity>
       </View>
       <Notifications notifications={notifications} />
     </View>
@@ -149,6 +168,73 @@ export default function App() {
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
   const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
+  const [hmmStatus, setHmmStatus] = useState(null); // Track live HMM engine data
+
+  // Notification and Auto-Detection setup
+  useEffect(() => {
+    // 1. Register listener FIRST
+    const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
+      console.log('App.js: Received park detection update:', data.message);
+      addNotification(data.message);
+    });
+
+    const detailedSubscription = DeviceEventEmitter.addListener('parkDetectionDetailedUpdate', (data) => {
+      setHmmStatus(data);
+    });
+
+    const setupNotificationsAndDetection = async () => {
+      // 2. Request Notification Permissions
+      const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
+      if (existingStatus !== 'granted') {
+        await ExpoNotifications.requestPermissionsAsync();
+      }
+      
+      // 3. Initial check for Auto-Detection
+      if (currentUser) {
+        const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+        if (currentUser.auto_detect || autoDetectionEnabled === 'true') {
+          if (currentUser.auto_detect) {
+            await AsyncStorage.setItem('autoDetectionEnabled', 'true');
+          }
+          await startParkDetection();
+        }
+      }
+    };
+    
+    let foregroundSubscription = null;
+    const setupForegroundFallback = async () => {
+       const storedEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+       const isEnabled = (storedEnabled === 'true') || (currentUser && currentUser.auto_detect);
+       
+       if (isEnabled) {
+         foregroundSubscription = await Location.watchPositionAsync({
+           accuracy: Location.Accuracy.High,
+           distanceInterval: 1,
+           timeInterval: 2000
+         }, async (location) => {
+           await handleLocationUpdate(location);
+         });
+         console.log('App.js: Foreground location fallback started for Expo Go');
+       }
+    };
+
+    if (isLoggedIn && currentUser) {
+      const initializeAll = async () => {
+        await setupNotificationsAndDetection();
+        await setupForegroundFallback();
+      };
+      initializeAll();
+    }
+
+    return () => {
+      if (foregroundSubscription) {
+        foregroundSubscription.remove();
+      }
+      detectionSubscription.remove();
+      detailedSubscription.remove();
+      stopParkDetection(); // Ensure detection stops when unmounting or user changes
+    };
+  }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect]);
 
   // Update total unread count whenever unreadConversations changes
   useEffect(() => {
@@ -283,9 +369,11 @@ export default function App() {
     fetchUserData();
   };
 
-  const handleProfileUpdate = () => {
+  const handleProfileUpdate = (shouldClose = true) => {
     fetchUserData();
-    setIsEditingProfile(false); // Go back to details view after update
+    if (shouldClose === true) {
+      setIsEditingProfile(false); // Go back to details view after update
+    }
   };
 
   // Map related states
@@ -348,8 +436,11 @@ export default function App() {
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
+        } else if (response.status === 401 || response.status === 403) {
+          console.error('Authentication failed when fetching user data. Logging out...', response.status);
+          await handleLogout();
         } else {
-          console.error('Failed to fetch user data');
+          console.error('Failed to fetch user data', response.status);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -370,10 +461,14 @@ export default function App() {
       setToken(null);
       setUserId(null);
       setCurrentUsername(null);
+      setCurrentUser(null);
       setIsLoggedIn(false);
       setMessage('Logged out. Please log in.');
       setNotifications([]); // Clear notifications on logout
       setTotalUnreadMessagesCount(0); // Reset unread count on logout
+      
+      // Stop park detection on logout
+      await stopParkDetection();
     } catch (error) {
       console.error('Error during logout:', error);
     }
@@ -399,7 +494,7 @@ export default function App() {
             setParkingSpots(transformedData);
           } else if (response.status === 401 || response.status === 403) {
             console.error('Authentication failed when fetching spots. Logging out...', response.status);
-            handleLogout();
+            await handleLogout();
           } else {
             console.error('Failed to fetch parking spots:', response.status, response.statusText);
           }
@@ -415,9 +510,7 @@ export default function App() {
         socket.current = newSocket;
 
         newSocket.on('connect', () => {
-          console.log('Mobile App: Connected to Socket.IO server!');
           newSocket.emit('register', { userId, username: currentUsername });
-          console.log('Mobile App: Emitted register event.');
         });
 
         newSocket.on('disconnect', () => {
@@ -443,6 +536,13 @@ export default function App() {
 
         newSocket.on('spotUpdated', (updatedSpot) => {
           console.log('Mobile App: Spot updated received:', updatedSpot);
+          setParkingSpots((prevSpots) =>
+            prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
+          );
+        });
+
+        newSocket.on('spotStatusUpdated', (updatedSpot) => {
+          console.log('Mobile App: Spot status updated received:', updatedSpot);
           setParkingSpots((prevSpots) =>
             prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
           );
@@ -693,7 +793,7 @@ export default function App() {
 
     const executeDelete = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/parkingspots/${spotId}`, {
+        const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -862,8 +962,8 @@ export default function App() {
   };
 
   const WrappedHomeScreen = useMemo(() => (props) => {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} />;
-  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot]);
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} hmmStatus={hmmStatus} />;
+  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, hmmStatus]);
 
   // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {
@@ -1028,26 +1128,6 @@ export default function App() {
               <Tab.Screen name="Search" component={WrappedSearchScreen} />
               <Tab.Screen name="Profile" component={ProfileScreen} />
             </Tab.Navigator>
-            {activeScreen === 'Home' && (
-              <>
-                <TouchableOpacity 
-                  style={[
-                    styles.fab,
-                    (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
-                  ]} 
-                  onPress={handleFabPress}
-                  disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
-                >
-                  {(acceptedSpot) ? (
-                    <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
-                  ) : (
-                    <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
-                      {isAddingSpot ? 'X' : '+'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            )}
           </View>
         ) : showRegister ? (
           <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
@@ -1319,7 +1399,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 170,
+    bottom: 20,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',
