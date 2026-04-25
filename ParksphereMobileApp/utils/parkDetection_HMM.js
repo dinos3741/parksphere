@@ -12,10 +12,10 @@ export const STATES = [
 
 // Transition Matrix A[from][to]
 export const A = {
-  IDLE: { IDLE: 0.7, WALKING: 0.15, DRIVING: 0.05, PARKED: 0.1 },
-  WALKING: { WALKING: 0.7, IDLE: 0.1, IN_CAR: 0.1, RETURNING: 0.1 },
+  IDLE: { IDLE: 0.745, WALKING: 0.2, DRIVING: 0.05, PARKED: 0.005 },
+  WALKING: { WALKING: 0.8, IDLE: 0.15, IN_CAR: 0.01, RETURNING: 0.04 },
   DRIVING: { DRIVING: 0.85, STOPPED: 0.12, PARKED: 0.03 },
-  STOPPED: { DRIVING: 0.2, STOPPED: 0.2, PARKED: 0.4, WALKING_AWAY: 0.2 }, // Increased PARKED, added WALKING_AWAY
+  STOPPED: { DRIVING: 0.2, STOPPED: 0.4, PARKED: 0.2, WALKING_AWAY: 0.2 }, // Reduced PARKED, increased STOPPED
   PARKED: { PARKED: 0.6, WALKING_AWAY: 0.25, AWAY: 0.05, DRIVING: 0.05, STOPPED: 0.05 },
   WALKING_AWAY: { WALKING_AWAY: 0.7, AWAY: 0.3 },
   AWAY: { AWAY: 0.8, RETURNING: 0.2 },
@@ -35,10 +35,10 @@ export function emissionLogProb(state, obs) {
 
   // Speed Models
   switch (state) {
-    case 'IDLE': logp += logGaussian(speed, 0, 1.0); break; // Increased std for jitter
+    case 'IDLE':
+    case 'STOPPED':
+    case 'PARKED': logp += logGaussian(speed, 0, 1.0); break; // Standardized stationary model
     case 'DRIVING': logp += logGaussian(speed, 40, 15); break;
-    case 'STOPPED': logp += logGaussian(speed, 0.3, 1.5); break; // Increased std for jitter
-    case 'PARKED': logp += logGaussian(speed, 0.2, 0.5); break;
     case 'WALKING':
     case 'WALKING_AWAY':
     case 'RETURNING': logp += logGaussian(speed, 4.5, 1.5); break;
