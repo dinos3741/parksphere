@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
 // Import the modified processLocationHMM which now returns belief
@@ -10,6 +11,12 @@ export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 // ---------------- CONSTANTS ----------------
 const STORAGE_KEY = 'PARK_STATE';
 let isInitialized = false;
+
+// Sensor data cache
+let currentAcceleration = 0;
+let currentStepRate = 0;
+let accelSubscription = null;
+let pedoSubscription = null;
 
 // ---------------- HELPERS ----------------
 async function declareSpot(location) {
@@ -119,18 +126,54 @@ export async function handleLocationUpdate(arg1, arg2) {
     longitude: location.coords.longitude,
   };
 
+  // Calculate supplemental metrics for HMM
+  const now = Date.now();
+  const speed = (location.coords.speed || 0) * 3.6; // km/h
+  
+  // 1. Heading Change
+  const currentHeading = location.coords.heading || 0;
+  let headingChange = 0;
+  if (stateData.lastHeading !== undefined) {
+    let diff = Math.abs(currentHeading - stateData.lastHeading);
+    headingChange = diff > 180 ? 360 - diff : diff;
+  }
+  stateData.lastHeading = currentHeading;
+
+  // 2. Stop Duration
+  if (speed < 1.0) { // threshold for stopping
+    if (!stateData.stopStartTime) stateData.stopStartTime = now;
+    stateData.stopDuration = (now - stateData.stopStartTime) / 1000; // seconds
+  } else {
+    stateData.stopStartTime = null;
+    stateData.stopDuration = 0;
+  }
+
+  // 3. Acceleration and Steps (from sensor cache)
+  const acceleration = currentAcceleration;
+  const stepRate = currentStepRate;
+
   // Run HMM Inference
+  const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
+    acceleration_magnitude: acceleration,
+    step_rate: stepRate,
+    heading_change: headingChange,
+    stop_duration: stateData.stopDuration,
+    lastDistanceToCar: stateData.lastDistanceToCar
+  });
+
   const {
     state: hmmState,
     bestState,
     confidence,
     secondBestState,
     secondConfidence,
-    belief: currentBelief
-  } = await processLocationHMM(location, stateData.parkedLocation);
+    belief: currentBelief,
+    distToParked
+  } = hmmResult;
 
+  stateData.lastDistanceToCar = distToParked;
   const isFirstUpdate = !stateData.lastUpdate;
-  stateData.lastUpdate = Date.now();
+  stateData.lastUpdate = now;
   stateData.state = hmmState;
   stateData.belief = currentBelief;
 
@@ -158,12 +201,18 @@ export async function handleLocationUpdate(arg1, arg2) {
     }
 
     if (stateData.state === 'PARKED') {
-      stateData.parkedLocation = currentLoc; // Update parked location
-      console.log('[ParkDetection] Parked location recorded:', currentLoc);
+      // "Candidate" location - refined while user is stationary
+      stateData.parkedLocation = currentLoc; 
+      console.log('[ParkDetection] Parked location candidate updated:', currentLoc);
     }
 
-    if (stateData.state === 'WALKING_AWAY' && !stateData.serverSpotId) {
-      // Use parkedLocation, then stoppedLocation, then currentLoc as fallback
+    // THE OFFICIAL CONFIRMATION:
+    // Transition from a stationary state to a walking-away state
+    const isStationary = (s) => ['PARKED', 'STOPPED', 'IDLE'].includes(s);
+    const isWalkingAway = (s) => ['WALKING_AWAY', 'AWAY'].includes(s);
+
+    if (isWalkingAway(stateData.state) && isStationary(prevState) && !stateData.serverSpotId) {
+      console.log('[ParkDetection] Official Confirmation: User walked away. Declaring spot...');
       const finalParkedLoc = stateData.parkedLocation || stateData.stoppedLocation || currentLoc;
       stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }
@@ -177,6 +226,7 @@ export async function handleLocationUpdate(arg1, arg2) {
       stateData.serverSpotId = null;
       stateData.parkedLocation = null; // Clear parked location when back in car
       stateData.stoppedLocation = null; // Clear stopped location
+      stateData.lastDistanceToCar = null;
     }
   }
 
@@ -188,10 +238,19 @@ export async function handleLocationUpdate(arg1, arg2) {
     secondBestState,
     secondConfidence,
     belief: currentBelief,
-    location: currentLoc
+    location: currentLoc,
+    metrics: {
+      speed,
+      acceleration,
+      stepRate,
+      headingChange,
+      stopDuration: stateData.stopDuration,
+      distToParked
+    }
   });
 
-  if (!isInternal) {    try {
+  if (!isInternal) {
+    try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
     } catch (e) {
       console.error('[ParkDetection] Failed to save state to storage:', e);
@@ -199,6 +258,36 @@ export async function handleLocationUpdate(arg1, arg2) {
   }
 
   return stateData; // Return the updated stateData object
+}
+
+// ---------------- SENSORS ----------------
+function startSensors() {
+  Accelerometer.setUpdateInterval(1000);
+  accelSubscription = Accelerometer.addListener(data => {
+    // Magnitude of acceleration: sqrt(x^2 + y^2 + z^2)
+    currentAcceleration = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
+  });
+
+  Pedometer.isAvailableAsync().then(available => {
+    if (available) {
+      // Track steps in 5 second windows to get a "rate"
+      let lastStepCount = 0;
+      pedoSubscription = Pedometer.watchStepCount(result => {
+        const deltaSteps = result.steps - lastStepCount;
+        currentStepRate = deltaSteps; // simplified rate
+        lastStepCount = result.steps;
+        // Reset rate after a while if no updates
+        setTimeout(() => { if (lastStepCount === result.steps) currentStepRate = 0; }, 5000);
+      });
+    }
+  });
+}
+
+function stopSensors() {
+  if (accelSubscription) accelSubscription.remove();
+  if (pedoSubscription) pedoSubscription.remove();
+  accelSubscription = null;
+  pedoSubscription = null;
 }
 
 // ---------------- TASK ----------------
@@ -263,6 +352,7 @@ export const startParkDetection = async () => {
     console.log('[ParkDetection] Initializing HMM components...');
     initMotionTracking(); // Initialize motion tracking
     resetHMM(); // Reset HMM state to IDLE
+    startSensors();
 
     // Clear persistent state on clean start to avoid immediate transitions from stale data
     await AsyncStorage.removeItem(STORAGE_KEY);
@@ -303,6 +393,7 @@ export const stopParkDetection = async () => {
   try {
     console.log('[ParkDetection] Stopping park detection...');
     isInitialized = false;
+    stopSensors();
     const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
     if (started) {
       await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK);
@@ -313,3 +404,4 @@ export const stopParkDetection = async () => {
     console.error('[ParkDetection] Error in stopParkDetection:', error);
   }
 };
+
