@@ -9,26 +9,25 @@ export const STATES = [
 ];
 
 // Transition Matrix A[from][to]
-// Refined for more realistic transitions and stability
 export const A = {
-  IDLE: { IDLE: 0.7, WALKING: 0.15, DRIVING: 0.1, PARKED: 0.05 },
-  WALKING: { WALKING: 0.8, IDLE: 0.1, RETURNING: 0.05, WALKING_AWAY: 0.05 },
-  DRIVING: { DRIVING: 0.85, STOPPED: 0.1, PARKED: 0.05 },
+  IDLE: { IDLE: 0.6, WALKING: 0.39, DRIVING: 0.01 }, // Removed PARKED, restricted to movement only
+  WALKING: { WALKING: 0.85, IDLE: 0.05, RETURNING: 0.05, WALKING_AWAY: 0.05 },
+  DRIVING: { DRIVING: 0.9, STOPPED: 0.08, PARKED: 0.02 },
   STOPPED: { STOPPED: 0.5, DRIVING: 0.2, PARKED: 0.2, IN_CAR: 0.1 },
   PARKED: { PARKED: 0.7, WALKING_AWAY: 0.15, STOPPED: 0.05, IN_CAR: 0.1 },
   WALKING_AWAY: { WALKING_AWAY: 0.8, AWAY: 0.15, RETURNING: 0.05 },
   AWAY: { AWAY: 0.9, RETURNING: 0.1 },
   RETURNING: { RETURNING: 0.8, IN_CAR: 0.15, AWAY: 0.05 },
-  IN_CAR: { IN_CAR: 0.5, DRIVING: 0.3, STOPPED: 0.2 }
+  IN_CAR: { IN_CAR: 0.6, DRIVING: 0.3, STOPPED: 0.1 }
 };
 
 // Activity Likelihood Table: P(Activity | State)
 const ActivityLikelihood = {
-  AUTOMOTIVE: { DRIVING: 0.7, STOPPED: 0.1, IN_CAR: 0.2 },
-  WALKING: { WALKING: 0.3, WALKING_AWAY: 0.25, RETURNING: 0.25, AWAY: 0.2 },
-  RUNNING: { WALKING: 0.3, WALKING_AWAY: 0.25, RETURNING: 0.25, AWAY: 0.2 },
-  STATIONARY: { PARKED: 0.35, IDLE: 0.25, STOPPED: 0.2, IN_CAR: 0.15, AWAY: 0.05 },
-  CYCLING: { DRIVING: 0.5, WALKING: 0.5 } // Ambiguous, split weight
+  AUTOMOTIVE: { DRIVING: 0.8, STOPPED: 0.1, IN_CAR: 0.1 },
+  WALKING: { WALKING: 0.4, WALKING_AWAY: 0.2, RETURNING: 0.2, AWAY: 0.2 },
+  RUNNING: { WALKING: 0.4, WALKING_AWAY: 0.2, RETURNING: 0.2, AWAY: 0.2 },
+  STATIONARY: { PARKED: 0.4, IDLE: 0.3, STOPPED: 0.2, AWAY: 0.05, IN_CAR: 0.05 },
+  CYCLING: { DRIVING: 0.5, WALKING: 0.5 } 
 };
 
 function logGaussian(x, mean, std) {
@@ -93,7 +92,9 @@ export function emissionLogProb(state, obs) {
   // 3. Step Rate (Zero-Inflated Bernoulli)
   const isWalkingState = ['WALKING', 'WALKING_AWAY', 'RETURNING', 'AWAY'].includes(state);
   if (steps > 0) {
-    logp += isWalkingState ? Math.log(0.9) : Math.log(0.01);
+    if (isWalkingState) logp += Math.log(0.9);
+    else if (state === 'DRIVING') logp += Math.log(0.0001); // Heavy penalty for driving with steps
+    else logp += Math.log(0.01);
   } else {
     logp += isWalkingState ? Math.log(0.1) : Math.log(0.99);
   }
@@ -198,31 +199,32 @@ export function initMotionTracking() {
 }
 
 export async function processLocationHMM(location, parkedLocation, supplemental = {}) {
+  // Sanitize Inputs
   const rawSpeed = location.coords.speed || 0;
-  const speed = Math.max(0, rawSpeed) * 3.6; // km/h
-
-  // Use parked location or current location as fallback if we haven't detected parking yet
+  const speed = !isNaN(rawSpeed) ? Math.max(0, rawSpeed) * 3.6 : 0; // km/h
+  
   const effectiveParkedLoc = parkedLocation || {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude
   };
-
-  const distToParked = getDistance(location.coords, effectiveParkedLoc);
-  const deltaDist = supplemental.lastDistanceToCar !== null ? (distToParked - supplemental.lastDistanceToCar) : 0;
+  
+  const distToParked = getDistance(location.coords, effectiveParkedLoc) || 0;
+  const lastDist = supplemental.lastDistanceToCar;
+  const deltaDist = (lastDist !== null && !isNaN(lastDist)) ? (distToParked - lastDist) : 0;
 
   const obs = {
-    speed,
-    accel: supplemental.acceleration_magnitude || 1.0,
-    steps: supplemental.step_rate || 0,
-    dist: distToParked,
-    deltaDist: deltaDist,
-    headingChange: supplemental.heading_change || 0,
-    stopDuration: supplemental.stop_duration || 0,
-    activity: lastActivityType,
-    confidence: lastConfidence
+    speed: isFinite(speed) ? speed : 0,
+    accel: isFinite(supplemental.acceleration_magnitude) ? supplemental.acceleration_magnitude : 1.0,
+    steps: isFinite(supplemental.step_rate) ? supplemental.step_rate : 0,
+    dist: isFinite(distToParked) ? distToParked : 0,
+    deltaDist: isFinite(deltaDist) ? deltaDist : 0,
+    headingChange: isFinite(supplemental.heading_change) ? supplemental.heading_change : 0,
+    stopDuration: isFinite(supplemental.stop_duration) ? supplemental.stop_duration : 0,
+    activity: lastActivityType || 'UNKNOWN',
+    confidence: lastConfidence || 'LOW'
   };
-
-  console.log('[HMM] Observed Data Vector:', obs);
+  
+  console.log('[HMM] Validated Obs Vector:', JSON.stringify(obs));
 
   const newBelief = updateBelief(belief, obs);
   const result = stableStateUpdate(newBelief); 
@@ -231,16 +233,44 @@ export async function processLocationHMM(location, parkedLocation, supplemental 
 }
 
 export function updateBelief(prevBelief, obs) {
-  const newBelief = {};
+  const logBeliefs = {};
+  let maxLog = -Infinity;
+
+  // 1. Calculate log-beliefs
   for (const s of STATES) {
-    let sum = 0;
+    let transitionProb = 0;
     for (const sp of STATES) {
-      sum += prevBelief[sp] * ((A[sp]?.[s]) || 0.0001);
+      const p = prevBelief[sp] || (sp === 'IDLE' ? 1.0 : 0.0);
+      transitionProb += p * ((A[sp]?.[s]) || 0); // Strictly use matrix
     }
-    newBelief[s] = sum * Math.exp(emissionLogProb(s, obs));
+    
+    const logEmission = emissionLogProb(s, obs);
+    const lb = Math.log(transitionProb + 1e-10) + logEmission;
+    logBeliefs[s] = isFinite(lb) ? lb : -1000; // Cap at a very low number instead of -Infinity
+    
+    if (logBeliefs[s] > maxLog) maxLog = logBeliefs[s];
   }
-  const total = Object.values(newBelief).reduce((a, b) => a + b, 0) || 1;
-  for (const s of STATES) newBelief[s] /= total;
+
+  // 2. Log-Sum-Exp Trick
+  const newBelief = {};
+  let sumExp = 0;
+
+  // If all states are impossible, reset to IDLE
+  if (maxLog === -Infinity || isNaN(maxLog)) {
+    console.warn('[HMM] Numerical instability detected, resetting belief to IDLE');
+    for (const s of STATES) newBelief[s] = s === 'IDLE' ? 1.0 : 0.0;
+    return newBelief;
+  }
+
+  for (const s of STATES) {
+    newBelief[s] = Math.exp(logBeliefs[s] - maxLog);
+    sumExp += newBelief[s];
+  }
+
+  // Final normalization
+  for (const s of STATES) {
+    newBelief[s] /= (sumExp || 1);
+  }
 
   return newBelief;
 }
@@ -252,8 +282,11 @@ export function stableStateUpdate(newBelief) {
   const secondBestState = sorted[1] ? sorted[1][0] : null;
   const secondConfidence = sorted[1] ? sorted[1][1] : 0;
 
-  // Confidence threshold for state transition
-  if (bestState !== currentState && confidence > 0.65) {
+  // Dynamic Confidence threshold for state transition
+  // Make IDLE -> WALKING responsive but not 'too soon'
+  const threshold = (currentState === 'IDLE' && bestState === 'WALKING') ? 0.45 : 0.55;
+
+  if (bestState !== currentState && confidence > threshold) {
     currentState = bestState;
     console.log(`[HMM] State updated to: ${currentState} (Confidence: ${confidence.toFixed(4)})`);
   }
