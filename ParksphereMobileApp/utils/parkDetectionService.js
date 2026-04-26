@@ -272,12 +272,18 @@ function startSensors() {
     if (available) {
       // Track steps in 5 second windows to get a "rate"
       let lastStepCount = 0;
+      let lastTimestamp = Date.now();
+
       pedoSubscription = Pedometer.watchStepCount(result => {
+        const now = Date.now();
+        const dt = (now - lastTimestamp) / 1000;
+
         const deltaSteps = result.steps - lastStepCount;
-        currentStepRate = deltaSteps; // simplified rate
+
+        currentStepRate = dt > 0 ? deltaSteps / dt : 0;
+
         lastStepCount = result.steps;
-        // Reset rate after a while if no updates
-        setTimeout(() => { if (lastStepCount === result.steps) currentStepRate = 0; }, 5000);
+        lastTimestamp = now;
       });
     }
   });
