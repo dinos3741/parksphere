@@ -28,10 +28,10 @@ export const A = {
   },
 
   WALKING: {
-    WALKING: 0.60,    // 📉 Lower stickiness
-    IDLE: 0.1,
-    DRIVING: 0.1,
-    AWAY: 0.2         // 📈 Higher probability to trigger AWAY
+    WALKING: 0.50,    // 📉 Even lower stickiness
+    IDLE: 0.05,
+    DRIVING: 0.05,
+    AWAY: 0.4         // 🚀 Much higher probability
   },
 
   DRIVING: {
@@ -303,6 +303,10 @@ function emissionLogProb(state, obs) {
     if (speed < 2) logp -= 10; // 🛑 Force exit if standing still
   } else if (isWalkingState) {
     logp += logGaussian(speed, 4.5, 2);
+    // 🚀 Nudge: If walking away, favor AWAY state if dist > 5m
+    if (state === 'WALKING' && dist > 5 && deltaRate > 0) {
+      logp += logGaussian(dist, 10, 5);
+    }
   } else {
     logp += logGaussian(speed, 0, 1.5);
   }
