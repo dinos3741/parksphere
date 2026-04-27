@@ -22,49 +22,49 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.7,
-    WALKING: 0.25,
-    DRIVING: 0.05   // ✅ allow direct start driving
+    IDLE: 0.75,
+    WALKING: 0.20,
+    DRIVING: 0.05
   },
 
   WALKING: {
-    WALKING: 0.7,
-    IDLE: 0.1,
-    DRIVING: 0.1,
-    AWAY: 0.1       // ✅ allow transition to AWAY
+    WALKING: 0.75,
+    IDLE: 0.08,
+    DRIVING: 0.08,
+    AWAY: 0.09
   },
 
   DRIVING: {
-    DRIVING: 0.85,
-    STOPPED: 0.1,
-    PARKED: 0.05
+    DRIVING: 0.9,
+    STOPPED: 0.07,
+    PARKED: 0.03
   },
 
   STOPPED: {
-    STOPPED: 0.6,
-    DRIVING: 0.25,
-    PARKED: 0.15
+    STOPPED: 0.65,
+    DRIVING: 0.22,
+    PARKED: 0.13
   },
 
   PARKED: {
-    PARKED: 0.8,
-    WALKING: 0.2
+    PARKED: 0.85,
+    WALKING: 0.15
   },
 
   AWAY: {
-    AWAY: 0.85,
-    RETURNING: 0.15
+    AWAY: 0.9,
+    RETURNING: 0.1
   },
 
   RETURNING: {
-    RETURNING: 0.7,
-    IN_CAR: 0.25,
+    RETURNING: 0.75,
+    IN_CAR: 0.20,
     AWAY: 0.05
   },
 
   IN_CAR: {
-    IN_CAR: 0.6,
-    DRIVING: 0.4
+    IN_CAR: 0.65,
+    DRIVING: 0.35
   }
 };
 
@@ -442,12 +442,19 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   belief = updateBelief(belief, obs, context);
 
   // ==============================
-  // SELECT BEST STATE
+  // SELECT BEST STATE (with hysteresis)
   // ==============================
   const sorted = Object.entries(belief).sort((a, b) => b[1] - a[1]);
+  const candidate = sorted[0][0];
+  const candidateConf = sorted[0][1];
+  const currentConf = belief[currentState] || 0;
 
-  const bestState = sorted[0][0];
-  currentState = bestState;
+  // Only switch if the candidate is 10% more confident than the current state
+  if (candidate !== currentState && candidateConf > (currentConf + 0.10)) {
+    currentState = candidate;
+  }
+
+  const bestState = currentState;
 
   // ==============================
   // RETURN RESULT
@@ -455,9 +462,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   return {
     state: bestState,
     bestState,
-    confidence: sorted[0][1],
-    secondBestState: sorted[1]?.[0],
-    secondConfidence: sorted[1]?.[1],
+    confidence: belief[bestState],
+    secondBestState: sorted[0][0] === bestState ? sorted[1]?.[0] : sorted[0][0],
+    secondConfidence: sorted[0][0] === bestState ? sorted[1]?.[1] : sorted[0][1],
     belief,
     distToParked: dist,
     deltaRate,
