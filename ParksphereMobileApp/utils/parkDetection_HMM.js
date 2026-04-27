@@ -42,11 +42,11 @@ export const A = {
   },
 
   STOPPED: {
-    STOPPED: 0.85,    // ✅ increased stickiness
+    STOPPED: 0.70,
     DRIVING: 0.05,
-    PARKED: 0.05,     // 📉 reduced transition to parked
-    IDLE: 0.03,
-    WALKING: 0.02
+    PARKED: 0.18,     // 📈 increased for better transition
+    IDLE: 0.04,
+    WALKING: 0.03
   },
 
   PARKED: {
