@@ -18,6 +18,20 @@ let currentStepRate = 0;
 let accelSubscription = null;
 let pedoSubscription = null;
 
+export function simulateMotionActivity(type, intensity = 'HIGH') {
+  console.log(`[ParkDetection] Simulating activity: ${type} (${intensity})`);
+  if (type === 'AUTOMOTIVE') {
+    currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.4 : 0.1);
+    currentStepRate = 0;
+  } else if (type === 'WALKING') {
+    currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.2 : 0.05);
+    currentStepRate = intensity === 'HIGH' ? 2.0 : 1.2;
+  } else {
+    currentAcceleration = 1.0;
+    currentStepRate = 0;
+  }
+}
+
 // ---------------- HELPERS ----------------
 async function declareSpot(location) {
   try {

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { handleLocationUpdate, startParkDetection } from '../utils/parkDetectionService';
-import { simulateMotionActivity } from '../utils/parkDetection_HMM';
+import { handleLocationUpdate, startParkDetection, simulateMotionActivity } from '../utils/parkDetectionService';
 
 const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
