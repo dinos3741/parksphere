@@ -35,17 +35,17 @@ export const A = {
   },
 
   DRIVING: {
-    DRIVING: 0.75,
-    STOPPED: 0.20,
-    WALKING: 0.03,
-    IDLE: 0.02
+    DRIVING: 0.60,
+    STOPPED: 0.30,
+    WALKING: 0.05,
+    IDLE: 0.05
   },
 
   STOPPED: {
-    STOPPED: 0.65,
+    STOPPED: 0.60,
     DRIVING: 0.15,
-    PARKED: 0.12,
-    IDLE: 0.05,
+    PARKED: 0.15,
+    IDLE: 0.07,
     WALKING: 0.03
   },
 
@@ -315,6 +315,18 @@ function emissionLogProb(state, obs) {
 
   // ACCELERATION
   logp += logGaussian(accel, 1.0, 0.6);
+
+  // 🛡️ STATIONARY GUARD
+  // If phone is physically still (accel near 1.0 and no steps), 
+  // we heavily penalize movement states to ignore GPS drift.
+  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.05 && !hasSteps;
+  if (isPhysicallyStill) {
+    if (['DRIVING', 'WALKING', 'AWAY', 'RETURNING'].includes(state)) {
+      logp -= 10;
+    } else {
+      logp += 2; // Boost stationary states
+    }
+  }
 
   // DISTANCE relevance
   if (state === 'PARKED') {
