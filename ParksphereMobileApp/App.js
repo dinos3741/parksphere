@@ -13,6 +13,7 @@ import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
 import Notifications from './components/Notifications';
 import Map from './components/Map';
+import HMMOverlay from './components/HMMOverlay';
 import Login from './components/Login';
 import Register from './components/Register';
 import Profile from './components/Profile';
@@ -52,12 +53,11 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, hmmStatus }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
         <Map
-          key={parkingSpots.length}
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
@@ -71,7 +71,6 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           setNewSpotCoordinates={setNewSpotCoordinates}
           setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
-          hmmStatus={hmmStatus}
         />
         <TouchableOpacity
           style={[
@@ -168,7 +167,6 @@ export default function App() {
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
   const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
-  const [hmmStatus, setHmmStatus] = useState(null); // Track live HMM engine data
 
   // Notification and Auto-Detection setup
   useEffect(() => {
@@ -176,10 +174,6 @@ export default function App() {
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
       console.log('App.js: Received park detection update:', data.message);
       addNotification(data.message);
-    });
-
-    const detailedSubscription = DeviceEventEmitter.addListener('parkDetectionDetailedUpdate', (data) => {
-      setHmmStatus(data);
     });
 
     const setupNotificationsAndDetection = async () => {
@@ -231,7 +225,6 @@ export default function App() {
         foregroundSubscription.remove();
       }
       detectionSubscription.remove();
-      detailedSubscription.remove();
       stopParkDetection(); // Ensure detection stops when unmounting or user changes
     };
   }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect]);
@@ -962,8 +955,8 @@ export default function App() {
   };
 
   const WrappedHomeScreen = useMemo(() => (props) => {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} hmmStatus={hmmStatus} />;
-  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, hmmStatus]);
+    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} />;
+  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress]);
 
   // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {
@@ -1135,6 +1128,8 @@ export default function App() {
           <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
         )}
       </NavigationContainer>
+
+      <HMMOverlay />
 
       <LeavingModal
         visible={isLeavingModalVisible}

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import DebugSimulator from './DebugSimulator';
+import HMMOverlay from './HMMOverlay';
 
-const Map = ({
+const Map = memo(({
   userLocation,
   locationPermissionGranted,
   parkingSpots,
@@ -17,7 +18,6 @@ const Map = ({
   setNewSpotCoordinates,
   setShowTimeOptionsModal,
   acceptedSpot,
-  hmmStatus,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -47,8 +47,6 @@ const Map = ({
             }
           }}
         >
-
-
           {parkingSpots.map((spot) => {
             const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
             const displaySpot = isAccepted ? acceptedSpot : spot;
@@ -113,16 +111,8 @@ const Map = ({
         </View>
       )}
 
-      {hmmStatus && (
-        <View style={styles.statusOverlay}>
-          <Text style={styles.statusTitle}>HMM Engine</Text>
-          <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
-          <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
-          <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
-        </View>
-      )}
-
       <DebugSimulator userLocation={userLocation} />
+      
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
           <Text style={styles.centerButtonText}>⌖</Text>
@@ -130,7 +120,7 @@ const Map = ({
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   mapScreenContainer: {
@@ -149,66 +139,51 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    bottom: 20,
+    right: 20,
     flexDirection: 'column',
   },
   centerButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 20,
+    backgroundColor: 'white',
     padding: 10,
-    elevation: 2,
+    borderRadius: 30,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   centerButtonText: {
-    fontSize: 20,
+    fontSize: 24,
     color: '#333',
   },
   crosshairContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: '50%',
+    left: '50%',
+    width: 30,
+    height: 30,
+    marginLeft: -15,
+    marginTop: -15,
     justifyContent: 'center',
     alignItems: 'center',
-    pointerEvents: 'none', // Allows map interaction underneath
+    pointerEvents: 'none',
   },
   crosshairHorizontal: {
     position: 'absolute',
     width: 30,
     height: 2,
-    backgroundColor: 'black',
+    backgroundColor: 'red',
   },
   crosshairVertical: {
     position: 'absolute',
     width: 2,
     height: 30,
-    backgroundColor: 'black',
-  },
-  statusOverlay: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  statusTitle: {
-    color: '#aaa',
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginBottom: 2,
-    textTransform: 'uppercase',
-  },
-  statusText: {
-    color: 'white',
-    fontSize: 12,
-  },
-  statusValue: {
-    fontWeight: 'bold',
-    color: '#4ade80', // green-400
+    backgroundColor: 'red',
   },
 });
 
