@@ -44,6 +44,11 @@ const DebugSimulator = ({ userLocation }) => {
       case 'WALKING':
         mockLocation.coords.speed = 1.4; // 5 km/h
         simulateMotionActivity('WALKING', 'HIGH');
+        // Auto-idle after 3 seconds
+        setTimeout(async () => {
+          console.log('[Debug] Auto-triggering STATIONARY...');
+          await simulate('STATIONARY');
+        }, 3000);
         break;
       case 'STATIONARY':
         mockLocation.coords.speed = 0;
