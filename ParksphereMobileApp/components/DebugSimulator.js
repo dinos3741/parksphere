@@ -36,6 +36,11 @@ const DebugSimulator = ({ userLocation }) => {
       case 'DRIVING':
         mockLocation.coords.speed = 13.8; // 50 km/h
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+        // Auto-stop after 5 seconds
+        setTimeout(async () => {
+          console.log('[Debug] Auto-triggering STOPPED...');
+          await simulate('STOPPED');
+        }, 5000);
         break;
       case 'STOPPED':
         mockLocation.coords.speed = 0.1;
