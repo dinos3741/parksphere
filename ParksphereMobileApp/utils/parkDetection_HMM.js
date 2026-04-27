@@ -460,17 +460,15 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     currentState = candidate;
   }
 
-  const bestState = currentState;
-
   // ==============================
   // RETURN RESULT
   // ==============================
   return {
-    state: bestState,
-    bestState,
-    confidence: belief[bestState],
-    secondBestState: sorted[0][0] === bestState ? sorted[1]?.[0] : sorted[0][0],
-    secondConfidence: sorted[0][0] === bestState ? sorted[1]?.[1] : sorted[0][1],
+    state: currentState,      // The "Official" sticky state
+    bestState: candidate,     // The "Raw" leader in the belief
+    confidence: candidateConf,
+    secondBestState: sorted[1]?.[0],
+    secondConfidence: sorted[1]?.[1],
     belief,
     distToParked: dist,
     deltaRate,
