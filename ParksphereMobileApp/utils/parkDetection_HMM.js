@@ -55,19 +55,21 @@ export const A = {
   },
 
   AWAY: {
-    AWAY: 0.9,
-    RETURNING: 0.1
+    AWAY: 0.85,
+    RETURNING: 0.15,
+    IN_CAR: 0       // 🚫 Block jump
   },
 
   RETURNING: {
-    RETURNING: 0.75,
-    IN_CAR: 0.20,
-    AWAY: 0.05
+    RETURNING: 0.85, // 📈 Increased stickiness
+    IN_CAR: 0.15,
+    AWAY: 0
   },
 
   IN_CAR: {
     IN_CAR: 0.65,
-    DRIVING: 0.35
+    DRIVING: 0.35,
+    RETURNING: 0    // 🚫 Block jump
   }
 };
 
