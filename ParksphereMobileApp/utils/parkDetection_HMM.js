@@ -37,13 +37,16 @@ export const A = {
   DRIVING: {
     DRIVING: 0.9,
     STOPPED: 0.07,
-    PARKED: 0.03
+    PARKED: 0.02,
+    IDLE: 0.01      // ✅ allow rare direct return to IDLE
   },
 
   STOPPED: {
     STOPPED: 0.65,
-    DRIVING: 0.22,
-    PARKED: 0.13
+    DRIVING: 0.20,
+    PARKED: 0.10,
+    IDLE: 0.03,      // ✅ allow return to IDLE
+    WALKING: 0.02    // ✅ allow transition to WALKING (getting out)
   },
 
   PARKED: {
