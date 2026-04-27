@@ -330,11 +330,11 @@ function emissionLogProb(state, obs) {
 }
 
 // ==============================
-// FORWARD FILTER
+// FORWARD FILTER (Log-Sum-Exp version for stability & smoothing)
 // ==============================
 function updateBelief(prevBelief, obs, context) {
-  const newBelief = {};
-  let sum = 0;
+  const logNewBelief = {};
+  let maxLog = -Infinity;
 
   for (const s of STATES) {
     let transitionSum = 0;
@@ -348,21 +348,36 @@ function updateBelief(prevBelief, obs, context) {
       transitionSum += p * a;
     }
 
-    if (transitionSum === 0) {
-      newBelief[s] = 0;
+    if (transitionSum <= 0) {
+      logNewBelief[s] = -Infinity;
       continue;
     }
 
-    const emission = emissionLogProb(s, obs);
-    const value = Math.exp(Math.log(transitionSum) + emission);
+    // 🌡️ TEMPERATURE/SMOOTHING (0.3 makes transitions much more gradual)
+    // This allows hysteresis to be visible in the UI
+    const logEmission = emissionLogProb(s, obs) * 0.3;
+    const logVal = Math.log(transitionSum) + logEmission;
 
-    newBelief[s] = value;
-    sum += value;
+    logNewBelief[s] = logVal;
+    if (logVal > maxLog) maxLog = logVal;
   }
 
-  // normalize
+  // Normalize in log space to prevent underflow
+  let sumExp = 0;
   for (const s of STATES) {
-    newBelief[s] /= sum || 1;
+    if (logNewBelief[s] === -Infinity) continue;
+    sumExp += Math.exp(logNewBelief[s] - maxLog);
+  }
+
+  const logSumExp = maxLog + Math.log(sumExp);
+  const newBelief = {};
+
+  for (const s of STATES) {
+    if (logNewBelief[s] === -Infinity) {
+      newBelief[s] = 0;
+    } else {
+      newBelief[s] = Math.exp(logNewBelief[s] - logSumExp);
+    }
   }
 
   return newBelief;
