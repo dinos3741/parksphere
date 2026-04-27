@@ -35,10 +35,10 @@ export const A = {
   },
 
   DRIVING: {
-    DRIVING: 0.82,
-    STOPPED: 0.15,
-    PARKED: 0.02,
-    IDLE: 0.01
+    DRIVING: 0.75,
+    STOPPED: 0.20,
+    WALKING: 0.03,
+    IDLE: 0.02
   },
 
   STOPPED: {
@@ -298,6 +298,7 @@ function emissionLogProb(state, obs) {
   if (state === 'DRIVING') {
     // Use a wider Gaussian to allow for slow city driving/parking search
     logp += logGaussian(speed, 40, 20); 
+    if (speed < 2) logp -= 10; // 🛑 Force exit if standing still
   } else if (isWalkingState) {
     logp += logGaussian(speed, 4.5, 2);
   } else {
