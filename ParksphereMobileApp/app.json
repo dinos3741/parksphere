@@ -16,7 +16,12 @@
     "ios": {
       "supportsTablet": true,
       "homeIndicator": "hidden",
-      "bundleIdentifier": "com.konstantinos.parksphere"
+      "bundleIdentifier": "com.konstantinos.parksphere",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use location to detect parking.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We use location in background to detect parking.",
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "adaptiveIcon": {

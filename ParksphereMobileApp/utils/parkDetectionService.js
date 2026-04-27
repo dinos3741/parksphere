@@ -356,7 +356,7 @@ export const startParkDetection = async () => {
     }
 
     console.log('[ParkDetection] Initializing HMM components...');
-    initMotionTracking(); // Initialize motion tracking
+    // initMotionTracking(); // Initialize motion tracking
     resetHMM(); // Reset HMM state to IDLE
     startSensors();
 
