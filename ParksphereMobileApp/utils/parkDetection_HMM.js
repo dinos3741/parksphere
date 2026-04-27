@@ -35,18 +35,18 @@ export const A = {
   },
 
   DRIVING: {
-    DRIVING: 0.9,
-    STOPPED: 0.07,
+    DRIVING: 0.82,
+    STOPPED: 0.15,
     PARKED: 0.02,
-    IDLE: 0.01      // ✅ allow rare direct return to IDLE
+    IDLE: 0.01
   },
 
   STOPPED: {
     STOPPED: 0.65,
-    DRIVING: 0.20,
-    PARKED: 0.10,
-    IDLE: 0.03,      // ✅ allow return to IDLE
-    WALKING: 0.02    // ✅ allow transition to WALKING (getting out)
+    DRIVING: 0.15,
+    PARKED: 0.12,
+    IDLE: 0.05,
+    WALKING: 0.03
   },
 
   PARKED: {
@@ -356,9 +356,8 @@ function updateBelief(prevBelief, obs, context) {
       continue;
     }
 
-    // 🌡️ TEMPERATURE/SMOOTHING (0.3 makes transitions much more gradual)
-    // This allows hysteresis to be visible in the UI
-    const logEmission = emissionLogProb(s, obs) * 0.3;
+    // 🌡️ TEMPERATURE/SMOOTHING (0.5 balance between stability and speed)
+    const logEmission = emissionLogProb(s, obs) * 0.5;
     const logVal = Math.log(transitionSum) + logEmission;
 
     logNewBelief[s] = logVal;
@@ -473,8 +472,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const candidateConf = sorted[0][1];
   const currentConf = belief[currentState] || 0;
 
-  // Only switch if the candidate is 10% more confident than the current state
-  if (candidate !== currentState && candidateConf > (currentConf + 0.10)) {
+  // Only switch if the candidate is 5% more confident than the current state
+  if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
     currentState = candidate;
   }
 
