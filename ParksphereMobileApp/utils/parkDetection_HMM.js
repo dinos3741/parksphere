@@ -30,8 +30,8 @@ export const A = {
   WALKING: {
     WALKING: 0.7,
     IDLE: 0.1,
-    DRIVING: 0.15,  // ✅ CRITICAL: first-time driving
-    IN_CAR: 0.05    // only valid with parked location
+    DRIVING: 0.1,
+    AWAY: 0.1       // ✅ allow transition to AWAY
   },
 
   DRIVING: {
@@ -282,30 +282,25 @@ function emissionLogProb(state, obs) {
 
   let logp = 0;
 
+  const isStationaryState = ['IDLE', 'STOPPED', 'PARKED', 'IN_CAR'].includes(state);
+  const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
+
   // SPEED
   if (state === 'DRIVING') {
-  logp += speed > 15
-    ? logGaussian(speed, 50, 15)
-    : -10; // strong penalty if slow
-  }
-  else if (['WALKING', 'AWAY', 'RETURNING'].includes(state)) {
+    // Use a wider Gaussian to allow for slow city driving/parking search
+    logp += logGaussian(speed, 40, 20); 
+  } else if (isWalkingState) {
     logp += logGaussian(speed, 4.5, 2);
-  } 
-  else {
-    logp += logGaussian(speed, 0, 2);
+  } else {
+    logp += logGaussian(speed, 0, 1.5);
   }
 
-  // STEP RATE (with dead zone)
-  const moving = stepRate > 1.0 || speed > 2;
-
-  if (moving) {
-    logp += ['WALKING', 'AWAY', 'RETURNING'].includes(state)
-      ? Math.log(0.9)
-      : Math.log(0.05);
+  // STEP RATE (discriminative)
+  const hasSteps = stepRate > 0.5;
+  if (hasSteps) {
+    logp += isWalkingState ? Math.log(0.9) : Math.log(0.01); // Penalty for driving/stopped with steps
   } else {
-    logp += ['IDLE', 'PARKED', 'IN_CAR'].includes(state)
-      ? Math.log(0.9)
-      : Math.log(0.2);
+    logp += (isStationaryState || state === 'DRIVING') ? Math.log(0.9) : Math.log(0.1);
   }
 
   // ACCELERATION
