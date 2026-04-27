@@ -28,10 +28,10 @@ export const A = {
   },
 
   WALKING: {
-    WALKING: 0.75,
-    IDLE: 0.08,
-    DRIVING: 0.08,
-    AWAY: 0.09
+    WALKING: 0.60,    // 📉 Lower stickiness
+    IDLE: 0.1,
+    DRIVING: 0.1,
+    AWAY: 0.2         // 📈 Higher probability to trigger AWAY
   },
 
   DRIVING: {
@@ -343,13 +343,17 @@ function emissionLogProb(state, obs) {
     }
   }
 
-  // DIRECTION
+  // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    logp += logGaussian(deltaRate, -0.5, 1.5);
+    // More sensitive to negative distance change
+    logp += logGaussian(dist, 5, 10); 
+    logp += logGaussian(deltaRate, -0.2, 1.0);
   }
 
   if (state === 'AWAY') {
-    logp += logGaussian(deltaRate, 0.5, 1.5);
+    // Expect Away state to trigger at shorter distances (e.g., 15m)
+    logp += logGaussian(dist, 20, 15);
+    logp += logGaussian(deltaRate, 0.2, 1.0);
   }
 
   return logp;
