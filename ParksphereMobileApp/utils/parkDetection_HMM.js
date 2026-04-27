@@ -99,7 +99,7 @@ class Kalman1D {
   }
 }
 
-const speedFilter = new Kalman1D(0.2, 1);
+const speedFilter = new Kalman1D(0.1, 2);
 
 
 // ==============================
@@ -110,8 +110,8 @@ class Kalman2D {
     this.x = [0, 0, 0, 0]; // [x, y, vx, vy]
 
     this.P = mathIdentity(4, 1000); // uncertainty
-    this.Q = mathIdentity(4, 0.01); // process noise
-    this.R = mathIdentity(2, 10);   // measurement noise
+    this.Q = mathIdentity(4, 0.5);  // process noise (increased for responsiveness)
+    this.R = mathIdentity(2, 15);   // measurement noise (increased for smoothness)
 
     this.lastTime = null;
   }
