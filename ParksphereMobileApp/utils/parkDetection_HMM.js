@@ -42,11 +42,11 @@ export const A = {
   },
 
   STOPPED: {
-    STOPPED: 0.60,
-    DRIVING: 0.15,
-    PARKED: 0.15,
-    IDLE: 0.07,
-    WALKING: 0.03
+    STOPPED: 0.85,    // ✅ increased stickiness
+    DRIVING: 0.05,
+    PARKED: 0.05,     // 📉 reduced transition to parked
+    IDLE: 0.03,
+    WALKING: 0.02
   },
 
   PARKED: {
@@ -287,7 +287,7 @@ function logGaussian(x, mean, std) {
 // EMISSION MODEL
 // ==============================
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, stopDuration } = obs;
 
   let logp = 0;
 
@@ -331,6 +331,14 @@ function emissionLogProb(state, obs) {
   // DISTANCE relevance
   if (state === 'PARKED') {
     logp += logGaussian(dist, 0, 20);
+    
+    // 🛑 STOP DURATION REQUIREMENT
+    // Require at least 15 seconds of stopping to favor PARKED
+    if (stopDuration < 15) {
+      logp -= 10;
+    } else {
+      logp += 2;
+    }
   }
 
   // DIRECTION
@@ -462,7 +470,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     stepRate: supplemental.step_rate || 0,
     accel: supplemental.acceleration_magnitude || 1,
     dist,
-    deltaRate
+    deltaRate,
+    stopDuration: supplemental.stop_duration || 0
   };
 
   // ==============================
