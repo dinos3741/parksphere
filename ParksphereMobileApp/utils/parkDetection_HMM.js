@@ -315,6 +315,13 @@ function emissionLogProb(state, obs) {
     }
   } else {
     logp += logGaussian(speed, 0, 1.5);
+    // Add strict distance check for IN_CAR
+    if (state === 'IN_CAR') {
+      logp += logGaussian(dist, 0, 2); // Very strict: favors dist of 0m with small std dev
+      if (dist > 10) { // Hard penalty if further than 10 meters
+        logp -= 15; // Strong penalty
+      }
+    }
   }
 
   // STEP RATE (discriminative)
@@ -356,9 +363,11 @@ function emissionLogProb(state, obs) {
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
     // More sensitive to negative distance change
-    logp += logGaussian(dist, 5, 10); 
-    logp += logGaussian(deltaRate, -0.2, 1.0);
-  }
+    logp += logGaussian(dist, 5, 15); // Increased std dev for dist
+    logp += logGaussian(deltaRate, -0.5, 2.0); // More negative mean, wider std dev
+    if (deltaRate < 0) { // Boost if actually getting closer
+      logp += 1;
+    }  }
 
   if (state === 'AWAY') {
     // Expect Away state to trigger at shorter distances (e.g., 15m)
