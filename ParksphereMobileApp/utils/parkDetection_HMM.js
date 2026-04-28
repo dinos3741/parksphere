@@ -352,8 +352,8 @@ function emissionLogProb(state, obs) {
     logp += logGaussian(dist, 0, 20);
     
     // 🛑 STOP DURATION REQUIREMENT
-    // Require at least 90 seconds of stopping to favor PARKED
-    if (stopDuration < 90) {
+    // Require at least 60 seconds of stopping to favor PARKED
+    if (stopDuration < 60) {
       logp -= 10;
     } else {
       logp += 2;
