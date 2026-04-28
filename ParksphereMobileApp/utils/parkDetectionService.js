@@ -154,7 +154,7 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.lastHeading = currentHeading;
 
   // 2. Stop Duration
-  if (speed < 1.0) { // threshold for stopping
+  if (speed < 3.0) { // threshold for stopping (increased for robustness against GPS noise)
     if (!stateData.stopStartTime) stateData.stopStartTime = now;
     stateData.stopDuration = (now - stateData.stopStartTime) / 1000; // seconds
   } else {
