@@ -215,11 +215,17 @@ export async function handleLocationUpdate(arg1, arg2) {
     }
 
     if (stateData.state === 'PARKED') {
-      // "Candidate" location - refined while user is stationary
-      stateData.parkedLocation = currentLoc; 
-      console.log('[ParkDetection] Parked location candidate updated:', currentLoc);
+      // Use the last known stoppedLocation as the official parked location
+      // This provides a more stable and accurate reference point, as requested by the user.
+      if (stateData.stoppedLocation) {
+        stateData.parkedLocation = stateData.stoppedLocation;
+        console.log('[ParkDetection] Parked location set from stopped location:', stateData.parkedLocation);
+      } else {
+        // Fallback to current location if stoppedLocation is somehow not available
+        stateData.parkedLocation = currentLoc;
+        console.log('[ParkDetection] Parked location set from currentLoc (fallback):', currentLoc);
+      }
     }
-
     // THE OFFICIAL CONFIRMATION:
     // Transition from a stationary state to a walking-away state
     const isStationary = (s) => ['PARKED', 'STOPPED', 'IDLE'].includes(s);
