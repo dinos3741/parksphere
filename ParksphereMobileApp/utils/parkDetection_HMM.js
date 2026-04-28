@@ -265,14 +265,20 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
-  // 🚫 Cannot jump directly WALKING → IN_CAR
-  if (from === 'WALKING' && to === 'IN_CAR') return false;
+  // 🚫 Cannot jump directly WALKING → IN_CAR without parked location
+  if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
 
   // 🚫 Cannot jump WALKING → RETURNING without context
   if (from === 'WALKING' && to === 'RETURNING') return false;
 
   // AWAY only valid if parked location exists
   if (to === 'AWAY' && !hasParkedLocation) return false;
+
+  // 🚫 Cannot go to IN_CAR from AWAY if moving further away
+  if (from === 'AWAY' && to === 'IN_CAR' && context.deltaRate > 0) return false;
+
+  // 🚫 Cannot transition to DRIVING if significant steps are detected
+  if (to === 'DRIVING' && context.stepRate > 0.5) return false;
 
   return true;
 }
@@ -488,7 +494,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // CONTEXT (for hard constraints)
   // ==============================
   const context = {
-    hasParkedLocation: !!parkedLocation
+    hasParkedLocation: !!parkedLocation,
+    deltaRate: obs.deltaRate,
+    stepRate: obs.stepRate
   };
 
   // ==============================
