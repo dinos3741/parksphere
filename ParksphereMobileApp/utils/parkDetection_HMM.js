@@ -317,9 +317,9 @@ function emissionLogProb(state, obs) {
     logp += logGaussian(speed, 0, 1.5);
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 2); // Very strict: favors dist of 0m with small std dev
-      if (dist > 10) { // Hard penalty if further than 10 meters
-        logp -= 15; // Strong penalty
+      logp += logGaussian(dist, 0, 5); // More lenient: favors dist of 0m with larger std dev
+      if (dist > 15) { // Penalty if further than 15 meters
+        logp -= 10; // Slightly less strong penalty
       }
     }
   }
@@ -352,8 +352,8 @@ function emissionLogProb(state, obs) {
     logp += logGaussian(dist, 0, 20);
     
     // 🛑 STOP DURATION REQUIREMENT
-    // Require at least 15 seconds of stopping to favor PARKED
-    if (stopDuration < 15) {
+    // Require at least 90 seconds of stopping to favor PARKED
+    if (stopDuration < 90) {
       logp -= 10;
     } else {
       logp += 2;
