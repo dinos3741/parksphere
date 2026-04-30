@@ -572,6 +572,25 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const currentConf = belief[currentState] || 0;
 
   // ==============================
+  // 🚗 PARKING EVENT DETECTION (CRITICAL)
+  // ==============================
+  let parkedEvent = false;
+
+  // Detect exit from car: STOPPED → WALKING
+  // We check if the state JUST switched to WALKING from a stationary car state
+  const isExitEvent =
+    candidate === 'WALKING' &&
+    (currentState === 'STOPPED' || currentState === 'PARKED' || currentState === 'IDLE') &&
+    obs.speed < 4 &&
+    obs.stepRate > 0.3 &&
+    obs.stopDuration > 3;
+
+  if (isExitEvent && !parkedLocation) {
+    console.log('[HMM] 🚗 Parking detected via exit event');
+    parkedEvent = true;
+  }
+
+  // ==============================
   // ⏱️ TEMPORAL CONFIRMATION
   // ==============================
   if (!globalThis._awayCounter) globalThis._awayCounter = 0;
@@ -613,38 +632,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     }
   }
 
-// ==============================
-// 🚗 PARKING EVENT DETECTION (CRITICAL)
-// ==============================
-
-// Detect exit from car: STOPPED → WALKING
-const isExitEvent =
-  currentState === 'WALKING' &&
-  (sorted[1]?.[0] === 'STOPPED' || belief['STOPPED'] > 0.2) &&
-  obs.speed < 3 &&
-  obs.stepRate > 0.5 &&
-  obs.stopDuration > 5;
-
-// Only set parked location if not already set
-if (isExitEvent && !parkedLocation) {
-  console.log('[HMM] 🚗 Parking detected via exit event');
-
-  // You should return this so the service layer stores it
-  return {
-    state: 'PARKED',
-    bestState: candidate,
-    confidence: candidateConf,
-    belief,
-    parkedEvent: true,   // 🚀 IMPORTANT FLAG
-    distToParked: 0,
-    deltaRate: stableDeltaRate,
-    filteredSpeed: speed,
-    filteredCoords
-  };
-}
-
-
-
   // ==============================
   // RETURN RESULT
   // ==============================
@@ -655,8 +642,9 @@ if (isExitEvent && !parkedLocation) {
     secondBestState: sorted[1]?.[0],
     secondConfidence: sorted[1]?.[1],
     belief,
+    parkedEvent,              // 🚀 Signal the parking event without hiding the WALKING state
     distToParked: dist,
-    deltaRate,
+    deltaRate: stableDeltaRate,
     filteredSpeed: speed,
     filteredCoords
   };
