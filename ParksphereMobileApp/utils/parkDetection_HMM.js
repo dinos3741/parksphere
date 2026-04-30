@@ -274,11 +274,11 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot jump WALKING → RETURNING without context
   if (from === 'WALKING' && to === 'RETURNING') return false;
 
-  // 🚫 AWAY requires distance (Reduced to 3m)
-  if (to === 'AWAY' && context.dist < 3) return false;
+  // 🚫 AWAY requires distance (Reduced to 1.5m for tight indoor testing)
+  if (to === 'AWAY' && context.dist < 1.5) return false;
 
-  // 🚫 RETURNING requires being far enough first (Reduced to 3m)
-  if (to === 'RETURNING' && context.dist < 3) return false;
+  // 🚫 RETURNING requires being far enough first (Reduced to 1.5m)
+  if (to === 'RETURNING' && context.dist < 1.5) return false;
 
   // 🚫 Must be close to the car (IN_CAR check) (Relaxed to 5m)
   if (to === 'IN_CAR' && context.dist > 5) return false;
@@ -409,12 +409,13 @@ function emissionLogProb(state, obs) {
   }
 
   if (state === 'AWAY') {
-    logp += logGaussian(dist, 10, 5); // Shift peak closer: mean 10m, tighter std dev
+    logp += logGaussian(dist, 3, 3); // Shift peak closer: mean 3m, tighter std dev
 
     // strong direction signal
     logp += logGaussian(deltaRate, 0.5, 0.5);
 
-    if (dist < 3) logp -= 10; // Penalty if too close
+    if (dist < 1) logp -= 10; // Penalty if too close
+    else logp += 2; // Extra reward for being in AWAY state
   }
 
   return logp;
