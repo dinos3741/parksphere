@@ -649,6 +649,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 // ==============================
 function getDistance(a, b) {
   if (!a || !b) return 0;
+  
+  console.log(`[ParkDetection] getDistance: A(${a.latitude.toFixed(6)}, ${a.longitude.toFixed(6)}) B(${b.latitude.toFixed(6)}, ${b.longitude.toFixed(6)})`);
 
   const R = 6371e3; // Earth radius in meters
   const dLat = (b.latitude - a.latitude) * Math.PI / 180;
@@ -660,7 +662,9 @@ function getDistance(a, b) {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
     
   const c = 2 * Math.atan2(Math.sqrt(a_haversine), Math.sqrt(1 - a_haversine));
-  return R * c; // Distance in meters
+  const dist = R * c;
+  console.log(`[ParkDetection] Calculated distance: ${dist.toFixed(2)}m`);
+  return dist; // Distance in meters
 }
 
 // ==============================
