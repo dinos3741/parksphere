@@ -182,7 +182,8 @@ export async function handleLocationUpdate(arg1, arg2) {
     secondBestState,
     secondConfidence,
     belief: currentBelief,
-    distToParked
+    distToParked,
+    parkedEvent
   } = hmmResult;
 
   stateData.lastDistanceToCar = distToParked;
@@ -190,6 +191,17 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.lastUpdate = now;
   stateData.state = hmmState;
   stateData.belief = currentBelief;
+
+  // ==============================
+  // 🚗 PARKING EVENT DETECTION
+  // ==============================
+  if (parkedEvent) {
+    console.log('[ParkDetection] 🚗 Parking event received from HMM.');
+    notify('🅿️ Parking confirmed!');
+
+    stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
+    console.log('[ParkDetection] 📍 Parked location set:', stateData.parkedLocation);
+  }
 
   // ==============================
   // 📍 STOPPED LOCATION TRACKING
@@ -218,8 +230,6 @@ export async function handleLocationUpdate(arg1, arg2) {
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
       'STOPPED': '⏱️ Vehicle stopped...',
-      'PARKED': '🅿️ Parking confirmed!',
-      'WALKING_AWAY': '🚶 Walking away from vehicle...',
       'AWAY': '📍 You are away from the vehicle.',
       'RETURNING': '📍 Approaching vehicle...',
       'IN_CAR': '🚗 Back in car...',
@@ -229,25 +239,10 @@ export async function handleLocationUpdate(arg1, arg2) {
     let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%, 2nd: ${secondBestState} ${Math.round(secondConfidence*100)}%)`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
-    // State Machine Side-Effects
-    if (stateData.state === 'PARKED') {
-      console.log('[ParkDetection] 🚗 Parking confirmed!');
-
-      const parkedLoc =
-        stateData.stoppedCandidateLocation ||
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude
-        };
-
-      stateData.parkedLocation = parkedLoc;
-      console.log('[ParkDetection] 📍 Final parked location:', parkedLoc);
-    }
-
     // THE OFFICIAL CONFIRMATION:
     // Transition from a stationary state to a walking-away state
-    const isStationary = (s) => ['PARKED', 'STOPPED', 'IDLE'].includes(s);
-    const isWalkingAway = (s) => ['WALKING_AWAY', 'AWAY'].includes(s);
+    const isStationary = (s) => ['STOPPED', 'IDLE'].includes(s);
+    const isWalkingAway = (s) => ['AWAY'].includes(s);
 
     if (isWalkingAway(stateData.state) && isStationary(prevState) && !stateData.serverSpotId) {
       console.log('[ParkDetection] Official Confirmation: User walked away. Declaring spot...');
