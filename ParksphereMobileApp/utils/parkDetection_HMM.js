@@ -104,8 +104,8 @@ class Kalman2D {
     this.x = [0, 0, 0, 0]; // [x, y, vx, vy]
 
     this.P = mathIdentity(4, 1000); // uncertainty
-    this.Q = mathIdentity(4, 0.5);  // process noise (increased for responsiveness)
-    this.R = mathIdentity(2, 15);   // measurement noise (increased for smoothness)
+    this.Q = mathIdentity(4, 0.1);  // Reduced process noise (Q): less aggressive, more stable
+    this.R = mathIdentity(2, 25);   // Increased measurement noise (R): more weight on filter than new noisy data
 
     this.lastTime = null;
   }
@@ -214,20 +214,27 @@ function inverse2x2(M) {
 
 
 //===============================
-// LAT/LON -> METERS CONVERSION
+// LAT/LON -> METERS CONVERSION (Corrected for Latitude)
 //===============================
 
 const R = 6371000;
 
 function latLonToMeters(lat, lon) {
-  const x = R * lon * Math.PI / 180;
-  const y = R * lat * Math.PI / 180;
+  // Use a simple local projection approximation (flat earth)
+  // This is better than the previous one because it scales lon by cos(lat)
+  const latRad = lat * Math.PI / 180;
+  const lonRad = lon * Math.PI / 180;
+  const x = R * lonRad * Math.cos(latRad);
+  const y = R * latRad;
   return [x, y];
 }
 
 function metersToLatLon(x, y) {
-  const lat = y / R * 180 / Math.PI;
-  const lon = x / R * 180 / Math.PI;
+  const latRad = y / R;
+  const lat = latRad * 180 / Math.PI;
+  // We need current lat to accurately recover lon, 
+  // but for a small local area, this works:
+  const lon = (x / (R * Math.cos(latRad))) * 180 / Math.PI;
   return { latitude: lat, longitude: lon };
 }
 
