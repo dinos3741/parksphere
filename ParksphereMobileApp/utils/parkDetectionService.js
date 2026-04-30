@@ -191,6 +191,27 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.state = hmmState;
   stateData.belief = currentBelief;
 
+  // ==============================
+  // 📍 STOPPED LOCATION TRACKING
+  // ==============================
+  if (stateData.state === 'STOPPED') {
+    const curr = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude
+    };
+
+    if (!stateData.stoppedCandidateLocation) {
+      stateData.stoppedCandidateLocation = curr;
+    } else {
+      // simple smoothing (running average)
+      stateData.stoppedCandidateLocation.latitude =
+        0.8 * stateData.stoppedCandidateLocation.latitude + 0.2 * curr.latitude;
+
+      stateData.stoppedCandidateLocation.longitude =
+        0.8 * stateData.stoppedCandidateLocation.longitude + 0.2 * curr.longitude;
+    }
+  }
+
   // Handle side effects of state transitions
   if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {
@@ -209,23 +230,20 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     // State Machine Side-Effects
-    if (stateData.state === 'STOPPED') {
-      stateData.stoppedLocation = currentLoc;
-      console.log('[ParkDetection] Stopped location recorded:', currentLoc);
+    if (stateData.state === 'PARKED') {
+      console.log('[ParkDetection] 🚗 Parking confirmed!');
+
+      const parkedLoc =
+        stateData.stoppedCandidateLocation ||
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        };
+
+      stateData.parkedLocation = parkedLoc;
+      console.log('[ParkDetection] 📍 Final parked location:', parkedLoc);
     }
 
-    if (stateData.state === 'PARKED') {
-      // Use the last known stoppedLocation as the official parked location
-      // This provides a more stable and accurate reference point, as requested by the user.
-      if (stateData.stoppedLocation) {
-        stateData.parkedLocation = stateData.stoppedLocation;
-        console.log('[ParkDetection] Parked location set from stopped location:', stateData.parkedLocation);
-      } else {
-        // Fallback to current location if stoppedLocation is somehow not available
-        stateData.parkedLocation = currentLoc;
-        console.log('[ParkDetection] Parked location set from currentLoc (fallback):', currentLoc);
-      }
-    }
     // THE OFFICIAL CONFIRMATION:
     // Transition from a stationary state to a walking-away state
     const isStationary = (s) => ['PARKED', 'STOPPED', 'IDLE'].includes(s);
@@ -233,7 +251,7 @@ export async function handleLocationUpdate(arg1, arg2) {
 
     if (isWalkingAway(stateData.state) && isStationary(prevState) && !stateData.serverSpotId) {
       console.log('[ParkDetection] Official Confirmation: User walked away. Declaring spot...');
-      const finalParkedLoc = stateData.parkedLocation || stateData.stoppedLocation || currentLoc;
+      const finalParkedLoc = stateData.parkedLocation || stateData.stoppedCandidateLocation || currentLoc;
       stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }
 
@@ -246,6 +264,7 @@ export async function handleLocationUpdate(arg1, arg2) {
       stateData.serverSpotId = null;
       stateData.parkedLocation = null; // Clear parked location when back in car
       stateData.stoppedLocation = null; // Clear stopped location
+      stateData.stoppedCandidateLocation = null; // Reset candidate
       stateData.lastDistanceToCar = null;
     }
   }
