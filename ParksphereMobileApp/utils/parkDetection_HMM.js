@@ -47,8 +47,8 @@ export const A = {
   },
 
   AWAY: {
-    AWAY: 0.85,
-    RETURNING: 0.15
+    AWAY: 0.8,
+    RETURNING: 0.2
   },
 
   RETURNING: {
