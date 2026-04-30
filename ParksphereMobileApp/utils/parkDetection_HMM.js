@@ -323,6 +323,7 @@ function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, stopDuration } = obs;
 
   let logp = 0;
+  
 
   const isStationaryState = ['IDLE', 'STOPPED', 'PARKED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
@@ -341,10 +342,13 @@ function emissionLogProb(state, obs) {
   }
 
   else if (isWalkingState) {
-    logp += logGaussian(speed, 4.5, 2);
+    logp += logGaussian(speed, 2.5, 2);
     // 🚀 Nudge: If walking away, favor AWAY state if dist > 5m
     if (state === 'WALKING' && dist > 5 && deltaRate > 0) {
       logp += logGaussian(dist, 10, 5);
+    }
+    if (state === 'WALKING') {
+      logp += 0.5; // small prior boost
     }
   } 
   else {
