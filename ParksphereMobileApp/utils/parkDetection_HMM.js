@@ -21,55 +21,50 @@ export const STATES = [
 // ==============================
 
 export const A = {
+
   IDLE: {
-    IDLE: 0.75,
-    WALKING: 0.20,
+    IDLE: 0.7,
+    WALKING: 0.25,
     DRIVING: 0.05
   },
 
   WALKING: {
-    WALKING: 0.50,    // 📉 Even lower stickiness
-    IDLE: 0.05,
-    DRIVING: 0.05,
-    AWAY: 0.4         // 🚀 Much higher probability
+    WALKING: 0.6,
+    IDLE: 0.15,
+    DRIVING: 0.1,   // ✅ direct walk → car → drive (first use case)
+    AWAY: 0.15     // 🚀 new: can start walking away from car immediately
   },
 
   DRIVING: {
-    DRIVING: 0.60,
-    STOPPED: 0.30,
-    WALKING: 0.05,
-    IDLE: 0.05
+    DRIVING: 0.75,
+    STOPPED: 0.2,
+    WALKING: 0.05   // e.g. very short trips / GPS glitches
   },
 
   STOPPED: {
-    STOPPED: 0.70,
-    DRIVING: 0.05,
-    PARKED: 0.18,     // 📈 increased for better transition
-    IDLE: 0.04,
-    WALKING: 0.03
+    STOPPED: 0.6,
+    DRIVING: 0.25,
+    WALKING: 0.15   // ✅ critical: user exits car
   },
 
   PARKED: {
-    PARKED: 0.85,
-    WALKING: 0.15
+    PARKED: 0.7,
+    WALKING: 0.3
   },
 
   AWAY: {
     AWAY: 0.85,
-    RETURNING: 0.15,
-    IN_CAR: 0       // 🚫 Block jump
+    RETURNING: 0.15
   },
 
   RETURNING: {
-    RETURNING: 0.85, // 📈 Increased stickiness
-    IN_CAR: 0.15,
-    AWAY: 0
+    RETURNING: 0.7,
+    IN_CAR: 0.3
   },
 
   IN_CAR: {
-    IN_CAR: 0.65,
-    DRIVING: 0.35,
-    RETURNING: 0    // 🚫 Block jump
+    IN_CAR: 0.6,
+    DRIVING: 0.4
   }
 };
 
@@ -271,14 +266,20 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot jump WALKING → RETURNING without context
   if (from === 'WALKING' && to === 'RETURNING') return false;
 
-  // AWAY only valid if parked location exists
-  if (to === 'AWAY' && !hasParkedLocation) return false;
+  // AWAY only valid if parked location exists, comes from walking and moving away from car
+  if (to === 'AWAY') {
+    // must have parked location
+    if (!hasParkedLocation) return false;
+
+    // must come from walking
+    if (from !== 'WALKING') return false;
+
+    // must be moving away from car
+    if (context.deltaRate <= 0) return false;
+  }
 
   // 🚫 Cannot go to IN_CAR from AWAY if moving further away
   if (from === 'AWAY' && to === 'IN_CAR' && context.deltaRate > 0) return false;
-
-  // 🚫 Cannot transition to DRIVING if significant steps are detected
-  if (to === 'DRIVING' && context.stepRate > 0.5) return false;
 
   return true;
 }
@@ -304,16 +305,25 @@ function emissionLogProb(state, obs) {
 
   // SPEED
   if (state === 'DRIVING') {
-    // Use a wider Gaussian to allow for slow city driving/parking search
-    logp += logGaussian(speed, 40, 20); 
-    if (speed < 2) logp -= 10; // 🛑 Force exit if standing still
-  } else if (isWalkingState) {
+    logp += logGaussian(speed, 40, 20);
+
+  // Strong penalty if clearly not moving
+  if (speed < 2) logp -= 10;
+
+  // 🚀 NEW: penalize only if clearly walking
+  if (stepRate > 2 && speed < 10) {
+    logp -= 6; // not impossible, just unlikely
+    }
+  }
+
+  else if (isWalkingState) {
     logp += logGaussian(speed, 4.5, 2);
     // 🚀 Nudge: If walking away, favor AWAY state if dist > 5m
     if (state === 'WALKING' && dist > 5 && deltaRate > 0) {
       logp += logGaussian(dist, 10, 5);
     }
-  } else {
+  } 
+  else {
     logp += logGaussian(speed, 0, 1.5);
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {

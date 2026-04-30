@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    bottom: 20,
+    top: 20,
     right: 20,
     flexDirection: 'column',
   },
