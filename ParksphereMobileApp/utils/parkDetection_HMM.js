@@ -23,8 +23,8 @@ export const STATES = [
 export const A = {
 
   IDLE: {
-    IDLE: 0.7,
-    WALKING: 0.25,
+    IDLE: 0.6,      // 📉 reduced stickiness
+    WALKING: 0.35,  // 📈 easier to start walking
     DRIVING: 0.05
   },
 
@@ -367,9 +367,10 @@ function emissionLogProb(state, obs) {
   }
 
   // STEP RATE (discriminative)
-  const hasSteps = stepRate > 0.5;
+  const hasSteps = stepRate > 0.3; // 📉 lowered threshold for indoor walking
   if (hasSteps) {
-    logp += isWalkingState ? Math.log(0.9) : Math.log(0.01); // Penalty for driving/stopped with steps
+    logp += isWalkingState ? Math.log(0.98) : Math.log(0.001); // 🔥 very strong penalty for stationary/driving with steps
+    if (isWalkingState) logp += 2.5; // 🚀 extra boost to jump out of IDLE/STOPPED
   } else {
     logp += (isStationaryState || state === 'DRIVING') ? Math.log(0.9) : Math.log(0.1);
   }
