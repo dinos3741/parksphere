@@ -10,7 +10,6 @@ export const STATES = [
   'WALKING',
   'DRIVING',
   'STOPPED',
-  'PARKED',
   'AWAY',
   'RETURNING',
   'IN_CAR'
@@ -45,11 +44,6 @@ export const A = {
     STOPPED: 0.6,
     DRIVING: 0.25,
     WALKING: 0.15   // ✅ critical: user exits car
-  },
-
-  PARKED: {
-    PARKED: 0.7,
-    WALKING: 0.3
   },
 
   AWAY: {
@@ -390,17 +384,6 @@ function emissionLogProb(state, obs) {
     }
   }
 
-  // DISTANCE relevance
-  if (state === 'PARKED') {
-    logp += logGaussian(dist, 0, 25);
-
-    if (stopDuration < 20) {
-      logp -= 4;   // softer penalty
-    } else {
-      logp += 2;
-    }
-  }
-
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
     logp += logGaussian(dist, 15, 10);
@@ -580,7 +563,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // We check if the state JUST switched to WALKING from a stationary car state
   const isExitEvent =
     candidate === 'WALKING' &&
-    (currentState === 'STOPPED' || currentState === 'PARKED' || currentState === 'IDLE') &&
+    (currentState === 'STOPPED' || currentState === 'IDLE') &&
     obs.speed < 4 &&
     obs.stepRate > 0.3 &&
     obs.stopDuration > 3;
