@@ -240,6 +240,7 @@ function metersToLatLon(x, y) {
 // INSTATIATE KALMAN 2D FILTER
 const positionFilter = new Kalman2D();
 let lastTimestamp = null;
+let smoothedDeltaRate = 0;
 
 
 // ==============================
@@ -260,11 +261,34 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
+  // 🚫 Must be VERY close to the car
+  if (to === 'IN_CAR' && context.dist > 8) return false;
+
+  // 🚫 Must be approaching (not moving away)
+  if (to === 'IN_CAR' && context.deltaRate > 0) return false;
+
+  // 🚫 Must be slow (entering vehicle)
+  if (to === 'IN_CAR' && context.speed > 7) return false;
+
+  // 🚫 Must not have steps (you don't enter a car while walking actively)
+  if (to === 'IN_CAR' && context.stepRate > 0.7) return false;
+
   // 🚫 Cannot jump directly WALKING → IN_CAR without parked location
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
 
   // 🚫 Cannot jump WALKING → RETURNING without context
   if (from === 'WALKING' && to === 'RETURNING') return false;
+
+  // 🚫 AWAY requires distance
+  if (to === 'AWAY' && context.dist < 10) return false;
+
+  // 🚫 RETURNING requires being far enough first
+  if (to === 'RETURNING' && context.dist < 15) return false;
+
+  // 🚫 Prevent oscillation
+  if (from === 'AWAY' && to === 'RETURNING' && context.deltaRate > -0.2) return false;
+
+  if (from === 'RETURNING' && to === 'AWAY' && context.deltaRate < 0.2) return false;
 
   // AWAY only valid if parked location exists, comes from walking and moving away from car
   if (to === 'AWAY') {
@@ -325,12 +349,16 @@ function emissionLogProb(state, obs) {
   } 
   else {
     logp += logGaussian(speed, 0, 1.5);
+
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 5); // More lenient: favors dist of 0m with larger std dev
-      if (dist > 15) { // Penalty if further than 15 meters
-        logp -= 10; // Slightly less strong penalty
-      }
+      logp += logGaussian(dist, 0, 3);   // 🔒 very tight
+
+      if (dist > 10) logp -= 15; // 🚫 strong rejection
+
+      logp += logGaussian(speed, 1, 2);  // slow movement
+
+      if (stepRate > 0.3) logp -= 10;    // 🚫 walking → not in car
     }
   }
 
@@ -359,12 +387,10 @@ function emissionLogProb(state, obs) {
 
   // DISTANCE relevance
   if (state === 'PARKED') {
-    logp += logGaussian(dist, 0, 20);
-    
-    // 🛑 STOP DURATION REQUIREMENT
-    // Require at least 60 seconds of stopping to favor PARKED
-    if (stopDuration < 60) {
-      logp -= 10;
+    logp += logGaussian(dist, 0, 25);
+
+    if (stopDuration < 20) {
+      logp -= 4;   // softer penalty
     } else {
       logp += 2;
     }
@@ -372,17 +398,20 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    // More sensitive to negative distance change
-    logp += logGaussian(dist, 5, 15); // Increased std dev for dist
-    logp += logGaussian(deltaRate, -0.5, 2.0); // More negative mean, wider std dev
-    if (deltaRate < 0) { // Boost if actually getting closer
-      logp += 1;
-    }  }
+    logp += logGaussian(dist, 15, 10);
+
+    logp += logGaussian(deltaRate, -0.5, 0.5);
+
+    if (deltaRate < 0) logp += 2; // reward approaching
+  }
 
   if (state === 'AWAY') {
-    // Expect Away state to trigger at shorter distances (e.g., 15m)
-    logp += logGaussian(dist, 20, 15);
-    logp += logGaussian(deltaRate, 0.2, 1.0);
+    logp += logGaussian(dist, 30, 10);
+
+    // strong direction signal
+    logp += logGaussian(deltaRate, 0.5, 0.5);
+
+    if (dist < 10) logp -= 10;
   }
 
   return logp;
@@ -497,6 +526,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     deltaRate = clampedDelta / dt;
   }
 
+  const alpha = 0.7; // strong smoothing
+  smoothedDeltaRate = alpha * smoothedDeltaRate + (1 - alpha) * deltaRate;
+  const stableDeltaRate = smoothedDeltaRate;
+
   // ==============================
   // OBSERVATION VECTOR
   // ==============================
@@ -505,7 +538,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     stepRate: supplemental.step_rate || 0,
     accel: supplemental.acceleration_magnitude || 1,
     dist,
-    deltaRate,
+    deltaRate: stableDeltaRate,
     stopDuration: supplemental.stop_duration || 0
   };
 
@@ -515,7 +548,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const context = {
     hasParkedLocation: !!parkedLocation,
     deltaRate: obs.deltaRate,
-    stepRate: obs.stepRate
+    stepRate: obs.stepRate,
+    dist: obs.dist,
+    speed: obs.speed
   };
 
   // ==============================
@@ -531,10 +566,79 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const candidateConf = sorted[0][1];
   const currentConf = belief[currentState] || 0;
 
+  // ==============================
+  // ⏱️ TEMPORAL CONFIRMATION
+  // ==============================
+  if (!globalThis._awayCounter) globalThis._awayCounter = 0;
+  if (!globalThis._returnCounter) globalThis._returnCounter = 0;
+  if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
+
+  if (candidate === 'AWAY') {
+    globalThis._awayCounter++;
+  } else {
+    globalThis._awayCounter = 0;
+  }
+
+  if (candidate === 'RETURNING') {
+    globalThis._returnCounter++;
+  } else {
+    globalThis._returnCounter = 0;
+  }
+
+  if (candidate === 'IN_CAR') {
+    globalThis._inCarCounter++;
+  } else {
+    globalThis._inCarCounter = 0;
+  }
+
+  const awayConfirmed = globalThis._awayCounter >= 2;
+  const returnConfirmed = globalThis._returnCounter >= 2;
+  const inCarConfirmed = globalThis._inCarCounter >= 3;
+
   // Only switch if the candidate is 5% more confident than the current state
   if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
-    currentState = candidate;
+    if (candidate === 'AWAY' && !awayConfirmed) {
+      // wait
+    } else if (candidate === 'RETURNING' && !returnConfirmed) {
+      // wait
+    } else if (candidate === 'IN_CAR' && !inCarConfirmed) {
+      // wait
+    } else {
+      currentState = candidate;
+    }
   }
+
+// ==============================
+// 🚗 PARKING EVENT DETECTION (CRITICAL)
+// ==============================
+
+// Detect exit from car: STOPPED → WALKING
+const isExitEvent =
+  currentState === 'WALKING' &&
+  (sorted[1]?.[0] === 'STOPPED' || belief['STOPPED'] > 0.2) &&
+  obs.speed < 3 &&
+  obs.stepRate > 0.5 &&
+  obs.stopDuration > 5;
+
+// Only set parked location if not already set
+if (isExitEvent && !parkedLocation) {
+  console.log('[HMM] 🚗 Parking detected via exit event');
+
+  // You should return this so the service layer stores it
+  return {
+    state: 'PARKED',
+    bestState: candidate,
+    confidence: candidateConf,
+    belief,
+    parkedEvent: true,   // 🚀 IMPORTANT FLAG
+    distToParked: 0,
+    deltaRate: stableDeltaRate,
+    filteredSpeed: speed,
+    filteredCoords
+  };
+}
+
+
 
   // ==============================
   // RETURN RESULT
