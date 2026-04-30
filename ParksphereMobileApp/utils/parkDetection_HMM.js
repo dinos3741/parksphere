@@ -243,12 +243,6 @@ let smoothedDeltaRate = 0;
 function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation } = context;
 
-  // 🚫 BLOCK TELEPORTATION TO PARKED
-  // You cannot arrive at PARKED unless you were just DRIVING or STOPPED
-  if (to === 'PARKED' && from !== 'PARKED' && !['DRIVING', 'STOPPED'].includes(from)) {
-    return false;
-  }
-
   // 🚫 Cannot go to RETURNING without parked location
   if (to === 'RETURNING' && !hasParkedLocation) return false;
 
