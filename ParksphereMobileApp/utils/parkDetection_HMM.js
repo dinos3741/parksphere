@@ -645,22 +645,22 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
 
 // ==============================
-// DISTANCE
+// DISTANCE (Haversine Formula)
 // ==============================
 function getDistance(a, b) {
   if (!a || !b) return 0;
 
-  const R = 6371e3;
-  const φ1 = a.latitude * Math.PI / 180;
-  const φ2 = b.latitude * Math.PI / 180;
-  const Δφ = (b.latitude - a.latitude) * Math.PI / 180;
-  const Δλ = (b.longitude - a.longitude) * Math.PI / 180;
-
-  const x =
-    Math.sin(Δφ / 2) ** 2 +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-
-  return R * (2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)));
+  const R = 6371e3; // Earth radius in meters
+  const dLat = (b.latitude - a.latitude) * Math.PI / 180;
+  const dLon = (b.longitude - a.longitude) * Math.PI / 180;
+  
+  const a_haversine = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a.latitude * Math.PI / 180) * Math.cos(b.latitude * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    
+  const c = 2 * Math.atan2(Math.sqrt(a_haversine), Math.sqrt(1 - a_haversine));
+  return R * c; // Distance in meters
 }
 
 // ==============================

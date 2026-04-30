@@ -200,7 +200,20 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify('🅿️ Parking confirmed!');
 
     stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
-    console.log('[ParkDetection] 📍 Parked location set:', stateData.parkedLocation);
+    console.log('[ParkDetection] 📍 Parked location initialized:', stateData.parkedLocation);
+  }
+
+  // Log parkedLocation status
+  if (stateData.parkedLocation) {
+    console.log(`[ParkDetection] 📍 Dist to parked: ${distToParked.toFixed(2)}m (Raw: ${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)} | Filtered: ${hmmResult.filteredCoords.latitude.toFixed(6)}, ${hmmResult.filteredCoords.longitude.toFixed(6)})`);
+  }
+  
+  if (stateData.parkedLocation && !stateData._loggedParkedLoc) {
+    console.log('[ParkDetection] ✅ parkedLocation is now SET:', stateData.parkedLocation);
+    stateData._loggedParkedLoc = true;
+  } else if (!stateData.parkedLocation && stateData._loggedParkedLoc) {
+    console.log('[ParkDetection] ❌ parkedLocation is now RESET.');
+    stateData._loggedParkedLoc = false;
   }
 
   // ==============================
