@@ -401,15 +401,20 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    logp += logGaussian(dist, 3, 3); // Reduced from 15, 10
+    logp += logGaussian(dist, 5, 5); // Shift peak closer: mean 5m, tighter std dev
+
     logp += logGaussian(deltaRate, -0.5, 0.5);
-    if (deltaRate < 0) logp += 2;
+
+    if (deltaRate < 0) logp += 2; // reward approaching
   }
 
   if (state === 'AWAY') {
-    logp += logGaussian(dist, 4, 3); // Reduced from 30, 10
+    logp += logGaussian(dist, 10, 5); // Shift peak closer: mean 10m, tighter std dev
+
+    // strong direction signal
     logp += logGaussian(deltaRate, 0.5, 0.5);
-    if (dist < 1) logp -= 10;
+
+    if (dist < 3) logp -= 10; // Penalty if too close
   }
 
   return logp;
