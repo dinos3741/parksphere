@@ -313,7 +313,7 @@ function emissionLogProb(state, obs) {
   let logp = 0;
   
 
-  const isStationaryState = ['IDLE', 'STOPPED', 'PARKED', 'IN_CAR'].includes(state);
+  const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
 
   // SPEED
