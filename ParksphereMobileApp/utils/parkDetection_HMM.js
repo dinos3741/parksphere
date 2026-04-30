@@ -41,9 +41,9 @@ export const A = {
   },
 
   STOPPED: {
-    STOPPED: 0.6,
+    STOPPED: 0.55,
     DRIVING: 0.25,
-    WALKING: 0.15   // ✅ critical: user exits car
+    WALKING: 0.2   // ✅ critical: user exits car
   },
 
   AWAY: {
@@ -267,16 +267,22 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot jump WALKING → RETURNING without context
   if (from === 'WALKING' && to === 'RETURNING') return false;
 
-  // 🚫 AWAY requires distance
-  if (to === 'AWAY' && context.dist < 10) return false;
+  // 🚫 AWAY requires distance (Reduced to 3m)
+  if (to === 'AWAY' && context.dist < 3) return false;
 
-  // 🚫 RETURNING requires being far enough first
-  if (to === 'RETURNING' && context.dist < 15) return false;
+  // 🚫 RETURNING requires being far enough first (Reduced to 3m)
+  if (to === 'RETURNING' && context.dist < 3) return false;
+
+  // 🚫 Must be close to the car (IN_CAR check) (Relaxed to 5m)
+  if (to === 'IN_CAR' && context.dist > 5) return false;
+
+  // 🚫 Must not have steps (you don't enter a car while walking actively)
+  if (to === 'IN_CAR' && context.stepRate > 1.5) return false;
 
   // 🚫 Prevent oscillation
-  if (from === 'AWAY' && to === 'RETURNING' && context.deltaRate > -0.2) return false;
+  if (from === 'AWAY' && to === 'RETURNING' && context.deltaRate > 0) return false;
 
-  if (from === 'RETURNING' && to === 'AWAY' && context.deltaRate < 0.2) return false;
+  if (from === 'RETURNING' && to === 'AWAY' && context.deltaRate < 0) return false;
 
   // AWAY only valid if parked location exists, comes from walking and moving away from car
   if (to === 'AWAY') {
@@ -312,7 +318,6 @@ function emissionLogProb(state, obs) {
 
   let logp = 0;
   
-
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
 
@@ -332,7 +337,7 @@ function emissionLogProb(state, obs) {
   else if (isWalkingState) {
     logp += logGaussian(speed, 2.5, 2);
     // 🚀 Nudge: If walking away, favor AWAY state if dist > 5m
-    if (state === 'WALKING' && dist > 5 && deltaRate > 0) {
+    if (state === 'WALKING' && dist > 2 && deltaRate > 0) {
       logp += logGaussian(dist, 10, 5);
     }
     if (state === 'WALKING') {
@@ -378,22 +383,26 @@ function emissionLogProb(state, obs) {
     }
   }
 
+  // DISTANCE relevance
+  if (state === 'IN_CAR') {
+    logp += logGaussian(dist, 0, 2);   // 🔒 very tight
+
+    if (dist > 5) logp -= 15; // 🚫 strong rejection
+
+    logp += logGaussian(speed, 1, 2);  // slow movement
+  }
+
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    logp += logGaussian(dist, 15, 10);
-
+    logp += logGaussian(dist, 3, 3); // Reduced from 15, 10
     logp += logGaussian(deltaRate, -0.5, 0.5);
-
-    if (deltaRate < 0) logp += 2; // reward approaching
+    if (deltaRate < 0) logp += 2;
   }
 
   if (state === 'AWAY') {
-    logp += logGaussian(dist, 30, 10);
-
-    // strong direction signal
+    logp += logGaussian(dist, 4, 3); // Reduced from 30, 10
     logp += logGaussian(deltaRate, 0.5, 0.5);
-
-    if (dist < 10) logp -= 10;
+    if (dist < 1) logp -= 10;
   }
 
   return logp;
