@@ -293,14 +293,16 @@ function isTransitionAllowed(from, to, context) {
 
   // AWAY only valid if parked location exists, comes from walking and moving away from car
   if (to === 'AWAY') {
-    // must have parked location
     if (!hasParkedLocation) return false;
 
-    // must come from walking
-    if (from !== 'WALKING') return false;
-
-    // must be moving away from car
-    if (context.deltaRate <= 0) return false;
+    // If we are NEWLY entering AWAY, we must come from WALKING and be moving away
+    if (from !== 'AWAY') {
+      if (from !== 'WALKING') return false;
+      
+      // We only strictly enforce a positive deltaRate upon initial entry.
+      // Once they are AWAY, we allow GPS bounce without instantly killing the state.
+      if (context.deltaRate <= 0.1) return false; 
+    }
   }
 
   // 🚫 Cannot go to IN_CAR from AWAY if moving further away
