@@ -379,9 +379,9 @@ function emissionLogProb(state, obs) {
 
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 3);   // 🔒 very tight
+      logp += logGaussian(dist, 0, 6);   // 🔒 very tight
 
-      if (dist > 10) logp -= 15; // 🚫 strong rejection
+      if (dist > 15) logp -= 15; // 🚫 strong rejection
 
       logp += logGaussian(speed, 1, 2);  // slow movement
 
