@@ -22,8 +22,9 @@ export const STATES = [
 export const A = {
 
   IDLE: {
-    IDLE: 0.6,      // 📉 reduced stickiness
-    WALKING: 0.35,  // 📈 easier to start walking
+    IDLE: 0.5,      // Reduced to allow exiting the state
+    WALKING: 0.3,  
+    IN_CAR: 0.15,   // ✅ NEW: Allows getting into the car after standing next to it
     DRIVING: 0.05
   },
 
@@ -262,14 +263,17 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Must be VERY close to the car
   if (to === 'IN_CAR' && context.dist > 8) return false;
 
-  // 🚫 Must be approaching (not moving away)
-  if (to === 'IN_CAR' && context.deltaRate > 0) return false;
+  // 🚫 Must be approaching, BUT ONLY if we are still a few meters out.
+  // If we are within 3 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
+  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 3 && context.deltaRate > 0) {
+      return false; 
+  }
 
   // 🚫 Must be slow (entering vehicle)
   if (to === 'IN_CAR' && context.speed > 7) return false;
 
-  // 🚫 Must not have steps (you don't enter a car while walking actively)
-  if (to === 'IN_CAR' && context.stepRate > 0.7) return false;
+  // 🚫 Must not be actively walking (Relaxed to 1.2 to account for pedometer lag when sitting down)
+  if (to === 'IN_CAR' && context.stepRate > 1.2) return false;
 
   // 🚫 Cannot jump directly WALKING → IN_CAR without parked location
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
@@ -381,7 +385,9 @@ function emissionLogProb(state, obs) {
 
       logp += logGaussian(speed, 1, 2);  // slow movement
 
-      if (stepRate > 0.3) logp -= 10;    // 🚫 walking → not in car
+      // 📉 Softer penalty for trailing steps. 
+      // Allows the state to trigger while the pedometer catches up to reality.
+      if (stepRate > 0.5) logp -= 5;
     }
   }
 
