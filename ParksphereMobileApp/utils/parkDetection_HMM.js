@@ -28,10 +28,11 @@ export const A = {
   },
 
   WALKING: {
-    WALKING: 0.6,
+    WALKING: 0.5,
     IDLE: 0.15,
     DRIVING: 0.1,   // ✅ direct walk → car → drive (first use case)
-    AWAY: 0.15     // 🚀 new: can start walking away from car immediately
+    AWAY: 0.15,     // 🚀 new: can start walking away from car immediately
+    RETURNING: 0.1  // 🚀 new: can start walking back to car immediately
   },
 
   DRIVING: {
@@ -47,13 +48,15 @@ export const A = {
   },
 
   AWAY: {
-    AWAY: 0.8,
-    RETURNING: 0.2
+    AWAY: 0.7,
+    RETURNING: 0.2,
+    IDLE: 0.1       // ✅ Allow stopping while away
   },
 
   RETURNING: {
-    RETURNING: 0.7,
-    IN_CAR: 0.3
+    RETURNING: 0.6,
+    IN_CAR: 0.3,
+    IDLE: 0.1       // ✅ Allow stopping while returning
   },
 
   IN_CAR: {
@@ -271,8 +274,8 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot jump directly WALKING → IN_CAR without parked location
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
 
-  // 🚫 Cannot jump WALKING → RETURNING without context
-  if (from === 'WALKING' && to === 'RETURNING') return false;
+  // 🚫 Cannot jump WALKING → RETURNING without context (Unless moving towards car)
+  if (from === 'WALKING' && to === 'RETURNING' && context.deltaRate >= -0.2) return false;
 
   // 🚫 AWAY requires distance (Reduced to 1.5m for tight indoor testing)
   if (to === 'AWAY' && context.dist < 1.5) return false;
@@ -499,6 +502,13 @@ function updateBelief(prevBelief, obs, context) {
 // ==============================
 
 export function processLocationHMM(location, parkedLocation, supplemental = {}) {
+  // Restore state if provided
+  if (supplemental.previousState) {
+    currentState = supplemental.previousState;
+  }
+  if (supplemental.previousBelief) {
+    belief = supplemental.previousBelief;
+  }
   // ==============================
   // TIME DELTA
   // ==============================

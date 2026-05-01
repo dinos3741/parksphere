@@ -172,7 +172,9 @@ export async function handleLocationUpdate(arg1, arg2) {
     step_rate: stepRate,
     heading_change: headingChange,
     stop_duration: stateData.stopDuration,
-    lastDistanceToCar: stateData.lastDistanceToCar
+    lastDistanceToCar: stateData.lastDistanceToCar,
+    previousState: stateData.state,
+    previousBelief: stateData.belief
   });
 
   const {
