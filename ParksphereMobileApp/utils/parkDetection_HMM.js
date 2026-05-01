@@ -320,6 +320,20 @@ function logGaussian(x, mean, std) {
 }
 
 // ==============================
+// SIGMOID (Numerically Stable)
+// ==============================
+function logSigmoid(x, midpoint, steepness) {
+  // z represents how far we are past the threshold, scaled by steepness
+  const z = steepness * (x - midpoint);
+  
+  // Prevent overflow for extreme values
+  if (z > 20) return 0;       // Probability approaches 1 (log(1) = 0)
+  if (z < -20) return z;      // Probability approaches 0 (log(x) drops linearly)
+  
+  return -Math.log(1 + Math.exp(-z));
+}
+
+// ==============================
 // EMISSION MODEL
 // ==============================
 function emissionLogProb(state, obs) {
@@ -403,20 +417,24 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    logp += logGaussian(dist, 5, 5); // Shift peak closer: mean 5m, tighter std dev
+    // Soft boundary: Must be > 5m away to be returning. 
+    // Steepness 1.0 creates a smooth transition between 2m and 8m.
+    logp += logSigmoid(dist, 5, 1.0); 
 
-    logp += logGaussian(deltaRate, -0.5, 0.5);
+    // Keep the direction signal (Gaussian is okay here since we want a specific speed range)
+    logp += logGaussian(deltaRate, -1.0, 0.8); 
 
     if (deltaRate < 0) logp += 2; // reward approaching
   }
 
   if (state === 'AWAY') {
-    logp += logGaussian(dist, 3, 3); // Shift peak closer: mean 3m, tighter std dev
+    // Soft boundary: Must be > 3m away to be AWAY.
+    logp += logSigmoid(dist, 3, 1.5); 
 
-    // strong direction signal
-    logp += logGaussian(deltaRate, 0.5, 0.5);
+    // Strong direction signal
+    logp += logGaussian(deltaRate, 1.0, 0.8);
 
-    if (dist < 1) logp -= 10; // Penalty if too close
+    if (dist < 1) logp -= 10; // Hard penalty if practically inside the car
     else logp += 2; // Extra reward for being in AWAY state
   }
 

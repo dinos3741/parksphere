@@ -398,3 +398,17 @@ REAL TIME INFER OF STATE
   emission probabilities (from emissionLogProb) to correct this prediction based on the new data. This recursive
   process refines the belief distribution over states with every new observation, providing a real-time
   estimation of the current state.
+
+✦ The frequency of state updates is determined by the configuration of the background location tracking service.
+
+  In the startParkDetection function within parkDetectionService.js, the Location.startLocationUpdatesAsync
+  method is called with the following parameters:
+
+   * timeInterval: 5000: This means the location service will attempt to provide updates at least every 5000
+     milliseconds (5 seconds).
+   * deferredUpdatesInterval: 5000: This is also set to 5000ms. This setting allows for delivering location
+     updates in batches, and this interval influences how often those batches are processed.
+
+  Therefore, the HMM state is updated approximately every 5 seconds, assuming location data is available and
+  being processed by the PARK_DETECTION_TASK which calls handleLocationUpdate and subsequently
+  processLocationHMM.
