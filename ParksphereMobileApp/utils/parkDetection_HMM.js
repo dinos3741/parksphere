@@ -379,15 +379,17 @@ function emissionLogProb(state, obs) {
 
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 6);   // 🔒 very tight
+      logp += logGaussian(dist, 0, 4);   // Balanced variance
 
-      if (dist > 15) logp -= 15; // 🚫 strong rejection
+      if (dist > 10) logp -= 15; // 🚫 strong rejection
 
       logp += logGaussian(speed, 1, 2);  // slow movement
 
       // 📉 Softer penalty for trailing steps. 
-      // Allows the state to trigger while the pedometer catches up to reality.
       if (stepRate > 0.5) logp -= 5;
+
+      // 🚀 Slight proximity boost
+      if (dist < 5) logp += 1.5;
     }
   }
 
@@ -413,15 +415,6 @@ function emissionLogProb(state, obs) {
     } else {
       logp += 2; // Boost stationary states
     }
-  }
-
-  // DISTANCE relevance
-  if (state === 'IN_CAR') {
-    logp += logGaussian(dist, 0, 2);   // 🔒 very tight
-
-    if (dist > 5) logp -= 15; // 🚫 strong rejection
-
-    logp += logGaussian(speed, 1, 2);  // slow movement
   }
 
   // DIRECTION/DISTANCE

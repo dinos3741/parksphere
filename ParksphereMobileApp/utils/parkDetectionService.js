@@ -177,7 +177,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     previousBelief: stateData.belief
   });
 
-  const {
+  let {
     state: hmmState,
     bestState,
     confidence,
@@ -187,6 +187,15 @@ export async function handleLocationUpdate(arg1, arg2) {
     distToParked,
     parkedEvent
   } = hmmResult;
+
+  // ==============================
+  // 🛠️ SIMULATION OVERRIDE
+  // ==============================
+  if (location.forcePark) {
+    console.log('[ParkDetection] 🛠️ Manual PARKED trigger received from simulator.');
+    parkedEvent = true;
+    hmmState = 'STOPPED'; // Force state to STOPPED to simulate having just parked
+  }
 
   stateData.lastDistanceToCar = distToParked;
   const isFirstUpdate = !stateData.lastUpdate;

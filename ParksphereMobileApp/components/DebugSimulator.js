@@ -59,6 +59,11 @@ const DebugSimulator = ({ userLocation }) => {
         mockLocation.coords.speed = 0;
         simulateMotionActivity('STATIONARY', 'HIGH');
         break;
+      case 'PARKED':
+        mockLocation.coords.speed = 0;
+        simulateMotionActivity('STATIONARY', 'HIGH');
+        mockLocation.forcePark = true; // Signal to service to force-set parked location
+        break;
     }
 
     console.log(`[Debug] Simulating ${type} at offset ${offsetLat.toFixed(5)}...`);
@@ -77,8 +82,8 @@ const DebugSimulator = ({ userLocation }) => {
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
-          <Text style={styles.btnText}>🏠 Static</Text>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('PARKED')}>
+          <Text style={styles.btnText}>🅿️ Parked</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('STEP')}>
           <Text style={styles.btnText}>🚶 Step Out</Text>
