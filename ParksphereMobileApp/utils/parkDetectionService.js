@@ -202,7 +202,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify('🅿️ Parking confirmed!');
 
     stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
-    console.log('[ParkDetection] 📍 Parked location initialized:', stateData.parkedLocation);
+    console.log('[ParkDetection] 📍 Parked location SET:', stateData.parkedLocation);
   }
 
   // Log parkedLocation status
@@ -229,6 +229,7 @@ export async function handleLocationUpdate(arg1, arg2) {
 
     if (!stateData.stoppedCandidateLocation) {
       stateData.stoppedCandidateLocation = curr;
+      console.log('[ParkDetection] 🛑 stoppedCandidateLocation INITIALIZED:', stateData.stoppedCandidateLocation);
     } else {
       // simple smoothing (running average)
       stateData.stoppedCandidateLocation.latitude =
@@ -236,6 +237,7 @@ export async function handleLocationUpdate(arg1, arg2) {
 
       stateData.stoppedCandidateLocation.longitude =
         0.8 * stateData.stoppedCandidateLocation.longitude + 0.2 * curr.longitude;
+      console.log('[ParkDetection] 🛑 stoppedCandidateLocation UPDATED (smoothed):', stateData.stoppedCandidateLocation);
     }
   }
 
