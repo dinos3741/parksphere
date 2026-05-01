@@ -53,7 +53,7 @@ const Map = memo(({
 
             const getStatusColor = (status) => {
               switch (status) {
-                case 'soon_free': return 'orange';
+                case 'soon_free': return 'yellow';
                 case 'free': return 'green';
                 case 'occupied':
                 default: return 'red';
@@ -62,7 +62,7 @@ const Map = memo(({
 
             const getStatusRgba = (status, alpha) => {
               switch (status) {
-                case 'soon_free': return `rgba(255, 165, 0, ${alpha})`;
+                case 'soon_free': return `rgba(255, 255, 0, ${alpha})`;
                 case 'free': return `rgba(0, 128, 0, ${alpha})`;
                 case 'occupied':
                 default: return `rgba(255, 0, 0, ${alpha})`;
