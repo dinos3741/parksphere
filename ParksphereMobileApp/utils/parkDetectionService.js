@@ -405,12 +405,14 @@ export const startParkDetection = async () => {
     }
 
     console.log('[ParkDetection] Initializing HMM components...');
-    // initMotionTracking(); // Initialize motion tracking
-    resetHMM(); // Reset HMM state to IDLE
+    const { shouldClearPersistedState } = resetHMM(); // Reset HMM state to IDLE
     startSensors();
 
     // Clear persistent state on clean start to avoid immediate transitions from stale data
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    if (shouldClearPersistedState) {
+      console.log('[ParkDetection] Clearing persisted state from AsyncStorage...');
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    }
     
     const { currentState } = getHMMStatus();
 
@@ -457,6 +459,19 @@ export const stopParkDetection = async () => {
     }
   } catch (error) {
     console.error('[ParkDetection] Error in stopParkDetection:', error);
+  }
+};
+
+export const resetParkDetection = async () => {
+  console.log('[ParkDetection] Resetting park detection engine...');
+  resetHMM();
+  try {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    console.log('[ParkDetection] Persisted state cleared from AsyncStorage.');
+    notify('Park detection engine reset.');
+  } catch (e) {
+    console.error('[ParkDetection] Failed to clear persisted state:', e);
+    notify('Error resetting park detection engine.');
   }
 };
 

@@ -605,14 +605,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let parkedEvent = false;
 
-  // Detect exit from car: STOPPED → WALKING
-  // We check if the state JUST switched to WALKING from a stationary car state
+  // Detect exit from car: STOPPED → WALKING (or DRIVING -> WALKING via STOPPED)
   const isExitEvent =
     candidate === 'WALKING' &&
-    (currentState === 'STOPPED' || currentState === 'IDLE') &&
+    (currentState === 'STOPPED' || currentState === 'DRIVING') && // Must come from STOPPED or DRIVING
     obs.speed < 4 &&
     obs.stepRate > 0.3 &&
-    obs.stopDuration > 3;
+    obs.stopDuration > 3 &&
+    dist < 5; // Must be relatively close to the car to "exit" it
 
   if (isExitEvent && !parkedLocation) {
     console.log('[HMM] 🚗 Parking detected via exit event');
@@ -711,6 +711,7 @@ export function resetHMM() {
   currentState = 'IDLE';
   speedFilter.x = 0;
   speedFilter.p = 1;
+  return { shouldClearPersistedState: true }; // New: indicate that service should clear persisted state
 }
 
 export function getHMMStatus() {
