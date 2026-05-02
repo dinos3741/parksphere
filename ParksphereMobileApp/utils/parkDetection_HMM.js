@@ -770,11 +770,34 @@ function getDistance(a, b) {
 // HELPERS
 // ==============================
 export function resetHMM() {
+  // 1. Reset Beliefs and State
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
+
+  // 2. Reset Kalman Filters
   speedFilter.x = 0;
   speedFilter.p = 1;
-  return { shouldClearPersistedState: true }; // New: indicate that service should clear persisted state
+
+  positionFilter.x = [0, 0, 0, 0];
+  positionFilter.P = mathIdentity(4, 1000);
+  positionFilter.lastTime = null;
+
+  // 3. Reset supplemental state
+  smoothedDeltaRate = 0;
+  lastTimestamp = null;
+
+  // 4. Reset Global Counters (Temporal Confirmation)
+  globalThis._awayCounter = 0;
+  globalThis._returnCounter = 0;
+  globalThis._inCarCounter = 0;
+  globalThis._drivingCounter = 0;
+
+  console.log('[HMM] Engine fully reset to IDLE.');
+  return { 
+    shouldClearPersistedState: true,
+    currentState,
+    belief
+  };
 }
 
 export function getHMMStatus() {

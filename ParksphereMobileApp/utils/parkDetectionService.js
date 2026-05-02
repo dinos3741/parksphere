@@ -477,10 +477,28 @@ export const stopParkDetection = async () => {
 
 export const resetParkDetection = async () => {
   console.log('[ParkDetection] Resetting park detection engine...');
-  resetHMM();
+  const { currentState, belief } = resetHMM();
+  
   try {
     await AsyncStorage.removeItem(STORAGE_KEY);
     console.log('[ParkDetection] Persisted state cleared from AsyncStorage.');
+    
+    // Reset local sensor cache as well
+    currentAcceleration = 1.0;
+    currentStepRate = 0;
+
+    // Emit a final "IDLE" update to clear UI
+    DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
+      state: 'IDLE',
+      bestState: 'IDLE',
+      confidence: 1.0,
+      belief: belief,
+      metrics: {
+        speed: 0,
+        distToParked: 0
+      }
+    });
+
     notify('Park detection engine reset.');
   } catch (e) {
     console.error('[ParkDetection] Failed to clear persisted state:', e);
