@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { handleLocationUpdate, startParkDetection, simulateMotionActivity } from '../utils/parkDetectionService';
+import { handleLocationUpdate, resetParkDetection, simulateMotionActivity } from '../utils/parkDetectionService';
 
 const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
@@ -10,7 +10,7 @@ const DebugSimulator = ({ userLocation }) => {
     if (type === 'RESET') {
       setOffsetLat(0);
       setOffsetLon(0);
-      await startParkDetection();
+      await resetParkDetection();
       return;
     }
 
