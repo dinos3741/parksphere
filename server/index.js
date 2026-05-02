@@ -1576,7 +1576,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;
-  const { car_type, car_color, plate_number, auto_detect } = req.body;
+  const { car_type, car_color, plate_number, auto_detect, notifications_enabled } = req.body;
 
   // Ensure the authenticated user is updating their own details
   if (req.user.userId !== parseInt(userId)) {
@@ -1584,11 +1584,11 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Update car_type, car_color, plate_number, and auto_detect in the database
+    // Update car_type, car_color, plate_number, auto_detect, and notifications_enabled in the database
     // We use COALESCE to keep existing values if some are not provided
     await pool.query(
-      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detect = COALESCE($4, auto_detect) WHERE id = $5',
-      [car_type, car_color, plate_number, auto_detect, userId]
+      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detect = COALESCE($4, auto_detect), notifications_enabled = COALESCE($5, notifications_enabled) WHERE id = $6',
+      [car_type, car_color, plate_number, auto_detect, notifications_enabled, userId]
     );
 
     // Fetch the updated user data to create a new JWT

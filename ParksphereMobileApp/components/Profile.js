@@ -18,17 +18,23 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(user ? user.notifications_enabled : true);
 
   useEffect(() => {
     if (user) {
       setCarType(user.car_type);
       setCarColor(user.car_color);
       setAutoDetectionEnabled(user.auto_detect);
+      setNotificationsEnabled(user.notifications_enabled !== undefined ? user.notifications_enabled : true);
     }
   }, [user]);
 
   const toggleAutoDetection = (value) => {
     setAutoDetectionEnabled(value);
+  };
+
+  const toggleNotifications = (value) => {
+    setNotificationsEnabled(value);
   };
 
   const handleUpdate = async () => {
@@ -42,7 +48,8 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
         body: JSON.stringify({ 
           car_type: carType, 
           car_color: carColor,
-          auto_detect: autoDetectionEnabled 
+          auto_detect: autoDetectionEnabled,
+          notifications_enabled: notificationsEnabled
         }),
       });
 
@@ -118,6 +125,19 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
             thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
             onValueChange={toggleAutoDetection}
             value={autoDetectionEnabled}
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Enable Notifications</Text>
+            <Text style={styles.settingDescription}>Ask user to confirm spot assessment</Text>
+          </View>
+          <Switch
+            trackColor={{ false: '#767577', true: '#512da8' }}
+            thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
+            onValueChange={toggleNotifications}
+            value={notificationsEnabled}
           />
         </View>
 

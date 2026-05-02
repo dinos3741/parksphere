@@ -116,11 +116,12 @@ async function createUsersTable() {
     const checkColumns = await client.query(`
       SELECT column_name 
       FROM information_schema.columns 
-      WHERE table_name = 'users' AND column_name IN ('auto_detection_enabled', 'auto_detect');
+      WHERE table_name = 'users' AND column_name IN ('auto_detection_enabled', 'auto_detect', 'notifications_enabled');
     `);
     
     const columns = checkColumns.rows.map(r => r.column_name);
-    
+
+    // Add auto_detect column if it doesn't exist
     if (columns.includes('auto_detection_enabled') && !columns.includes('auto_detect')) {
       console.log('Renaming auto_detection_enabled to auto_detect...');
       await client.query(`ALTER TABLE users RENAME COLUMN auto_detection_enabled TO auto_detect;`);
@@ -128,6 +129,13 @@ async function createUsersTable() {
       console.log('Adding auto_detect column...');
       await client.query(`ALTER TABLE users ADD COLUMN auto_detect BOOLEAN DEFAULT FALSE;`);
     }
+
+    // Add notifications_enabled column if it doesn't exist
+    if (!columns.includes('notifications_enabled')) {
+      console.log('Adding notifications_enabled column...');
+      await client.query(`ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE;`);
+    }
+
     // If auto_detect already exists, we do nothing.
     // If both exist (shouldn't happen with this logic), we might want to drop the old one, 
     // but better to be safe and just leave it or handle it if we really want to clean up.
