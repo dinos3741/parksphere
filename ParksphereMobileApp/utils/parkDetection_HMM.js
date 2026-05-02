@@ -424,25 +424,38 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    // Soft boundary: Must be > 5m away to be returning. 
-    // Steepness 1.0 creates a smooth transition between 2m and 8m.
-    logp += logSigmoid(dist, 5, 1.0); 
+    // 🚀 Distance-based Proximity Filter (High-Pass on Proximity)
+    // Penalize if > 70m, allow approach to 0m. This prevents "returning" 
+    // from firing the moment you turn around 200m away.
+    logp += logSigmoid(70 - dist, 0, 0.1); 
 
-    // Keep the direction signal (Gaussian is okay here since we want a specific speed range)
+    // 2. Keep the deltaRate for overall approach speed
     logp += logGaussian(deltaRate, -1.0, 0.8); 
 
-    if (deltaRate < 0) logp += 2; // reward approaching
+    // 3. 🚀 The Vector Boost (The real game changer)
+    if (obs.approachAlignment > 0.6) {
+      // Walking almost directly at the car: massive confidence boost
+      logp += 4; 
+    } else if (obs.approachAlignment < 0) {
+      // Walking tangentially or away: penalize heavily
+      logp -= 5; 
+    }
+
+    // Reward general approach
+    if (deltaRate < -0.2) logp += 2; 
   }
 
   if (state === 'AWAY') {
-    // Soft boundary: Must be > 3m away to be AWAY.
     logp += logSigmoid(dist, 3, 1.5); 
-
-    // Strong direction signal
     logp += logGaussian(deltaRate, 1.0, 0.8);
 
-    if (dist < 1) logp -= 10; // Hard penalty if practically inside the car
-    else logp += 2; // Extra reward for being in AWAY state
+    // 🚀 Vector Penalty: If they are facing/walking towards the car, they aren't AWAY
+    if (obs.approachAlignment > 0.4) {
+       logp -= 5;
+    }
+
+    if (dist < 1) logp -= 10; 
+    else logp += 2; 
   }
 
   return logp;
@@ -575,6 +588,34 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const stableDeltaRate = smoothedDeltaRate;
 
   // ==============================
+  // APPROACH ALIGNMENT (Vector Math)
+  // ==============================
+  let approachAlignment = 0;
+
+  if (parkedLocation) {
+    // 1. Get parked car coordinates in meters
+    const [parkedMx, parkedMy] = latLonToMeters(parkedLocation.latitude, parkedLocation.longitude);
+    
+    // 2. Vector pointing from current location TO the car
+    const dx = parkedMx - fx;
+    const dy = parkedMy - fy;
+    
+    // 3. Current velocity vector from your Kalman Filter
+    const vx = positionFilter.x[2];
+    const vy = positionFilter.x[3];
+    
+    // 4. Magnitudes
+    const magD = Math.sqrt(dx * dx + dy * dy);
+    const magV = Math.sqrt(vx * vx + vy * vy);
+    
+    // Only calculate if the user is actually moving and not standing on the hood of the car
+    if (magV > 0.3 && magD > 2) {
+      // Dot product divided by magnitudes = Cosine of the angle between them
+      approachAlignment = (vx * dx + vy * dy) / (magV * magD);
+    }
+  }
+
+  // ==============================
   // OBSERVATION VECTOR
   // ==============================
   const obs = {
@@ -584,7 +625,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     dist,
     deltaRate: stableDeltaRate,
     stopDuration: supplemental.stop_duration || 0,
-    accuracy: supplemental.accuracy || 10 // Use passed accuracy
+    accuracy: supplemental.accuracy || 10, // Use passed accuracy
+    approachAlignment // 🚀 NEW
   };
 
   // ==============================
