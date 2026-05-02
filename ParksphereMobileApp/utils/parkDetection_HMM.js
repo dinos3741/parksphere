@@ -22,9 +22,11 @@ export const STATES = [
 export const A = {
 
   IDLE: {
-    IDLE: 0.5,      // Reduced to allow exiting the state
-    WALKING: 0.3,  
-    IN_CAR: 0.15,   // ✅ NEW: Allows getting into the car after standing next to it
+    IDLE: 0.4,      // Slightly reduced to fit new states
+    WALKING: 0.2,  
+    AWAY: 0.1,      // ✅ NEW: Resume walking away after stopping
+    RETURNING: 0.1, // ✅ NEW: Resume returning after stopping
+    IN_CAR: 0.15,   
     DRIVING: 0.05
   },
 
@@ -290,9 +292,6 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 RETURNING requires being far enough first (Reduced to 1.5m)
   if (to === 'RETURNING' && context.dist < 1.5) return false;
 
-  // 🚫 Must be close to the car (IN_CAR check) (Relaxed to 5m)
-  if (to === 'IN_CAR' && context.dist > 5) return false;
-
   // 🚫 Must not have steps (you don't enter a car while walking actively)
   if (to === 'IN_CAR' && context.stepRate > 1.5) return false;
 
@@ -387,7 +386,7 @@ function emissionLogProb(state, obs) {
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 4);   // Balanced variance
 
-      if (dist > 10) logp -= 15; // 🚫 strong rejection
+      if (dist > 8) logp -= 15; // 🚫 strong rejection
 
       logp += logGaussian(speed, 1, 2);  // slow movement
 
@@ -623,10 +622,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     (currentState === 'STOPPED' || currentState === 'DRIVING') && // Must come from STOPPED or DRIVING
     obs.speed < 4 &&
     obs.stepRate > 0.3 &&
-    obs.stopDuration > 3 &&
-    dist < 5; // Must be relatively close to the car to "exit" it
-
-  if (isExitEvent && !parkedLocation) {
+    obs.stopDuration > 3;
+  
+    // By removing the !parkedLocation check here, you can detect re-parking!
+  if (isExitEvent) {
     console.log('[HMM] 🚗 Parking detected via exit event');
     parkedEvent = true;
   }
