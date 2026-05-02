@@ -543,22 +543,23 @@ async function authenticateToken(req, res, next) {
 app.get('/api/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT 
-        u.id, 
-        u.username, 
-        u.plate_number, 
-        u.car_color, 
-        u.car_type, 
-        u.credits, 
-        u.spots_declared, 
-        u.spots_taken, 
+      `SELECT
+        u.id,
+        u.username,
+        u.plate_number,
+        u.car_color,
+        u.car_type,
+        u.credits,
+        u.spots_declared,
+        u.spots_taken,
         u.avatar_url,
+        u.auto_detect,
+        u.notifications_enabled,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
-      FROM users u 
+      FROM users u
       WHERE u.id = $1`,
       [req.user.userId]
-    );
-    const user = result.rows[0];
+    );    const user = result.rows[0];
 
     if (!user) {
       return res.status(404).send('User not found.');
@@ -631,6 +632,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
         u.completed_transactions_count,
         u.avatar_url,
         u.auto_detect,
+        u.notifications_enabled,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
 
         (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
