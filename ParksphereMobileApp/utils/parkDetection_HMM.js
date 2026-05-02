@@ -257,6 +257,9 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to RETURNING without parked location
   if (to === 'RETURNING' && !hasParkedLocation) return false;
 
+  // 🚫 RETURNING can only be reached from AWAY or WALKING
+  if (to === 'RETURNING' && !['AWAY', 'WALKING', 'RETURNING'].includes(from)) return false;
+
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
@@ -344,7 +347,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, stopDuration } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy } = obs;
 
   let logp = 0;
   
@@ -353,14 +356,17 @@ function emissionLogProb(state, obs) {
 
   // SPEED
   if (state === 'DRIVING') {
-    logp += logGaussian(speed, 40, 20);
+    // 🚀 NEW: Sigmoid-based Driving Model. 
+    // Midpoint 15km/h, steepness 0.5. Very likely above 20km/h.
+    logp += logSigmoid(speed, 15, 0.5);
 
-  // Strong penalty if clearly not moving
-  if (speed < 2) logp -= 10;
+    // Strong penalty if clearly not moving
+    if (speed < 2) logp -= 15;
 
-  // 🚀 NEW: penalize only if clearly walking
-  if (stepRate > 2 && speed < 10) {
-    logp -= 6; // not impossible, just unlikely
+    // 🚀 NEW: Step-Counter Guard for Driving
+    // If active walking detected, heavily penalize Driving unless speed is very high.
+    if (stepRate > 0.5 && speed < 25) {
+      logp -= 10;
     }
   }
 
@@ -468,7 +474,13 @@ function updateBelief(prevBelief, obs, context) {
     }
 
     // 🌡️ TEMPERATURE/SMOOTHING (0.5 balance between stability and speed)
-    const logEmission = emissionLogProb(s, obs) * 0.5;
+    // 🚀 NEW: Weight emission by GPS accuracy.
+    // If accuracy is poor (> 20m), reduce the influence of the emission model.
+    let weight = 0.5;
+    if (obs.accuracy > 20) {
+      weight = Math.max(0.1, 0.5 * (20 / obs.accuracy));
+    }
+    const logEmission = emissionLogProb(s, obs) * weight;
     const logVal = Math.log(transitionSum) + logEmission;
 
     logNewBelief[s] = logVal;
@@ -572,7 +584,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     accel: supplemental.acceleration_magnitude || 1,
     dist,
     deltaRate: stableDeltaRate,
-    stopDuration: supplemental.stop_duration || 0
+    stopDuration: supplemental.stop_duration || 0,
+    accuracy: supplemental.accuracy || 10 // Use passed accuracy
   };
 
   // ==============================
@@ -624,6 +637,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (!globalThis._awayCounter) globalThis._awayCounter = 0;
   if (!globalThis._returnCounter) globalThis._returnCounter = 0;
   if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
+  if (!globalThis._drivingCounter) globalThis._drivingCounter = 0; // NEW
 
   if (candidate === 'AWAY') {
     globalThis._awayCounter++;
@@ -643,9 +657,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     globalThis._inCarCounter = 0;
   }
 
+  if (candidate === 'DRIVING') {
+    globalThis._drivingCounter++;
+  } else {
+    globalThis._drivingCounter = 0;
+  }
+
   const awayConfirmed = globalThis._awayCounter >= 2;
   const returnConfirmed = globalThis._returnCounter >= 2;
   const inCarConfirmed = globalThis._inCarCounter >= 3;
+  const drivingConfirmed = globalThis._drivingCounter >= 2; // Requires 2 consecutive frames
 
   // Only switch if the candidate is 5% more confident than the current state
   if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
@@ -654,6 +675,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     } else if (candidate === 'RETURNING' && !returnConfirmed) {
       // wait
     } else if (candidate === 'IN_CAR' && !inCarConfirmed) {
+      // wait
+    } else if (candidate === 'DRIVING' && !drivingConfirmed) { // NEW
       // wait
     } else {
       currentState = candidate;

@@ -174,7 +174,8 @@ export async function handleLocationUpdate(arg1, arg2) {
     stop_duration: stateData.stopDuration,
     lastDistanceToCar: stateData.lastDistanceToCar,
     previousState: stateData.state,
-    previousBelief: stateData.belief
+    previousBelief: stateData.belief,
+    accuracy: location.coords.accuracy // Pass accuracy
   });
 
   let {
