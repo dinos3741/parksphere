@@ -265,20 +265,20 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
-  // 🚫 Must be VERY close to the car (Relaxed to 12m to account for GPS error)
-  if (to === 'IN_CAR' && context.dist > 12) return false;
+  // 🚫 Must be VERY close to the car
+  if (to === 'IN_CAR' && context.dist > 8) return false;
 
   // 🚫 Must be approaching, BUT ONLY if we are still a few meters out.
-  // If we are within 5 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
-  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 5 && context.deltaRate > 0) {
+  // If we are within 3 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
+  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 3 && context.deltaRate > 0) {
       return false; 
   }
 
   // 🚫 Must be slow (entering vehicle)
   if (to === 'IN_CAR' && context.speed > 7) return false;
 
-  // 🚫 Must not be actively walking (Relaxed to 1.5 to account for pedometer lag)
-  if (to === 'IN_CAR' && context.stepRate > 1.5) return false;
+  // 🚫 Must not be actively walking (Relaxed to 1.2 to account for pedometer lag when sitting down)
+  if (to === 'IN_CAR' && context.stepRate > 1.2) return false;
 
   // 🚫 Cannot jump directly WALKING → IN_CAR without parked location
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
@@ -293,7 +293,7 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && context.dist < 1.5) return false;
 
   // 🚫 Must not have steps (you don't enter a car while walking actively)
-  if (to === 'IN_CAR' && context.stepRate > 1.5) return false;
+  if (to === 'IN_CAR' && context.stepRate > 1.2) return false;
 
   // 🚫 Prevent oscillation
   if (from === 'AWAY' && to === 'RETURNING' && context.deltaRate > 0) return false;
@@ -384,17 +384,17 @@ function emissionLogProb(state, obs) {
 
     // Add strict distance check for IN_CAR
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 6);   // Increased variance (was 4)
+      logp += logGaussian(dist, 0, 4);   // Balanced variance
 
-      if (dist > 12) logp -= 15; // 🚫 rejection (was 8)
+      if (dist > 8) logp -= 15; // 🚫 strong rejection
 
       logp += logGaussian(speed, 1, 2);  // slow movement
 
       // 📉 Softer penalty for trailing steps. 
-      if (stepRate > 0.8) logp -= 3; // (was 0.5 and -5)
+      if (stepRate > 0.5) logp -= 5;
 
       // 🚀 Slight proximity boost
-      if (dist < 8) logp += 2; // (was 5 and 1.5)
+      if (dist < 5) logp += 1.5;
     }
   }
 
@@ -706,7 +706,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   const awayConfirmed = globalThis._awayCounter >= 2;
   const returnConfirmed = globalThis._returnCounter >= 2;
-  const inCarConfirmed = globalThis._inCarCounter >= 2;
+  const inCarConfirmed = globalThis._inCarCounter >= 3;
   const drivingConfirmed = globalThis._drivingCounter >= 2; // Requires 2 consecutive frames
 
   // Only switch if the candidate is 5% more confident than the current state
