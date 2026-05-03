@@ -424,25 +424,24 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    // 🚀 Distance-based Proximity Filter (High-Pass on Proximity)
-    // Penalize if > 70m, allow approach to 0m. This prevents "returning" 
-    // from firing the moment you turn around 200m away.
-    logp += logSigmoid(70 - dist, 0, 0.1); 
+    // 🚀 Distance-based Proximity Filter
+    // Midpoint 35m: start penalizing if further away.
+    logp += logSigmoid(35 - dist, 0, 0.2); 
 
     // 2. Keep the deltaRate for overall approach speed
     logp += logGaussian(deltaRate, -1.0, 0.8); 
 
     // 3. 🚀 The Vector Boost (The real game changer)
     if (obs.approachAlignment > 0.6) {
-      // Walking almost directly at the car: massive confidence boost
-      logp += 4; 
+      // Walking almost directly at the car: boost, but scale by distance
+      logp += (dist < 40) ? 4 : 1.5; 
     } else if (obs.approachAlignment < 0) {
       // Walking tangentially or away: penalize heavily
       logp -= 5; 
     }
 
     // Reward general approach
-    if (deltaRate < -0.2) logp += 2; 
+    if (deltaRate < -0.2) logp += (dist < 40) ? 2 : 0.5; 
   }
 
   if (state === 'AWAY') {
