@@ -39,8 +39,8 @@ export const A = {
   },
 
   DRIVING: {
-    DRIVING: 0.75,
-    STOPPED: 0.2,
+    DRIVING: 0.7,
+    STOPPED: 0.25,
     WALKING: 0.05   // e.g. very short trips / GPS glitches
   },
 
@@ -404,7 +404,7 @@ function emissionLogProb(state, obs) {
     logp += isWalkingState ? Math.log(0.98) : Math.log(0.001); // 🔥 very strong penalty for stationary/driving with steps
     if (isWalkingState) logp += 2.5; // 🚀 extra boost to jump out of IDLE/STOPPED
   } else {
-    logp += (isStationaryState || state === 'DRIVING') ? Math.log(0.9) : Math.log(0.1);
+    logp += (isStationaryState) ? Math.log(0.9) : Math.log(0.1);
   }
 
   // ACCELERATION
