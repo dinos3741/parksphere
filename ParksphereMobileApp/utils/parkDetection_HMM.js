@@ -654,31 +654,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const currentConf = belief[currentState] || 0;
 
   // ==============================
-  // 🚗 PARKING EVENT DETECTION (CRITICAL)
-  // ==============================
-  let parkedEvent = false;
-
-  // Detect exit from car: STOPPED → WALKING (or DRIVING -> WALKING via STOPPED)
-  const isExitEvent =
-    candidate === 'WALKING' &&
-    (currentState === 'STOPPED' || currentState === 'DRIVING') && // Must come from STOPPED or DRIVING
-    obs.speed < 4 &&
-    obs.stepRate > 0.3 &&
-    obs.stopDuration > 3;
-  
-    // By removing the !parkedLocation check here, you can detect re-parking!
-  if (isExitEvent) {
-    console.log('[HMM] 🚗 Parking detected via exit event');
-    parkedEvent = true;
-  }
-
-  // ==============================
   // ⏱️ TEMPORAL CONFIRMATION
   // ==============================
   if (!globalThis._awayCounter) globalThis._awayCounter = 0;
   if (!globalThis._returnCounter) globalThis._returnCounter = 0;
   if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
-  if (!globalThis._drivingCounter) globalThis._drivingCounter = 0; // NEW
+  if (!globalThis._drivingCounter) globalThis._drivingCounter = 0;
+  if (!globalThis._walkingCounter) globalThis._walkingCounter = 0;
 
   if (candidate === 'AWAY') {
     globalThis._awayCounter++;
@@ -704,10 +686,35 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     globalThis._drivingCounter = 0;
   }
 
+  if (candidate === 'WALKING') {
+    globalThis._walkingCounter++;
+  } else {
+    globalThis._walkingCounter = 0;
+  }
+
   const awayConfirmed = globalThis._awayCounter >= 2;
   const returnConfirmed = globalThis._returnCounter >= 2;
   const inCarConfirmed = globalThis._inCarCounter >= 3;
-  const drivingConfirmed = globalThis._drivingCounter >= 2; // Requires 2 consecutive frames
+  const drivingConfirmed = globalThis._drivingCounter >= 2;
+  const walkingConfirmed = globalThis._walkingCounter >= 3; // 🚀 Requires sustained steps
+
+  // ==============================
+  // 🚗 PARKING EVENT DETECTION (CRITICAL)
+  // ==============================
+  let parkedEvent = false;
+
+  // Detect exit from car: STOPPED → WALKING (or DRIVING -> WALKING via STOPPED)
+  // We fire this ONLY when walking is confirmed, but we are still in a vehicle state.
+  const isExitEvent =
+    candidate === 'WALKING' &&
+    walkingConfirmed &&
+    (currentState === 'STOPPED' || currentState === 'DRIVING');
+  
+    // By removing the !parkedLocation check here, you can detect re-parking!
+  if (isExitEvent) {
+    console.log('[HMM] 🚗 Parking detected via confirmed exit event');
+    parkedEvent = true;
+  }
 
   // Only switch if the candidate is 5% more confident than the current state
   if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
@@ -717,7 +724,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
       // wait
     } else if (candidate === 'IN_CAR' && !inCarConfirmed) {
       // wait
-    } else if (candidate === 'DRIVING' && !drivingConfirmed) { // NEW
+    } else if (candidate === 'DRIVING' && !drivingConfirmed) {
+      // wait
+    } else if (candidate === 'WALKING' && !walkingConfirmed) {
       // wait
     } else {
       currentState = candidate;
@@ -791,6 +800,7 @@ export function resetHMM() {
   globalThis._returnCounter = 0;
   globalThis._inCarCounter = 0;
   globalThis._drivingCounter = 0;
+  globalThis._walkingCounter = 0;
 
   console.log('[HMM] Engine fully reset to IDLE.');
   return { 
