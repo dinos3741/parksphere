@@ -257,7 +257,6 @@ export async function handleLocationUpdate(arg1, arg2) {
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
       'STOPPED': '⏱️ Vehicle stopped...',
-      'AWAY': '📍 You are away from the vehicle.',
       'RETURNING': '📍 Approaching vehicle...',
       'IN_CAR': '🚗 Back in car...',
       'IDLE': '💤 System Idle.'
@@ -267,12 +266,9 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     // THE OFFICIAL CONFIRMATION:
-    // Transition from a stationary state to a walking-away state
-    const isStationary = (s) => ['STOPPED', 'IDLE'].includes(s);
-    const isWalkingAway = (s) => ['AWAY'].includes(s);
-
-    if (isWalkingAway(stateData.state) && isStationary(prevState) && !stateData.serverSpotId) {
-      console.log('[ParkDetection] Official Confirmation: User walked away. Declaring spot...');
+    // Declare spot when awayEvent is triggered (user left vicinity > 50m)
+    if (stateData.awayEvent && !stateData.serverSpotId) {
+      console.log('[ParkDetection] Official Confirmation: User left vicinity. Declaring spot...');
       const finalParkedLoc = stateData.parkedLocation || stateData.stoppedCandidateLocation || currentLoc;
       stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }

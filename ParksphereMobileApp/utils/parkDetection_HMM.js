@@ -10,7 +10,6 @@ export const STATES = [
   'WALKING',
   'DRIVING',
   'STOPPED',
-  'AWAY',
   'RETURNING',
   'IN_CAR'
 ];
@@ -23,18 +22,16 @@ export const A = {
 
   IDLE: {
     IDLE: 0.4,      
-    WALKING: 0.2,  
-    AWAY: 0.1,      
+    WALKING: 0.3,  // Boosted since AWAY is gone
     RETURNING: 0.1, 
     IN_CAR: 0.15,   
     DRIVING: 0.05
   },
 
   WALKING: {
-    WALKING: 0.5,
+    WALKING: 0.65, // Boosted since AWAY is gone
     IDLE: 0.15,
     DRIVING: 0.1,   // ✅ direct walk → car → drive (first use case)
-    AWAY: 0.15,     // 🚀 new: can start walking away from car immediately
     RETURNING: 0.1  // 🚀 new: can start walking back to car immediately
   },
 
@@ -49,12 +46,6 @@ export const A = {
     DRIVING: 0.25,
     WALKING: 0.2,   // ✅ critical: user exits car
     IDLE: 0.05      // ✅ NEW: Allow transition back to IDLE after being stopped
-  },
-
-  AWAY: {
-    AWAY: 0.7,
-    RETURNING: 0.2,
-    IDLE: 0.1       // ✅ Allow stopping while away
   },
 
   RETURNING: {
@@ -75,6 +66,7 @@ export const A = {
 // ==============================
 let belief = {};
 let currentState = 'IDLE';
+let isAway = false; // 🚀 NEW: Contextual flag for being far from car
 
 for (const s of STATES) {
   belief[s] = s === 'IDLE' ? 1 : 0;
@@ -301,7 +293,7 @@ function calculatePGR(currentDist, currentX, currentY) {
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
-  const { hasParkedLocation } = context;
+  const { hasParkedLocation, isAway } = context;
 
   // 🚫 Cannot enter WALKING if there are literally zero steps
   if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.1) return false;
@@ -312,8 +304,11 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to RETURNING without parked location
   if (to === 'RETURNING' && !hasParkedLocation) return false;
 
-  // 🚫 RETURNING can only be reached from AWAY or WALKING
-  if (to === 'RETURNING' && !['AWAY', 'WALKING', 'RETURNING'].includes(from)) return false;
+  // 🚫 RETURNING requires being "Away" first (contextual flag)
+  if (to === 'RETURNING' && !isAway) return false;
+
+  // 🚫 RETURNING can only be reached from WALKING or IDLE (Now that AWAY is gone)
+  if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
 
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
@@ -341,38 +336,11 @@ function isTransitionAllowed(from, to, context) {
     if (context.deltaRate >= -0.2 && context.pgr < 0.2) return false;
   }
 
-  // 🚫 AWAY requires distance (Reduced to 1.5m for tight indoor testing)
-  if (to === 'AWAY' && context.dist < 1.5) return false;
-
   // 🚫 RETURNING requires being far enough first (Reduced to 1.5m)
   if (to === 'RETURNING' && context.dist < 1.5) return false;
 
   // 🚫 Must not have steps (you don't enter a car while walking actively)
   if (to === 'IN_CAR' && context.stepRate > 1.2) return false;
-
-  // 🚫 Prevent oscillation
-  if (from === 'AWAY' && to === 'RETURNING') {
-    if (context.deltaRate > 0 && context.pgr < 0.2) return false;
-  }
-
-  if (from === 'RETURNING' && to === 'AWAY' && context.deltaRate < 0) return false;
-
-  // AWAY only valid if parked location exists, comes from walking and moving away from car
-  if (to === 'AWAY') {
-    if (!hasParkedLocation) return false;
-
-    // If we are NEWLY entering AWAY, we must come from WALKING and be moving away
-    if (from !== 'AWAY') {
-      if (from !== 'WALKING') return false;
-      
-      // We only strictly enforce a positive deltaRate upon initial entry.
-      // Once they are AWAY, we allow GPS bounce without instantly killing the state.
-      if (context.deltaRate <= 0.1) return false; 
-    }
-  }
-
-  // 🚫 Cannot go to IN_CAR from AWAY if moving further away
-  if (from === 'AWAY' && to === 'IN_CAR' && context.deltaRate > 0) return false;
 
   return true;
 }
@@ -420,7 +388,7 @@ function emissionLogProb(state, obs) {
   }
 
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
-  const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
+  const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
   // SPEED (GPS)
   if (state === 'DRIVING') {
@@ -461,7 +429,7 @@ function emissionLogProb(state, obs) {
   // 🛡️ STATIONARY GUARD (Sensor)
   const isPhysicallyStill = Math.abs(accel - 1.0) < 0.05 && !hasSteps;
   if (isPhysicallyStill) {
-    if (['DRIVING', 'WALKING', 'AWAY', 'RETURNING'].includes(state)) {
+    if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
       logp -= 10;
     } else {
       logp += 2;
@@ -493,15 +461,6 @@ function emissionLogProb(state, obs) {
     if (deltaRate < -0.2) {
       logp += (dist < RETURN_ZONE_RADIUS ? 2 : 0.5) * gpsWeight; 
     }
-  }
-
-  if (state === 'AWAY') {
-    logp += logSigmoid(dist, 10, 1.5) * gpsWeight; 
-    logp += logGaussian(deltaRate, 1.0, 0.8) * gpsWeight;
-    if (pgr > 0.4 || pgrConsistency > 0.6) logp -= (6 * gpsWeight);
-    if (approachAlignment > 0.4) logp -= (4 * gpsWeight);
-    if (dist < 1) logp -= (10 * gpsWeight); 
-    else logp += (2 * gpsWeight); 
   }
 
   return logp * TEMP;
@@ -695,7 +654,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     speed: obs.speed,
     pgr: obs.pgr,
     pgrTrend: obs.pgrTrend,
-    pgrConsistency: obs.pgrConsistency
+    pgrConsistency: obs.pgrConsistency,
+    isAway // 🚀 NEW
   };
 
   // ==============================
@@ -714,17 +674,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   // ⏱️ TEMPORAL CONFIRMATION
   // ==============================
-  if (!globalThis._awayCounter) globalThis._awayCounter = 0;
   if (!globalThis._returnCounter) globalThis._returnCounter = 0;
   if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
   if (!globalThis._drivingCounter) globalThis._drivingCounter = 0;
   if (!globalThis._walkingCounter) globalThis._walkingCounter = 0;
-
-  if (candidate === 'AWAY') {
-    globalThis._awayCounter++;
-  } else {
-    globalThis._awayCounter = 0;
-  }
 
   if (candidate === 'RETURNING') {
     globalThis._returnCounter++;
@@ -750,7 +703,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     globalThis._walkingCounter = 0;
   }
 
-  const awayConfirmed = globalThis._awayCounter >= 2;
   const returnConfirmed = globalThis._returnCounter >= 2;
   const inCarConfirmed = globalThis._inCarCounter >= 2;
   const drivingConfirmed = globalThis._drivingCounter >= 2;
@@ -774,11 +726,20 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     parkedEvent = true;
   }
 
+  // ==============================
+  // 📍 AWAY EVENT DETECTION (NEW)
+  // ==============================
+  let awayEvent = false;
+  // Threshold 50m, requires being in walking/idle state behaviorally
+  if (!isAway && dist > 50 && (currentState === 'WALKING' || currentState === 'IDLE')) {
+    console.log('[HMM] 📍 User left vicinity (> 50m)');
+    isAway = true;
+    awayEvent = true;
+  }
+
   // Only switch if the candidate is 5% more confident than the current state
   if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
-    if (candidate === 'AWAY' && !awayConfirmed) {
-      // wait
-    } else if (candidate === 'RETURNING' && !returnConfirmed) {
+    if (candidate === 'RETURNING' && !returnConfirmed) {
       // wait
     } else if (candidate === 'IN_CAR' && !inCarConfirmed) {
       // wait
@@ -802,6 +763,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     secondConfidence: sorted[1]?.[1],
     belief,
     parkedEvent,              // 🚀 Signal the parking event without hiding the WALKING state
+    awayEvent,                // 🚀 NEW: Signal the "Left Vicinity" event
+    isAway,                   // 🚀 NEW: Provide the flag status
     distToParked: dist,
     deltaRate: stableDeltaRate,
     filteredSpeed: speed,
@@ -840,6 +803,7 @@ export function resetHMM() {
   // 1. Reset Beliefs and State
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
+  isAway = false; // 🚀 NEW
 
   // 2. Reset Kalman Filters
   speedFilter.x = 0;
@@ -853,9 +817,9 @@ export function resetHMM() {
   smoothedDeltaRate = 0;
   lastTimestamp = null;
   progressHistory = []; // 🚀 NEW
+  pgrHistory = [];      // 🚀 NEW
 
   // 4. Reset Global Counters (Temporal Confirmation)
-  globalThis._awayCounter = 0;
   globalThis._returnCounter = 0;
   globalThis._inCarCounter = 0;
   globalThis._drivingCounter = 0;
