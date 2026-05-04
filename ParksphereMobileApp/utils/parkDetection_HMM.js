@@ -260,6 +260,9 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot enter WALKING if there are literally zero steps
   if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.1) return false;
 
+  // 🚫 Cannot enter STOPPED unless coming from DRIVING or if already in STOPPED state
+  if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
+
   // 🚫 Cannot go to RETURNING without parked location
   if (to === 'RETURNING' && !hasParkedLocation) return false;
 
