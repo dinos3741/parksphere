@@ -22,12 +22,12 @@ export const STATES = [
 export const A = {
 
   IDLE: {
-    IDLE: 0.65,     
-    WALKING: 0.15,  
-    AWAY: 0.05,     
-    RETURNING: 0.05, 
-    IN_CAR: 0.07,   
-    DRIVING: 0.03
+    IDLE: 0.4,      
+    WALKING: 0.2,  
+    AWAY: 0.1,      
+    RETURNING: 0.1, 
+    IN_CAR: 0.15,   
+    DRIVING: 0.05
   },
 
   WALKING: {
