@@ -100,7 +100,7 @@ class Kalman1D {
   }
 }
 
-const speedFilter = new Kalman1D(0.1, 2);
+const speedFilter = new Kalman1D(0.1, 1);
 
 
 // ==============================
@@ -452,7 +452,7 @@ function emissionLogProb(state, obs) {
   }
 
   if (state === 'AWAY') {
-    logp += logSigmoid(dist, 3, 1.5); 
+    logp += logSigmoid(dist, 10, 1.5); 
     logp += logGaussian(deltaRate, 1.0, 0.8);
 
     // 🚀 Vector Penalty: If they are facing/walking towards the car, they aren't AWAY
