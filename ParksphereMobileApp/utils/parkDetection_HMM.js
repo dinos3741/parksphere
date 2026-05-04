@@ -697,7 +697,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   const awayConfirmed = globalThis._awayCounter >= 2;
   const returnConfirmed = globalThis._returnCounter >= 2;
-  const inCarConfirmed = globalThis._inCarCounter >= 3;
+  const inCarConfirmed = globalThis._inCarCounter >= 2;
   const drivingConfirmed = globalThis._drivingCounter >= 2;
   const walkingConfirmed = globalThis._walkingCounter >= 3; // 🚀 Requires sustained steps
 
