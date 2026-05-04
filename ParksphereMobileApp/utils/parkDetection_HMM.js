@@ -45,9 +45,10 @@ export const A = {
   },
 
   STOPPED: {
-    STOPPED: 0.55,
+    STOPPED: 0.50, // Reduced to allow for IDLE transition
     DRIVING: 0.25,
-    WALKING: 0.2   // ✅ critical: user exits car
+    WALKING: 0.2,   // ✅ critical: user exits car
+    IDLE: 0.05      // ✅ NEW: Allow transition back to IDLE after being stopped
   },
 
   AWAY: {
@@ -255,6 +256,9 @@ let smoothedDeltaRate = 0;
 // ==============================
 function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation } = context;
+
+  // 🚫 Cannot enter WALKING if there are literally zero steps
+  if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.1) return false;
 
   // 🚫 Cannot go to RETURNING without parked location
   if (to === 'RETURNING' && !hasParkedLocation) return false;
