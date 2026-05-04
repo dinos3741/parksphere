@@ -371,6 +371,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; // 🚀 Configurable midpoint for returning detection (meters)
+const AWAY_THRESHOLD = 50;    // 🚀 NEW: Distance to be considered "Away" from the car
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
@@ -730,11 +731,17 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 📍 AWAY EVENT DETECTION (NEW)
   // ==============================
   let awayEvent = false;
-  // Threshold 50m, requires being in walking/idle state behaviorally
-  if (!isAway && dist > 50 && (currentState === 'WALKING' || currentState === 'IDLE')) {
-    console.log('[HMM] 📍 User left vicinity (> 50m)');
+  // Threshold AWAY_THRESHOLD, requires being in walking/idle state behaviorally
+  if (!isAway && dist > AWAY_THRESHOLD && (currentState === 'WALKING' || currentState === 'IDLE')) {
+    console.log(`[HMM] 📍 User left vicinity (> ${AWAY_THRESHOLD}m)`);
     isAway = true;
     awayEvent = true;
+  }
+
+  // Reset isAway flag when back in car or driving
+  if (isAway && (currentState === 'IN_CAR' || currentState === 'DRIVING')) {
+    console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
+    isAway = false;
   }
 
   // Only switch if the candidate is 5% more confident than the current state
