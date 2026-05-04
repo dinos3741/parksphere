@@ -266,14 +266,17 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     // THE OFFICIAL CONFIRMATION:
-    // Declare spot when awayEvent is triggered (user left vicinity > 50m)
-    if (stateData.awayEvent && !stateData.serverSpotId) {
-      console.log('[ParkDetection] Official Confirmation: User left vicinity. Declaring spot...');
+    // We record the parked location locally when the user walks away,
+    // but we only declare the spot to the server when they start returning.
+    if (stateData.state === 'RETURNING' && !stateData.serverSpotId) {
+      console.log('[ParkDetection] Official Confirmation: User is returning. Declaring spot...');
       const finalParkedLoc = stateData.parkedLocation || stateData.stoppedCandidateLocation || currentLoc;
       stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }
 
-    if (stateData.state === 'RETURNING' && stateData.serverSpotId) {
+    // Update status to 'soon_free' when returning or in the car
+    if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
+      console.log(`[ParkDetection] Updating spot status to soon_free (${stateData.state})`);
       await updateSpotStatus(stateData.serverSpotId, 'soon_free');
     }
 
