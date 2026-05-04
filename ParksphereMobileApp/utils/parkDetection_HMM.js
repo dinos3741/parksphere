@@ -402,6 +402,8 @@ function logSigmoid(x, midpoint, steepness) {
 // ==============================
 // EMISSION MODEL
 // ==============================
+const RETURN_ZONE_RADIUS = 70; // 🚀 Configurable midpoint for returning detection (meters)
+
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
 
@@ -468,21 +470,29 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE (GPS)
   if (state === 'RETURNING') {
-    logp += logSigmoid(35 - dist, 0, 0.2) * gpsWeight; 
+    // 1. Distance-based Proximity Filter (Using configurable radius)
+    logp += logSigmoid(RETURN_ZONE_RADIUS - dist, 0, 0.1) * gpsWeight; 
     logp += logGaussian(deltaRate, -1.0, 0.8) * gpsWeight; 
 
-    if (pgr > 0.3) logp += (4 * gpsWeight);
-    else if (pgr < -0.3) logp -= (6 * gpsWeight);
+    // 🚀 PGR & Trend Boost (Only active within the Return Zone)
+    if (dist < RETURN_ZONE_RADIUS) {
+      if (pgr > 0.3) logp += (4 * gpsWeight);
+      else if (pgr < -0.3) logp -= (6 * gpsWeight);
 
-    if (pgrConsistency > 0.7) logp += (3 * gpsWeight);
-    if (pgrTrend > 0.05) logp += (1.5 * gpsWeight);
+      if (pgrConsistency > 0.7) logp += (3 * gpsWeight);
+      if (pgrTrend > 0.05) logp += (1.5 * gpsWeight);
+    }
 
+    // 4. Vector Alignment (Softer now, also gated by distance for high boost)
     if (approachAlignment > 0.6) {
-      logp += (dist < 40 ? 3 : 1.5) * gpsWeight; 
+      logp += (dist < RETURN_ZONE_RADIUS ? 3 : 1) * gpsWeight; 
     } else if (approachAlignment < -0.2 && pgr < 0.1 && pgrConsistency < 0.4) {
       logp -= (5 * gpsWeight); 
     }
-    if (deltaRate < -0.2) logp += (dist < 40 ? 2 : 0.5) * gpsWeight; 
+    
+    if (deltaRate < -0.2) {
+      logp += (dist < RETURN_ZONE_RADIUS ? 2 : 0.5) * gpsWeight; 
+    }
   }
 
   if (state === 'AWAY') {
