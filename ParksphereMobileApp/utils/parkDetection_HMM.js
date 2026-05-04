@@ -402,96 +402,99 @@ function logSigmoid(x, midpoint, steepness) {
 // ==============================
 // EMISSION MODEL
 // ==============================
-function emissionLogProb(state, obs, gpsWeight = 1.0) {
+function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
 
-  let gpsLogp = 0;    // Signal that depends on GPS quality
-  let sensorLogp = 0; // Signal from local sensors (Accel/Step)
+  let logp = 0;
+  
+  // 🌡️ TEMPERATURE/SMOOTHING (0.5 balance between stability and speed)
+  const TEMP = 0.5;
+
+  // 🚀 GPS ACCURACY PENALTY (Internal)
+  // If accuracy is poor (> 20m), reduce influence of GPS-derived metrics.
+  let gpsWeight = 1.0;
+  if (accuracy > 20) {
+    gpsWeight = Math.max(0.2, 20 / accuracy);
+  }
 
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'AWAY', 'RETURNING'].includes(state);
 
   // SPEED (GPS)
   if (state === 'DRIVING') {
-    gpsLogp += logSigmoid(speed, 15, 0.5);
-    if (speed < 2) gpsLogp -= 15;
-    // Step-Counter Guard for Driving (Mixed)
-    if (stepRate > 0.5 && speed < 25) {
-      sensorLogp -= 10;
-    }
+    logp += logSigmoid(speed, 15, 0.5) * gpsWeight;
+    if (speed < 2) logp -= (15 * gpsWeight);
+    if (stepRate > 0.5 && speed < 25) logp -= 10;
   }
   else if (isWalkingState) {
-    gpsLogp += logGaussian(speed, 2.5, 2);
+    logp += logGaussian(speed, 2.5, 2) * gpsWeight;
     if (state === 'WALKING' && dist > 2 && deltaRate > 0) {
-      gpsLogp += logGaussian(dist, 10, 5);
+      logp += logGaussian(dist, 10, 5) * gpsWeight;
     }
-    if (state === 'WALKING') sensorLogp += 0.5;
+    if (state === 'WALKING') logp += 0.5;
   } 
   else {
-    gpsLogp += logGaussian(speed, 0, 1.5);
+    logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
-      gpsLogp += logGaussian(dist, 0, 4);
-      if (dist > 8) gpsLogp -= 15;
-      gpsLogp += logGaussian(speed, 1, 2);
-      if (stepRate > 0.5) sensorLogp -= 5;
-      if (dist < 5) gpsLogp += 1.5;
+      logp += logGaussian(dist, 0, 4) * gpsWeight;
+      if (dist > 8) logp -= (15 * gpsWeight);
+      logp += logGaussian(speed, 1, 2) * gpsWeight;
+      if (stepRate > 0.5) logp -= 5;
+      if (dist < 5) logp += 1.5;
     }
   }
 
-  // STEP RATE (Sensor - Discriminative)
+  // STEP RATE (Sensor)
   const hasSteps = stepRate > 0.3;
   if (hasSteps) {
-    sensorLogp += isWalkingState ? Math.log(0.98) : Math.log(0.001);
-    if (isWalkingState) sensorLogp += 2.5;
+    logp += isWalkingState ? Math.log(0.98) : Math.log(0.001);
+    if (isWalkingState) logp += 2.5;
   } else {
-    sensorLogp += (isStationaryState) ? Math.log(0.9) : Math.log(0.1);
+    logp += (isStationaryState) ? Math.log(0.9) : Math.log(0.1);
   }
 
   // ACCELERATION (Sensor)
-  sensorLogp += logGaussian(accel, 1.0, 0.6);
+  logp += logGaussian(accel, 1.0, 0.6);
 
   // 🛡️ STATIONARY GUARD (Sensor)
   const isPhysicallyStill = Math.abs(accel - 1.0) < 0.05 && !hasSteps;
   if (isPhysicallyStill) {
     if (['DRIVING', 'WALKING', 'AWAY', 'RETURNING'].includes(state)) {
-      sensorLogp -= 10;
+      logp -= 10;
     } else {
-      sensorLogp += 2;
+      logp += 2;
     }
   }
 
   // DIRECTION/DISTANCE (GPS)
   if (state === 'RETURNING') {
-    gpsLogp += logSigmoid(35 - dist, 0, 0.2); 
-    gpsLogp += logGaussian(deltaRate, -1.0, 0.8); 
+    logp += logSigmoid(35 - dist, 0, 0.2) * gpsWeight; 
+    logp += logGaussian(deltaRate, -1.0, 0.8) * gpsWeight; 
 
-    if (pgr > 0.3) {
-      gpsLogp += 4;
-    } else if (pgr < -0.3) {
-      gpsLogp -= 6;
-    }
+    if (pgr > 0.3) logp += (4 * gpsWeight);
+    else if (pgr < -0.3) logp -= (6 * gpsWeight);
 
-    if (pgrConsistency > 0.7) gpsLogp += 3;
-    if (pgrTrend > 0.05) gpsLogp += 1.5;
+    if (pgrConsistency > 0.7) logp += (3 * gpsWeight);
+    if (pgrTrend > 0.05) logp += (1.5 * gpsWeight);
 
     if (approachAlignment > 0.6) {
-      gpsLogp += (dist < 40) ? 3 : 1.5; 
+      logp += (dist < 40 ? 3 : 1.5) * gpsWeight; 
     } else if (approachAlignment < -0.2 && pgr < 0.1 && pgrConsistency < 0.4) {
-      gpsLogp -= 5; 
+      logp -= (5 * gpsWeight); 
     }
-    if (deltaRate < -0.2) gpsLogp += (dist < 40) ? 2 : 0.5; 
+    if (deltaRate < -0.2) logp += (dist < 40 ? 2 : 0.5) * gpsWeight; 
   }
 
   if (state === 'AWAY') {
-    gpsLogp += logSigmoid(dist, 10, 1.5); 
-    gpsLogp += logGaussian(deltaRate, 1.0, 0.8);
-    if (pgr > 0.4 || pgrConsistency > 0.6) gpsLogp -= 6;
-    if (approachAlignment > 0.4) gpsLogp -= 4;
-    if (dist < 1) gpsLogp -= 10; 
-    else gpsLogp += 2; 
+    logp += logSigmoid(dist, 10, 1.5) * gpsWeight; 
+    logp += logGaussian(deltaRate, 1.0, 0.8) * gpsWeight;
+    if (pgr > 0.4 || pgrConsistency > 0.6) logp -= (6 * gpsWeight);
+    if (approachAlignment > 0.4) logp -= (4 * gpsWeight);
+    if (dist < 1) logp -= (10 * gpsWeight); 
+    else logp += (2 * gpsWeight); 
   }
 
-  return (gpsLogp * gpsWeight) + sensorLogp;
+  return logp * TEMP;
 }
 
 // ==============================
@@ -518,14 +521,7 @@ function updateBelief(prevBelief, obs, context) {
       continue;
     }
 
-    // 🌡️ TEMPERATURE/SMOOTHING (0.5 balance between stability and speed)
-    // 🚀 NEW: Weight GPS emission by GPS accuracy.
-    // If accuracy is poor (> 20m), reduce the influence of the GPS-dependent signals.
-    let weight = 0.5;
-    if (obs.accuracy > 20) {
-      weight = Math.max(0.1, 0.5 * (20 / obs.accuracy));
-    }
-    const logEmission = emissionLogProb(s, obs, weight);
+    const logEmission = emissionLogProb(s, obs);
     const logVal = Math.log(transitionSum) + logEmission;
 
     logNewBelief[s] = logVal;
