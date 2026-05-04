@@ -250,6 +250,52 @@ const positionFilter = new Kalman2D();
 let lastTimestamp = null;
 let smoothedDeltaRate = 0;
 
+// ==============================
+// SLIDING WINDOW FOR PROGRESS
+// ==============================
+const PROGRESS_WINDOW_SIZE = 15; // Increased window for better trend analysis
+let progressHistory = []; 
+let pgrHistory = []; // Track recent PGR values to detect trends
+
+function calculatePGR(currentDist, currentX, currentY) {
+  if (progressHistory.length < 5) return { pgr: 0, trend: 0, consistency: 0 };
+  
+  const start = progressHistory[0];
+  const netGain = start.dist - currentDist;
+  
+  let totalPath = 0;
+  for (let i = 1; i < progressHistory.length; i++) {
+    const dX = progressHistory[i].x - progressHistory[i-1].x;
+    const dY = progressHistory[i].y - progressHistory[i-1].y;
+    totalPath += Math.sqrt(dX * dX + dY * dY);
+  }
+  
+  const last = progressHistory[progressHistory.length - 1];
+  const dX = currentX - last.x;
+  const dY = currentY - last.y;
+  totalPath += Math.sqrt(dX * dX + dY * dY);
+
+  const pgr = totalPath < 1.0 ? 0 : netGain / totalPath;
+
+  // Update PGR History
+  pgrHistory.push(pgr);
+  if (pgrHistory.length > 10) pgrHistory.shift();
+
+  // Calculate Trend (Simple Linear Regression Slope approximation)
+  let trend = 0;
+  if (pgrHistory.length >= 5) {
+    const firstHalf = pgrHistory.slice(0, Math.floor(pgrHistory.length/2));
+    const secondHalf = pgrHistory.slice(Math.floor(pgrHistory.length/2));
+    const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+    trend = avgSecond - avgFirst; // Positive if PGR is improving
+  }
+
+  // Consistency: How many of the last samples are "returning-like" (> 0.2)
+  const consistency = pgrHistory.filter(v => v > 0.2).length / pgrHistory.length;
+
+  return { pgr, trend, consistency };
+}
 
 // ==============================
 // HARD TRANSITION RULES
@@ -291,7 +337,9 @@ function isTransitionAllowed(from, to, context) {
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
 
   // 🚫 Cannot jump WALKING → RETURNING without context (Unless moving towards car)
-  if (from === 'WALKING' && to === 'RETURNING' && context.deltaRate >= -0.2) return false;
+  if (from === 'WALKING' && to === 'RETURNING') {
+    if (context.deltaRate >= -0.2 && context.pgr < 0.2) return false;
+  }
 
   // 🚫 AWAY requires distance (Reduced to 1.5m for tight indoor testing)
   if (to === 'AWAY' && context.dist < 1.5) return false;
@@ -303,7 +351,9 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'IN_CAR' && context.stepRate > 1.2) return false;
 
   // 🚫 Prevent oscillation
-  if (from === 'AWAY' && to === 'RETURNING' && context.deltaRate > 0) return false;
+  if (from === 'AWAY' && to === 'RETURNING') {
+    if (context.deltaRate > 0 && context.pgr < 0.2) return false;
+  }
 
   if (from === 'RETURNING' && to === 'AWAY' && context.deltaRate < 0) return false;
 
@@ -353,7 +403,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
 
   let logp = 0;
   
@@ -431,19 +481,32 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE
   if (state === 'RETURNING') {
-    // 🚀 Distance-based Proximity Filter
-    // Midpoint 35m: start penalizing if further away.
+    // 1. Distance-based Proximity Filter
     logp += logSigmoid(35 - dist, 0, 0.2); 
 
-    // 2. Keep the deltaRate for overall approach speed
+    // 2. deltaRate (Instantaneous)
     logp += logGaussian(deltaRate, -1.0, 0.8); 
 
-    // 3. 🚀 The Vector Boost (The real game changer)
-    if (obs.approachAlignment > 0.6) {
-      // Walking almost directly at the car: boost, but scale by distance
-      logp += (dist < 40) ? 4 : 1.5; 
-    } else if (obs.approachAlignment < 0) {
-      // Walking tangentially or away: penalize heavily
+    // 3. 🚀 PGR & Trend Boost (The "Intent" Feature)
+    if (pgr > 0.3) {
+      logp += 4; // High intent
+    } else if (pgr < -0.3) {
+      logp -= 6; // Clearly walking away
+    }
+
+    // 📈 Trend & Consistency (Handles temporary stops/zig-zags)
+    if (pgrConsistency > 0.7) {
+      logp += 3; // Very consistent progress
+    }
+    if (pgrTrend > 0.05) {
+      logp += 1.5; // Improving progress
+    }
+
+    // 4. Vector Alignment (Softer now)
+    if (approachAlignment > 0.6) {
+      logp += (dist < 40) ? 3 : 1.5; 
+    } else if (approachAlignment < -0.2 && pgr < 0.1 && pgrConsistency < 0.4) {
+      // Only penalize if instantaneous, windowed AND consistent progress are all bad
       logp -= 5; 
     }
 
@@ -455,9 +518,13 @@ function emissionLogProb(state, obs) {
     logp += logSigmoid(dist, 10, 1.5); 
     logp += logGaussian(deltaRate, 1.0, 0.8);
 
-    // 🚀 Vector Penalty: If they are facing/walking towards the car, they aren't AWAY
-    if (obs.approachAlignment > 0.4) {
-       logp -= 5;
+    // 🚀 PGR & Consistency Penalty
+    if (pgr > 0.4 || pgrConsistency > 0.6) {
+       logp -= 6;
+    }
+
+    if (approachAlignment > 0.4) {
+       logp -= 4;
     }
 
     if (dist < 1) logp -= 10; 
@@ -622,6 +689,19 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // ==============================
+  // SLIDING WINDOW UPDATE (PGR)
+  // ==============================
+  let pgrMetrics = { pgr: 0, trend: 0, consistency: 0 };
+  if (parkedLocation) {
+    pgrMetrics = calculatePGR(dist, fx, fy);
+    
+    progressHistory.push({ dist, x: fx, y: fy, time: now });
+    if (progressHistory.length > PROGRESS_WINDOW_SIZE) {
+      progressHistory.shift();
+    }
+  }
+
+  // ==============================
   // OBSERVATION VECTOR
   // ==============================
   const obs = {
@@ -632,7 +712,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     deltaRate: stableDeltaRate,
     stopDuration: supplemental.stop_duration || 0,
     accuracy: supplemental.accuracy || 10, // Use passed accuracy
-    approachAlignment // 🚀 NEW
+    approachAlignment, // 🚀 NEW
+    pgr: pgrMetrics.pgr, // 🚀 NEW: Proximity Gain Ratio
+    pgrTrend: pgrMetrics.trend,
+    pgrConsistency: pgrMetrics.consistency
   };
 
   // ==============================
@@ -643,7 +726,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     deltaRate: obs.deltaRate,
     stepRate: obs.stepRate,
     dist: obs.dist,
-    speed: obs.speed
+    speed: obs.speed,
+    pgr: obs.pgr,
+    pgrTrend: obs.pgrTrend,
+    pgrConsistency: obs.pgrConsistency
   };
 
   // ==============================
@@ -800,6 +886,7 @@ export function resetHMM() {
   // 3. Reset supplemental state
   smoothedDeltaRate = 0;
   lastTimestamp = null;
+  progressHistory = []; // 🚀 NEW
 
   // 4. Reset Global Counters (Temporal Confirmation)
   globalThis._awayCounter = 0;
