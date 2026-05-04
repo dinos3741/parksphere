@@ -24,7 +24,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import SearchScreen from './components/SearchScreen';
 import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
-import { startParkDetection, stopParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
+import { startParkDetection, stopParkDetection, resetParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
 import * as ExpoNotifications from 'expo-notifications';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
@@ -122,13 +122,16 @@ export default function App() {
   }, [messagePlayer]);
 
   useEffect(() => {
-    async function loadFont() {
+    const loadFont = async () => {
       await Font.loadAsync({
         'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
       });
       setFontLoaded(true);
     }
     loadFont();
+    // Explicitly reset park detection state on initial app load/restart for clean development
+    resetParkDetection();
+    console.log('[App.js] Resetting park detection state on initial load.');
   }, []);
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
