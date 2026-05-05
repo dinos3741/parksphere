@@ -296,7 +296,7 @@ function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation, isAway } = context;
 
   // 🚫 Cannot enter WALKING if there are literally zero steps
-  if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.1) return false;
+  if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.05) return false;
 
   // 🚫 Cannot enter STOPPED unless coming from DRIVING or if already in STOPPED state
   if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
@@ -371,7 +371,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; // 🚀 Configurable midpoint for returning detection (meters)
-const AWAY_THRESHOLD = 50;    // 🚀 NEW: Distance to be considered "Away" from the car
+const AWAY_THRESHOLD = 30;    // 🚀 RESTORED: More robust against GPS noise (30m)
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, stopDuration, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
@@ -399,10 +399,8 @@ function emissionLogProb(state, obs) {
   }
   else if (isWalkingState) {
     logp += logGaussian(speed, 2.5, 2) * gpsWeight;
-    if (state === 'WALKING' && dist > 2 && deltaRate > 0) {
-      logp += logGaussian(dist, 10, 5) * gpsWeight;
-    }
-    if (state === 'WALKING') logp += 0.5;
+    // Removed distance-based penalty for WALKING
+    if (state === 'WALKING') logp += 1.0; // Steady boost for walking
   } 
   else {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
@@ -530,6 +528,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
   if (supplemental.previousBelief) {
     belief = supplemental.previousBelief;
+  }
+  if (supplemental.isAway !== undefined) {
+    isAway = supplemental.isAway;
   }
   // ==============================
   // TIME DELTA

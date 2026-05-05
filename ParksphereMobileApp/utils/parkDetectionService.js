@@ -175,6 +175,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     lastDistanceToCar: stateData.lastDistanceToCar,
     previousState: stateData.state,
     previousBelief: stateData.belief,
+    isAway: stateData.isAway,
     accuracy: location.coords.accuracy // Pass accuracy
   });
 
@@ -186,7 +187,8 @@ export async function handleLocationUpdate(arg1, arg2) {
     secondConfidence,
     belief: currentBelief,
     distToParked,
-    parkedEvent
+    parkedEvent,
+    isAway: hmmIsAway
   } = hmmResult;
 
   // ==============================
@@ -203,6 +205,7 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.lastUpdate = now;
   stateData.state = hmmState;
   stateData.belief = currentBelief;
+  stateData.isAway = hmmIsAway;
 
   // ==============================
   // 🚗 PARKING EVENT DETECTION
@@ -231,23 +234,24 @@ export async function handleLocationUpdate(arg1, arg2) {
   // ==============================
   // 📍 STOPPED LOCATION TRACKING
   // ==============================
+  // CLEAR stale candidate if we are now DRIVING (to avoid ghost parking spots)
+  if (hmmState === 'DRIVING' && stateData.stoppedCandidateLocation) {
+    console.log('[ParkDetection] 🚗 Driving detected, clearing stale stoppedCandidateLocation.');
+    stateData.stoppedCandidateLocation = null;
+  }
+
   if (stateData.state === 'STOPPED') {
-    const curr = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude
-    };
-
+    // Use the Kalman-filtered coordinates from the HMM result instead of raw jittery GPS
+    const filtered = hmmResult.filteredCoords;
+    
     if (!stateData.stoppedCandidateLocation) {
-      stateData.stoppedCandidateLocation = curr;
-      console.log('[ParkDetection] 🛑 stoppedCandidateLocation INITIALIZED:', stateData.stoppedCandidateLocation);
+      stateData.stoppedCandidateLocation = { ...filtered };
+      console.log('[ParkDetection] 🛑 stoppedCandidateLocation INITIALIZED with filtered coords:', stateData.stoppedCandidateLocation);
     } else {
-      // simple smoothing (running average)
-      stateData.stoppedCandidateLocation.latitude =
-        0.8 * stateData.stoppedCandidateLocation.latitude + 0.2 * curr.latitude;
-
-      stateData.stoppedCandidateLocation.longitude =
-        0.8 * stateData.stoppedCandidateLocation.longitude + 0.2 * curr.longitude;
-      console.log('[ParkDetection] 🛑 stoppedCandidateLocation UPDATED (smoothed):', stateData.stoppedCandidateLocation);
+      // Just update to the latest filtered position. 
+      // The HMM's Kalman filter is already handling the smoothing.
+      stateData.stoppedCandidateLocation = { ...filtered };
+      console.log('[ParkDetection] 🛑 stoppedCandidateLocation UPDATED to latest filtered:', stateData.stoppedCandidateLocation);
     }
   }
 
@@ -476,6 +480,7 @@ export const stopParkDetection = async () => {
 
 export const resetParkDetection = async () => {
   console.log('[ParkDetection] Resetting park detection engine...');
+  isInitialized = true; // Ensure engine is ready to process updates after reset
   const { currentState, belief } = resetHMM();
   
   try {

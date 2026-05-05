@@ -36,12 +36,16 @@ const DebugSimulator = ({ userLocation }) => {
       case 'DRIVING':
         mockLocation.coords.speed = 13.8; // 50 km/h
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+        // Send multiple updates to satisfy temporal confirmation (needs 2)
+        for (let i = 0; i < 3; i++) {
+          await handleLocationUpdate(mockLocation);
+        }
         // Auto-stop after 5 seconds
         setTimeout(async () => {
           console.log('[Debug] Auto-triggering STOPPED...');
           await simulate('STOPPED');
         }, 5000);
-        break;
+        return; // handleLocationUpdate already called in loop
       case 'STOPPED':
         mockLocation.coords.speed = 0.1;
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
@@ -49,12 +53,16 @@ const DebugSimulator = ({ userLocation }) => {
       case 'WALKING':
         mockLocation.coords.speed = 1.4; // 5 km/h
         simulateMotionActivity('WALKING', 'HIGH');
+        // Send multiple updates to satisfy temporal confirmation (needs 3)
+        for (let i = 0; i < 4; i++) {
+          await handleLocationUpdate(mockLocation);
+        }
         // Auto-idle after 3 seconds
         setTimeout(async () => {
           console.log('[Debug] Auto-triggering STATIONARY...');
           await simulate('STATIONARY');
         }, 3000);
-        break;
+        return; // handleLocationUpdate already called in loop
       case 'STATIONARY':
         mockLocation.coords.speed = 0;
         simulateMotionActivity('STATIONARY', 'HIGH');
