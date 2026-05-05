@@ -437,28 +437,43 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE (GPS)
   if (state === 'RETURNING') {
-    // 1. Distance-based Proximity Filter (Using configurable radius)
-    logp += logSigmoid(RETURN_ZONE_RADIUS - dist, 0, 0.1) * gpsWeight; 
-    logp += logGaussian(deltaRate, -1.0, 0.8) * gpsWeight; 
+    // 1. Basic distance gate (Sigmoid ensures it's harder to be "returning" when very far)
+    logp += logSigmoid(RETURN_ZONE_RADIUS - dist, 0, 0.05) * gpsWeight; 
 
-    // 🚀 PGR & Trend Boost (Only active within the Return Zone)
-    if (dist < RETURN_ZONE_RADIUS) {
-      if (pgr > 0.3) logp += (4 * gpsWeight);
-      else if (pgr < -0.3) logp -= (6 * gpsWeight);
+    // 2. Velocity towards car (deltaRate) - Gaussian centered at -1.2 m/s (standard walking pace)
+    logp += logGaussian(deltaRate, -1.2, 1.0) * gpsWeight; 
 
-      if (pgrConsistency > 0.7) logp += (3 * gpsWeight);
-      if (pgrTrend > 0.05) logp += (1.5 * gpsWeight);
-    }
+    // 3. Distance-based scaling factor (Higher importance as we get closer)
+    const proximityWeight = Math.max(0.2, 1.0 - (dist / RETURN_ZONE_RADIUS));
 
-    // 4. Vector Alignment (Softer now, also gated by distance for high boost)
-    if (approachAlignment > 0.6) {
-      logp += (dist < RETURN_ZONE_RADIUS ? 3 : 1) * gpsWeight; 
-    } else if (approachAlignment < -0.2 && pgr < 0.1 && pgrConsistency < 0.4) {
-      logp -= (5 * gpsWeight); 
-    }
+    // 4. Directional Evidence (PGR + Alignment)
+    // PGR: 1.0 = walking perfectly straight at car, -1.0 = perfectly away
+    // approachAlignment: 1.0 = velocity vector points at car
+    let directionalScore = 0;
     
-    if (deltaRate < -0.2) {
-      logp += (dist < RETURN_ZONE_RADIUS ? 2 : 0.5) * gpsWeight; 
+    // Smooth linear boosts/penalties instead of binary tripwires
+    if (pgr > 0) {
+      directionalScore += (pgr * 6.0); // Reward progress
+    } else {
+      directionalScore += (pgr * 10.0); // Heavier penalty for moving away
+    }
+
+    if (approachAlignment > 0) {
+      directionalScore += (approachAlignment * 3.0); // Reward vector pointing at car
+    } else {
+      directionalScore += (approachAlignment * 5.0); // Penalty for facing away
+    }
+
+    // 5. Temper the score by consistency (0.0 to 1.0)
+    // A high consistency (steady path) amplifies the score.
+    const consistentScore = directionalScore * Math.pow(pgrConsistency, 1.5);
+
+    // 6. Apply proximity weighting
+    logp += (consistentScore * proximityWeight) * gpsWeight;
+
+    // 7. Trend Boost (Reward consistent improvement in progress)
+    if (pgrTrend > 0) {
+      logp += (pgrTrend * 30.0 * proximityWeight) * gpsWeight; 
     }
   }
 
