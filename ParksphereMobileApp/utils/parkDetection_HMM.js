@@ -67,6 +67,8 @@ export const A = {
 let belief = {};
 let currentState = 'IDLE';
 let isAway = false; // 🚀 NEW: Contextual flag for being far from car
+let isReturningIntentLocked = false; // 🚀 NEW: Sticky returning intent
+let minDistDuringReturn = Infinity;  // 🚀 NEW: Track closest approach during return phase
 
 for (const s of STATES) {
   belief[s] = s === 'IDLE' ? 1 : 0;
@@ -298,6 +300,13 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot enter WALKING if there are literally zero steps
   if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.05) return false;
 
+  // 🚫 ABSOLUTE BLOCK: Cannot enter DRIVING if any significant steps are detected
+  // Driving means no steps. If steps > 0.3, we are likely walking or shuffling.
+  if (to === 'DRIVING' && from !== 'DRIVING' && context.stepRate > 0.3) return false;
+
+  // 🚫 Cannot enter DRIVING from IDLE unless we have significant speed (prevents GPS jump triggers)
+  if (to === 'DRIVING' && from === 'IDLE' && context.speed < 20) return false;
+
   // 🚫 Cannot enter STOPPED unless coming from DRIVING or if already in STOPPED state
   if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
 
@@ -393,12 +402,15 @@ function emissionLogProb(state, obs) {
 
   // SPEED (GPS)
   if (state === 'DRIVING') {
-    logp += logSigmoid(speed, 15, 0.5) * gpsWeight;
+    // Increased midpoint to 25 km/h to strongly filter indoor GPS wander
+    logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
-    if (stepRate > 0.5 && speed < 25) logp -= 10;
+    // Massive penalty if steps are detected while "driving" at low/mod speeds
+    if (stepRate > 0.5 && speed < 30) logp -= 30;
   }
   else if (isWalkingState) {
-    logp += logGaussian(speed, 2.5, 2) * gpsWeight;
+    // Increased std to 4.0 so walking doesn't "die" if GPS jumps to 20 km/h
+    logp += logGaussian(speed, 2.5, 4.0) * gpsWeight;
     // Removed distance-based penalty for WALKING
     if (state === 'WALKING') logp += 1.0; // Steady boost for walking
   } 
@@ -475,6 +487,13 @@ function emissionLogProb(state, obs) {
     if (pgrTrend > 0) {
       logp += (pgrTrend * 30.0 * proximityWeight) * gpsWeight; 
     }
+
+    // 🚀 8. INTENT LOCK BOOST
+    // If we have already locked into the "Returning" intent, give it a massive
+    // boost to prevent flickering back to WALKING/IDLE during detours.
+    if (isReturningIntentLocked) {
+      logp += (15.0 * TEMP); // Overwhelmingly favor RETURNING once locked
+    }
   }
 
   return logp * TEMP;
@@ -546,6 +565,12 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
   if (supplemental.isAway !== undefined) {
     isAway = supplemental.isAway;
+  }
+  if (supplemental.isReturningIntentLocked !== undefined) {
+    isReturningIntentLocked = supplemental.isReturningIntentLocked;
+  }
+  if (supplemental.minDistDuringReturn !== undefined) {
+    minDistDuringReturn = supplemental.minDistDuringReturn;
   }
   // ==============================
   // TIME DELTA
@@ -726,18 +751,51 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const walkingConfirmed = globalThis._walkingCounter >= 3; // 🚀 Requires sustained steps
 
   // ==============================
+  // 🔒 INTENT LOCK LOGIC (RETURNING)
+  // ==============================
+  // 1. Activate lock if confidence is high and state is confirmed
+  if (!isReturningIntentLocked && currentState === 'RETURNING' && candidateConf > 0.85) {
+    console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
+    isReturningIntentLocked = true;
+    minDistDuringReturn = dist;
+  }
+
+  // 2. While locked, track the minimum distance reached
+  if (isReturningIntentLocked) {
+    if (dist < minDistDuringReturn) {
+      minDistDuringReturn = dist;
+    }
+
+    // 3. BREAK the lock if the user walks significantly away from the car
+    // Threshold: 15 meters further away than the closest approach
+    if (dist > minDistDuringReturn + 15 && dist > 10) {
+      console.log(`[HMM] 🔓 Intent Lock BROKEN: User walked away (+15m from closest approach).`);
+      isReturningIntentLocked = false;
+      minDistDuringReturn = Infinity;
+    }
+
+    // 4. BREAK the lock if user is definitively in a vehicle or driving
+    if (currentState === 'IN_CAR' || currentState === 'DRIVING') {
+      console.log('[HMM] 🔓 Intent Lock RELEASED: Arrival/Driving confirmed.');
+      isReturningIntentLocked = false;
+      minDistDuringReturn = Infinity;
+    }
+  }
+
+  // ==============================
   // 🚗 PARKING EVENT DETECTION (CRITICAL)
   // ==============================
   let parkedEvent = false;
 
   // Detect exit from car: STOPPED → WALKING (or DRIVING -> WALKING via STOPPED)
   // We fire this ONLY when walking is confirmed, but we are still in a vehicle state.
+  // CRITICAL: We only trigger a new parking event if we don't have a spot, or if we are very close to it (re-parking).
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
-    (currentState === 'STOPPED' || currentState === 'DRIVING');
+    (currentState === 'STOPPED' || currentState === 'DRIVING') &&
+    (!parkedLocation || dist < 20); 
   
-    // By removing the !parkedLocation check here, you can detect re-parking!
   if (isExitEvent) {
     console.log('[HMM] 🚗 Parking detected via confirmed exit event');
     parkedEvent = true;
@@ -754,8 +812,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     awayEvent = true;
   }
 
-  // Reset isAway flag when back in car or driving
-  if (isAway && (currentState === 'IN_CAR' || currentState === 'DRIVING')) {
+  // Reset isAway flag when back in car or driving FROM A CLOSE DISTANCE
+  if (isAway && (currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
     console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
     isAway = false;
   }
@@ -788,6 +846,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     parkedEvent,              // 🚀 Signal the parking event without hiding the WALKING state
     awayEvent,                // 🚀 NEW: Signal the "Left Vicinity" event
     isAway,                   // 🚀 NEW: Provide the flag status
+    isReturningIntentLocked,  // 🚀 NEW: Provide lock status
+    minDistDuringReturn,      // 🚀 NEW
     distToParked: dist,
     deltaRate: stableDeltaRate,
     filteredSpeed: speed,
@@ -827,6 +887,8 @@ export function resetHMM() {
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
   isAway = false; // 🚀 NEW
+  isReturningIntentLocked = false; // 🚀 NEW
+  minDistDuringReturn = Infinity;  // 🚀 NEW
 
   // 2. Reset Kalman Filters
   speedFilter.x = 0;
