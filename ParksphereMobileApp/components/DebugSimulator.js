@@ -22,15 +22,16 @@ const DebugSimulator = ({ userLocation }) => {
     }
 
     if (!userLocation) return;
-
-    let mockLocation = {
-      coords: {
-        latitude: userLocation.latitude + offsetLat,
-        longitude: userLocation.longitude + offsetLon,
-        speed: 0,
-      },
-      timestamp: Date.now(),
-    };
+let mockLocation = {
+  coords: {
+    latitude: userLocation.latitude + offsetLat,
+    longitude: userLocation.longitude + offsetLon,
+    speed: 0,
+    accuracy: 5,
+  },
+  isFromSimulator: true, // 🚀 Mark as simulated
+  timestamp: Date.now(),
+};
 
     switch (type) {
       case 'DRIVING':

@@ -13,22 +13,44 @@ const STORAGE_KEY = 'PARK_STATE';
 let isInitialized = false;
 
 // Sensor data cache
-let currentAcceleration = 0;
+let currentAcceleration = 1.0;
 let currentStepRate = 0;
 let accelSubscription = null;
-let pedoSubscription = null;
 
 export function simulateMotionActivity(type, intensity = 'HIGH') {
   console.log(`[ParkDetection] Simulating activity: ${type} (${intensity})`);
+
   if (type === 'AUTOMOTIVE') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.4 : 0.1);
     currentStepRate = 0;
   } else if (type === 'WALKING') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.2 : 0.05);
     currentStepRate = intensity === 'HIGH' ? 2.0 : 1.2;
+  } else if (type === 'STATIONARY' || type === 'IDLE') {
+    currentAcceleration = 1.0;
+    currentStepRate = 0;
   } else {
     currentAcceleration = 1.0;
     currentStepRate = 0;
+  }
+}
+
+// ---------------- HELPERS ----------------
+async function getRecentStepRate() {
+  try {
+    const available = await Pedometer.isAvailableAsync();
+    if (!available) return 0;
+
+    // Look at the last 12 seconds
+    const end = new Date();
+    const start = new Date();
+    start.setSeconds(end.getSeconds() - 12);
+
+    const result = await Pedometer.getStepCountAsync(start, end);
+    return result.steps / 12.0; // steps per second
+  } catch (error) {
+    console.error('[ParkDetection] Error fetching step count:', error);
+    return 0;
   }
 }
 
@@ -162,9 +184,17 @@ export async function handleLocationUpdate(arg1, arg2) {
     stateData.stopDuration = 0;
   }
 
-  // 3. Acceleration and Steps (from sensor cache)
+  // 3. Acceleration and Steps
   const acceleration = currentAcceleration;
-  const stepRate = currentStepRate;
+  
+  // 🚀 CRITICAL FIX: Only use simulated rate if the update is from the simulator.
+  // Otherwise, ALWAYS query the real hardware pedometer.
+  let stepRate = currentStepRate;
+  if (!location.isFromSimulator) {
+    stepRate = await getRecentStepRate();
+    // Update cache for other observers
+    currentStepRate = stepRate; 
+  }
 
   // Run HMM Inference
   const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
@@ -338,33 +368,11 @@ function startSensors() {
     // Magnitude of acceleration: sqrt(x^2 + y^2 + z^2)
     currentAcceleration = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
   });
-
-  Pedometer.isAvailableAsync().then(available => {
-    if (available) {
-      // Track steps in 5 second windows to get a "rate"
-      let lastStepCount = 0;
-      let lastTimestamp = Date.now();
-
-      pedoSubscription = Pedometer.watchStepCount(result => {
-        const now = Date.now();
-        const dt = (now - lastTimestamp) / 1000;
-
-        const deltaSteps = result.steps - lastStepCount;
-
-        currentStepRate = dt > 0 ? deltaSteps / dt : 0;
-
-        lastStepCount = result.steps;
-        lastTimestamp = now;
-      });
-    }
-  });
 }
 
 function stopSensors() {
   if (accelSubscription) accelSubscription.remove();
-  if (pedoSubscription) pedoSubscription.remove();
   accelSubscription = null;
-  pedoSubscription = null;
 }
 
 // ---------------- TASK ----------------
