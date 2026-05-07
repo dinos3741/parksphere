@@ -126,6 +126,29 @@ async function updateSpotStatus(spotId, status) {
   }
 }
 
+async function deleteSpot(spotId) {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
+    if (!token || !spotId) return;
+
+    const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (response.ok) {
+      console.log(`[ParkDetection] Deleted spot ${spotId} from server.`);
+    } else {
+      console.warn(`[ParkDetection] Failed to delete spot ${spotId}:`, response.status);
+    }
+  } catch (error) {
+    console.error(`[ParkDetection] Error deleting spot ${spotId}:`, error);
+  }
+}
+
 function notify(message) {
   console.log(`[ParkDetection] ${message}`);
   DeviceEventEmitter.emit('parkDetectionUpdate', { message });
@@ -521,6 +544,16 @@ export const resetParkDetection = async () => {
   const { currentState, belief } = resetHMM();
   
   try {
+    // 🚀 NEW: Try to delete the spot from the server before clearing local storage
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const stateData = JSON.parse(saved);
+      if (stateData.serverSpotId) {
+        console.log(`[ParkDetection] Found existing spot ${stateData.serverSpotId}. Deleting...`);
+        await deleteSpot(stateData.serverSpotId);
+      }
+    }
+
     await AsyncStorage.removeItem(STORAGE_KEY);
     console.log('[ParkDetection] Persisted state cleared from AsyncStorage.');
     
