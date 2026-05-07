@@ -421,7 +421,11 @@ function emissionLogProb(state, obs) {
       if (dist > 8) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 1, 2) * gpsWeight;
       if (stepRate > 0.5) logp -= 5;
-      if (dist < 5) logp += 1.5;
+      
+      // 🚀 THE TIGHT MAGNET
+      // Pulls you in ONLY if you are standing practically on top of the door handle.
+      // 4 meters away (coffee shop) gets nothing. 1 meter away gets sucked into the car.
+      if (dist < 1.5) logp += 2.0; 
     }
   }
 
