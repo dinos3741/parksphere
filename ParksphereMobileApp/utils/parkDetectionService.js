@@ -220,6 +220,8 @@ export async function handleLocationUpdate(arg1, arg2) {
     belief: currentBelief,
     distToParked,
     parkedEvent,
+    awayEvent,         // 🚀 NEW
+    clearParkingEvent, // 🚀 NEW
     isAway: hmmIsAway,
     isReturningIntentLocked: hmmIsReturningIntentLocked,
     minDistDuringReturn: hmmMinDistDuringReturn
@@ -242,6 +244,27 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.isAway = hmmIsAway;
   stateData.isReturningIntentLocked = hmmIsReturningIntentLocked;
   stateData.minDistDuringReturn = hmmMinDistDuringReturn;
+
+  // ==============================
+  // 📍 AWAY EVENT DETECTION
+  // ==============================
+  if (awayEvent) {
+    console.log('[ParkDetection] 📍 Away event received. User has left vicinity.');
+    notify('🚶 You have left the vicinity of your car.');
+  }
+
+  // ==============================
+  // 🛑 CLEAR PARKING EVENT
+  // ==============================
+  if (clearParkingEvent) {
+    console.log('[ParkDetection] 🛑 Clear parking event received. Resetting local spot.');
+    stateData.parkedLocation = null;
+    stateData.stoppedCandidateLocation = null;
+    stateData.lastDistanceToCar = null;
+    stateData.isAway = false;
+    stateData._loggedParkedLoc = false;
+    notify('🏁 Spot cleared. Ready for next parking.');
+  }
 
   // ==============================
   // 🚗 PARKING EVENT DETECTION

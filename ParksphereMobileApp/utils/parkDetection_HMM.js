@@ -720,6 +720,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
   if (!globalThis._drivingCounter) globalThis._drivingCounter = 0;
   if (!globalThis._walkingCounter) globalThis._walkingCounter = 0;
+  if (!globalThis._drivingDuration) globalThis._drivingDuration = 0; // 🚀 NEW: Time accumulator
 
   if (candidate === 'RETURNING') {
     globalThis._returnCounter++;
@@ -735,8 +736,11 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   if (candidate === 'DRIVING') {
     globalThis._drivingCounter++;
+    // Accumulate actual seconds spent driving
+    globalThis._drivingDuration += dt; 
   } else {
     globalThis._drivingCounter = 0;
+    globalThis._drivingDuration = 0;
   }
 
   if (candidate === 'WALKING') {
@@ -802,6 +806,24 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // ==============================
+  // 🛑 CLEAR PARKING EVENT (NEW)
+  // ==============================
+  let clearParkingEvent = false;
+
+  // We clear the spot ONLY if all these conditions are met:
+  // 1. A spot currently exists
+  // 2. The official state is DRIVING
+  // 3. We have been continuously driving for at least 10 seconds
+  // 4. We are physically more than 50 meters away from the saved spot
+  if (parkedLocation && currentState === 'DRIVING' && globalThis._drivingDuration >= 10 && dist > 50) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>50m).`);
+    clearParkingEvent = true;
+    
+    // Reset the duration so it doesn't continuously fire every frame for the rest of the drive
+    globalThis._drivingDuration = 0; 
+  }
+
+  // ==============================
   // 📍 AWAY EVENT DETECTION (NEW)
   // ==============================
   let awayEvent = false;
@@ -845,6 +867,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     belief,
     parkedEvent,              // 🚀 Signal the parking event without hiding the WALKING state
     awayEvent,                // 🚀 NEW: Signal the "Left Vicinity" event
+    clearParkingEvent,        // 🚀 NEW: Signal the service layer to delete the spot
     isAway,                   // 🚀 NEW: Provide the flag status
     isReturningIntentLocked,  // 🚀 NEW: Provide lock status
     minDistDuringReturn,      // 🚀 NEW
@@ -909,6 +932,7 @@ export function resetHMM() {
   globalThis._inCarCounter = 0;
   globalThis._drivingCounter = 0;
   globalThis._walkingCounter = 0;
+  globalThis._drivingDuration = 0; // 🚀 NEW
 
   console.log('[HMM] Engine fully reset to IDLE.');
   return { 
