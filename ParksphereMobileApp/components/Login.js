@@ -138,6 +138,21 @@ const Login = ({ onLogin, onRegister }) => {
     }
   };
 
+  const handleDemoLogin = async () => {
+    const mockData = {
+      token: 'demo-token',
+      userId: 1,
+      username: 'Demo User',
+      carType: 'sedan'
+    };
+    await AsyncStorage.setItem('userToken', mockData.token);
+    await AsyncStorage.setItem('userId', String(mockData.userId));
+    await AsyncStorage.setItem('username', mockData.username);
+    // Explicitly enable mock mode for demo
+    await AsyncStorage.setItem('mockModeEnabled', 'true');
+    onLogin(mockData);
+  };
+
   return (
     <ImageBackground
       source={require('../assets/images/parking_background.png')}
@@ -210,6 +225,13 @@ const Login = ({ onLogin, onRegister }) => {
                 />
                 <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
                   <Text style={styles.loginButtonText}>Login</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.loginButton, { backgroundColor: '#6c757d', marginTop: 10 }]} 
+                  onPress={handleDemoLogin}
+                >
+                  <Text style={styles.loginButtonText}>Demo Login</Text>
                 </TouchableOpacity>
                 
                 <View style={styles.separatorContainer}>
