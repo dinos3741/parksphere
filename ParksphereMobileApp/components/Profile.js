@@ -19,8 +19,15 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(user ? user.notifications_enabled : true);
+  const [isMockMode, setIsMockMode] = useState(false);
 
   useEffect(() => {
+    const loadMockMode = async () => {
+      const mode = await AsyncStorage.getItem('mockModeEnabled');
+      setIsMockMode(mode === 'true');
+    };
+    loadMockMode();
+
     if (user) {
       setCarType(user.car_type);
       setCarColor(user.car_color);
@@ -35,6 +42,15 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
 
   const toggleNotifications = (value) => {
     setNotificationsEnabled(value);
+  };
+
+  const toggleMockMode = async (value) => {
+    setIsMockMode(value);
+    if (value) {
+      await AsyncStorage.setItem('mockModeEnabled', 'true');
+    } else {
+      await AsyncStorage.removeItem('mockModeEnabled');
+    }
   };
 
   const handleUpdate = async () => {
@@ -138,6 +154,19 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
             thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
             onValueChange={toggleNotifications}
             value={notificationsEnabled}
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <View style={styles.settingTextContainer}>
+            <Text style={styles.settingLabel}>Mock Mode</Text>
+            <Text style={styles.settingDescription}>Use mock data instead of real backend</Text>
+          </View>
+          <Switch
+            trackColor={{ false: '#767577', true: '#512da8' }}
+            thumbColor={isMockMode ? '#fff' : '#f4f3f4'}
+            onValueChange={toggleMockMode}
+            value={isMockMode}
           />
         </View>
 

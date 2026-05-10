@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const IS_MOCK_MODE = true; // Toggle this for testing
-
 const MOCK_DATA = {
   user: {
     id: 1,
@@ -26,7 +24,10 @@ const MOCK_DATA = {
 };
 
 export const apiRequest = async (endpoint, options = {}) => {
-  if (IS_MOCK_MODE) {
+  const mockMode = await AsyncStorage.getItem('mockModeEnabled');
+  const isMockMode = mockMode === 'true';
+
+  if (isMockMode) {
     console.log(`[MOCK] Request to ${endpoint}`, options);
     
     // Simulate delay
