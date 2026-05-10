@@ -28,7 +28,7 @@ const HMMOverlay = () => {
 const styles = StyleSheet.create({
   statusOverlay: {
     position: 'absolute',
-    top: 50,
+    top: 100,
     left: 10,
     backgroundColor: 'rgba(0,0,0,0.75)',
     padding: 10,

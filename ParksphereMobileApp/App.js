@@ -9,6 +9,7 @@ import * as Location from 'expo-location'; // Import Location
 import * as Font from 'expo-font';
 import { useAudioPlayer } from 'expo-audio';
 import io from "socket.io-client"; // Import socket.io-client
+import { apiRequest } from './utils/apiService';
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
 import Notifications from './components/Notifications';
@@ -424,7 +425,7 @@ export default function App() {
   const fetchUserData = useCallback(async () => {
     if (isLoggedIn && userId && token) {
       try {
-        const response = await fetch(`${serverUrl}/api/users/${userId}`, {
+        const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -1397,7 +1398,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 20,
+    bottom: 10,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',

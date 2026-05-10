@@ -1,16 +1,29 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { handleLocationUpdate, resetParkDetection, simulateMotionActivity } from '../utils/parkDetectionService';
+import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection } from '../utils/parkDetectionService';
+import { resetAllAppData } from '../utils/dataReset';
 
 const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
+  const [isEngineRunning, setIsEngineRunning] = useState(false);
+
+  const toggleEngine = async () => {
+    if (isEngineRunning) {
+      await stopParkDetection();
+      setIsEngineRunning(false);
+    } else {
+      await startParkDetection();
+      setIsEngineRunning(true);
+    }
+  };
 
   const simulate = async (type) => {
     if (type === 'RESET') {
       setOffsetLat(0);
       setOffsetLon(0);
-      await resetParkDetection();
+      await resetAllAppData();
+      setIsEngineRunning(false);
       return;
     }
 
@@ -99,8 +112,13 @@ let mockLocation = {
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {width: '100%'}]} onPress={() => simulate('RESET')}>
-          <Text style={styles.btnText}>🔄 Reset Engine</Text>
+        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: isEngineRunning ? '#d9534f' : '#5cb85c'}]} onPress={toggleEngine}>
+          <Text style={styles.btnText}>{isEngineRunning ? '⏹ Stop Engine' : '▶ Start Engine'}</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#d9534f'}]} onPress={() => simulate('RESET')}>
+          <Text style={styles.btnText}>🛑 Stop & Reset</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -110,7 +128,7 @@ let mockLocation = {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 70,
     left: 10,
     backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 10,

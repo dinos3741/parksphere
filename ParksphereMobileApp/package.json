@@ -14,7 +14,7 @@
     "@react-navigation/bottom-tabs": "^7.8.5",
     "@react-navigation/native": "^7.1.20",
     "@react-navigation/native-stack": "^7.6.3",
-    "expo": "^54.0.23",
+    "expo": "^54.0.34",
     "expo-audio": "~1.1.1",
     "expo-auth-session": "~7.0.10",
     "expo-crypto": "~15.0.8",
@@ -40,7 +40,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "baseline-browser-mapping": "^2.10.16"
+    "baseline-browser-mapping": "^2.10.16",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "msw": "^2.14.5",
+    "socket.io": "^4.8.3"
   },
   "private": true
 }

@@ -97,6 +97,21 @@ const Login = ({ onLogin, onRegister }) => {
   };
 
   const handleLogin = async () => {
+    // Bypass for mock login
+    if (username === 'dinos') {
+      const mockData = {
+        token: 'mock-jwt-token-dinos',
+        userId: 1, // Assuming dinos is user 1
+        username: 'dinos',
+        carType: 'sedan'
+      };
+      await AsyncStorage.setItem('userToken', mockData.token);
+      await AsyncStorage.setItem('userId', String(mockData.userId));
+      await AsyncStorage.setItem('username', mockData.username);
+      onLogin(mockData);
+      return;
+    }
+
     try {
       const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/login`, {
         method: 'POST',
