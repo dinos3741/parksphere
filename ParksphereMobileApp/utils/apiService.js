@@ -12,13 +12,13 @@ const MOCK_DATA = {
   spots: [
     {
       id: 101,
-      user_id: 1,
+      user_id: 766,
       latitude: 37.78825,
       longitude: -122.4324,
       time_to_leave: 30,
       declared_at: new Date().toISOString(),
       car_type: 'sedan',
-      ownerId: 1
+      ownerId: 766
     }
   ]
 };

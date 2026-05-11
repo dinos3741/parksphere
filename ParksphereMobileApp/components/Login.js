@@ -140,9 +140,9 @@ const Login = ({ onLogin, onRegister }) => {
 
   const handleDemoLogin = async () => {
     const mockData = {
-      token: 'demo-token',
-      userId: 1,
-      username: 'Demo User',
+      token: 'mock-jwt-token-demo',
+      userId: 766,
+      username: 'dinos',
       carType: 'sedan'
     };
     await AsyncStorage.setItem('userToken', mockData.token);

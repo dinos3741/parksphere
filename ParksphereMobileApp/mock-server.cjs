@@ -20,44 +20,44 @@ const PORT = 3001;
 // In-memory data
 let parkingSpots = [
   {
-    id: 101,
-    user_id: 1,
+    id: 1,
+    user_id: 766,
     latitude: 37.78825,
     longitude: -122.4324,
     time_to_leave: 30,
     declared_at: new Date().toISOString(),
     car_type: 'sedan',
-    ownerId: 1
+    ownerId: 766
   }
-];
+  ];
 
-const mockUser = {
+  const mockUser = {
   id: 766,
   username: 'dinos',
   credits: 100,
   car_type: 'sedan',
   avatar_url: 'https://i.pravatar.cc/150?u=dinos',
   auto_detect: true
-};
+  };
 
-// API Endpoints
-app.get('/api/car-types', (req, res) => {
+  // API Endpoints
+  app.get('/api/car-types', (req, res) => {
   res.json(['sedan', 'suv', 'truck', 'van']);
-});
+  });
 
-app.post('/api/login', (req, res) => {
+  app.post('/api/login', (req, res) => {
   const { username } = req.body;
   if (username === 'dinos') {
     res.json({
       token: 'mock-jwt-token-dinos',
-      userId: 1,
+      userId: 766,
       username: 'dinos',
       carType: 'sedan'
     });
   } else {
     res.status(401).json({ message: 'Only "dinos" is supported in mock mode.' });
   }
-});
+  });
 
 app.get('/api/users/:id', (req, res) => {
   res.json(mockUser);
