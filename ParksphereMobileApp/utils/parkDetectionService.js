@@ -229,7 +229,6 @@ export async function handleLocationUpdate(arg1, arg2) {
     previousState: stateData.state,
     previousBelief: stateData.belief,
     isAway: stateData.isAway,
-    isReturningIntentLocked: stateData.isReturningIntentLocked,
     minDistDuringReturn: stateData.minDistDuringReturn,
     accuracy: location.coords.accuracy // Pass accuracy
   });
@@ -246,7 +245,6 @@ export async function handleLocationUpdate(arg1, arg2) {
     awayEvent,         // 🚀 NEW
     clearParkingEvent, // 🚀 NEW
     isAway: hmmIsAway,
-    isReturningIntentLocked: hmmIsReturningIntentLocked,
     minDistDuringReturn: hmmMinDistDuringReturn
   } = hmmResult;
 
@@ -265,7 +263,6 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.state = hmmState;
   stateData.belief = currentBelief;
   stateData.isAway = hmmIsAway;
-  stateData.isReturningIntentLocked = hmmIsReturningIntentLocked;
   stateData.minDistDuringReturn = hmmMinDistDuringReturn;
 
   // ==============================
