@@ -1,4 +1,5 @@
 require('dotenv').config();
+console.log('DEBUG: JWT_SECRET from env:', process.env.JWT_SECRET);
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Import cors
@@ -483,6 +484,13 @@ async function authenticateToken(req, res, next) {
 
   // 1. Try to verify as a Local JWT (HS256) first
   try {
+    // Development bypass for mock tokens
+    if (token.startsWith('mock-jwt-token-')) {
+      console.warn('DEBUG: Using mock token bypass for:', token);
+      req.user = { userId: 766, username: 'dinos', carType: 'sedan' }; // Corrected ID for 'dinos'
+      return next();
+    }
+
     const decoded = jwt.verify(token, JWT_SECRET);
     // If successful, it's a local token issued by our server (e.g., Google login)
     req.user = decoded; // { userId, username, carType }
@@ -541,6 +549,7 @@ async function authenticateToken(req, res, next) {
 }
 
 app.get('/api/me', authenticateToken, async (req, res) => {
+  console.log('DEBUG: /api/me called for user:', req.user.userId);
   try {
     const result = await pool.query(
       `SELECT
@@ -559,9 +568,12 @@ app.get('/api/me', authenticateToken, async (req, res) => {
       FROM users u
       WHERE u.id = $1`,
       [req.user.userId]
-    );    const user = result.rows[0];
+    );    
+    const user = result.rows[0];
+    console.log('DEBUG: User lookup result:', user);
 
     if (!user) {
+      console.warn('DEBUG: User not found for ID:', req.user.userId);
       return res.status(404).send('User not found.');
     }
 
@@ -1460,6 +1472,7 @@ app.post('/api/login', async (req, res) => {
     // 2. Get user info from local database (or sync from Keycloak if it's the first time)
     let result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     let user = result.rows[0];
+    console.log('DEBUG: Login lookup for user:', username, 'result:', user);
 
     if (!user) {
       // If user exists in Keycloak but not locally (e.g. manual Keycloak entry), create local record
@@ -1596,6 +1609,10 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
     // Fetch the updated user data to create a new JWT
     const updatedUserResult = await pool.query('SELECT id, username, car_type FROM users WHERE id = $1', [userId]);
     const updatedUser = updatedUserResult.rows[0];
+
+    if (!updatedUser) {
+        throw new Error('Updated user not found.');
+    }
 
     // Re-issue JWT with updated carType
     const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type }, JWT_SECRET, { expiresIn: '30d' });

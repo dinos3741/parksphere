@@ -101,7 +101,7 @@ const Login = ({ onLogin, onRegister }) => {
     if (username === 'dinos') {
       const mockData = {
         token: 'mock-jwt-token-dinos',
-        userId: 1, // Assuming dinos is user 1
+        userId: 766, // Assuming dinos is user 766
         username: 'dinos',
         carType: 'sedan'
       };

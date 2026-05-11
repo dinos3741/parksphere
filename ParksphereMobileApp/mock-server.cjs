@@ -32,7 +32,7 @@ let parkingSpots = [
 ];
 
 const mockUser = {
-  id: 1,
+  id: 766,
   username: 'dinos',
   credits: 100,
   car_type: 'sedan',
