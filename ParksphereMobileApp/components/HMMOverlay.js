@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, DeviceEventEmitter } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
 
 const HMMOverlay = () => {
   const [hmmStatus, setHmmStatus] = useState({
@@ -7,6 +7,18 @@ const HMMOverlay = () => {
     bestState: '...',
     confidence: 0
   });
+
+  const pan = useRef(new Animated.ValueXY({ x: 10, y: 100 })).current;
+  
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: () => {
+        pan.extractOffset();
+      },
+    })
+  ).current;
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('parkDetectionDetailedUpdate', (data) => {
@@ -16,25 +28,31 @@ const HMMOverlay = () => {
   }, []);
 
   return (
-    <View style={styles.statusOverlay}>
-      <Text style={styles.statusTitle}>HMM Engine</Text>
+    <Animated.View 
+      style={[
+        styles.statusOverlay,
+        {
+          transform: [{ translateX: pan.x }, { translateY: pan.y }],
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      <Text style={styles.statusTitle}>HMM Engine (Drag me!)</Text>
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   statusOverlay: {
     position: 'absolute',
-    top: 100,
-    left: 10,
     backgroundColor: 'rgba(0,0,0,0.75)',
     padding: 10,
     borderRadius: 8,
     width: 150,
-    zIndex: 9999, // Ensure it's above everything
+    zIndex: 9999,
     elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
