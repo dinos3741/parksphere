@@ -418,14 +418,13 @@ function emissionLogProb(state, obs) {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 4) * gpsWeight;
-      if (dist > 8) logp -= (15 * gpsWeight);
+      if (dist > 12) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 1, 2) * gpsWeight;
       if (stepRate > 0.5) logp -= 5;
       
-      // 🚀 THE TIGHT MAGNET
-      // Pulls you in ONLY if you are standing practically on top of the door handle.
-      // 4 meters away (coffee shop) gets nothing. 1 meter away gets sucked into the car.
-      if (dist < 1.5) logp += 2.0; 
+      // 🚀 THE MAGNET
+      // Pulls you in when you are near the car.
+      if (dist < 6.0) logp += 2.5; 
     }
   }
 
@@ -783,7 +782,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     }
 
     // 4. BREAK the lock if the user has arrived at the car
-    if (dist < 3.0) {
+    if (dist < 6.0) {
       console.log('[HMM] 🔓 Intent Lock RELEASED: User arrived at car vicinity.');
       isReturningIntentLocked = false;
     }
