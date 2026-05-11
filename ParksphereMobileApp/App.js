@@ -1152,11 +1152,12 @@ export default function App() {
         )}
       </NavigationContainer>
 
-      <HMMOverlay />
+      {navigationRef.isReady() && navigationRef.getCurrentRoute()?.name === 'Home' && (
+        <HMMOverlay />
+      )}
 
       <LeavingModal
-        visible={isLeavingModalVisible}
-        onClose={() => setLeavingModalVisible(false)}
+        visible={isLeavingModalVisible}        onClose={() => setLeavingModalVisible(false)}
         onCreateSpot={handleCreateSpot}
       />
       <SpotDetails
