@@ -67,7 +67,6 @@ export const A = {
 let belief = {};
 let currentState = 'IDLE';
 let isAway = false; // 🚀 NEW: Contextual flag for being far from car
-let isReturningIntentLocked = false; // 🚀 NEW: Sticky returning intent
 let minDistDuringReturn = Infinity;  // 🚀 NEW: Track closest approach during return phase
 
 for (const s of STATES) {
@@ -490,13 +489,6 @@ function emissionLogProb(state, obs) {
     if (pgrTrend > 0) {
       logp += (pgrTrend * 30.0 * proximityWeight) * gpsWeight; 
     }
-
-    // 🚀 8. INTENT LOCK BOOST
-    // If we have already locked into the "Returning" intent, give it a massive
-    // boost to prevent flickering back to WALKING/IDLE during detours.
-    if (isReturningIntentLocked) {
-      logp += (15.0 * TEMP); // Overwhelmingly favor RETURNING once locked
-    }
   }
 
   return logp * TEMP;
@@ -568,9 +560,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
   if (supplemental.isAway !== undefined) {
     isAway = supplemental.isAway;
-  }
-  if (supplemental.isReturningIntentLocked !== undefined) {
-    isReturningIntentLocked = supplemental.isReturningIntentLocked;
   }
   if (supplemental.minDistDuringReturn !== undefined) {
     minDistDuringReturn = supplemental.minDistDuringReturn;
@@ -845,7 +834,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     awayEvent,                // 🚀 NEW: Signal the "Left Vicinity" event
     clearParkingEvent,        // 🚀 NEW: Signal the service layer to delete the spot
     isAway,                   // 🚀 NEW: Provide the flag status
-    isReturningIntentLocked,  // 🚀 NEW: Provide lock status
     minDistDuringReturn,      // 🚀 NEW
     distToParked: dist,
     deltaRate: stableDeltaRate,
@@ -854,15 +842,12 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   };
 }
 
-
 // ==============================
 // DISTANCE (Haversine Formula)
 // ==============================
 function getDistance(a, b) {
   if (!a || !b) return 0;
   
-  console.log(`[ParkDetection] getDistance: A(${a.latitude.toFixed(6)}, ${a.longitude.toFixed(6)}) B(${b.latitude.toFixed(6)}, ${b.longitude.toFixed(6)})`);
-
   const R = 6371e3; // Earth radius in meters
   const dLat = (b.latitude - a.latitude) * Math.PI / 180;
   const dLon = (b.longitude - a.longitude) * Math.PI / 180;
@@ -873,23 +858,18 @@ function getDistance(a, b) {
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
     
   const c = 2 * Math.atan2(Math.sqrt(a_haversine), Math.sqrt(1 - a_haversine));
-  const dist = R * c;
-  console.log(`[ParkDetection] Calculated distance: ${dist.toFixed(2)}m`);
-  return dist; // Distance in meters
+  return R * c;
 }
 
 // ==============================
 // HELPERS
 // ==============================
 export function resetHMM() {
-  // 1. Reset Beliefs and State
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
-  isAway = false; // 🚀 NEW
-  isReturningIntentLocked = false; // 🚀 NEW
-  minDistDuringReturn = Infinity;  // 🚀 NEW
+  isAway = false;
+  minDistDuringReturn = Infinity;
 
-  // 2. Reset Kalman Filters
   speedFilter.x = 0;
   speedFilter.p = 1;
 
@@ -897,18 +877,17 @@ export function resetHMM() {
   positionFilter.P = mathIdentity(4, 1000);
   positionFilter.lastTime = null;
 
-  // 3. Reset supplemental state
   smoothedDeltaRate = 0;
   lastTimestamp = null;
-  progressHistory = []; // 🚀 NEW
-  pgrHistory = [];      // 🚀 NEW
+  progressHistory = [];
+  pgrHistory = [];
 
-  // 4. Reset Global Counters (Temporal Confirmation)
   globalThis._returnCounter = 0;
   globalThis._inCarCounter = 0;
   globalThis._drivingCounter = 0;
   globalThis._walkingCounter = 0;
-  globalThis._drivingDuration = 0; // 🚀 NEW
+  globalThis._stoppedCounter = 0;
+  globalThis._drivingDuration = 0;
 
   console.log('[HMM] Engine fully reset to IDLE.');
   return { 
@@ -922,67 +901,6 @@ export function getHMMStatus() {
   return { currentState, belief };
 }
 
-// Expo-safe
-export function initMotionTracking() {
-  console.log('[HMM] Motion tracking disabled');
-}
-===
-// HELPERS
-// ==============================
-export function resetHMM() {
-  // 1. Reset Beliefs and State
-  for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
-  currentState = 'IDLE';
-  isAway = false; // 🚀 NEW
-  isReturningIntentLocked = false; // 🚀 NEW
-  minDistDuringReturn = Infinity;  // 🚀 NEW
-
-  // 2. Reset Kalman Filters
-  speedFilter.x = 0;
-  speedFilter.p = 1;
-
-  positionFilter.x = [0, 0, 0, 0];
-  positionFilter.P = mathIdentity(4, 1000);
-  positionFilter.lastTime = null;
-
-  // 3. Reset supplemental state
-  smoothedDeltaRate = 0;
-  lastTimestamp = null;
-  progressHistory = []; // 🚀 NEW
-  pgrHistory = [];      // 🚀 NEW
-
-  // 4. Reset Global Counters (Temporal Confirmation)
-  globalThis._returnCounter = 0;
-  globalThis._inCarCounter = 0;
-  globalThis._drivingCounter = 0;
-  globalThis._walkingCounter = 0;
-  globalThis._drivingDuration = 0; // 🚀 NEW
-
-  console.log('[HMM] Engine fully reset to IDLE.');
-  return { 
-    shouldClearPersistedState: true,
-    currentState,
-    belief
-  };
-}
-
-export function getHMMStatus() {
-  return { currentState, belief };
-}
-
-// Expo-safe
-export function initMotionTracking() {
-  console.log('[HMM] Motion tracking disabled');
-}
-ef
-  };
-}
-
-export function getHMMStatus() {
-  return { currentState, belief };
-}
-
-// Expo-safe
 export function initMotionTracking() {
   console.log('[HMM] Motion tracking disabled');
 }
