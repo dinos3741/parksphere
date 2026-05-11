@@ -75,6 +75,8 @@ const Login = ({ onLogin, onRegister }) => {
         await AsyncStorage.setItem('userToken', data.token);
         await AsyncStorage.setItem('userId', String(data.userId));
         await AsyncStorage.setItem('username', data.username);
+        // Ensure mock mode is disabled for real login
+        await AsyncStorage.setItem('mockModeEnabled', 'false');
         onLogin(data);
       } else if (res.status === 428) { // Precondition Required - missing car details
         setTempIdToken(idToken);
@@ -111,6 +113,8 @@ const Login = ({ onLogin, onRegister }) => {
         await AsyncStorage.setItem('userToken', data.token);
         await AsyncStorage.setItem('userId', String(data.userId));
         await AsyncStorage.setItem('username', data.username);
+        // Ensure mock mode is disabled for real login
+        await AsyncStorage.setItem('mockModeEnabled', 'false');
         onLogin(data);
       } else {
         const errorText = await response.text();
