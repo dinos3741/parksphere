@@ -782,7 +782,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
       minDistDuringReturn = Infinity;
     }
 
-    // 4. BREAK the lock if user is definitively in a vehicle or driving
+    // 4. BREAK the lock if the user has arrived at the car
+    if (dist < 3.0) {
+      console.log('[HMM] 🔓 Intent Lock RELEASED: User arrived at car vicinity.');
+      isReturningIntentLocked = false;
+    }
+
+    // 5. BREAK the lock if user is definitively in a vehicle or driving
     if (currentState === 'IN_CAR' || currentState === 'DRIVING' || speed > 10) {
       console.log('[HMM] 🔓 Intent Lock RELEASED: Arrival/Driving confirmed.');
       isReturningIntentLocked = false;
@@ -959,4 +965,3 @@ export function getHMMStatus() {
 export function initMotionTracking() {
   console.log('[HMM] Motion tracking disabled');
 }
-
