@@ -904,14 +904,33 @@ export default function App() {
     }
   };
 
-  const handleCenterMap = () => {
-    if (mapViewRef.current && userLocation) {
-      mapViewRef.current.animateToRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
+  const handleCenterMap = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Permission to access location was denied');
+        return;
+      }
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      if (mapViewRef.current) {
+        mapViewRef.current.animateToRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+      }
+    } catch (e) {
+      console.error('Error fetching live location for map centering:', e);
+      // Fallback to state if live location fails
+      if (mapViewRef.current && userLocation) {
+        mapViewRef.current.animateToRegion({
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+      }
     }
   };
 
