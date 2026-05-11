@@ -34,18 +34,19 @@ export const A = {
     DRIVING: 0.1,   // ✅ direct walk → car → drive (first use case)
     RETURNING: 0.1  // 🚀 new: can start walking back to car immediately
   },
-
   DRIVING: {
-    DRIVING: 0.7,
-    STOPPED: 0.25,
+    DRIVING: 0.50,
+    STOPPED: 0.45,
+    IN_CAR: 0.05,    // ✅ Fail-safe: drive ends exactly at parked spot (e.g. at desk)
     WALKING: 0.05   // e.g. very short trips / GPS glitches
   },
 
   STOPPED: {
-    STOPPED: 0.50, // Reduced to allow for IDLE transition
+    STOPPED: 0.40, // Reduced to allow for IDLE/IN_CAR transition
     DRIVING: 0.25,
     WALKING: 0.2,   // ✅ critical: user exits car
-    IDLE: 0.05      // ✅ NEW: Allow transition back to IDLE after being stopped
+    IDLE: 0.05,     // ✅ NEW: Allow transition back to IDLE after being stopped
+    IN_CAR: 0.1     // ✅ NEW: Allow staying in car after stopping
   },
 
   RETURNING: {
@@ -321,12 +322,12 @@ function isTransitionAllowed(from, to, context) {
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
-  // 🚫 Must be close to the car (Relaxed to 10m for GPS noise)
-  if (to === 'IN_CAR' && context.dist > 10) return false;
+  // 🚫 Must be close to the car (Relaxed to 15m for GPS noise)
+  if (to === 'IN_CAR' && context.dist > 15) return false;
 
   // 🚫 Must be approaching, BUT ONLY if we are still a few meters out.
-  // If we are within 3 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
-  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 3 && context.deltaRate > 0) {
+  // If we are within 7 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
+  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 7 && context.deltaRate > 0) {
       return false; 
   }
 
@@ -416,14 +417,10 @@ function emissionLogProb(state, obs) {
   else {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 4) * gpsWeight;
-      if (dist > 12) logp -= (15 * gpsWeight);
+      logp += logGaussian(dist, 0, 6) * gpsWeight;
+      if (dist > 15) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 1, 2) * gpsWeight;
       if (stepRate > 0.5) logp -= 5;
-      
-      // 🚀 THE MAGNET
-      // Pulls you in when you are near the car.
-      if (dist < 6.0) logp += 2.5; 
     }
   }
 
@@ -443,9 +440,9 @@ function emissionLogProb(state, obs) {
   const isPhysicallyStill = Math.abs(accel - 1.0) < 0.05 && !hasSteps;
   if (isPhysicallyStill) {
     if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
-      logp -= 10;
+      logp -= 20; // 🚀 Heavier penalty for movement states when still
     } else {
-      logp += 2;
+      logp += 5;  // 🚀 Heavier reward for stationary states
     }
   }
 
@@ -712,12 +709,19 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (!globalThis._inCarCounter) globalThis._inCarCounter = 0;
   if (!globalThis._drivingCounter) globalThis._drivingCounter = 0;
   if (!globalThis._walkingCounter) globalThis._walkingCounter = 0;
+  if (!globalThis._stoppedCounter) globalThis._stoppedCounter = 0;
   if (!globalThis._drivingDuration) globalThis._drivingDuration = 0; // 🚀 NEW: Time accumulator
 
   if (candidate === 'RETURNING') {
     globalThis._returnCounter++;
   } else {
     globalThis._returnCounter = 0;
+  }
+
+  if (candidate === 'STOPPED' || (currentState === 'DRIVING' && rawSpeed < 2)) {
+    globalThis._stoppedCounter++;
+  } else {
+    globalThis._stoppedCounter = 0;
   }
 
   if (candidate === 'IN_CAR') {
@@ -802,9 +806,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // Only switch if the candidate is 5% more confident than the current state
   // OR if we have a strong physical signal (like being stopped for several updates)
-  const isForcedStopped = (candidate === 'STOPPED' || currentState === 'DRIVING') && globalThis._stoppedCounter >= 2 && rawSpeed < 2;
+  const isForcedStopped = (candidate === 'STOPPED' || currentState === 'DRIVING') && globalThis._stoppedCounter >= 2 && rawSpeed < 3;
 
   if (isForcedStopped) {
+    if (currentState !== 'STOPPED') console.log('[HMM] 🛑 FORCED STOP: Speed < 3km/h for 2+ updates.');
     currentState = 'STOPPED';
   } else if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
     if (candidate === 'RETURNING' && !returnConfirmed) {
