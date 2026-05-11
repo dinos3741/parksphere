@@ -109,7 +109,7 @@ const DebugSimulator = ({ userLocation }) => {
       ]}
       {...panResponder.panHandlers}
     >
-      <Text style={styles.title}>HMM Simulator (Drag me!)</Text>
+      <Text style={styles.title}>HMM Simulator</Text>
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('DRIVING')}>
           <Text style={styles.btnText}>🚗 Drive</Text>

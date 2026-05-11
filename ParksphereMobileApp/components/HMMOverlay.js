@@ -37,7 +37,7 @@ const HMMOverlay = () => {
       ]}
       {...panResponder.panHandlers}
     >
-      <Text style={styles.statusTitle}>HMM Engine (Drag me!)</Text>
+      <Text style={styles.statusTitle}>HMM Engine</Text>
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
