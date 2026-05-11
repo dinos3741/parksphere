@@ -40,12 +40,24 @@ const Notifications = ({ notifications, onHeightChange }) => {
     })
   ).current;
 
+  const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    // Scroll to bottom when notifications change
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [notifications]);
+
   return (
     <Animated.View style={[styles.notificationArea, { height: animatedHeight }]}>
       <View style={styles.resizeHandle} {...panResponder.panHandlers}>
         <View style={styles.handleIndicator} />
       </View>
-      <ScrollView style={styles.scrollViewContent} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollViewContent} 
+        contentContainerStyle={styles.scrollContent}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
         {notifications.map((notification, index) => (
           <Text key={index} style={styles.notificationText}>
             [{notification.timestamp}] {notification.msg}
