@@ -758,44 +758,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const walkingConfirmed = globalThis._walkingCounter >= 3; // 🚀 Requires sustained steps
 
   // ==============================
-  // 🔒 INTENT LOCK LOGIC (RETURNING)
-  // ==============================
-  // 1. Activate lock if confidence is high and state is confirmed
-  if (!isReturningIntentLocked && currentState === 'RETURNING' && candidateConf > 0.85) {
-    console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
-    isReturningIntentLocked = true;
-    minDistDuringReturn = dist;
-  }
-
-  // 2. While locked, track the minimum distance reached
-  if (isReturningIntentLocked) {
-    if (dist < minDistDuringReturn) {
-      minDistDuringReturn = dist;
-    }
-
-    // 3. BREAK the lock if the user walks significantly away from the car
-    // Threshold: 15 meters further away than the closest approach
-    if (dist > minDistDuringReturn + 15 && dist > 10) {
-      console.log(`[HMM] 🔓 Intent Lock BROKEN: User walked away (+15m from closest approach).`);
-      isReturningIntentLocked = false;
-      minDistDuringReturn = Infinity;
-    }
-
-    // 4. BREAK the lock if the user has arrived at the car
-    if (dist < 6.0) {
-      console.log('[HMM] 🔓 Intent Lock RELEASED: User arrived at car vicinity.');
-      isReturningIntentLocked = false;
-    }
-
-    // 5. BREAK the lock if user is definitively in a vehicle or driving
-    if (currentState === 'IN_CAR' || currentState === 'DRIVING' || speed > 10) {
-      console.log('[HMM] 🔓 Intent Lock RELEASED: Arrival/Driving confirmed.');
-      isReturningIntentLocked = false;
-      minDistDuringReturn = Infinity;
-    }
-  }
-
-  // ==============================
   // 🚗 PARKING EVENT DETECTION (CRITICAL)
   // ==============================
   let parkedEvent = false;
@@ -953,6 +915,66 @@ export function resetHMM() {
     shouldClearPersistedState: true,
     currentState,
     belief
+  };
+}
+
+export function getHMMStatus() {
+  return { currentState, belief };
+}
+
+// Expo-safe
+export function initMotionTracking() {
+  console.log('[HMM] Motion tracking disabled');
+}
+===
+// HELPERS
+// ==============================
+export function resetHMM() {
+  // 1. Reset Beliefs and State
+  for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
+  currentState = 'IDLE';
+  isAway = false; // 🚀 NEW
+  isReturningIntentLocked = false; // 🚀 NEW
+  minDistDuringReturn = Infinity;  // 🚀 NEW
+
+  // 2. Reset Kalman Filters
+  speedFilter.x = 0;
+  speedFilter.p = 1;
+
+  positionFilter.x = [0, 0, 0, 0];
+  positionFilter.P = mathIdentity(4, 1000);
+  positionFilter.lastTime = null;
+
+  // 3. Reset supplemental state
+  smoothedDeltaRate = 0;
+  lastTimestamp = null;
+  progressHistory = []; // 🚀 NEW
+  pgrHistory = [];      // 🚀 NEW
+
+  // 4. Reset Global Counters (Temporal Confirmation)
+  globalThis._returnCounter = 0;
+  globalThis._inCarCounter = 0;
+  globalThis._drivingCounter = 0;
+  globalThis._walkingCounter = 0;
+  globalThis._drivingDuration = 0; // 🚀 NEW
+
+  console.log('[HMM] Engine fully reset to IDLE.');
+  return { 
+    shouldClearPersistedState: true,
+    currentState,
+    belief
+  };
+}
+
+export function getHMMStatus() {
+  return { currentState, belief };
+}
+
+// Expo-safe
+export function initMotionTracking() {
+  console.log('[HMM] Motion tracking disabled');
+}
+ef
   };
 }
 
