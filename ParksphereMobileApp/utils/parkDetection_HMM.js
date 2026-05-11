@@ -305,7 +305,7 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'DRIVING' && from !== 'DRIVING' && context.stepRate > 0.3) return false;
 
   // 🚫 Cannot enter DRIVING from IDLE unless we have significant speed (prevents GPS jump triggers)
-  if (to === 'DRIVING' && from === 'IDLE' && context.speed < 20) return false;
+  if (to === 'DRIVING' && from === 'IDLE' && context.speed < 15) return false;
 
   // 🚫 Cannot enter STOPPED unless coming from DRIVING or if already in STOPPED state
   if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
@@ -317,13 +317,13 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && !isAway) return false;
 
   // 🚫 RETURNING can only be reached from WALKING or IDLE (Now that AWAY is gone)
-  if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
+  if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING', 'DRIVING'].includes(from)) return false;
 
   // 🚫 Cannot go to IN_CAR without parked location
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
 
-  // 🚫 Must be VERY close to the car
-  if (to === 'IN_CAR' && context.dist > 8) return false;
+  // 🚫 Must be close to the car (Relaxed to 10m for GPS noise)
+  if (to === 'IN_CAR' && context.dist > 10) return false;
 
   // 🚫 Must be approaching, BUT ONLY if we are still a few meters out.
   // If we are within 3 meters, ignore deltaRate to prevent GPS bounce from blocking entry.
@@ -783,7 +783,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     }
 
     // 4. BREAK the lock if user is definitively in a vehicle or driving
-    if (currentState === 'IN_CAR' || currentState === 'DRIVING') {
+    if (currentState === 'IN_CAR' || currentState === 'DRIVING' || speed > 10) {
       console.log('[HMM] 🔓 Intent Lock RELEASED: Arrival/Driving confirmed.');
       isReturningIntentLocked = false;
       minDistDuringReturn = Infinity;
@@ -845,7 +845,12 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // Only switch if the candidate is 5% more confident than the current state
-  if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
+  // OR if we have a strong physical signal (like being stopped for several updates)
+  const isForcedStopped = (candidate === 'STOPPED' || currentState === 'DRIVING') && globalThis._stoppedCounter >= 2 && rawSpeed < 2;
+
+  if (isForcedStopped) {
+    currentState = 'STOPPED';
+  } else if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
     if (candidate === 'RETURNING' && !returnConfirmed) {
       // wait
     } else if (candidate === 'IN_CAR' && !inCarConfirmed) {
@@ -954,3 +959,4 @@ export function getHMMStatus() {
 export function initMotionTracking() {
   console.log('[HMM] Motion tracking disabled');
 }
+
