@@ -3,12 +3,12 @@ import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection } from '../utils/parkDetectionService';
 import { resetAllAppData } from '../utils/dataReset';
 
+const pan = new Animated.ValueXY({ x: 10, y: 500 }); // Moved out of component
+
 const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
-  
-  const pan = useRef(new Animated.ValueXY({ x: 10, y: 500 })).current; // Initial position
   
   const panResponder = useRef(
     PanResponder.create({
