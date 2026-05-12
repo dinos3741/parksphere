@@ -6,6 +6,14 @@ import { DeviceEventEmitter } from 'react-native';
 // Import the modified processLocationHMM which now returns belief
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus } from './parkDetection_HMM';
 
+// 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
+let MotionActivityTracker = null;
+try {
+  MotionActivityTracker = require('react-native-motion-activity-tracker');
+} catch (e) {
+  console.log('[ParkDetection] MotionActivityTracker native module not available in this environment.');
+}
+
 export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 
 // ---------------- CONSTANTS ----------------
@@ -15,6 +23,7 @@ let isInitialized = false;
 // Sensor data cache
 let currentAcceleration = 1.0;
 let currentStepRate = 0;
+let currentActivity = { automotive: false, walking: false, stationary: false, unknown: true };
 let accelSubscription = null;
 
 export function simulateMotionActivity(type, intensity = 'HIGH') {
@@ -23,15 +32,19 @@ export function simulateMotionActivity(type, intensity = 'HIGH') {
   if (type === 'AUTOMOTIVE') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.4 : 0.1);
     currentStepRate = 0;
+    currentActivity = { automotive: true, walking: false, stationary: false, unknown: false };
   } else if (type === 'WALKING') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.2 : 0.05);
     currentStepRate = intensity === 'HIGH' ? 2.0 : 1.2;
+    currentActivity = { automotive: false, walking: true, stationary: false, unknown: false };
   } else if (type === 'STATIONARY' || type === 'IDLE') {
     currentAcceleration = 1.0;
     currentStepRate = 0;
+    currentActivity = { automotive: false, walking: false, stationary: true, unknown: false };
   } else {
     currentAcceleration = 1.0;
     currentStepRate = 0;
+    currentActivity = { automotive: false, walking: false, stationary: false, unknown: true };
   }
 }
 
@@ -223,6 +236,7 @@ export async function handleLocationUpdate(arg1, arg2) {
   const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
     acceleration_magnitude: acceleration,
     step_rate: stepRate,
+    motion_activity: currentActivity,
     heading_change: headingChange,
     stop_duration: stateData.stopDuration,
     lastDistanceToCar: stateData.lastDistanceToCar,
@@ -387,6 +401,7 @@ export async function handleLocationUpdate(arg1, arg2) {
       speed,
       acceleration,
       stepRate,
+      motionActivity: currentActivity,
       headingChange,
       stopDuration: stateData.stopDuration,
       distToParked
@@ -405,17 +420,47 @@ export async function handleLocationUpdate(arg1, arg2) {
 }
 
 // ---------------- SENSORS ----------------
-function startSensors() {
+async function startSensors() {
   Accelerometer.setUpdateInterval(1000);
   accelSubscription = Accelerometer.addListener(data => {
     // Magnitude of acceleration: sqrt(x^2 + y^2 + z^2)
     currentAcceleration = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
   });
+
+  // Start Motion Activity Tracking with Safety Guard for Expo Go
+  try {
+    // Check if the native module is actually available
+    if (MotionActivityTracker && typeof MotionActivityTracker.isAuthorized === 'function') {
+      const isAuthorized = await MotionActivityTracker.isAuthorized();
+      if (!isAuthorized) {
+        await MotionActivityTracker.requestAuthorization();
+      }
+      
+      await MotionActivityTracker.startActivityUpdates((activity) => {
+        console.log(`[ParkDetection] Motion Activity: automotive=${activity.automotive}, walking=${activity.walking}, stationary=${activity.stationary}`);
+        currentActivity = {
+          automotive: activity.automotive,
+          walking: activity.walking,
+          stationary: activity.stationary,
+          unknown: activity.unknown,
+          confidence: activity.confidence // 0=Low, 1=Medium, 2=High
+        };
+      });
+    } else {
+      console.warn('[ParkDetection] MotionActivityTracker native module not found. Falling back to manual sensor inference.');
+    }
+  } catch (error) {
+    console.error('[ParkDetection] Error starting MotionActivityTracker:', error);
+  }
 }
 
 function stopSensors() {
   if (accelSubscription) accelSubscription.remove();
   accelSubscription = null;
+  
+  if (MotionActivityTracker && typeof MotionActivityTracker.stopActivityUpdates === 'function') {
+    MotionActivityTracker.stopActivityUpdates();
+  }
 }
 
 // ---------------- TASK ----------------
@@ -481,7 +526,7 @@ export const startParkDetection = async () => {
 
     console.log('[ParkDetection] Initializing HMM components...');
     const { shouldClearPersistedState } = resetHMM(); // Reset HMM state to IDLE
-    startSensors();
+    await startSensors();
 
     // Clear persistent state on clean start to avoid immediate transitions from stale data
     if (shouldClearPersistedState) {

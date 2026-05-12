@@ -270,7 +270,7 @@ const RETURN_ZONE_RADIUS = 70;
 const AWAY_THRESHOLD = 30;    
 
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency, activity } = obs;
 
   let logp = 0;
   const TEMP = 0.5;
@@ -280,6 +280,20 @@ function emissionLogProb(state, obs) {
 
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
+
+  // 🚀 OS MOTION ACTIVITY BOOST
+  if (activity) {
+    const { automotive, walking, stationary, confidence } = activity;
+    const activityWeight = (confidence || 0) + 1.0; // scale 1.0 to 3.0
+
+    if (state === 'DRIVING' && automotive) logp += (10.0 * activityWeight);
+    if (isWalkingState && walking) logp += (8.0 * activityWeight);
+    if (isStationaryState && stationary) logp += (5.0 * activityWeight);
+    
+    // Penalties for mismatch
+    if (state === 'DRIVING' && walking) logp -= (15.0 * activityWeight);
+    if (isWalkingState && automotive) logp -= (15.0 * activityWeight);
+  }
 
   // SPEED (GPS)
   if (state === 'DRIVING') {
@@ -494,7 +508,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     approachAlignment, 
     pgr: pgrMetrics.pgr, 
     pgrTrend: pgrMetrics.trend,
-    pgrConsistency: pgrMetrics.consistency
+    pgrConsistency: pgrMetrics.consistency,
+    activity: supplemental.motion_activity
   };
 
   const context = {

@@ -20,7 +20,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use location to detect parking.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We use location in background to detect parking.",
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -45,7 +47,13 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "react-native-motion-activity-tracker",
+        {
+          "NSMotionUsageDescription": "Parksphere uses motion data to automatically detect when you are driving or walking to identify parking spots."
+        }
+      ]
     ]
   }
 }

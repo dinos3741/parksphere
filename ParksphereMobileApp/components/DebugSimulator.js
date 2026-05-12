@@ -150,10 +150,10 @@ const DebugSimulator = ({ userLocation }) => {
       </View>
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('PARKED')}>
-          <Text style={styles.btnText}>🅿️ Parked</Text>
+          <Text style={styles.btnText}>🅿️ Park</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('STEP')}>
-          <Text style={styles.btnText}>🚶 Step Out</Text>
+          <Text style={styles.btnText}>🚶 Walk</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
