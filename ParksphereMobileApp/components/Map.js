@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
-import DebugSimulator from './DebugSimulator';
 import HMMOverlay from './HMMOverlay';
 
 const Map = memo(({
@@ -111,8 +110,6 @@ const Map = memo(({
         </View>
       )}
 
-      <DebugSimulator userLocation={userLocation} />
-      
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
           <Text style={styles.centerButtonText}>⌖</Text>

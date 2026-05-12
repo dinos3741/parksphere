@@ -15,6 +15,7 @@ import SpotDetails from './components/SpotDetails';
 import Notifications from './components/Notifications';
 import Map from './components/Map';
 import HMMOverlay from './components/HMMOverlay';
+import DebugSimulator from './components/DebugSimulator';
 import Login from './components/Login';
 import Register from './components/Register';
 import Profile from './components/Profile';
@@ -1153,7 +1154,10 @@ export default function App() {
       </NavigationContainer>
 
       {navigationRef.isReady() && navigationRef.getCurrentRoute()?.name === 'Home' && (
-        <HMMOverlay />
+        <>
+          <HMMOverlay />
+          <DebugSimulator userLocation={userLocation} />
+        </>
       )}
 
       <LeavingModal

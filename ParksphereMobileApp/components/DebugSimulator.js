@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection } from '../utils/parkDetectionService';
+import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
 import { resetAllAppData } from '../utils/dataReset';
 
 const pan = new Animated.ValueXY({ x: 10, y: 500 }); // Moved out of component
@@ -9,6 +9,11 @@ const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
+
+  useEffect(() => {
+    // Check initial engine state
+    setIsEngineRunning(isDetectionEngineRunning());
+  }, []);
   
   const panResponder = useRef(
     PanResponder.create({
@@ -54,56 +59,74 @@ const DebugSimulator = ({ userLocation }) => {
     }
 
     if (!userLocation) return;
-    let mockLocation = {
+    
+    const getMockLocation = (speed = 0) => ({
       coords: {
         latitude: userLocation.latitude + offsetLat,
         longitude: userLocation.longitude + offsetLon,
-        speed: 0,
+        speed: speed / 3.6, // Convert km/h back to m/s
         accuracy: 5,
       },
       isFromSimulator: true,
       timestamp: Date.now(),
-    };
+    });
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     switch (type) {
       case 'DRIVING':
-        mockLocation.coords.speed = 13.8;
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        for (let i = 0; i < 3; i++) {
-          await handleLocationUpdate(mockLocation);
+        for (let i = 0; i < 5; i++) {
+          await handleLocationUpdate(getMockLocation(50));
+          await sleep(500);
         }
         setTimeout(async () => {
           console.log('[Debug] Auto-triggering STOPPED...');
           await simulate('STOPPED');
         }, 5000);
         return;
+
       case 'STOPPED':
-        mockLocation.coords.speed = 0.1;
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        break;
+        for (let i = 0; i < 5; i++) {
+          await handleLocationUpdate(getMockLocation(0.5));
+          await sleep(500);
+        }
+        return;
+
       case 'WALKING':
-        mockLocation.coords.speed = 1.4;
         simulateMotionActivity('WALKING', 'HIGH');
-        for (let i = 0; i < 4; i++) {
-          await handleLocationUpdate(mockLocation);
+        for (let i = 0; i < 6; i++) {
+          await handleLocationUpdate(getMockLocation(5));
+          await sleep(500);
         }
         setTimeout(async () => {
           console.log('[Debug] Auto-triggering STATIONARY...');
           await simulate('STATIONARY');
         }, 3000);
         return;
+
       case 'STATIONARY':
-        mockLocation.coords.speed = 0;
         simulateMotionActivity('STATIONARY', 'HIGH');
-        break;
+        for (let i = 0; i < 4; i++) {
+          await handleLocationUpdate(getMockLocation(0));
+          await sleep(500);
+        }
+        return;
+
       case 'PARKED':
-        mockLocation.coords.speed = 0;
         simulateMotionActivity('STATIONARY', 'HIGH');
-        mockLocation.forcePark = true;
-        break;
+        const parkedLoc = getMockLocation(0);
+        parkedLoc.forcePark = true;
+        for (let i = 0; i < 3; i++) {
+          await handleLocationUpdate(parkedLoc);
+          await sleep(500);
+        }
+        return;
     }
+    
     console.log(`[Debug] Simulating ${type} at offset ${offsetLat.toFixed(5)}...`);
-    await handleLocationUpdate(mockLocation);
+    await handleLocationUpdate(getMockLocation(0));
   };
 
   return (
@@ -154,8 +177,11 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     width: 160,
+    zIndex: 9999,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-// ... (keep rest of styles)
   title: {
     color: 'white',
     fontSize: 12,

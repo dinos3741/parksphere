@@ -449,6 +449,8 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   }
 });
 
+export const isDetectionEngineRunning = () => isInitialized;
+
 // ---------------- START/STOP ----------------
 export const startParkDetection = async () => {
   try {
