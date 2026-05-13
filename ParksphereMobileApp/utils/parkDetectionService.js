@@ -20,11 +20,25 @@ export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 const STORAGE_KEY = 'PARK_STATE';
 let isInitialized = false;
 
+// 🚀 TIMEOUT WRAPPER
+const withTimeout = (promise, ms, name = 'unnamed') => {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`[Timeout] ${name} timed out after ${ms}ms`));
+    }, ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+};
+
 // Sensor data cache
 let currentAcceleration = 1.0;
 let currentStepRate = 0;
 let currentActivity = { automotive: false, walking: false, stationary: false, unknown: true };
 let accelSubscription = null;
+let isPedometerAvailable = null;
 
 export function simulateMotionActivity(type, intensity = 'HIGH') {
   console.log(`[ParkDetection] Simulating activity: ${type} (${intensity})`);
@@ -49,9 +63,20 @@ export function simulateMotionActivity(type, intensity = 'HIGH') {
 }
 
 // ---------------- HELPERS ----------------
+async function checkPedometer() {
+  if (isPedometerAvailable !== null) return isPedometerAvailable;
+  try {
+    isPedometerAvailable = await withTimeout(Pedometer.isAvailableAsync(), 2000, 'Pedometer.isAvailable');
+  } catch (e) {
+    console.warn('[ParkDetection] Pedometer availability check failed:', e.message);
+    isPedometerAvailable = false;
+  }
+  return isPedometerAvailable;
+}
+
 async function getRecentStepRate() {
   try {
-    const available = await Pedometer.isAvailableAsync();
+    const available = await checkPedometer();
     if (!available) return 0;
 
     // Look at the last 12 seconds
@@ -59,10 +84,10 @@ async function getRecentStepRate() {
     const start = new Date();
     start.setSeconds(end.getSeconds() - 12);
 
-    const result = await Pedometer.getStepCountAsync(start, end);
-    return result.steps / 12.0; // steps per second
+    const result = await withTimeout(Pedometer.getStepCountAsync(start, end), 3000, 'Pedometer.getStepCount');
+    return (result.steps || 0) / 12.0; // steps per second
   } catch (error) {
-    console.error('[ParkDetection] Error fetching step count:', error);
+    console.error('[ParkDetection] Error fetching step count:', error.message);
     return 0;
   }
 }
@@ -72,7 +97,6 @@ async function declareSpot(location) {
   try {
     const token = await AsyncStorage.getItem('userToken');
     const userId = await AsyncStorage.getItem('userId');
-    // Use a more robust way to get server IP, e.g., from config or env
     const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
 
     if (!token || !userId) {
@@ -80,7 +104,7 @@ async function declareSpot(location) {
       return;
     }
 
-    const response = await fetch(`${serverUrl}/api/declare-spot`, {
+    const response = await withTimeout(fetch(`${serverUrl}/api/declare-spot`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -90,14 +114,14 @@ async function declareSpot(location) {
         userId: parseInt(userId, 10),
         latitude: location.latitude,
         longitude: location.longitude,
-        timeToLeave: 60, // Defaulting to 60 minutes
-        costType: 'free', // Defaulting to free
+        timeToLeave: 60,
+        costType: 'free',
         price: 0,
-        declaredCarType: 'sedan', // Defaulting car type
+        declaredCarType: 'sedan',
         comments: 'Auto-detected parking spot (HMM)',
         isAutoDetected: true,
       }),
-    });
+    }), 5000, 'fetch.declareSpot');
 
     if (response.ok) {
       const data = await response.json();
@@ -110,7 +134,7 @@ async function declareSpot(location) {
       notify(`Failed to declare spot: ${response.status}`);
     }
   } catch (error) {
-    console.error('[ParkDetection] Error declaring spot:', error);
+    console.error('[ParkDetection] Error declaring spot:', error.message);
     notify('Error declaring parking spot.');
   }
 }
@@ -119,23 +143,19 @@ async function updateSpotStatus(spotId, status) {
   try {
     const token = await AsyncStorage.getItem('userToken');
     const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
-    if (!token || !spotId) {
-      console.warn('[ParkDetection] Token or spotId missing, cannot update spot status.');
-      return;
-    }
+    if (!token || !spotId) return;
 
-    await fetch(`${serverUrl}/api/parkingspots/${spotId}/status`, {
+    await withTimeout(fetch(`${serverUrl}/api/parkingspots/${spotId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ status }),
-    });
+    }), 5000, 'fetch.updateSpotStatus');
     console.log(`[ParkDetection] Updated spot ${spotId} status to: ${status}`);
   } catch (error) {
-    console.error(`[ParkDetection] Failed to update spot ${spotId} status to ${status}:`, error);
-    notify(`Error updating spot status for ${spotId}.`);
+    console.error(`[ParkDetection] Failed to update spot ${spotId} status to ${status}:`, error.message);
   }
 }
 
@@ -145,20 +165,15 @@ async function deleteSpot(spotId) {
     const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
     if (!token || !spotId) return;
 
-    const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+    await withTimeout(fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
       },
-    });
-
-    if (response.ok) {
-      console.log(`[ParkDetection] Deleted spot ${spotId} from server.`);
-    } else {
-      console.warn(`[ParkDetection] Failed to delete spot ${spotId}:`, response.status);
-    }
+    }), 5000, 'fetch.deleteSpot');
+    console.log(`[ParkDetection] Deleted spot ${spotId} from server.`);
   } catch (error) {
-    console.error(`[ParkDetection] Error deleting spot ${spotId}:`, error);
+    console.error(`[ParkDetection] Error deleting spot ${spotId}:`, error.message);
   }
 }
 
@@ -170,26 +185,25 @@ function notify(message) {
 // ---------------- CORE ENGINE (HMM) ----------------
 export async function handleLocationUpdate(arg1, arg2) {
   if (!isInitialized) {
-    console.log('[ParkDetection] System not initialized yet, skipping location update.');
-    return arg2 ? arg1 : {}; // Return existing stateData if called internally
+    return arg2 ? arg1 : {}; 
   }
 
   let stateData, location;
   let isInternal = false;
 
-  if (arg2) { // Called internally with state and location
-    stateData = arg1;
-    location = arg2;
-    isInternal = true;
-  } else { // Called externally (e.g., from TaskManager)
-    location = arg1;
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
+  try {
+    if (arg2) { 
+      stateData = arg1;
+      location = arg2;
+      isInternal = true;
+    } else { 
+      location = arg1;
+      const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'AsyncStorage.getItem');
       stateData = saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      console.error('[ParkDetection] Failed to load state from storage:', e);
-      stateData = {}; // Reset to default if loading fails
     }
+  } catch (e) {
+    console.error('[ParkDetection] handleLocationUpdate early failure:', e.message);
+    return isInternal ? arg1 : {};
   }
 
   const prevState = stateData.state || 'IDLE';
@@ -198,11 +212,9 @@ export async function handleLocationUpdate(arg1, arg2) {
     longitude: location.coords.longitude,
   };
 
-  // Calculate supplemental metrics for HMM
   const now = Date.now();
-  const speed = (location.coords.speed || 0) * 3.6; // km/h
+  const speed = (location.coords.speed || 0) * 3.6; 
   
-  // 1. Heading Change
   const currentHeading = location.coords.heading || 0;
   let headingChange = 0;
   if (stateData.lastHeading !== undefined) {
@@ -211,29 +223,23 @@ export async function handleLocationUpdate(arg1, arg2) {
   }
   stateData.lastHeading = currentHeading;
 
-  // 2. Stop Duration
-  if (speed < 3.0) { // threshold for stopping (increased for robustness against GPS noise)
+  if (speed < 3.0) { 
     if (!stateData.stopStartTime) stateData.stopStartTime = now;
-    stateData.stopDuration = (now - stateData.stopStartTime) / 1000; // seconds
+    stateData.stopDuration = (now - stateData.stopStartTime) / 1000; 
   } else {
     stateData.stopStartTime = null;
     stateData.stopDuration = 0;
   }
 
-  // 3. Acceleration and Steps
   const acceleration = currentAcceleration;
   
-  // 🚀 CRITICAL FIX: Only use simulated rate if the update is from the simulator.
-  // Otherwise, ALWAYS query the real hardware pedometer.
   let stepRate = currentStepRate;
   if (!location.isFromSimulator) {
     stepRate = await getRecentStepRate();
-    // Update cache for other observers
     currentStepRate = stepRate; 
   }
 
-  // Run HMM Inference
-  const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
+  const hmmResult = processLocationHMM(location, stateData.parkedLocation, {
     acceleration_magnitude: acceleration,
     step_rate: stepRate,
     motion_activity: currentActivity,
@@ -244,7 +250,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     previousBelief: stateData.belief,
     isAway: stateData.isAway,
     minDistDuringReturn: stateData.minDistDuringReturn,
-    accuracy: location.coords.accuracy // Pass accuracy
+    accuracy: location.coords.accuracy 
   });
 
   let {
@@ -256,19 +262,15 @@ export async function handleLocationUpdate(arg1, arg2) {
     belief: currentBelief,
     distToParked,
     parkedEvent,
-    awayEvent,         // 🚀 NEW
-    clearParkingEvent, // 🚀 NEW
+    awayEvent,
+    clearParkingEvent,
     isAway: hmmIsAway,
     minDistDuringReturn: hmmMinDistDuringReturn
   } = hmmResult;
 
-  // ==============================
-  // 🛠️ SIMULATION OVERRIDE
-  // ==============================
   if (location.forcePark) {
-    console.log('[ParkDetection] 🛠️ Manual PARKED trigger received from simulator.');
     parkedEvent = true;
-    hmmState = 'STOPPED'; // Force state to STOPPED to simulate having just parked
+    hmmState = 'STOPPED'; 
   }
 
   stateData.lastDistanceToCar = distToParked;
@@ -279,19 +281,11 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.isAway = hmmIsAway;
   stateData.minDistDuringReturn = hmmMinDistDuringReturn;
 
-  // ==============================
-  // 📍 AWAY EVENT DETECTION
-  // ==============================
   if (awayEvent) {
-    console.log('[ParkDetection] 📍 Away event received. User has left vicinity.');
     notify('🚶 You have left the vicinity of your car.');
   }
 
-  // ==============================
-  // 🛑 CLEAR PARKING EVENT
-  // ==============================
   if (clearParkingEvent) {
-    console.log('[ParkDetection] 🛑 Clear parking event received. Resetting local spot.');
     stateData.parkedLocation = null;
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
@@ -300,55 +294,19 @@ export async function handleLocationUpdate(arg1, arg2) {
     notify('🏁 Spot cleared. Ready for next parking.');
   }
 
-  // ==============================
-  // 🚗 PARKING EVENT DETECTION
-  // ==============================
   if (parkedEvent) {
-    console.log('[ParkDetection] 🚗 Parking event received from HMM.');
     notify('🅿️ Parking confirmed!');
-
     stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
-    console.log('[ParkDetection] 📍 Parked location SET:', stateData.parkedLocation);
   }
 
-  // Log parkedLocation status
-  if (stateData.parkedLocation) {
-    console.log(`[ParkDetection] 📍 Dist to parked: ${distToParked.toFixed(2)}m (Raw: ${location.coords.latitude.toFixed(6)}, ${location.coords.longitude.toFixed(6)} | Filtered: ${hmmResult.filteredCoords.latitude.toFixed(6)}, ${hmmResult.filteredCoords.longitude.toFixed(6)})`);
-  }
-  
-  if (stateData.parkedLocation && !stateData._loggedParkedLoc) {
-    console.log('[ParkDetection] ✅ parkedLocation is now SET:', stateData.parkedLocation);
-    stateData._loggedParkedLoc = true;
-  } else if (!stateData.parkedLocation && stateData._loggedParkedLoc) {
-    console.log('[ParkDetection] ❌ parkedLocation is now RESET.');
-    stateData._loggedParkedLoc = false;
-  }
-
-  // ==============================
-  // 📍 STOPPED LOCATION TRACKING
-  // ==============================
-  // CLEAR stale candidate if we are now DRIVING (to avoid ghost parking spots)
   if (hmmState === 'DRIVING' && stateData.stoppedCandidateLocation) {
-    console.log('[ParkDetection] 🚗 Driving detected, clearing stale stoppedCandidateLocation.');
     stateData.stoppedCandidateLocation = null;
   }
 
   if (stateData.state === 'STOPPED') {
-    // Use the Kalman-filtered coordinates from the HMM result instead of raw jittery GPS
-    const filtered = hmmResult.filteredCoords;
-    
-    if (!stateData.stoppedCandidateLocation) {
-      stateData.stoppedCandidateLocation = { ...filtered };
-      console.log('[ParkDetection] 🛑 stoppedCandidateLocation INITIALIZED with filtered coords:', stateData.stoppedCandidateLocation);
-    } else {
-      // Just update to the latest filtered position. 
-      // The HMM's Kalman filter is already handling the smoothing.
-      stateData.stoppedCandidateLocation = { ...filtered };
-      console.log('[ParkDetection] 🛑 stoppedCandidateLocation UPDATED to latest filtered:', stateData.stoppedCandidateLocation);
-    }
+    stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords };
   }
 
-  // Handle side effects of state transitions
   if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {
       'DRIVING': '🚗 Driving detected...',
@@ -362,22 +320,15 @@ export async function handleLocationUpdate(arg1, arg2) {
     let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%, 2nd: ${secondBestState} ${Math.round(secondConfidence*100)}%)`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
-    // THE OFFICIAL CONFIRMATION:
-    // We record the parked location locally when the user walks away,
-    // but we only declare the spot to the server when they start returning.
     if (stateData.state === 'RETURNING' && !stateData.serverSpotId) {
-      console.log('[ParkDetection] Official Confirmation: User is returning. Declaring spot...');
       const finalParkedLoc = stateData.parkedLocation || stateData.stoppedCandidateLocation || currentLoc;
       stateData.serverSpotId = await declareSpot(finalParkedLoc);
     }
 
-    // Update status to 'soon_free' when returning or in the car
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
-      console.log(`[ParkDetection] Updating spot status to soon_free (${stateData.state})`);
       await updateSpotStatus(stateData.serverSpotId, 'soon_free');
     }
 
-    // Trigger spot as 'free' only when driving away after being in the car
     if (stateData.state === 'DRIVING' && prevState === 'IN_CAR' && stateData.serverSpotId) {
       await updateSpotStatus(stateData.serverSpotId, 'free');
       stateData.serverSpotId = null;
@@ -388,7 +339,6 @@ export async function handleLocationUpdate(arg1, arg2) {
     }
   }
 
-  // Also emit a detailed update for UI observers (live dashboard)
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
     state: stateData.state,
     bestState,
@@ -410,13 +360,13 @@ export async function handleLocationUpdate(arg1, arg2) {
 
   if (!isInternal) {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
+      await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'AsyncStorage.setItem');
     } catch (e) {
-      console.error('[ParkDetection] Failed to save state to storage:', e);
+      console.error('[ParkDetection] Failed to save state to storage:', e.message);
     }
   }
 
-  return stateData; // Return the updated stateData object
+  return stateData; 
 }
 
 // ---------------- SENSORS ----------------
@@ -476,10 +426,10 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
 
   let stateData = {};
   try {
-    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'TaskManager.getItem');
     if (saved) stateData = JSON.parse(saved);
   } catch (e) {
-    console.error('[ParkDetection] Failed to load state from storage in TaskManager:', e);
+    console.error('[ParkDetection] Failed to load state from storage in TaskManager:', e.message);
   }
 
   for (const loc of data.locations) {
@@ -488,9 +438,9 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   }
 
   try {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
+    await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'TaskManager.setItem');
   } catch (e) {
-    console.error('[ParkDetection] Failed to save state to storage in TaskManager:', e);
+    console.error('[ParkDetection] Failed to save state to storage in TaskManager:', e.message);
   }
 });
 
@@ -531,7 +481,7 @@ export const startParkDetection = async () => {
     // Clear persistent state on clean start to avoid immediate transitions from stale data
     if (shouldClearPersistedState) {
       console.log('[ParkDetection] Clearing persisted state from AsyncStorage...');
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await withTimeout(AsyncStorage.removeItem(STORAGE_KEY), 2000, 'startParkDetection.removeItem');
     }
     
     const { currentState } = getHMMStatus();
@@ -589,7 +539,7 @@ export const resetParkDetection = async () => {
   
   try {
     // 🚀 NEW: Try to delete the spot from the server before clearing local storage
-    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'resetParkDetection.getItem');
     if (saved) {
       const stateData = JSON.parse(saved);
       if (stateData.serverSpotId) {
@@ -598,7 +548,7 @@ export const resetParkDetection = async () => {
       }
     }
 
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await withTimeout(AsyncStorage.removeItem(STORAGE_KEY), 2000, 'resetParkDetection.removeItem');
     console.log('[ParkDetection] Persisted state cleared from AsyncStorage.');
     
     // Reset local sensor cache as well
@@ -619,7 +569,7 @@ export const resetParkDetection = async () => {
 
     notify('Park detection engine reset.');
   } catch (e) {
-    console.error('[ParkDetection] Failed to clear persisted state:', e);
+    console.error('[ParkDetection] Failed to clear persisted state:', e.message);
     notify('Error resetting park detection engine.');
   }
 };
