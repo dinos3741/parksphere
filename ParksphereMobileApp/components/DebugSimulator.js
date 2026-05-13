@@ -9,10 +9,14 @@ const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
+  const autoTriggerRef = useRef(null);
 
   useEffect(() => {
     // Check initial engine state
     setIsEngineRunning(isDetectionEngineRunning());
+    return () => {
+      if (autoTriggerRef.current) clearTimeout(autoTriggerRef.current);
+    };
   }, []);
   
   const panResponder = useRef(
@@ -43,7 +47,12 @@ const DebugSimulator = ({ userLocation }) => {
   };
 
   const simulate = async (type) => {
-    // ... (rest of simulation logic)
+    // Clear any pending auto-triggers to prevent race conditions
+    if (autoTriggerRef.current) {
+      clearTimeout(autoTriggerRef.current);
+      autoTriggerRef.current = null;
+    }
+
     if (type === 'RESET') {
       setOffsetLat(0);
       setOffsetLon(0);
@@ -80,7 +89,7 @@ const DebugSimulator = ({ userLocation }) => {
           await handleLocationUpdate(getMockLocation(50));
           await sleep(500);
         }
-        setTimeout(async () => {
+        autoTriggerRef.current = setTimeout(async () => {
           console.log('[Debug] Auto-triggering STOPPED...');
           await simulate('STOPPED');
         }, 5000);
@@ -100,7 +109,7 @@ const DebugSimulator = ({ userLocation }) => {
           await handleLocationUpdate(getMockLocation(5));
           await sleep(500);
         }
-        setTimeout(async () => {
+        autoTriggerRef.current = setTimeout(async () => {
           console.log('[Debug] Auto-triggering STATIONARY...');
           await simulate('STATIONARY');
         }, 3000);
