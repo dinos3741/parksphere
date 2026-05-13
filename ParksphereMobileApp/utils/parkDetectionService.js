@@ -239,7 +239,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     currentStepRate = stepRate; 
   }
 
-  const hmmResult = processLocationHMM(location, stateData.parkedLocation, {
+  const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
     acceleration_magnitude: acceleration,
     step_rate: stepRate,
     motion_activity: currentActivity,
