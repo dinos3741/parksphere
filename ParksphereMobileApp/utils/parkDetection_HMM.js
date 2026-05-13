@@ -220,9 +220,13 @@ function calculatePGR(currentDist, currentX, currentY) {
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
-  const { hasParkedLocation, isAway } = context;
+  const { hasParkedLocation, isAway, activity } = context;
 
-  if (to === 'WALKING' && from !== 'WALKING' && context.stepRate < 0.05) return false;
+  if (to === 'WALKING' && from !== 'WALKING') {
+    const hasSteps = context.stepRate >= 0.05;
+    const hasWalkingActivity = activity && activity.walking && (activity.confidence >= 1);
+    if (!hasSteps && !hasWalkingActivity) return false;
+  }
   if (to === 'WALKING' && context.speed > 12) return false; 
 
   if (to === 'DRIVING' && from !== 'DRIVING' && context.stepRate > 0.4 && context.speed < 10) return false;
@@ -521,7 +525,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     pgr: obs.pgr,
     pgrTrend: obs.pgrTrend,
     pgrConsistency: obs.pgrConsistency,
-    isAway 
+    isAway,
+    activity: obs.activity
   };
 
   belief = updateBelief(belief, obs, context);
@@ -546,7 +551,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const returnConfirmed = _returnCounter >= 2;
   const inCarConfirmed = _inCarCounter >= 2;
   const drivingConfirmed = _drivingCounter >= 2;
-  const walkingConfirmed = _walkingCounter >= 3 && speed > 1.5; 
+  
+  const hasWalkingSignal = obs.stepRate > 0.3 || (obs.activity && obs.activity.walking && obs.activity.confidence >= 1);
+  const walkingConfirmed = _walkingCounter >= 3 && (speed > 1.5 || hasWalkingSignal); 
 
   // ==============================
   // 🔒 INTENT LOCK LOGIC (RETURNING)
