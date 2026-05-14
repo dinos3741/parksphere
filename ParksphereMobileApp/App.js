@@ -28,6 +28,10 @@ import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
 import { startParkDetection, stopParkDetection, resetParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
 import * as ExpoNotifications from 'expo-notifications';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -124,16 +128,24 @@ export default function App() {
   }, [messagePlayer]);
 
   useEffect(() => {
-    const loadFont = async () => {
-      await Font.loadAsync({
-        'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
-      });
-      setFontLoaded(true);
+    async function prepare() {
+      try {
+        await Font.loadAsync({
+          'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
+        });
+        setFontLoaded(true);
+        
+        // Explicitly reset park detection state on initial app load/restart for clean development
+        await resetParkDetection();
+        console.log('[App.js] Resetting park detection state on initial load.');
+      } catch (e) {
+        console.warn('[App.js] Initialization error:', e);
+      } finally {
+        // Hide splash screen once everything is ready
+        await SplashScreen.hideAsync();
+      }
     }
-    loadFont();
-    // Explicitly reset park detection state on initial app load/restart for clean development
-    resetParkDetection();
-    console.log('[App.js] Resetting park detection state on initial load.');
+    prepare();
   }, []);
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here

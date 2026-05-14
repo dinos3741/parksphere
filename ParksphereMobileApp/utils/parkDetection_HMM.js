@@ -313,28 +313,23 @@ function emissionLogProb(state, obs) {
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
   // 🚀 OS MOTION ACTIVITY BOOST (The "70% Trust" Logic)
-  // We trust the OS sensors more than GPS for state recognition.
   if (activity) {
     const { automotive, walking, stationary, unknown, confidence } = activity;
-    // confidence: 0=low, 1=medium, 2=high. Map to weight 2, 5, 10
-    const activityWeight = (confidence + 1) * 3; 
+    // Map confidence: 0=low (0.5), 1=medium (3.0), 2=high (8.0)
+    const activityWeight = confidence === 0 ? 0.5 : (confidence === 1 ? 3.0 : 8.0); 
 
     if (!unknown) {
-      // Massive boosts for matching state (Aggressive Pull)
-      if (state === 'DRIVING' && automotive) logp += (30.0 * activityWeight);
-      if (isWalkingState && walking) logp += (25.0 * activityWeight);
-      if (isStationaryState && stationary) logp += (20.0 * activityWeight);
+      // Massive boosts for matching state (only if we trust the OS)
+      if (state === 'DRIVING' && automotive) logp += (25.0 * activityWeight);
+      if (isWalkingState && walking) logp += (20.0 * activityWeight);
+      if (isStationaryState && stationary) logp += (12.0 * activityWeight);
       
-      // Massive penalties for mismatch (Strict Filter)
-      if (state === 'DRIVING' && (walking || stationary)) logp -= (60.0 * activityWeight);
-      if (isWalkingState && (automotive || stationary)) logp -= (50.0 * activityWeight);
-      if (isStationaryState && (automotive || walking)) logp -= (40.0 * activityWeight);
-    } else {
-      // It's UNKNOWN (e.g. user moving the phone).
-      // Ambiguous movement is rarely "Driving" or "Walking" gait.
-      if (state === 'DRIVING') logp -= (20.0 * activityWeight);
-      if (isWalkingState) logp -= (10.0 * activityWeight);
-      if (isStationaryState) logp += (3.0 * activityWeight);
+      // Massive penalties for mismatch (ONLY IF CONFIDENCE >= 1)
+      if (confidence >= 1) {
+        if (state === 'DRIVING' && (walking || stationary)) logp -= (50.0 * activityWeight);
+        if (isWalkingState && (automotive || stationary)) logp -= (40.0 * activityWeight);
+        if (isStationaryState && (automotive || walking)) logp -= (30.0 * activityWeight);
+      }
     }
   }
 
@@ -366,13 +361,13 @@ function emissionLogProb(state, obs) {
     }
   }
 
-  // STEP RATE (Sensor)
+  // STEP RATE (Sensor - THE FAST PATH)
   const hasSteps = stepRate > 0.3;
   if (hasSteps) {
-    logp += isWalkingState ? Math.log(0.98) : Math.log(0.001);
-    if (isWalkingState) logp += 2.5;
+    // If we have physical steps, WALKING should win regardless of what Apple's classifier says
+    logp += isWalkingState ? 25.0 : -35.0; 
   } else {
-    logp += (isStationaryState) ? Math.log(0.9) : Math.log(0.1);
+    logp += (isStationaryState) ? 2.0 : -5.0;
   }
 
   // ACCELERATION (Sensor)

@@ -38,10 +38,10 @@ const HMMOverlay = () => {
   const getMotionText = () => {
     const act = hmmStatus.metrics?.motionActivity;
     if (!act) return '❓ Loading...';
-    if (act.automotive) return `🚗 Auto (${act.confidence})`;
-    if (act.walking) return `🚶 Walk (${act.confidence})`;
-    if (act.stationary) return `💤 Still (${act.confidence})`;
-    if (act.unknown) return `📱 Active (${act.confidence})`;
+    if (act.automotive) return '🚗 Auto';
+    if (act.walking) return '🚶 Walk';
+    if (act.stationary) return '💤 Still';
+    if (act.unknown) return '📱 Active';
     return '❓ Unknown';
   };
 
