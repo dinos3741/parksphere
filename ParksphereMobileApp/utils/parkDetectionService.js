@@ -42,8 +42,10 @@ const withTimeout = (promise, ms, name = 'unnamed') => {
 // Sensor data cache
 let currentAcceleration = 1.0;
 let currentStepRate = 0;
-let currentActivity = { automotive: false, walking: false, stationary: false, unknown: true };
+let lastStepTimestamp = 0; // 🚀 Added to track Fast-Path steps
+let currentActivity = { state: 'unknown', automotive: false, walking: false, stationary: false, unknown: true, confidence: 0 };
 let accelSubscription = null;
+let pedometerSubscription = null; // 🚀 Added to keep listener alive
 let isPedometerAvailable = null;
 
 export function simulateMotionActivity(type, intensity = 'HIGH') {
@@ -254,10 +256,22 @@ export async function handleLocationUpdate(arg1, arg2) {
 
   const acceleration = currentAcceleration;
   
-  let stepRate = currentStepRate;
+  let stepRate = 0;
   if (!location.isFromSimulator) {
-    stepRate = await getRecentStepRate();
-    currentStepRate = stepRate; 
+    // 🚀 HYBRID STEP LOGIC:
+    // If we just detected a step via "watchStepCount" (Fast-Path), use the boosted rate.
+    const timeSinceLastStep = Date.now() - lastStepTimestamp;
+    
+    if (timeSinceLastStep < 6000) {
+      // Use boosted rate within 6s of a physical step detection
+      stepRate = Math.max(1.2, currentStepRate); 
+      console.log(`[ParkDetection] 👟 Fast-Path Step Active: ${stepRate.toFixed(2)}`);
+    } else {
+      stepRate = await getRecentStepRate();
+      currentStepRate = stepRate; 
+    }
+  } else {
+    stepRate = currentStepRate;
   }
 
   const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
@@ -396,7 +410,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     metrics: {
       speed,
       acceleration,
-      stepRate,
+      stepRate, // 🚀 Uses the boosted Fast-Path rate
       motionActivity: currentActivity,
       headingChange,
       stopDuration: stateData.stopDuration,
@@ -429,15 +443,15 @@ async function startSensors() {
   });
 
   // ⚡ FAST-PATH: Direct Pedometer Listener
-  // This is much faster than the windowed "Motion Activity" classifier
   try {
     const isPedometerAvailable = await Pedometer.isAvailableAsync();
     if (isPedometerAvailable) {
-      Pedometer.watchStepCount(result => {
-        // Any step is an immediate signal to the HMM
+      console.log('[ParkDetection] Starting Pedometer Watch...');
+      pedometerSubscription = Pedometer.watchStepCount(result => {
+        // result.steps is the count since watch started
         if (result.steps > 0 && isInitialized) {
-          console.log(`[ParkDetection] 👣 Step detected! Triggering virtual HMM update.`);
-          currentStepRate = 1.0; // Temporary boost to help HMM jump out of IDLE
+          console.log(`[ParkDetection] 👣 PHYSICAL STEP DETECTED! Total since start: ${result.steps}`);
+          lastStepTimestamp = Date.now(); // 🚀 Record the timestamp
           triggerVirtualUpdate();
         }
       });
@@ -504,8 +518,11 @@ function stopSensors() {
   if (accelSubscription) accelSubscription.remove();
   accelSubscription = null;
   
-  if (MotionActivityTracker && typeof MotionActivityTracker.stopActivityUpdates === 'function') {
-    MotionActivityTracker.stopActivityUpdates();
+  if (pedometerSubscription) pedometerSubscription.remove();
+  pedometerSubscription = null;
+  
+  if (MotionActivityTracker && typeof MotionActivityTracker.stopTracking === 'function') {
+    MotionActivityTracker.stopTracking();
   }
 }
 

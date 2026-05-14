@@ -20,39 +20,39 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.4,      
-    WALKING: 0.3,  
-    RETURNING: 0.1, 
-    IN_CAR: 0.15,   
+    IDLE: 0.35,      
+    WALKING: 0.5, // 🚀 Boosted for faster initial pick-up
+    RETURNING: 0.05, 
+    IN_CAR: 0.05,   
     DRIVING: 0.05
   },
   WALKING: {
-    WALKING: 0.65, 
-    IDLE: 0.15,
-    DRIVING: 0.1,   
+    WALKING: 0.75, 
+    IDLE: 0.1,
+    DRIVING: 0.05,   
     RETURNING: 0.1  
   },
   DRIVING: {
-    DRIVING: 0.7,
-    STOPPED: 0.25,
+    DRIVING: 0.8,
+    STOPPED: 0.15,
     WALKING: 0.05   
   },
   STOPPED: {
-    STOPPED: 0.50, 
-    DRIVING: 0.25,
-    WALKING: 0.2,   
+    STOPPED: 0.60, 
+    DRIVING: 0.2,
+    WALKING: 0.15,   
     IDLE: 0.05      
   },
   RETURNING: {
-    RETURNING: 0.5,
-    IN_CAR: 0.25,
-    IDLE: 0.1,       
-    WALKING: 0.15   
+    RETURNING: 0.7,
+    IN_CAR: 0.2,
+    IDLE: 0.05,       
+    WALKING: 0.05   
   },
   IN_CAR: {
-    IN_CAR: 0.5,
-    DRIVING: 0.3,
-    WALKING: 0.15,  
+    IN_CAR: 0.7,
+    DRIVING: 0.2,
+    WALKING: 0.05,  
     IDLE: 0.05      
   }
 };
@@ -220,6 +220,9 @@ function calculatePGR(currentDist, currentX, currentY) {
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
+  // 🛡️ ESCAPE HATCH: Always allow staying in the current state to prevent collapse
+  if (from === to) return true;
+
   const { hasParkedLocation, isAway, activity } = context;
 
   // 🚶 WALKING Rules
@@ -313,25 +316,25 @@ function emissionLogProb(state, obs) {
   // We trust the OS sensors more than GPS for state recognition.
   if (activity) {
     const { automotive, walking, stationary, unknown, confidence } = activity;
-    // confidence: 0=low, 1=medium, 2=high. Map to weight 1.5, 3.0, 6.0
-    const activityWeight = (confidence + 1) * 2; 
+    // confidence: 0=low, 1=medium, 2=high. Map to weight 2, 5, 10
+    const activityWeight = (confidence + 1) * 3; 
 
     if (!unknown) {
-      // Massive boosts for matching state
-      if (state === 'DRIVING' && automotive) logp += (20.0 * activityWeight);
-      if (isWalkingState && walking) logp += (15.0 * activityWeight);
-      if (isStationaryState && stationary) logp += (12.0 * activityWeight);
+      // Massive boosts for matching state (Aggressive Pull)
+      if (state === 'DRIVING' && automotive) logp += (30.0 * activityWeight);
+      if (isWalkingState && walking) logp += (25.0 * activityWeight);
+      if (isStationaryState && stationary) logp += (20.0 * activityWeight);
       
-      // Massive penalties for mismatch
-      if (state === 'DRIVING' && (walking || stationary)) logp -= (40.0 * activityWeight);
-      if (isWalkingState && (automotive || stationary)) logp -= (30.0 * activityWeight);
-      if (isStationaryState && (automotive || walking)) logp -= (25.0 * activityWeight);
+      // Massive penalties for mismatch (Strict Filter)
+      if (state === 'DRIVING' && (walking || stationary)) logp -= (60.0 * activityWeight);
+      if (isWalkingState && (automotive || stationary)) logp -= (50.0 * activityWeight);
+      if (isStationaryState && (automotive || walking)) logp -= (40.0 * activityWeight);
     } else {
       // It's UNKNOWN (e.g. user moving the phone).
       // Ambiguous movement is rarely "Driving" or "Walking" gait.
-      if (state === 'DRIVING') logp -= (15.0 * activityWeight);
-      if (isWalkingState) logp -= (5.0 * activityWeight);
-      if (isStationaryState) logp += (2.0 * activityWeight);
+      if (state === 'DRIVING') logp -= (20.0 * activityWeight);
+      if (isWalkingState) logp -= (10.0 * activityWeight);
+      if (isStationaryState) logp += (3.0 * activityWeight);
     }
   }
 

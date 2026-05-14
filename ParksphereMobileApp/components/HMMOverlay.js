@@ -59,6 +59,8 @@ const HMMOverlay = () => {
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
+      <Text style={styles.statusText}>Step: <Text style={styles.statusValue}>{(hmmStatus.metrics?.stepRate || 0).toFixed(2)}</Text></Text>
+      <Text style={styles.statusText}>Move: <Text style={styles.statusValue}>{(hmmStatus.metrics?.acceleration || 1.0).toFixed(2)}</Text></Text>
     </Animated.View>
   );
 };
