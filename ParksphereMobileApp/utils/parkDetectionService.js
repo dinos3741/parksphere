@@ -3,6 +3,11 @@ import * as TaskManager from 'expo-task-manager';
 import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DeviceEventEmitter } from 'react-native';
+
+console.log('***************************************************');
+console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
+console.log('***************************************************');
+
 // Import the modified processLocationHMM which now returns belief
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus } from './parkDetection_HMM';
 
@@ -10,8 +15,9 @@ import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus } from '
 let MotionActivityTracker = null;
 try {
   MotionActivityTracker = require('react-native-motion-activity-tracker');
+  console.log('[ParkDetection] MotionActivityTracker module successfully required.');
 } catch (e) {
-  console.log('[ParkDetection] MotionActivityTracker native module not available in this environment.');
+  console.log('[ParkDetection] MotionActivityTracker native module NOT available:', e.message);
 }
 
 export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
@@ -182,6 +188,21 @@ function notify(message) {
   DeviceEventEmitter.emit('parkDetectionUpdate', { message });
 }
 
+async function triggerVirtualUpdate() {
+  if (!isInitialized) return;
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    const stateData = saved ? JSON.parse(saved) : {};
+    
+    if (stateData.lastLocation) {
+      console.log('[ParkDetection] Triggering virtual HMM update from sensor fast-path.');
+      await handleLocationUpdate(stateData, stateData.lastLocation);
+    }
+  } catch (e) {
+    console.error('[ParkDetection] Virtual update failed:', e.message);
+  }
+}
+
 // ---------------- CORE ENGINE (HMM) ----------------
 export async function handleLocationUpdate(arg1, arg2) {
   if (!isInitialized) {
@@ -250,7 +271,13 @@ export async function handleLocationUpdate(arg1, arg2) {
     previousBelief: stateData.belief,
     isAway: stateData.isAway,
     minDistDuringReturn: stateData.minDistDuringReturn,
-    accuracy: location.coords.accuracy 
+    accuracy: location.coords.accuracy,
+    // Restore counters
+    returnCounter: stateData.returnCounter,
+    inCarCounter: stateData.inCarCounter,
+    drivingCounter: stateData.drivingCounter,
+    walkingCounter: stateData.walkingCounter,
+    tripDrivingTime: stateData.tripDrivingTime
   });
 
   let {
@@ -265,7 +292,13 @@ export async function handleLocationUpdate(arg1, arg2) {
     awayEvent,
     clearParkingEvent,
     isAway: hmmIsAway,
-    minDistDuringReturn: hmmMinDistDuringReturn
+    minDistDuringReturn: hmmMinDistDuringReturn,
+    // Get counters for persistence
+    returnCounter,
+    inCarCounter,
+    drivingCounter,
+    walkingCounter,
+    tripDrivingTime
   } = hmmResult;
 
   if (location.forcePark) {
@@ -276,10 +309,18 @@ export async function handleLocationUpdate(arg1, arg2) {
   stateData.lastDistanceToCar = distToParked;
   const isFirstUpdate = !stateData.lastUpdate;
   stateData.lastUpdate = now;
+  stateData.lastLocation = location; // 🚀 Save for virtual updates
   stateData.state = hmmState;
   stateData.belief = currentBelief;
   stateData.isAway = hmmIsAway;
   stateData.minDistDuringReturn = hmmMinDistDuringReturn;
+  
+  // Persist counters
+  stateData.returnCounter = returnCounter;
+  stateData.inCarCounter = inCarCounter;
+  stateData.drivingCounter = drivingCounter;
+  stateData.walkingCounter = walkingCounter;
+  stateData.tripDrivingTime = tripDrivingTime;
 
   if (awayEvent) {
     notify('🚶 You have left the vicinity of your car.');
@@ -317,7 +358,12 @@ export async function handleLocationUpdate(arg1, arg2) {
       'IDLE': '💤 System Idle.'
     };
 
-    let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%, 2nd: ${secondBestState} ${Math.round(secondConfidence*100)}%)`;
+    let activityTag = '❓ Unknown';
+    if (currentActivity.automotive) activityTag = '🚗 Automotive';
+    else if (currentActivity.walking) activityTag = '🚶 Walking';
+    else if (currentActivity.stationary) activityTag = '💤 Stationary';
+
+    let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%)\n(Sensors: ${activityTag} c:${currentActivity.confidence || 0})`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     if (stateData.state === 'RETURNING' && !stateData.serverSpotId) {
@@ -371,36 +417,86 @@ export async function handleLocationUpdate(arg1, arg2) {
 
 // ---------------- SENSORS ----------------
 async function startSensors() {
-  Accelerometer.setUpdateInterval(1000);
+  // 🚀 Increase frequency to 10Hz for snappier reaction to movement
+  Accelerometer.setUpdateInterval(100); 
   accelSubscription = Accelerometer.addListener(data => {
-    // Magnitude of acceleration: sqrt(x^2 + y^2 + z^2)
     currentAcceleration = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
+    
+    // ⚡ FAST-PATH: If we see a sudden burst of movement while IDLE, trigger HMM check
+    if (currentAcceleration > 1.6 && isInitialized && getHMMStatus().currentState === 'IDLE') {
+       triggerVirtualUpdate();
+    }
   });
 
-  // Start Motion Activity Tracking with Safety Guard for Expo Go
+  // ⚡ FAST-PATH: Direct Pedometer Listener
+  // This is much faster than the windowed "Motion Activity" classifier
   try {
-    // Check if the native module is actually available
-    if (MotionActivityTracker && typeof MotionActivityTracker.isAuthorized === 'function') {
-      const isAuthorized = await MotionActivityTracker.isAuthorized();
-      if (!isAuthorized) {
-        await MotionActivityTracker.requestAuthorization();
+    const isPedometerAvailable = await Pedometer.isAvailableAsync();
+    if (isPedometerAvailable) {
+      Pedometer.watchStepCount(result => {
+        // Any step is an immediate signal to the HMM
+        if (result.steps > 0 && isInitialized) {
+          console.log(`[ParkDetection] 👣 Step detected! Triggering virtual HMM update.`);
+          currentStepRate = 1.0; // Temporary boost to help HMM jump out of IDLE
+          triggerVirtualUpdate();
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('[ParkDetection] Pedometer watch failed:', e.message);
+  }
+
+  console.log('[ParkDetection] Initializing Motion Activity Tracker...');
+  try {
+    if (MotionActivityTracker) {
+      console.log('[ParkDetection] MotionActivityTracker available. Methods:', Object.keys(MotionActivityTracker));
+      
+      // Robust authorization check
+      if (typeof MotionActivityTracker.getPermissionStatusAsync === 'function') {
+        const authStatus = await MotionActivityTracker.getPermissionStatusAsync();
+        console.log('[ParkDetection] Motion Activity Authorization status:', authStatus);
       }
       
-      await MotionActivityTracker.startActivityUpdates((activity) => {
-        console.log(`[ParkDetection] Motion Activity: automotive=${activity.automotive}, walking=${activity.walking}, stationary=${activity.stationary}`);
-        currentActivity = {
-          automotive: activity.automotive,
-          walking: activity.walking,
-          stationary: activity.stationary,
-          unknown: activity.unknown,
-          confidence: activity.confidence // 0=Low, 1=Medium, 2=High
-        };
-      });
+      console.log('[ParkDetection] Starting Motion Activity updates (via startTracking)...');
+      if (typeof MotionActivityTracker.startTracking === 'function') {
+        // This library uses addMotionStateChangeListener + startTracking
+        if (typeof MotionActivityTracker.addMotionStateChangeListener === 'function') {
+          MotionActivityTracker.addMotionStateChangeListener(async (activity) => {
+            if (activity) {
+              const state = activity.state || 'unknown';
+              const confidence = activity.confidence !== undefined ? activity.confidence : 1;
+              
+              const prevState = currentActivity.state;
+              
+              currentActivity = {
+                state: state,
+                automotive: state === 'automotive',
+                walking: state === 'walking' || state === 'running',
+                stationary: state === 'stationary',
+                unknown: state === 'unknown',
+                confidence: confidence
+              };
+
+              console.log(`[ParkDetection] RECEIVED Activity: state=${state}, conf=${confidence}`);
+
+              // 🚀 TRIGGER VIRTUAL UPDATE ON ACTIVITY CHANGE
+              // If we change state (e.g. Still -> Walk), don't wait for GPS.
+              if (state !== prevState && isInitialized) {
+                console.log(`[ParkDetection] Activity changed from ${prevState} to ${state}.`);
+                triggerVirtualUpdate();
+              }
+            }
+          });
+        }
+        await MotionActivityTracker.startTracking();
+      } else {
+        console.warn('[ParkDetection] startTracking method NOT found on MotionActivityTracker.');
+      }
     } else {
-      console.warn('[ParkDetection] MotionActivityTracker native module not found. Falling back to manual sensor inference.');
+      console.warn('[ParkDetection] MotionActivityTracker native module is null/undefined.');
     }
   } catch (error) {
-    console.error('[ParkDetection] Error starting MotionActivityTracker:', error);
+    console.error('[ParkDetection] CRITICAL Error starting MotionActivityTracker:', error);
   }
 }
 

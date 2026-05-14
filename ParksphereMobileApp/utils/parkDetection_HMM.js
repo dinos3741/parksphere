@@ -222,28 +222,52 @@ function calculatePGR(currentDist, currentX, currentY) {
 function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation, isAway, activity } = context;
 
+  // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
     const hasSteps = context.stepRate >= 0.05;
-    const hasWalkingActivity = activity && activity.walking && (activity.confidence >= 1);
+    // Relaxed: Allow walking if ANY signal exists, even low confidence
+    const hasWalkingActivity = activity && activity.walking;
     if (!hasSteps && !hasWalkingActivity) return false;
+    
+    // Safety: If OS is HIGHLY confident we are stationary or in a car, block walking
+    if (activity && activity.confidence >= 2 && (activity.stationary || activity.automotive)) return false;
   }
   if (to === 'WALKING' && context.speed > 12) return false; 
 
-  if (to === 'DRIVING' && from !== 'DRIVING' && context.stepRate > 0.4 && context.speed < 10) return false;
-  if (to === 'DRIVING' && from === 'IDLE' && context.speed < 15) return false;
+  // 🚗 DRIVING Rules
+  if (to === 'DRIVING' && from !== 'DRIVING') {
+    // 1. Prevent driving if we are clearly walking or stationary (High confidence only)
+    if (activity && activity.confidence >= 2 && (activity.stationary || activity.walking)) return false;
+    
+    // 2. Prevent driving if OS is VERY confident it's NOT automotive (e.g. unknown/handling)
+    if (activity && activity.confidence >= 2 && !activity.automotive) return false;
+
+    // 3. Prevent driving from IDLE unless we have some speed (Reduced threshold for sensitivity)
+    if (from === 'IDLE' && context.speed < 12) return false; 
+    
+    // 4. Prevent driving if we are currently taking steps and speed is low
+    if (context.stepRate > 0.4 && context.speed < 10) return false;
+
+    // 5. Prevent direct jump from WALKING to DRIVING without high speed (anti-jitter)
+    if (from === 'WALKING' && context.speed < 20 && !(activity && activity.automotive)) return false;
+  }
 
   if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
   if (to === 'RETURNING' && !isAway) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
-  if (to === 'RETURNING' && context.dist < 1.5) return false;
+  if (to === 'RETURNING' && context.dist < 1.0) return false;
+  // Safety: If OS is confident we are in a car, we aren't "returning" on foot
+  if (activity && activity.confidence >= 2 && activity.automotive) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
-  if (to === 'IN_CAR' && context.dist > 25) return false; 
-  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 12 && context.deltaRate > 0) return false; 
-  if (to === 'IN_CAR' && context.speed > 7) return false;
-  if (to === 'IN_CAR' && context.stepRate > 1.8) return false;
+  if (to === 'IN_CAR' && context.dist > 35) return false; 
+  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 15 && context.deltaRate > 0.2) return false; 
+  if (to === 'IN_CAR' && context.speed > 10) return false;
+  if (to === 'IN_CAR' && context.stepRate > 2.0) return false;
+  // Safety: If OS is confident we are walking, we aren't "in car"
+  if (activity && activity.confidence >= 2 && activity.walking) return false;
 
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
@@ -285,18 +309,30 @@ function emissionLogProb(state, obs) {
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
-  // 🚀 OS MOTION ACTIVITY BOOST
+  // 🚀 OS MOTION ACTIVITY BOOST (The "70% Trust" Logic)
+  // We trust the OS sensors more than GPS for state recognition.
   if (activity) {
-    const { automotive, walking, stationary, confidence } = activity;
-    const activityWeight = (confidence || 0) + 1.0; // scale 1.0 to 3.0
+    const { automotive, walking, stationary, unknown, confidence } = activity;
+    // confidence: 0=low, 1=medium, 2=high. Map to weight 1.5, 3.0, 6.0
+    const activityWeight = (confidence + 1) * 2; 
 
-    if (state === 'DRIVING' && automotive) logp += (10.0 * activityWeight);
-    if (isWalkingState && walking) logp += (8.0 * activityWeight);
-    if (isStationaryState && stationary) logp += (5.0 * activityWeight);
-    
-    // Penalties for mismatch
-    if (state === 'DRIVING' && walking) logp -= (15.0 * activityWeight);
-    if (isWalkingState && automotive) logp -= (15.0 * activityWeight);
+    if (!unknown) {
+      // Massive boosts for matching state
+      if (state === 'DRIVING' && automotive) logp += (20.0 * activityWeight);
+      if (isWalkingState && walking) logp += (15.0 * activityWeight);
+      if (isStationaryState && stationary) logp += (12.0 * activityWeight);
+      
+      // Massive penalties for mismatch
+      if (state === 'DRIVING' && (walking || stationary)) logp -= (40.0 * activityWeight);
+      if (isWalkingState && (automotive || stationary)) logp -= (30.0 * activityWeight);
+      if (isStationaryState && (automotive || walking)) logp -= (25.0 * activityWeight);
+    } else {
+      // It's UNKNOWN (e.g. user moving the phone).
+      // Ambiguous movement is rarely "Driving" or "Walking" gait.
+      if (state === 'DRIVING') logp -= (15.0 * activityWeight);
+      if (isWalkingState) logp -= (5.0 * activityWeight);
+      if (isStationaryState) logp += (2.0 * activityWeight);
+    }
   }
 
   // SPEED (GPS)
@@ -339,13 +375,14 @@ function emissionLogProb(state, obs) {
   // ACCELERATION (Sensor)
   logp += logGaussian(accel, 1.0, 0.6);
 
-  // 🛡️ STATIONARY GUARD
-  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.05 && !hasSteps;
+  // 🛡️ STATIONARY GUARD (Raw Accelerometer)
+  // If the phone is literally not moving (e.g. on a desk), penalize movement states heavily.
+  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.03 && !hasSteps;
   if (isPhysicallyStill) {
     if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
-      logp -= 10; 
+      logp -= 20; 
     } else {
-      logp += 2;
+      logp += 5; 
     }
   }
 
@@ -399,6 +436,14 @@ function updateBelief(prevBelief, obs, context) {
     if (logVal > maxLog) maxLog = logVal;
   }
 
+  // 🛡️ BELIEF COLLAPSE GUARD
+  if (maxLog === -Infinity) {
+    console.warn('[HMM] Belief collapse detected! All states blocked or 0 probability. Resetting to IDLE.');
+    const reset = {};
+    for (const s of STATES) reset[s] = s === 'IDLE' ? 1 : 0;
+    return reset;
+  }
+
   let sumExp = 0;
   for (const s of STATES) {
     if (logNewBelief[s] === -Infinity) continue;
@@ -409,6 +454,7 @@ function updateBelief(prevBelief, obs, context) {
   const newBelief = {};
   for (const s of STATES) {
     newBelief[s] = logNewBelief[s] === -Infinity ? 0 : Math.exp(logNewBelief[s] - logSumExp);
+    if (isNaN(newBelief[s])) newBelief[s] = 0; // Final NaN defense
   }
   return newBelief;
 }
@@ -419,26 +465,36 @@ function updateBelief(prevBelief, obs, context) {
 export function processLocationHMM(location, parkedLocation, supplemental = {}) {
   // Restore state with 🚀 NaN Quarantine 
   if (supplemental.previousState) currentState = supplemental.previousState;
-  
-  if (supplemental.previousBelief && !isNaN(supplemental.previousBelief['IDLE'])) {
+
+  if (supplemental.previousBelief && !isNaN(supplemental.previousBelief['IDLE']) && supplemental.previousBelief['IDLE'] !== null) {
     belief = supplemental.previousBelief;
   } else {
+    console.log('[HMM] NaN/Missing belief detected in restoration. Resetting.');
     for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   }
 
   if (supplemental.isAway !== undefined) isAway = supplemental.isAway;
   if (supplemental.isReturningIntentLocked !== undefined) isReturningIntentLocked = supplemental.isReturningIntentLocked;
   if (supplemental.minDistDuringReturn !== undefined) minDistDuringReturn = supplemental.minDistDuringReturn;
-  
-  // ==============================
-  // TIME DELTA & TIME-WARP GUARD
-  // ==============================
+
+  // Restore Counters
+  _returnCounter = supplemental.returnCounter || 0;
+  _inCarCounter = supplemental.inCarCounter || 0;
+  _drivingCounter = supplemental.drivingCounter || 0;
+  _walkingCounter = supplemental.walkingCounter || 0;
+  _tripDrivingTime = supplemental.tripDrivingTime || 0;
+
   const now = Date.now();
   let dt = 1;
 
   if (lastTimestamp) {
     dt = (now - lastTimestamp) / 1000;
-    
+
+    // 🚀 dt Guard: Prevent 0 or extremely small dt from causing Infinity/NaN
+    if (dt < 0.05) {
+      dt = 0.05; 
+    }
+
     // 🚀 FIX: The Locker Room Time-Warp Guard
     if (dt > 60) {
       console.log('[HMM] ⚠️ Deep sleep detected (>60s). Resetting Kalman Physics to prevent NaN jump.');
@@ -539,10 +595,26 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   // ⏱️ SECURE TEMPORAL CONFIRMATION
   // ==============================
+  const hasWalkingSignal = obs.activity && obs.activity.walking && obs.activity.confidence >= 1;
+  const hasDrivingSignal = obs.activity && obs.activity.automotive && obs.activity.confidence >= 1;
+  const hasStillSignal = obs.activity && obs.activity.stationary && obs.activity.confidence >= 1;
+
   if (candidate === 'RETURNING') _returnCounter++; else _returnCounter = 0;
   if (candidate === 'IN_CAR') _inCarCounter++; else _inCarCounter = 0;
-  if (candidate === 'WALKING') _walkingCounter++; else _walkingCounter = 0;
-  if (candidate === 'DRIVING') _drivingCounter++; else _drivingCounter = 0;
+  
+  // Resilient Walking Counter
+  if (candidate === 'WALKING' || (hasWalkingSignal && candidateConf > 0.3)) {
+    _walkingCounter++;
+  } else {
+    _walkingCounter = 0;
+  }
+
+  // Resilient Driving Counter
+  if (candidate === 'DRIVING' || (hasDrivingSignal && candidateConf > 0.3)) {
+    _drivingCounter++;
+  } else {
+    _drivingCounter = 0;
+  }
 
   if (['DRIVING', 'IN_CAR', 'STOPPED'].includes(candidate)) {
     _tripDrivingTime += dt; 
@@ -550,10 +622,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   const returnConfirmed = _returnCounter >= 2;
   const inCarConfirmed = _inCarCounter >= 2;
-  const drivingConfirmed = _drivingCounter >= 2;
   
-  const hasWalkingSignal = obs.stepRate > 0.3 || (obs.activity && obs.activity.walking && obs.activity.confidence >= 1);
-  const walkingConfirmed = _walkingCounter >= 3 && (speed > 1.5 || hasWalkingSignal); 
+  // Confirmation thresholds
+  const drivingConfirmed = _drivingCounter >= 2 || (hasDrivingSignal && _drivingCounter >= 1 && speed > 10);
+  const walkingConfirmed = _walkingCounter >= 2 || (hasWalkingSignal && _walkingCounter >= 1); 
 
   // ==============================
   // 🔒 INTENT LOCK LOGIC (RETURNING)
@@ -649,7 +721,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     distToParked: dist,
     deltaRate: stableDeltaRate,
     filteredSpeed: speed,
-    filteredCoords
+    filteredCoords,
+    // Export counters for persistence
+    returnCounter: _returnCounter,
+    inCarCounter: _inCarCounter,
+    drivingCounter: _drivingCounter,
+    walkingCounter: _walkingCounter,
+    tripDrivingTime: _tripDrivingTime
   };
 }
 

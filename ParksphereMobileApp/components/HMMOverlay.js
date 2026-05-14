@@ -5,7 +5,8 @@ const HMMOverlay = () => {
   const [hmmStatus, setHmmStatus] = useState({
     state: 'INITIALIZING',
     bestState: '...',
-    confidence: 0
+    confidence: 0,
+    metrics: {}
   });
 
   const pan = useRef(new Animated.ValueXY({ x: 10, y: 100 })).current;
@@ -34,6 +35,16 @@ const HMMOverlay = () => {
     return () => subscription.remove();
   }, []);
 
+  const getMotionText = () => {
+    const act = hmmStatus.metrics?.motionActivity;
+    if (!act) return '❓ Loading...';
+    if (act.automotive) return `🚗 Auto (${act.confidence})`;
+    if (act.walking) return `🚶 Walk (${act.confidence})`;
+    if (act.stationary) return `💤 Still (${act.confidence})`;
+    if (act.unknown) return `📱 Active (${act.confidence})`;
+    return '❓ Unknown';
+  };
+
   return (
     <Animated.View 
       style={[
@@ -47,7 +58,7 @@ const HMMOverlay = () => {
       <Text style={styles.statusTitle}>HMM Engine</Text>
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
-      <Text style={styles.statusText}>Best: <Text style={styles.statusValue}>{hmmStatus.bestState}</Text></Text>
+      <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
     </Animated.View>
   );
 };
