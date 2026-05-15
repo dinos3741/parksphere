@@ -377,7 +377,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     else if (currentActivity.walking) activityTag = '🚶 Walking';
     else if (currentActivity.stationary) activityTag = '💤 Stationary';
 
-    let debugInfo = `\n(Top: ${bestState} ${Math.round(confidence*100)}%)\n(Sensors: ${activityTag} c:${currentActivity.confidence || 0})`;
+    let debugInfo = ` ${Math.round(confidence * 100)}%`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     if (stateData.state === 'RETURNING' && !stateData.serverSpotId) {

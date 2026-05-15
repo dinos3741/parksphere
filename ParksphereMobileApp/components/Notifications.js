@@ -42,11 +42,6 @@ const Notifications = ({ notifications, onHeightChange }) => {
 
   const scrollViewRef = useRef(null);
 
-  useEffect(() => {
-    // Scroll to bottom when notifications change
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [notifications]);
-
   return (
     <Animated.View style={[styles.notificationArea, { height: animatedHeight }]}>
       <View style={styles.resizeHandle} {...panResponder.panHandlers}>
@@ -56,7 +51,7 @@ const Notifications = ({ notifications, onHeightChange }) => {
         ref={scrollViewRef}
         style={styles.scrollViewContent} 
         contentContainerStyle={styles.scrollContent}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: false })}
       >
         {notifications.map((notification, index) => (
           <Text key={index} style={styles.notificationText}>
@@ -113,4 +108,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Notifications;
+export default React.memo(Notifications);

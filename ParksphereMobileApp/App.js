@@ -28,10 +28,6 @@ import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
 import { startParkDetection, stopParkDetection, resetParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
 import * as ExpoNotifications from 'expo-notifications';
-import * as SplashScreen from 'expo-splash-screen';
-
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -140,9 +136,6 @@ export default function App() {
         console.log('[App.js] Resetting park detection state on initial load.');
       } catch (e) {
         console.warn('[App.js] Initialization error:', e);
-      } finally {
-        // Hide splash screen once everything is ready
-        await SplashScreen.hideAsync();
       }
     }
     prepare();
@@ -356,7 +349,7 @@ export default function App() {
     }
   };
 
-  const handleFabPress = () => {
+  const handleFabPress = useCallback(() => {
     if (acceptedSpot) {
       if (!arrivalConfirmed) {
         handleManualArrivalClick();
@@ -372,7 +365,7 @@ export default function App() {
       setIsAddingSpot(true);
       setLeavingModalVisible(false); // Close leaving modal if open
     }
-  };
+  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -990,9 +983,13 @@ export default function App() {
     }
   };
 
+const MemoizedHomeScreen = React.memo(HomeScreen);
+
+  const memoizedParkingSpots = useMemo(() => parkingSpots, [parkingSpots]);
+
   const WrappedHomeScreen = useMemo(() => (props) => {
-    return <HomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={parkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} />;
-  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress]);
+    return <MemoizedHomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={memoizedParkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} />;
+  }, [userLocation, locationPermissionGranted, memoizedParkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress]);
 
   // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {
@@ -1079,13 +1076,14 @@ export default function App() {
         {isLoggedIn && currentUser ? (
           <View style={styles.fullContainer}>
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => setShowAboutScreen(true)}>
+              <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
                 <Image source={require('./assets/images/logo.png')} style={styles.logo} />
               </TouchableOpacity>
-              <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={styles.titleContainer}>
                 <Text style={styles.appName}>Parksphere</Text>
               </View>
             </View>
+            
             <Tab.Navigator
               screenListeners={{
                 state: (e) => {
@@ -1249,17 +1247,26 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     padding: 10,
     paddingHorizontal: 20,
     backgroundColor: '#512da8',
     paddingTop: 50,
+    height: 100,
+  },
+  headerLeft: {
+    zIndex: 1,
+  },
+  titleContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+    pointerEvents: 'none',
   },
   logo: {
     width: 44,
     height: 44,
     borderRadius: 28,
-    marginRight: 10,
   },
   appName: {
     fontFamily: 'AdventPro-SemiBold',
