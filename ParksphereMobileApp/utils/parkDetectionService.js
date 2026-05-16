@@ -190,14 +190,22 @@ function notify(message) {
   DeviceEventEmitter.emit('parkDetectionUpdate', { message });
 }
 
+let lastVirtualUpdate = 0;
+
 async function triggerVirtualUpdate() {
   if (!isInitialized) return;
+  
+  const now = Date.now();
+  // 🚀 FIX: 2-second throttle to prevent AsyncStorage/Bridge flooding
+  if (now - lastVirtualUpdate < 2000) return; 
+  lastVirtualUpdate = now;
+
   try {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
     const stateData = saved ? JSON.parse(saved) : {};
     
     if (stateData.lastLocation) {
-      console.log('[ParkDetection] Triggering virtual HMM update from sensor fast-path.');
+      console.log('[ParkDetection] ⚡ Triggering virtual HMM update from sensor fast-path.');
       await handleLocationUpdate(stateData, stateData.lastLocation);
     }
   } catch (e) {
@@ -258,17 +266,14 @@ export async function handleLocationUpdate(arg1, arg2) {
   
   let stepRate = 0;
   if (!location.isFromSimulator) {
-    // 🚀 HYBRID STEP LOGIC:
-    // If we just detected a step via "watchStepCount" (Fast-Path), use the boosted rate.
+    // 🚀 FIX: Read instantly from the cache, never block the TaskManager loop
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
     
     if (timeSinceLastStep < 6000) {
-      // Use boosted rate within 6s of a physical step detection
       stepRate = Math.max(1.2, currentStepRate); 
       console.log(`[ParkDetection] 👟 Fast-Path Step Active: ${stepRate.toFixed(2)}`);
     } else {
-      stepRate = await getRecentStepRate();
-      currentStepRate = stepRate; 
+      stepRate = currentStepRate; // Instant read!
     }
   } else {
     stepRate = currentStepRate;
@@ -341,6 +346,12 @@ export async function handleLocationUpdate(arg1, arg2) {
   }
 
   if (clearParkingEvent) {
+    // 🚀 FIX: Don't orphan the server spot!
+    if (stateData.serverSpotId) {
+      await updateSpotStatus(stateData.serverSpotId, 'free');
+      stateData.serverSpotId = null;
+    }
+
     stateData.parkedLocation = null;
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
@@ -348,7 +359,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     stateData._loggedParkedLoc = false;
     notify('🏁 Spot cleared. Ready for next parking.');
   }
-
+  
   if (parkedEvent) {
     notify('🅿️ Parking confirmed!');
     stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
