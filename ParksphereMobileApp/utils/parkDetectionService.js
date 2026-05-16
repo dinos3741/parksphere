@@ -43,6 +43,7 @@ const withTimeout = (promise, ms, name = 'unnamed') => {
 let currentAcceleration = 1.0;
 let currentStepRate = 0;
 let lastStepTimestamp = 0; // 🚀 Added to track Fast-Path steps
+let lastReportedSteps = 0; // 🚀 ADD THIS NEW VARIABLE
 let currentActivity = { state: 'unknown', automotive: false, walking: false, stationary: false, unknown: true, confidence: 0 };
 let accelSubscription = null;
 let pedometerSubscription = null; // 🚀 Added to keep listener alive
@@ -359,7 +360,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     stateData._loggedParkedLoc = false;
     notify('🏁 Spot cleared. Ready for next parking.');
   }
-  
+
   if (parkedEvent) {
     notify('🅿️ Parking confirmed!');
     stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
@@ -458,12 +459,25 @@ async function startSensors() {
     const isPedometerAvailable = await Pedometer.isAvailableAsync();
     if (isPedometerAvailable) {
       console.log('[ParkDetection] Starting Pedometer Watch...');
+      lastReportedSteps = 0; // Reset counter on start
+      
       pedometerSubscription = Pedometer.watchStepCount(result => {
-        // result.steps is the count since watch started
-        if (result.steps > 0 && isInitialized) {
+        // 🚀 FIX: The Foreground-Resume Guard
+        // We only trigger if the cumulative step count actually went UP.
+        // This ignores React Native's flush/resume pings when the phone is stationary.
+        if (result.steps > lastReportedSteps && isInitialized) {
+          lastReportedSteps = result.steps;
           console.log(`[ParkDetection] 👣 PHYSICAL STEP DETECTED! Total since start: ${result.steps}`);
-          lastStepTimestamp = Date.now(); // 🚀 Record the timestamp
+          lastStepTimestamp = Date.now(); 
           triggerVirtualUpdate();
+        } 
+        // Catch OS resets (if Expo resets the watcher count to 0 in the background)
+        else if (result.steps < lastReportedSteps) {
+          lastReportedSteps = result.steps;
+          if (result.steps > 0 && isInitialized) {
+            lastStepTimestamp = Date.now();
+            triggerVirtualUpdate();
+          }
         }
       });
     }
