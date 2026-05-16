@@ -216,11 +216,12 @@ function calculatePGR(currentDist, currentX, currentY) {
   return { pgr, trend, consistency };
 }
 
+
 // ==============================
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
-  // 🛡️ ESCAPE HATCH: Always allow staying in the current state to prevent collapse
+  // 🛡️ ESCAPE HATCH: Always allow staying in the current state
   if (from === to) return true;
 
   const { hasParkedLocation, isAway, activity } = context;
@@ -228,30 +229,16 @@ function isTransitionAllowed(from, to, context) {
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
     const hasSteps = context.stepRate >= 0.05;
-    // Relaxed: Allow walking if ANY signal exists, even low confidence
     const hasWalkingActivity = activity && activity.walking;
     if (!hasSteps && !hasWalkingActivity) return false;
-    
-    // Safety: If OS is HIGHLY confident we are stationary or in a car, block walking
-    if (activity && activity.confidence >= 2 && (activity.stationary || activity.automotive)) return false;
   }
   if (to === 'WALKING' && context.speed > 12) return false; 
 
   // 🚗 DRIVING Rules
   if (to === 'DRIVING' && from !== 'DRIVING') {
-    // 1. Prevent driving if we are clearly walking or stationary (High confidence only)
-    if (activity && activity.confidence >= 2 && (activity.stationary || activity.walking)) return false;
-    
-    // 2. Prevent driving if OS is VERY confident it's NOT automotive (e.g. unknown/handling)
-    if (activity && activity.confidence >= 2 && !activity.automotive) return false;
-
-    // 3. Prevent driving from IDLE unless we have some speed (Reduced threshold for sensitivity)
     if (from === 'IDLE' && context.speed < 12) return false; 
-    
-    // 4. Prevent driving if we are currently taking steps and speed is low
     if (context.stepRate > 0.4 && context.speed < 10) return false;
-
-    // 5. Prevent direct jump from WALKING to DRIVING without high speed (anti-jitter)
+    // 🚀 We removed the hard OS overrides here. If speed is high enough, let it drive!
     if (from === 'WALKING' && context.speed < 20 && !(activity && activity.automotive)) return false;
   }
 
@@ -261,16 +248,12 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && !isAway) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
   if (to === 'RETURNING' && context.dist < 1.0) return false;
-  // Safety: If OS is confident we are in a car, we aren't "returning" on foot
-  if (activity && activity.confidence >= 2 && activity.automotive) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
   if (to === 'IN_CAR' && context.dist > 35) return false; 
   if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 15 && context.deltaRate > 0.2) return false; 
   if (to === 'IN_CAR' && context.speed > 10) return false;
   if (to === 'IN_CAR' && context.stepRate > 2.0) return false;
-  // Safety: If OS is confident we are walking, we aren't "in car"
-  if (activity && activity.confidence >= 2 && activity.walking) return false;
 
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
@@ -279,6 +262,8 @@ function isTransitionAllowed(from, to, context) {
 
   return true;
 }
+
+
 
 // ==============================
 // GAUSSIAN / SIGMOID
@@ -312,23 +297,24 @@ function emissionLogProb(state, obs) {
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
-  // 🚀 OS MOTION ACTIVITY BOOST (The "70% Trust" Logic)
+  // 🚀 OS MOTION ACTIVITY BOOST (Balanced "Advisor" Logic)
   if (activity) {
     const { automotive, walking, stationary, unknown, confidence } = activity;
-    // Map confidence: 0=low (0.5), 1=medium (3.0), 2=high (8.0)
-    const activityWeight = confidence === 0 ? 0.5 : (confidence === 1 ? 3.0 : 8.0); 
+    
+    // 🚀 Scaled down weights: 0.5, 1.0, 2.0
+    const activityWeight = confidence === 0 ? 0.5 : (confidence === 1 ? 1.0 : 2.0); 
 
     if (!unknown) {
-      // Massive boosts for matching state (only if we trust the OS)
-      if (state === 'DRIVING' && automotive) logp += (25.0 * activityWeight);
-      if (isWalkingState && walking) logp += (20.0 * activityWeight);
-      if (isStationaryState && stationary) logp += (12.0 * activityWeight);
+      // Balanced boosts (Maxes out around +10)
+      if (state === 'DRIVING' && automotive) logp += (5.0 * activityWeight);
+      if (isWalkingState && walking) logp += (5.0 * activityWeight);
+      if (isStationaryState && stationary) logp += (3.0 * activityWeight);
       
-      // Massive penalties for mismatch (ONLY IF CONFIDENCE >= 1)
+      // Balanced penalties (Maxes out around -16)
       if (confidence >= 1) {
-        if (state === 'DRIVING' && (walking || stationary)) logp -= (50.0 * activityWeight);
-        if (isWalkingState && (automotive || stationary)) logp -= (40.0 * activityWeight);
-        if (isStationaryState && (automotive || walking)) logp -= (30.0 * activityWeight);
+        if (state === 'DRIVING' && (walking || stationary)) logp -= (8.0 * activityWeight);
+        if (isWalkingState && (automotive || stationary)) logp -= (8.0 * activityWeight);
+        if (isStationaryState && (automotive || walking)) logp -= (8.0 * activityWeight);
       }
     }
   }
@@ -614,9 +600,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     _drivingCounter = 0;
   }
 
-  if (['DRIVING', 'IN_CAR', 'STOPPED'].includes(candidate)) {
+  // 🚀 FIX: The Phantom Trip Guard
+  // Only accumulate trip time if we are actually moving in a vehicle.
+  // This prevents the timer from filling up while drinking coffee next to the parked car!
+  if (candidate === 'DRIVING' || (candidate === 'IN_CAR' && speed > 5)) {
     _tripDrivingTime += dt; 
   }
+  // Note: We intentionally DO NOT reset the timer to 0 here. 
+  // It naturally pauses at red lights, and only resets to 0 when a true parking event occurs.
 
   const returnConfirmed = _returnCounter >= 2;
   const inCarConfirmed = _inCarCounter >= 2;
