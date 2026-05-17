@@ -28,6 +28,8 @@ import AboutScreen from './components/AboutScreen';
 import RequestsScreen from './components/RequestsScreen';
 import { startParkDetection, stopParkDetection, resetParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
 import * as ExpoNotifications from 'expo-notifications';
+import { useLocationTracking } from './hooks/useLocationTracking';
+import { useSocketConnection } from './hooks/useSocketConnection';
 
 import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
@@ -100,7 +102,6 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
-  const socket = useRef(null);
   const mapViewRef = useRef(null);
   const activeChatPartnerRef = useRef(null); // Track the user currently being chatted with
 
@@ -179,367 +180,24 @@ export default function App() {
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
   const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
   const [parkedLocation, setParkedLocation] = useState(null); // New state for parked location
-
-  // Notification and Auto-Detection setup
-  useEffect(() => {
-    // 1. Register listener FIRST
-    const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
-      console.log('App.js: Received park detection update:', data.message);
-      addNotification(data.message);
-      if (data.parkedLocation) {
-        setParkedLocation(data.parkedLocation);
-      } else if (data.clearParkedLocation) {
-        setParkedLocation(null);
-      }
-    });
-
-    const setupNotificationsAndDetection = async () => {
-      // 2. Request Notification Permissions
-      const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
-      if (existingStatus !== 'granted') {
-        await ExpoNotifications.requestPermissionsAsync();
-      }
-      
-      // 3. Initial check for Auto-Detection
-      if (currentUser) {
-        const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
-        if (currentUser.auto_detect || autoDetectionEnabled === 'true') {
-          if (currentUser.auto_detect) {
-            await AsyncStorage.setItem('autoDetectionEnabled', 'true');
-          }
-          await startParkDetection();
-        }
-      }
-
-      // 4. Load initial parked location from AsyncStorage
-      const saved = await AsyncStorage.getItem('PARK_STATE');
-      if (saved) {
-        const stateData = JSON.parse(saved);
-        if (stateData.parkedLocation) {
-          setParkedLocation(stateData.parkedLocation);
-        }
-      }
-    };
-    
-    let foregroundSubscription = null;
-    const setupForegroundFallback = async () => {
-       const storedEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
-       const isEnabled = (storedEnabled === 'true') || (currentUser && currentUser.auto_detect);
-       
-       if (isEnabled) {
-         foregroundSubscription = await Location.watchPositionAsync({
-           accuracy: Location.Accuracy.High,
-           distanceInterval: 1,
-           timeInterval: 2000
-         }, async (location) => {
-           await handleLocationUpdate(location);
-         });
-         console.log('App.js: Foreground location fallback started for Expo Go');
-       }
-    };
-
-    if (isLoggedIn && currentUser) {
-      const initializeAll = async () => {
-        await setupNotificationsAndDetection();
-        await setupForegroundFallback();
-      };
-      initializeAll();
-    }
-
-    return () => {
-      if (foregroundSubscription) {
-        foregroundSubscription.remove();
-      }
-      detectionSubscription.remove();
-      stopParkDetection(); // Ensure detection stops when unmounting or user changes
-    };
-  }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect]);
-
-  // Update total unread count whenever unreadConversations changes
-  useEffect(() => {
-    const currentTotalUnread = Object.keys(unreadConversations).length;
-    setTotalUnreadMessagesCount(currentTotalUnread);
-  }, [unreadConversations]);
-
-  // Function to mark a specific conversation as read
-  const handleMarkAsRead = useCallback((otherUserId) => {
-    setUnreadConversations(prev => {
-      const newState = { ...prev };
-      if (newState[otherUserId]) {
-        delete newState[otherUserId];
-      }
-      return newState;
-    });
-  }, []);
-
-  // Function to mark a specific conversation as unread
-  const handleMarkAsUnread = useCallback((otherUserId) => {
-    setUnreadConversations(prev => {
-      return { ...prev, [otherUserId]: true };
-    });
-  }, []);
-
-  const handleOpenChat = (user) => {
-    // Navigate to the Chat tab and pass the user as a parameter
-    navigationRef.current?.navigate('Chat', { recipient: user });
-    setShowRequesterDetailsModal(false); // Close the modal after opening chat
-    setSelectedRequester(null); // Clear the selected requester
-  };
-
-  const handleRate = async (rating) => {
-    if (!userToRate) return;
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await fetch(`${serverUrl}/api/users/rate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to submit rating');
-      }
-      addNotification('Rating submitted successfully!', 'green');
-      setShowRatingModal(false);
-      setUserToRate(null);
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-      addNotification('Failed to submit rating', 'red');
-    }
-  };
-
-  const handleConfirmTransaction = () => {
-    if (socket.current && arrivalConfirmationData) {
-      socket.current.emit('confirm-transaction', {
-        spotId: arrivalConfirmationData.spotId,
-        requesterId: arrivalConfirmationData.requesterId,
-      });
-      setArrivalConfirmationModalOpen(false);
-      addNotification('Arrival confirmed!', 'green');
-      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
-      setShowRatingModal(true);
-      setArrivalConfirmationData(null);
-    }
-  };
-
-
-  const handleCloseArrivalModal = () => {
-    setArrivalConfirmationModalOpen(false);
-    setArrivalConfirmationData(null);
-  };
-
-  const handleNotIdentified = () => {
-    if (arrivalConfirmationData) {
-      console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
-      socket.current.emit('reject-arrival', {
-        spotId: arrivalConfirmationData.spotId,
-        requesterId: arrivalConfirmationData.requesterId,
-      });
-      addNotification(`You have indicated that the requester was not identified.`, 'default');
-    }
-    setArrivalConfirmationModalOpen(false);
-    setArrivalConfirmationData(null);
-  };
-
-  const handleManualArrivalClick = () => {
-    if (acceptedSpot && userLocation) {
-      const spotLat = parseFloat(acceptedSpot.latitude);
-      const spotLon = parseFloat(acceptedSpot.longitude);
-      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
-      
-      const distanceThreshold = 100; // 100 meters
-
-      if (distance > distanceThreshold) {
-        Alert.alert(
-          'Too Far',
-          `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`
-        );
-        return;
-      }
-      
-      setRequesterArrivalModalOpen(true);
-    } else {
-      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
-    }
-  };
-
-  const handleFabPress = useCallback(() => {
-    if (acceptedSpot) {
-      if (!arrivalConfirmed) {
-        handleManualArrivalClick();
-      } else {
-        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
-      }
-    } else if (isAddingSpot) {
-      // If currently adding a spot, cancel it
-      setIsAddingSpot(false);
-      setNewSpotCoordinates(null);
-    } else {
-      // Otherwise, start adding a spot
-      setIsAddingSpot(true);
-      setLeavingModalVisible(false); // Close leaving modal if open
-    }
-  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchUserData();
-  };
-
-  const handleProfileUpdate = (shouldClose = true) => {
-    fetchUserData();
-    if (shouldClose === true) {
-      setIsEditingProfile(false); // Go back to details view after update
-    }
-  };
-
-  // Map related states
-  const [userLocation, setUserLocation] = useState(null);
-  const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
-  const [parkingSpots, setParkingSpots] = useState([]); // New state for parking spots
-  const [selectedSpot, setSelectedSpot] = useState(null);
-  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
   const [acceptedSpot, setAcceptedSpot] = useState(null); // New state for accepted spot
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); // To prevent multiple alerts
+  const [parkingSpots, setParkingSpots] = useState([]); // Restore missing parkingSpots state
+  const [selectedSpot, setSelectedSpot] = useState(null); // Restore missing selectedSpot state
+  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false); // Restore missing isSpotDetailsVisible state
+
+  const { userLocation, setUserLocation, locationPermissionGranted, getDistance } = useLocationTracking(
+    acceptedSpot, 
+    arrivalConfirmed,
+    () => {
+      setArrivalConfirmed(true);
+      setRequesterArrivalModalOpen(true);
+    }
+  );
 
   const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
 
-  // Helper function to calculate distance between two coordinates (Haversine formula)
-  const getDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // metres
-    const φ1 = lat1 * Math.PI / 180; // φ, λ in radians
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    const d = R * c; // in metres
-    return d;
-  };
-
-  // Check for existing token on app start
-  useEffect(() => {
-    const loadToken = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem('userToken');
-        const storedUserId = await AsyncStorage.getItem('userId');
-        const storedUsername = await AsyncStorage.getItem('username');
-        if (storedToken && storedUserId && storedUsername) {
-          setToken(storedToken);
-          setUserId(parseInt(storedUserId, 10));
-          setCurrentUsername(storedUsername);
-          setIsLoggedIn(true);
-          setMessage('Logged in! Fetch your profile data.');
-        }
-      } catch (error) {
-        console.error('Failed to load token from AsyncStorage', error);
-      }
-    };
-    loadToken();
-  }, []);
-
-  const fetchUserData = useCallback(async () => {
-    if (isLoggedIn && userId && token) {
-      try {
-        const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUser(data);
-        } else if (response.status === 401 || response.status === 403) {
-          console.error('Authentication failed when fetching user data. Logging out...', response.status);
-          await handleLogout();
-        } else {
-          console.error('Failed to fetch user data', response.status);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setIsRefreshing(false);
-      }
-    }
-  }, [isLoggedIn, userId, token, serverUrl]);
-
-  const handleLogout = useCallback(async () => {
-    try {
-      if (socket.current && userId) {
-        socket.current.emit('unregister', userId);
-      }
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userId');
-      await AsyncStorage.removeItem('username');
-      setToken(null);
-      setUserId(null);
-      setCurrentUsername(null);
-      setCurrentUser(null);
-      setIsLoggedIn(false);
-      setMessage('Logged out. Please log in.');
-      setNotifications([]); // Clear notifications on logout
-      setTotalUnreadMessagesCount(0); // Reset unread count on logout
-      
-      // Stop park detection on logout
-      await stopParkDetection();
-    } catch (error) {
-      console.error('Error during logout:', error);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (isLoggedIn && token && userId && currentUsername) {
-      // All authentication details are present, proceed with setup
-
-      // 1. Fetch initial data
-      fetchUserData();
-
-      const fetchParkingSpots = async () => {
-        try {
-          const response = await fetch(`${serverUrl}/api/parkingspots`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
-            setParkingSpots(transformedData);
-          } else if (response.status === 401 || response.status === 403) {
-            console.error('Authentication failed when fetching spots. Logging out...', response.status);
-            await handleLogout();
-          } else {
-            console.error('Failed to fetch parking spots:', response.status, response.statusText);
-          }
-        } catch (error) {
-          console.error('Error fetching parking spots:', error);
-        }
-      };
-      fetchParkingSpots();
-
-      // 2. Setup Socket.IO connection
-      if (!socket.current || !socket.current.connected) {
-        const newSocket = io(serverUrl, { transports: ['websocket'] });
-        socket.current = newSocket;
-
-        newSocket.on('connect', () => {
-          newSocket.emit('register', { userId, username: currentUsername });
-        });
-
-        newSocket.on('disconnect', () => {
-          console.log('Mobile App: Disconnected from Socket.IO server.');
-        });
-
-        newSocket.on('connect_error', (error) => {
-          console.error('Mobile App: Socket.IO connection error:', error.message);
-        });
-
+  const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token, (newSocket) => {
         newSocket.on('newParkingSpot', (newSpot) => {
           console.log('Mobile App: newSpot received:', newSpot);
           const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
@@ -639,56 +297,134 @@ export default function App() {
             }
           }
         });
-      }
-    } else {
-      // User is logged out, perform cleanup
-      if (socket.current) {
-        console.log('Mobile App: Disconnecting socket due to logout.');
-        socket.current.disconnect();
-        socket.current = null;
-      }
-      setParkingSpots([]);
-      setCurrentUser(null);
-      setAcceptedSpot(null); // Clear accepted spot on logout
-    }
+  });
 
-    // Cleanup function for the effect
-    return () => {
-      if (socket.current) {
-        console.log('Mobile App: Cleaning up Socket.IO connection on effect cleanup.');
-        socket.current.disconnect();
-        socket.current = null;
+
+  // Check for existing token on app start
+  useEffect(() => {
+    const loadToken = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem('userToken');
+        const storedUserId = await AsyncStorage.getItem('userId');
+        const storedUsername = await AsyncStorage.getItem('username');
+        if (storedToken && storedUserId && storedUsername) {
+          setToken(storedToken);
+          setUserId(parseInt(storedUserId, 10));
+          setCurrentUsername(storedUsername);
+          setIsLoggedIn(true);
+          setMessage('Logged in! Fetch your profile data.');
+        }
+      } catch (error) {
+        console.error('Failed to load token from AsyncStorage', error);
       }
     };
-  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout, playSoundMessage, handleMarkAsUnread]);
-
-
-  // Request location permissions and get initial location
-  useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Permission to access location was denied. Map will show a default location.');
-        setLocationPermissionGranted(false);
-        setUserLocation({ // Default to London
-          latitude: 51.505,
-          longitude: -0.09,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-        return;
-      }
-
-      setLocationPermissionGranted(true);
-      let location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-    })();
+    loadToken();
   }, []);
+
+  const fetchUserData = useCallback(async () => {
+    if (isLoggedIn && userId && token) {
+      try {
+        const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data);
+        } else if (response.status === 401 || response.status === 403) {
+          console.error('Authentication failed when fetching user data. Logging out...', response.status);
+          await handleLogout();
+        } else {
+          console.error('Failed to fetch user data', response.status);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    }
+  }, [isLoggedIn, userId, token, serverUrl]);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      if (socket.current && userId) {
+        socket.current.emit('unregister', userId);
+      }
+      await AsyncStorage.removeItem('userToken');
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('username');
+      setToken(null);
+      setUserId(null);
+      setCurrentUsername(null);
+      setCurrentUser(null);
+      setIsLoggedIn(false);
+      setMessage('Logged out. Please log in.');
+      setNotifications([]); // Clear notifications on logout
+      setTotalUnreadMessagesCount(0); // Reset unread count on logout
+      
+      // Stop park detection on logout
+      await stopParkDetection();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  }, [userId]);
+
+  // Update total unread count whenever unreadConversations changes
+  useEffect(() => {
+    const currentTotalUnread = Object.keys(unreadConversations).length;
+    setTotalUnreadMessagesCount(currentTotalUnread);
+  }, [unreadConversations]);
+
+  // Function to mark a specific conversation as read
+  const handleMarkAsRead = useCallback((otherUserId) => {
+    setUnreadConversations(prev => {
+      const newState = { ...prev };
+      if (newState[otherUserId]) {
+        delete newState[otherUserId];
+      }
+      return newState;
+    });
+  }, []);
+
+  // Function to mark a specific conversation as unread
+  const handleMarkAsUnread = useCallback((otherUserId) => {
+    setUnreadConversations(prev => {
+      return { ...prev, [otherUserId]: true };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn && token && userId && currentUsername) {
+      // All authentication details are present, proceed with setup
+
+      // 1. Fetch initial data
+      fetchUserData();
+
+      const fetchParkingSpots = async () => {
+        try {
+          const response = await fetch(`${serverUrl}/api/parkingspots`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
+            setParkingSpots(transformedData);
+          } else if (response.status === 401 || response.status === 403) {
+            console.error('Authentication failed when fetching spots. Logging out...', response.status);
+            await handleLogout();
+          } else {
+            console.error('Failed to fetch parking spots:', response.status, response.statusText);
+          }
+        } catch (error) {
+          console.error('Error fetching parking spots:', error);
+        }
+      };
+      fetchParkingSpots();
+    }
+  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout]);
 
   // Function to handle arrival confirmation
   const handleConfirmArrival = () => {
@@ -705,45 +441,6 @@ export default function App() {
     }
   };
 
-  // Effect for continuous location tracking and arrival confirmation
-  useEffect(() => {
-    let locationSubscription;
-
-    const setupLocationTracking = async () => {
-      if (locationPermissionGranted && acceptedSpot && !arrivalConfirmed) {
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            distanceInterval: 5, // Update every 5 meters
-          },
-          (newLocation) => {
-            const { latitude, longitude } = newLocation.coords;
-            setUserLocation({ ...newLocation.coords, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
-
-            const spotLat = parseFloat(acceptedSpot.latitude);
-            const spotLon = parseFloat(acceptedSpot.longitude);
-            const distance = getDistance(latitude, longitude, spotLat, spotLon);
-
-            console.log(`Distance to spot ${acceptedSpot.id}: ${distance.toFixed(2)} meters`);
-
-            if (distance <= 10 && !arrivalConfirmed) { // Within 10 meters
-              setArrivalConfirmed(true); // Set to true to prevent multiple alerts
-              setRequesterArrivalModalOpen(true);
-            }
-          }
-        );
-      }
-    };
-
-    setupLocationTracking();
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed, userId]); // Dependencies
-
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -759,6 +456,122 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [parkingSpots]);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUserData();
+  };
+
+  const handleProfileUpdate = (shouldClose = true) => {
+    fetchUserData();
+    if (shouldClose === true) {
+      setIsEditingProfile(false); // Go back to details view after update
+    }
+  };
+
+  const handleManualArrivalClick = () => {
+    if (acceptedSpot && userLocation) {
+      const spotLat = parseFloat(acceptedSpot.latitude);
+      const spotLon = parseFloat(acceptedSpot.longitude);
+      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
+      
+      const distanceThreshold = 100; // 100 meters
+
+      if (distance > distanceThreshold) {
+        Alert.alert(
+          'Too Far',
+          `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`
+        );
+        return;
+      }
+      
+      setRequesterArrivalModalOpen(true);
+    } else {
+      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
+    }
+  };
+
+  const handleFabPress = useCallback(() => {
+    if (acceptedSpot) {
+      if (!arrivalConfirmed) {
+        handleManualArrivalClick();
+      } else {
+        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
+      }
+    } else if (isAddingSpot) {
+      // If currently adding a spot, cancel it
+      setIsAddingSpot(false);
+      setNewSpotCoordinates(null);
+    } else {
+      // Otherwise, start adding a spot
+      setIsAddingSpot(true);
+      setLeavingModalVisible(false); // Close leaving modal if open
+    }
+  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
+
+  const handleOpenChat = (user) => {
+    // Navigate to the Chat tab and pass the user as a parameter
+    navigationRef.current?.navigate('Chat', { recipient: user });
+    setShowRequesterDetailsModal(false); // Close the modal after opening chat
+    setSelectedRequester(null); // Clear the selected requester
+  };
+
+  const handleRate = async (rating) => {
+    if (!userToRate) return;
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to submit rating');
+      }
+      addNotification('Rating submitted successfully!', 'green');
+      setShowRatingModal(false);
+      setUserToRate(null);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      addNotification('Failed to submit rating', 'red');
+    }
+  };
+
+  const handleConfirmTransaction = () => {
+    if (socket.current && arrivalConfirmationData) {
+      socket.current.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      addNotification('Arrival confirmed!', 'green');
+      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+      setShowRatingModal(true);
+      setArrivalConfirmationData(null);
+    }
+  };
+
+
+  const handleCloseArrivalModal = () => {
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const handleNotIdentified = () => {
+    if (arrivalConfirmationData) {
+      console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
+      socket.current.emit('reject-arrival', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      addNotification(`You have indicated that the requester was not identified.`, 'default');
+    }
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
 
   const handleLogin = (data) => {
     setToken(data.token);
