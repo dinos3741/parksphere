@@ -85,37 +85,23 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isAddingSpot, setIsAddingSpot] = useState(false); 
-  const [newSpotCoordinates, setNewSpotCoordinates] = useState(null); 
-  const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); 
-  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); 
-  const [spotToEdit, setSpotToEdit] = useState(null); 
   const [spotRequests, setSpotRequests] = useState([]);
   const [acceptedRequest, setAcceptedRequest] = useState(null);
   const [hasNewRequests, setHasNewRequests] = useState(false);
-  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
-  const [isRequesterArrivalModalOpen, setRequesterArrivalModalOpen] = useState(false);
-  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [userToRate, setUserToRate] = useState(null);
   const navigationRef = useNavigationContainerRef(); 
-  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); 
-  const [selectedRequester, setSelectedRequester] = useState(null); 
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); 
   const [unreadConversations, setUnreadConversations] = useState({}); 
   const [parkedLocation, setParkedLocation] = useState(null); 
   const [acceptedSpot, setAcceptedSpot] = useState(null); 
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); 
   const [parkingSpots, setParkingSpots] = useState([]); 
-  const [selectedSpot, setSelectedSpot] = useState(null); 
-  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false); 
 
   const { userLocation, setUserLocation, locationPermissionGranted, getDistance } = useLocationTracking(
     acceptedSpot, 
     arrivalConfirmed,
     () => {
       setArrivalConfirmed(true);
-      setRequesterArrivalModalOpen(true);
+      DeviceEventEmitter.emit('proximityArrival');
     }
   );
 
@@ -171,29 +157,7 @@ export default function App() {
       }
     });
 
-    newSocket.on('requesterArrived', (data) => {
-      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-      addNotification(message, 'default');
-      playSoundArrived();
-      setArrivalConfirmationData(data);
-      setArrivalConfirmationModalOpen(true);
-    });
-
-    newSocket.on('transactionComplete', (data) => {
-      Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
-      addNotification(data.message, 'green');
-      setAcceptedSpot(null);
-      setArrivalConfirmed(false);
-      if (data.ownerId && data.ownerUsername) {
-        setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
-        setShowRatingModal(true);
-      }
-    });
-
-    newSocket.on('arrivalRejected', (data) => {
-      Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
-      setArrivalConfirmed(false); 
-    });
+    // requesterArrived, transactionComplete, and arrivalRejected listeners moved to HomeScreen.js
 
     newSocket.on('privateMessage', (message) => {
       if (message.to === userId && message.from !== userId) {
@@ -373,20 +337,6 @@ export default function App() {
       fetchParkingSpots();
     }
   }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout]);
-
-  const handleConfirmArrival = () => {
-    if (socket.current && acceptedSpot && userId) {
-      socket.current.emit('requester-arrived', {
-        spotId: acceptedSpot.id,
-        requesterId: userId,
-        requesterUsername: currentUsername,
-      });
-      Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
-      setArrivalConfirmed(true); 
-      setSpotDetailsVisible(false); 
-      setRequesterArrivalModalOpen(false); 
-    }
-  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -619,42 +569,8 @@ export default function App() {
     }
   };
 
-  const handleManualArrivalClick = () => {
-    if (acceptedSpot && userLocation) {
-      const spotLat = parseFloat(acceptedSpot.latitude);
-      const spotLon = parseFloat(acceptedSpot.longitude);
-      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
-      const distanceThreshold = 100; 
-      if (distance > distanceThreshold) {
-        Alert.alert('Too Far', `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`);
-        return;
-      }
-      setRequesterArrivalModalOpen(true);
-    } else {
-      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
-    }
-  };
-
-  const handleFabPress = useCallback(() => {
-    if (acceptedSpot) {
-      if (!arrivalConfirmed) {
-        handleManualArrivalClick();
-      } else {
-        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
-      }
-    } else if (isAddingSpot) {
-      setIsAddingSpot(false);
-      setNewSpotCoordinates(null);
-    } else {
-      setIsAddingSpot(true);
-      setLeavingModalVisible(false); 
-    }
-  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
-
   const handleOpenChat = (user) => {
     navigationRef.current?.navigate('Chat', { recipient: user });
-    setShowRequesterDetailsModal(false); 
-    setSelectedRequester(null); 
   };
 
   const handleRate = async (rating) => {
@@ -745,23 +661,19 @@ export default function App() {
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
-          handleSpotPress={handleSpotPress}
+          setParkingSpots={setParkingSpots}
           handleCenterMap={handleCenterMap}
           mapViewRef={mapViewRef}
-          setSpotDetailsVisible={setSpotDetailsVisible}
           notifications={notifications}
-          isAddingSpot={isAddingSpot}
-          setIsAddingSpot={setIsAddingSpot}
-          setNewSpotCoordinates={setNewSpotCoordinates}
-          setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
+          setAcceptedSpot={setAcceptedSpot}
           hasActiveSpot={hasActiveSpot}
-          handleFabPress={handleFabPress}
           parkedLocation={parkedLocation}
           handleMarkAsRead={handleMarkAsRead}
           activeChatPartnerRef={activeChatPartnerRef}
           setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
           spotRequests={spotRequests}
+          setSpotRequests={setSpotRequests}
           acceptedRequest={acceptedRequest}
           handleAcceptRequest={handleAcceptRequest}
           handleDeclineRequest={handleDeclineRequest}
@@ -772,6 +684,18 @@ export default function App() {
           handleLogout={handleLogout}
           isRefreshing={isRefreshing}
           handleRefresh={handleRefresh}
+          handleRequestSpot={handleRequestSpot}
+          handleDeleteSpot={handleDeleteSpot}
+          handleEditSpot={handleEditSpot}
+          handleSaveEditedSpot={handleSaveEditedSpot}
+          handleRate={handleRate}
+          handleCreateSpot={handleCreateSpot}
+          arrivalConfirmed={arrivalConfirmed}
+          setArrivalConfirmed={setArrivalConfirmed}
+          currentUsername={currentUsername}
+          playSoundArrived={playSoundArrived}
+          addNotification={addNotification}
+          getDistance={getDistance}
         />
       ) : showRegister ? (
         <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
@@ -791,20 +715,6 @@ export default function App() {
         onClose={() => setLeavingModalVisible(false)}
         onCreateSpot={handleCreateSpot}
       />
-      <SpotDetails
-        visible={isSpotDetailsVisible}
-        spot={selectedSpot}
-        onClose={() => setSpotDetailsVisible(false)}
-        onRequestSpot={handleRequestSpot}
-        currentUserId={userId}
-        onDeleteSpot={handleDeleteSpot}
-        onEditSpot={handleEditSpot}
-        userLocation={userLocation}
-        acceptedSpot={acceptedSpot}
-        arrivalConfirmed={arrivalConfirmed}
-        onOpenChat={handleOpenChat}
-        onConfirmArrival={handleManualArrivalClick}
-      />
       <Modal
         visible={showAboutScreen}
         animationType="slide"
@@ -812,46 +722,6 @@ export default function App() {
       >
         <AboutScreen onClose={() => setShowAboutScreen(false)} />
       </Modal>
-      <TimeOptionsModal
-        visible={showTimeOptionsModal}
-        onClose={() => setShowTimeOptionsModal(false)}
-        onSelectTime={handleCreateSpot}
-      />
-      <EditSpotMobileModal
-        visible={showEditSpotMobileModal}
-        onClose={() => setShowEditSpotMobileModal(false)}
-        spotData={spotToEdit}
-        onSave={handleSaveEditedSpot}
-      />
-      <ArrivalConfirmationModal
-        isOpen={isArrivalConfirmationModalOpen}
-        onClose={handleCloseArrivalModal}
-        onConfirm={handleConfirmTransaction}
-        onNotIdentified={handleNotIdentified}
-        requesterUsername={arrivalConfirmationData?.requesterUsername}
-        spotId={arrivalConfirmationData?.spotId}
-      />
-      <RequesterArrivalModal
-        isOpen={isRequesterArrivalModalOpen}
-        onClose={() => {
-          setRequesterArrivalModalOpen(false);
-          setArrivalConfirmed(false); 
-        }}
-        onConfirm={handleConfirmArrival}
-      />
-      <RatingModal
-        isOpen={showRatingModal}
-        onClose={() => setShowRatingModal(false)}
-        requester={userToRate}
-        onRate={handleRate}
-      />
-      <RequesterProfileModal
-        visible={showRequesterDetailsModal}
-        onClose={() => setShowRequesterDetailsModal(false)}
-        user={selectedRequester}
-        onOpenChat={handleOpenChat}
-        serverUrl={serverUrl}
-      />
     </>
   );
 }

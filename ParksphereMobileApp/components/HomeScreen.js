@@ -1,27 +1,221 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, Image, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, TouchableOpacity, Text, Image, StyleSheet, Modal, DeviceEventEmitter, Alert } from 'react-native';
 import Map from './Map';
 import Notifications from './Notifications';
+import SpotDetails from './SpotDetails';
+import TimeOptionsModal from './TimeOptionsModal';
+import ArrivalConfirmationModal from './ArrivalConfirmationModal';
+import RatingModal from './RatingModal';
+import RequesterArrivalModal from './RequesterArrivalModal';
+import EditSpotMobileModal from './EditSpotMobileModal';
+import RequesterProfileModal from './RequesterProfileModal';
 
 export default function HomeScreen({ 
   userLocation, 
   locationPermissionGranted, 
   parkingSpots, 
+  setParkingSpots, // Now needed to update locally
   userId, 
-  handleSpotPress, 
   handleCenterMap, 
   mapViewRef, 
-  setSpotDetailsVisible, 
   notifications, 
-  isAddingSpot, 
-  setIsAddingSpot, 
-  setNewSpotCoordinates, 
-  setShowTimeOptionsModal, 
   acceptedSpot, 
+  setAcceptedSpot, // Now needed to update locally
   hasActiveSpot, 
-  handleFabPress, 
-  parkedLocation 
+  parkedLocation,
+  // Handlers from App.js
+  handleRequestSpot,
+  handleDeleteSpot,
+  handleEditSpot,
+  handleSaveEditedSpot,
+  handleOpenChat,
+  handleRate,
+  handleCreateSpot,
+  // Socket from App.js
+  socket,
+  serverUrl,
+  token,
+  currentUsername,
+  playSoundArrived,
+  addNotification,
+  // Shared state that must stay in App.js for tracking but can be updated from here
+  arrivalConfirmed,
+  setArrivalConfirmed,
+  setSpotRequests,
+  setHasNewRequests,
+  getDistance,
 }) {
+  const [selectedSpot, setSelectedSpot] = useState(null);
+  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
+  const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false);
+  const [isArrivalConfirmationModalOpen, setArrivalConfirmationModalOpen] = useState(false);
+  const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [userToRate, setUserToRate] = useState(null);
+  const [isRequesterArrivalModalOpen, setRequesterArrivalModalOpen] = useState(false);
+  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false);
+  const [spotToEdit, setSpotToEdit] = useState(null);
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
+  const [selectedRequester, setSelectedRequester] = useState(null);
+  const [newSpotCoordinates, setNewSpotCoordinates] = useState(null);
+  const [isAddingSpot, setIsAddingSpot] = useState(false);
+
+  useEffect(() => {
+    const proximitySubscription = DeviceEventEmitter.addListener('proximityArrival', () => {
+      console.log('[HomeScreen] Proximity arrival event received.');
+      setRequesterArrivalModalOpen(true);
+    });
+
+    return () => {
+      proximitySubscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socket && socket.current) {
+      const s = socket.current;
+
+      const onRequesterArrived = (data) => {
+        console.log('[HomeScreen] Requester arrived notification received:', data);
+        const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+        addNotification(message, 'default');
+        if (playSoundArrived) playSoundArrived();
+        setArrivalConfirmationData(data);
+        setArrivalConfirmationModalOpen(true);
+      };
+
+      const onTransactionComplete = (data) => {
+        console.log('[HomeScreen] Transaction complete received:', data);
+        Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
+        addNotification(data.message, 'green');
+        setAcceptedSpot(null);
+        setArrivalConfirmed(false);
+        if (data.ownerId && data.ownerUsername) {
+          setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+          setShowRatingModal(true);
+        }
+      };
+
+      const onArrivalRejected = (data) => {
+        console.log('[HomeScreen] Arrival rejected notification received:', data);
+        Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
+        setArrivalConfirmed(false); 
+      };
+
+      s.on('requesterArrived', onRequesterArrived);
+      s.on('transactionComplete', onTransactionComplete);
+      s.on('arrivalRejected', onArrivalRejected);
+
+      return () => {
+        s.off('requesterArrived', onRequesterArrived);
+        s.off('transactionComplete', onTransactionComplete);
+        s.off('arrivalRejected', onArrivalRejected);
+      };
+    }
+  }, [socket, setAcceptedSpot, setArrivalConfirmed, addNotification, playSoundArrived]);
+
+  const handleConfirmArrival = () => {
+    if (socket.current && acceptedSpot && userId) {
+      socket.current.emit('requester-arrived', {
+        spotId: acceptedSpot.id,
+        requesterId: userId,
+        requesterUsername: currentUsername,
+      });
+      Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
+      setArrivalConfirmed(true); 
+      setSpotDetailsVisible(false); 
+      setRequesterArrivalModalOpen(false); 
+    }
+  };
+
+  const handleManualArrivalClick = () => {
+    if (acceptedSpot && userLocation) {
+      const spotLat = parseFloat(acceptedSpot.latitude);
+      const spotLon = parseFloat(acceptedSpot.longitude);
+      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
+      const distanceThreshold = 100; 
+      if (distance > distanceThreshold) {
+        Alert.alert('Too Far', `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`);
+        return;
+      }
+      setRequesterArrivalModalOpen(true);
+    } else {
+      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
+    }
+  };
+
+  const handleLocalOpenChat = (user) => {
+    handleOpenChat(user);
+    setShowRequesterDetailsModal(false); 
+    setSelectedRequester(null); 
+  };
+
+  const handleLocalSpotPress = (spot) => {
+    setSelectedSpot(spot);
+    setSpotDetailsVisible(true);
+  };
+
+  const handleLocalFabPress = useCallback(() => {
+    if (acceptedSpot) {
+      if (!arrivalConfirmed) {
+        handleManualArrivalClick();
+      } else {
+        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
+      }
+    } else if (isAddingSpot) {
+      setIsAddingSpot(false);
+      setNewSpotCoordinates(null);
+    } else {
+      setIsAddingSpot(true);
+      // setLeavingModalVisible(false); // This one is still in App.js because it's a core workflow?
+    }
+  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
+
+  const handleLocalConfirmTransaction = () => {
+    if (socket.current && arrivalConfirmationData) {
+      socket.current.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      addNotification('Arrival confirmed!', 'green');
+      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+      setShowRatingModal(true);
+      setArrivalConfirmationData(null);
+    }
+  };
+
+  const handleLocalCloseArrivalModal = () => {
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const handleLocalNotIdentified = () => {
+    if (arrivalConfirmationData) {
+      socket.current.emit('reject-arrival', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      addNotification(`You have indicated that the requester was not identified.`, 'default');
+    }
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const handleLocalConfirmArrival = () => {
+    if (socket.current && acceptedSpot && userId) {
+      socket.current.emit('requester-arrived', {
+        spotId: acceptedSpot.id,
+        requesterId: userId,
+        requesterUsername: currentUsername,
+      });
+      Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
+      setArrivalConfirmed(true); 
+      setSpotDetailsVisible(false); 
+      setRequesterArrivalModalOpen(false); 
+    }
+  };
+
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -30,7 +224,7 @@ export default function HomeScreen({
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
           userId={userId}
-          handleSpotPress={handleSpotPress}
+          handleSpotPress={handleLocalSpotPress}
           handleCenterMap={handleCenterMap}
           mapViewRef={mapViewRef}
           setSpotDetailsVisible={setSpotDetailsVisible}
@@ -46,7 +240,7 @@ export default function HomeScreen({
             styles.fab,
             (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
           ]}
-          onPress={handleFabPress}
+          onPress={handleLocalFabPress}
           disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
         >
           {(acceptedSpot) ? (
@@ -59,6 +253,68 @@ export default function HomeScreen({
         </TouchableOpacity>
       </View>
       <Notifications notifications={notifications} />
+
+      {/* Decentralized Modals moved from App.js */}
+      <SpotDetails
+        visible={isSpotDetailsVisible}
+        spot={selectedSpot}
+        onClose={() => setSpotDetailsVisible(false)}
+        onRequestSpot={handleRequestSpot}
+        currentUserId={userId}
+        onDeleteSpot={handleDeleteSpot}
+        onEditSpot={handleEditSpot}
+        userLocation={userLocation}
+        acceptedSpot={acceptedSpot}
+        arrivalConfirmed={arrivalConfirmed}
+        onOpenChat={handleLocalOpenChat}
+        onConfirmArrival={handleManualArrivalClick}
+      />
+
+      <TimeOptionsModal
+        visible={showTimeOptionsModal}
+        onClose={() => setShowTimeOptionsModal(false)}
+        onSelectTime={handleCreateSpot}
+      />
+
+      <EditSpotMobileModal
+        visible={showEditSpotMobileModal}
+        onClose={() => setShowEditSpotMobileModal(false)}
+        spotData={spotToEdit}
+        onSave={handleSaveEditedSpot}
+      />
+
+      <ArrivalConfirmationModal
+        isOpen={isArrivalConfirmationModalOpen}
+        onClose={handleLocalCloseArrivalModal}
+        onConfirm={handleLocalConfirmTransaction}
+        onNotIdentified={handleLocalNotIdentified}
+        requesterUsername={arrivalConfirmationData?.requesterUsername}
+        spotId={arrivalConfirmationData?.spotId}
+      />
+
+      <RequesterArrivalModal
+        isOpen={isRequesterArrivalModalOpen}
+        onClose={() => {
+          setRequesterArrivalModalOpen(false);
+          setArrivalConfirmed(false); 
+        }}
+        onConfirm={handleLocalConfirmArrival}
+      />
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        requester={userToRate}
+        onRate={handleRate}
+      />
+
+      <RequesterProfileModal
+        visible={showRequesterDetailsModal}
+        onClose={() => setShowRequesterDetailsModal(false)}
+        user={selectedRequester}
+        onOpenChat={handleLocalOpenChat}
+        serverUrl={serverUrl}
+      />
     </View>
   );
 }

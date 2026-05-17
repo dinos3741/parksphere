@@ -61,7 +61,23 @@ export default function RootNavigator({
   handleProfileUpdate,
   handleLogout,
   isRefreshing,
-  handleRefresh
+  handleRefresh,
+  // New handlers and state for decentralization
+  handleRequestSpot,
+  handleDeleteSpot,
+  handleEditSpot,
+  handleSaveEditedSpot,
+  handleRate,
+  handleCreateSpot,
+  arrivalConfirmed,
+  setArrivalConfirmed,
+  currentUsername,
+  playSoundArrived,
+  addNotification,
+  setParkingSpots,
+  setAcceptedSpot,
+  setSpotRequests,
+  getDistance,
 }) {
 
   const WrappedHomeScreen = useMemo(() => (props) => {
@@ -71,23 +87,38 @@ export default function RootNavigator({
         userLocation={userLocation} 
         locationPermissionGranted={locationPermissionGranted} 
         parkingSpots={parkingSpots} 
+        setParkingSpots={setParkingSpots}
         userId={userId} 
-        handleSpotPress={handleSpotPress} 
         handleCenterMap={handleCenterMap} 
         mapViewRef={mapViewRef} 
-        setSpotDetailsVisible={setSpotDetailsVisible} 
         notifications={notifications} 
-        isAddingSpot={isAddingSpot} 
-        setIsAddingSpot={setIsAddingSpot} 
-        setNewSpotCoordinates={setNewSpotCoordinates} 
-        setShowTimeOptionsModal={setShowTimeOptionsModal} 
         acceptedSpot={acceptedSpot} 
+        setAcceptedSpot={setAcceptedSpot}
         hasActiveSpot={hasActiveSpot} 
-        handleFabPress={handleFabPress} 
-        parkedLocation={parkedLocation} 
+        parkedLocation={parkedLocation}
+        // Decentralized Handlers
+        handleRequestSpot={handleRequestSpot}
+        handleDeleteSpot={handleDeleteSpot}
+        handleEditSpot={handleEditSpot}
+        handleSaveEditedSpot={handleSaveEditedSpot}
+        handleOpenChat={handleOpenChat}
+        handleRate={handleRate}
+        handleCreateSpot={handleCreateSpot}
+        // Decentralized State and Utilities
+        arrivalConfirmed={arrivalConfirmed}
+        setArrivalConfirmed={setArrivalConfirmed}
+        serverUrl={serverUrl}
+        token={token}
+        socket={socket}
+        currentUsername={currentUsername}
+        playSoundArrived={playSoundArrived}
+        addNotification={addNotification}
+        setSpotRequests={setSpotRequests}
+        setHasNewRequests={setHasNewRequests}
+        getDistance={getDistance}
       />
     );
-  }, [userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, parkedLocation]);
+  }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, userId, handleCenterMap, mapViewRef, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, serverUrl, token, socket, currentUsername, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
 
   const WrappedChatTab = useMemo(() => (props) => {
     return (
