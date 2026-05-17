@@ -1,127 +1,54 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Button, Alert, TextInput, Image, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, ScrollView, Modal, DeviceEventEmitter } from 'react-native';
+import { StyleSheet, Alert, Modal, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import MapView, { Marker, Circle } from 'react-native-maps'; // Import MapView and Marker
-import * as Location from 'expo-location'; // Import Location
+import { useNavigationContainerRef } from '@react-navigation/native';
+import * as Location from 'expo-location'; 
 import * as Font from 'expo-font';
 import { useAudioPlayer } from 'expo-audio';
-import io from "socket.io-client"; // Import socket.io-client
 import { apiRequest } from './utils/apiService';
 import LeavingModal from './components/LeavingModal';
 import SpotDetails from './components/SpotDetails';
-import Notifications from './components/Notifications';
-import Map from './components/Map';
 import HMMOverlay from './components/HMMOverlay';
 import DebugSimulator from './components/DebugSimulator';
 import Login from './components/Login';
 import Register from './components/Register';
-import Profile from './components/Profile';
-import ChatTab from './components/ChatTab';
-import UserDetails from './components/UserDetails';
-import TimeOptionsModal from './components/TimeOptionsModal'; // Import the new modal
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import SearchScreen from './components/SearchScreen';
-import AboutScreen from './components/AboutScreen';
-import RequestsScreen from './components/RequestsScreen';
-import { startParkDetection, stopParkDetection, resetParkDetection, PARK_DETECTION_TASK, handleLocationUpdate } from './utils/parkDetectionService';
+import TimeOptionsModal from './components/TimeOptionsModal'; 
+import { startParkDetection, stopParkDetection, resetParkDetection, handleLocationUpdate } from './utils/parkDetectionService';
 import * as ExpoNotifications from 'expo-notifications';
 import { useLocationTracking } from './hooks/useLocationTracking';
 import { useSocketConnection } from './hooks/useSocketConnection';
 
-import EditSpotMobileModal from './components/EditSpotMobileModal'; // Import the new modal
+import EditSpotMobileModal from './components/EditSpotMobileModal'; 
 import ArrivalConfirmationModal from './components/ArrivalConfirmationModal';
 import RequesterArrivalModal from './components/RequesterArrivalModal';
 import RatingModal from './components/RatingModal';
-import RequesterProfileModal from './components/RequesterProfileModal'; // Import RequesterProfileModal
+import RequesterProfileModal from './components/RequesterProfileModal'; 
+import AboutScreen from './components/AboutScreen';
+import RootNavigator from './components/RootNavigator';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
-
-const Tab = createBottomTabNavigator();
-
-// Helper function to generate fuzzy circle coordinates
-const generateFuzzyCircle = (centerLat, centerLon, radius) => {
-  const EARTH_RADIUS = 6371000; // meters
-  const points = 50; // Number of points to draw the circle
-  const coordinates = [];
-
-  for (let i = 0; i <= points; i++) {
-    const angle = (i / points) * (2 * Math.PI);
-    const lat = centerLat + (radius / EARTH_RADIUS) * (180 / Math.PI) * Math.cos(angle);
-    const lon = centerLon + (radius / EARTH_RADIUS) * (180 / Math.PI) / Math.cos(centerLat * Math.PI / 180) * Math.sin(angle);
-    coordinates.push({ latitude: lat, longitude: lon });
-  }
-  return coordinates;
-};
-
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, parkedLocation }) {
-  return (
-    <View style={{flex: 1}}>
-      <View style={{...styles.mapBorderWrapper, flex: 1}}>
-        <Map
-          userLocation={userLocation}
-          locationPermissionGranted={locationPermissionGranted}
-          parkingSpots={parkingSpots}
-          userId={userId}
-          handleSpotPress={handleSpotPress}
-          handleCenterMap={handleCenterMap}
-          mapViewRef={mapViewRef}
-          setSpotDetailsVisible={setSpotDetailsVisible}
-          isAddingSpot={isAddingSpot}
-          setIsAddingSpot={setIsAddingSpot}
-          setNewSpotCoordinates={setNewSpotCoordinates}
-          setShowTimeOptionsModal={setShowTimeOptionsModal}
-          acceptedSpot={acceptedSpot}
-          parkedLocation={parkedLocation}
-        />
-        <TouchableOpacity
-          style={[
-            styles.fab,
-            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
-          ]}
-          onPress={handleFabPress}
-          disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
-        >
-          {(acceptedSpot) ? (
-            <Image source={require('./assets/images/arrived.png')} style={styles.fabIcon} />
-          ) : (
-            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
-              {isAddingSpot ? 'X' : '+'}
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
-      <Notifications notifications={notifications} />
-    </View>
-  );
-}
 
 export default function App() {
   const [fontLoaded, setFontLoaded] = useState(false);
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const mapViewRef = useRef(null);
-  const activeChatPartnerRef = useRef(null); // Track the user currently being chatted with
+  const activeChatPartnerRef = useRef(null); 
 
   const newRequestPlayer = useAudioPlayer(require('./assets/sounds/new-request.wav'));
   const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
   const messagePlayer = useAudioPlayer(require('./assets/sounds/message-sound.wav'));
 
-
   const playSound = useCallback(() => {
-    // console.log('Playing Sound'); // Removed log
     newRequestPlayer.play();
   }, [newRequestPlayer]);
 
   const playSoundArrived = useCallback(() => {
-    // console.log('Playing Arrived Sound'); // Removed log
     arrivedPlayer.play();
   }, [arrivedPlayer]);
 
   const playSoundMessage = useCallback(() => {
-    // console.log('Playing Message Sound'); // Removed log
     messagePlayer.play();
   }, [messagePlayer]);
 
@@ -132,10 +59,7 @@ export default function App() {
           'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
         });
         setFontLoaded(true);
-        
-        // Explicitly reset park detection state on initial app load/restart for clean development
         await resetParkDetection();
-        console.log('[App.js] Resetting park detection state on initial load.');
       } catch (e) {
         console.warn('[App.js] Initialization error:', e);
       }
@@ -143,29 +67,29 @@ export default function App() {
     prepare();
   }, []);
 
-  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`; // Your laptop's local IP here
+  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
   const [currentUsername, setCurrentUsername] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [token, setToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [message, setMessage] = useState('Please log in.');
-  const [notifications, setNotifications] = useState([]); // New state for notifications
+  const [notifications, setNotifications] = useState([]); 
   const addNotification = (msg) => {
     const timestamp = new Date().toLocaleTimeString();
     setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
   };
-  const [showRegister, setShowRegister] = useState(false); // New state for register screen
-  const [showAboutScreen, setShowAboutScreen] = useState(false); // New state for about screen
+  const [showRegister, setShowRegister] = useState(false); 
+  const [showAboutScreen, setShowAboutScreen] = useState(false); 
   const [currentUser, setCurrentUser] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isAddingSpot, setIsAddingSpot] = useState(false); // New state for adding a spot
-  const [newSpotCoordinates, setNewSpotCoordinates] = useState(null); // New state for new spot coordinates
-  const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); // New state for time options modal
-  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); // State for EditSpotMobileModal
-  const [spotToEdit, setSpotToEdit] = useState(null); // State to hold spot data for editing
+  const [isAddingSpot, setIsAddingSpot] = useState(false); 
+  const [newSpotCoordinates, setNewSpotCoordinates] = useState(null); 
+  const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false); 
+  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false); 
+  const [spotToEdit, setSpotToEdit] = useState(null); 
   const [spotRequests, setSpotRequests] = useState([]);
   const [acceptedRequest, setAcceptedRequest] = useState(null);
   const [hasNewRequests, setHasNewRequests] = useState(false);
@@ -174,17 +98,17 @@ export default function App() {
   const [arrivalConfirmationData, setArrivalConfirmationData] = useState(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [userToRate, setUserToRate] = useState(null);
-  const navigationRef = useNavigationContainerRef(); // Get a ref to the navigation container
-  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); // State for RequesterProfileModal
-  const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
-  const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
-  const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
-  const [parkedLocation, setParkedLocation] = useState(null); // New state for parked location
-  const [acceptedSpot, setAcceptedSpot] = useState(null); // New state for accepted spot
-  const [arrivalConfirmed, setArrivalConfirmed] = useState(false); // To prevent multiple alerts
-  const [parkingSpots, setParkingSpots] = useState([]); // Restore missing parkingSpots state
-  const [selectedSpot, setSelectedSpot] = useState(null); // Restore missing selectedSpot state
-  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false); // Restore missing isSpotDetailsVisible state
+  const navigationRef = useNavigationContainerRef(); 
+  const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false); 
+  const [selectedRequester, setSelectedRequester] = useState(null); 
+  const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); 
+  const [unreadConversations, setUnreadConversations] = useState({}); 
+  const [parkedLocation, setParkedLocation] = useState(null); 
+  const [acceptedSpot, setAcceptedSpot] = useState(null); 
+  const [arrivalConfirmed, setArrivalConfirmed] = useState(false); 
+  const [parkingSpots, setParkingSpots] = useState([]); 
+  const [selectedSpot, setSelectedSpot] = useState(null); 
+  const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false); 
 
   const { userLocation, setUserLocation, locationPermissionGranted, getDistance } = useLocationTracking(
     acceptedSpot, 
@@ -198,109 +122,157 @@ export default function App() {
   const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token, (newSocket) => {
-        newSocket.on('newParkingSpot', (newSpot) => {
-          console.log('Mobile App: newSpot received:', newSpot);
-          const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
-          setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
-        });
+    newSocket.on('newParkingSpot', (newSpot) => {
+      const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
+      setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
+    });
 
-        newSocket.on('spotDeleted', ({ spotId }) => {
-          console.log('Mobile App: spotDeleted received:', spotId);
-          setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
-          setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
-          setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
-        });
+    newSocket.on('spotDeleted', ({ spotId }) => {
+      setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
+      setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
+      setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
+    });
 
-        newSocket.on('spotUpdated', (updatedSpot) => {
-          console.log('Mobile App: Spot updated received:', updatedSpot);
-          setParkingSpots((prevSpots) =>
-            prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
-          );
-        });
+    newSocket.on('spotUpdated', (updatedSpot) => {
+      setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+    });
 
-        newSocket.on('spotStatusUpdated', (updatedSpot) => {
-          console.log('Mobile App: Spot status updated received:', updatedSpot);
-          setParkingSpots((prevSpots) =>
-            prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot))
-          );
-        });
+    newSocket.on('spotStatusUpdated', (updatedSpot) => {
+      setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+    });
 
-        newSocket.on('spotRequest', (data) => {
-          console.log('Mobile App: Spot request received:', data);
-          setSpotRequests(prevRequests => [...prevRequests, data]);
-          setHasNewRequests(true);
-          addNotification(data.message);
-          playSound();
-        });
+    newSocket.on('spotRequest', (data) => {
+      setSpotRequests(prevRequests => [...prevRequests, data]);
+      setHasNewRequests(true);
+      addNotification(data.message);
+      playSound();
+    });
 
-        newSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
-          console.log(`Mobile App: Received confirmation that request ${requestId} for spot ${spotId} was processed.`);
-          setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
-        });
+    newSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
+      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
+    });
 
-        newSocket.on('requestResponse', (data) => {
-          console.log('Mobile App: Request response received:', data);
-          Alert.alert('Spot Request Update', data.message);
-          if (data.spot) {
-            setAcceptedSpot(data.spot);
-            setArrivalConfirmed(false);
+    newSocket.on('requestResponse', (data) => {
+      Alert.alert('Spot Request Update', data.message);
+      if (data.spot) {
+        setAcceptedSpot(data.spot);
+        setArrivalConfirmed(false);
+        if (mapViewRef.current) {
+          mapViewRef.current.animateToRegion({
+            latitude: parseFloat(data.spot.latitude),
+            longitude: parseFloat(data.spot.longitude),
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }, 1000);
+        }
+      } else {
+        setAcceptedSpot(null);
+        setArrivalConfirmed(false);
+      }
+    });
 
-            // Animate to the accepted spot
-            if (mapViewRef.current) {
-              mapViewRef.current.animateToRegion({
-                latitude: parseFloat(data.spot.latitude),
-                longitude: parseFloat(data.spot.longitude),
-                latitudeDelta: 0.005,
-                longitudeDelta: 0.005,
-              }, 1000);
-            }
-          } else {
-            setAcceptedSpot(null);
-            setArrivalConfirmed(false);
-          }
-        });
+    newSocket.on('requesterArrived', (data) => {
+      const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
+      addNotification(message, 'default');
+      playSoundArrived();
+      setArrivalConfirmationData(data);
+      setArrivalConfirmationModalOpen(true);
+    });
 
-        newSocket.on('requesterArrived', (data) => {
-          console.log('Mobile App: Requester arrived notification received:', data);
-          const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-          addNotification(message, 'default');
-          playSoundArrived();
-          setArrivalConfirmationData(data);
-          setArrivalConfirmationModalOpen(true);
-        });
+    newSocket.on('transactionComplete', (data) => {
+      Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
+      addNotification(data.message, 'green');
+      setAcceptedSpot(null);
+      setArrivalConfirmed(false);
+      if (data.ownerId && data.ownerUsername) {
+        setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
+        setShowRatingModal(true);
+      }
+    });
 
-        newSocket.on('transactionComplete', (data) => {
-          console.log('Mobile App: Transaction complete received:', data);
-          Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
-          addNotification(data.message, 'green');
-          setAcceptedSpot(null);
-          setArrivalConfirmed(false);
-          if (data.ownerId && data.ownerUsername) {
-            setUserToRate({ requester_id: data.ownerId, requester_username: data.ownerUsername });
-            setShowRatingModal(true);
-          }
-        });
+    newSocket.on('arrivalRejected', (data) => {
+      Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
+      setArrivalConfirmed(false); 
+    });
 
-        newSocket.on('arrivalRejected', (data) => {
-          console.log('Mobile App: Arrival rejected notification received:', data);
-          Alert.alert('Arrival Not Confirmed', 'The owner did not confirm your arrival. Please try again.');
-          setArrivalConfirmed(false); // Reset so it can be triggered again
-        });
-
-        newSocket.on('privateMessage', (message) => {
-          console.log('Mobile App: Private message received:', message);
-          if (message.to === userId && message.from !== userId) {
-            playSoundMessage();
-            // If the message is not from the user currently being chatted with, mark as unread
-            if (activeChatPartnerRef.current !== message.from) {
-              handleMarkAsUnread(message.from);
-            }
-          }
-        });
+    newSocket.on('privateMessage', (message) => {
+      if (message.to === userId && message.from !== userId) {
+        playSoundMessage();
+        if (activeChatPartnerRef.current !== message.from) {
+          handleMarkAsUnread(message.from);
+        }
+      }
+    });
   });
 
+  useEffect(() => {
+    const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
+      addNotification(data.message);
+      if (data.parkedLocation) {
+        setParkedLocation(data.parkedLocation);
+      } else if (data.clearParkedLocation) {
+        setParkedLocation(null);
+      }
+    });
 
-  // Check for existing token on app start
+    const setupNotificationsAndDetection = async () => {
+      const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
+      if (existingStatus !== 'granted') {
+        await ExpoNotifications.requestPermissionsAsync();
+      }
+      
+      if (currentUser) {
+        const autoDetectionEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+        if (currentUser.auto_detect || autoDetectionEnabled === 'true') {
+          if (currentUser.auto_detect) {
+            await AsyncStorage.setItem('autoDetectionEnabled', 'true');
+          }
+          await startParkDetection();
+        }
+      }
+
+      const saved = await AsyncStorage.getItem('PARK_STATE');
+      if (saved) {
+        const stateData = JSON.parse(saved);
+        if (stateData.parkedLocation) {
+          setParkedLocation(stateData.parkedLocation);
+        }
+      }
+    };
+    
+    let foregroundSubscription = null;
+    const setupForegroundFallback = async () => {
+       const storedEnabled = await AsyncStorage.getItem('autoDetectionEnabled');
+       const isEnabled = (storedEnabled === 'true') || (currentUser && currentUser.auto_detect);
+       
+       if (isEnabled) {
+         foregroundSubscription = await Location.watchPositionAsync({
+           accuracy: Location.Accuracy.High,
+           distanceInterval: 1,
+           timeInterval: 2000
+         }, async (location) => {
+           await handleLocationUpdate(location);
+         });
+       }
+    };
+
+    if (isLoggedIn && currentUser) {
+      const initializeAll = async () => {
+        await setupNotificationsAndDetection();
+        await setupForegroundFallback();
+      };
+      initializeAll();
+    }
+
+    return () => {
+      if (foregroundSubscription) {
+        foregroundSubscription.remove();
+      }
+      detectionSubscription.remove();
+      stopParkDetection(); 
+    };
+  }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect]);
+
   useEffect(() => {
     const loadToken = async () => {
       try {
@@ -312,7 +284,6 @@ export default function App() {
           setUserId(parseInt(storedUserId, 10));
           setCurrentUsername(storedUsername);
           setIsLoggedIn(true);
-          setMessage('Logged in! Fetch your profile data.');
         }
       } catch (error) {
         console.error('Failed to load token from AsyncStorage', error);
@@ -325,18 +296,13 @@ export default function App() {
     if (isLoggedIn && userId && token) {
       try {
         const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
         });
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
         } else if (response.status === 401 || response.status === 403) {
-          console.error('Authentication failed when fetching user data. Logging out...', response.status);
           await handleLogout();
-        } else {
-          console.error('Failed to fetch user data', response.status);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -348,9 +314,6 @@ export default function App() {
 
   const handleLogout = useCallback(async () => {
     try {
-      if (socket.current && userId) {
-        socket.current.emit('unregister', userId);
-      }
       await AsyncStorage.removeItem('userToken');
       await AsyncStorage.removeItem('userId');
       await AsyncStorage.removeItem('username');
@@ -359,24 +322,19 @@ export default function App() {
       setCurrentUsername(null);
       setCurrentUser(null);
       setIsLoggedIn(false);
-      setMessage('Logged out. Please log in.');
-      setNotifications([]); // Clear notifications on logout
-      setTotalUnreadMessagesCount(0); // Reset unread count on logout
-      
-      // Stop park detection on logout
+      setNotifications([]);
+      setTotalUnreadMessagesCount(0);
       await stopParkDetection();
     } catch (error) {
       console.error('Error during logout:', error);
     }
-  }, [userId]);
+  }, []);
 
-  // Update total unread count whenever unreadConversations changes
   useEffect(() => {
     const currentTotalUnread = Object.keys(unreadConversations).length;
     setTotalUnreadMessagesCount(currentTotalUnread);
   }, [unreadConversations]);
 
-  // Function to mark a specific conversation as read
   const handleMarkAsRead = useCallback((otherUserId) => {
     setUnreadConversations(prev => {
       const newState = { ...prev };
@@ -387,7 +345,6 @@ export default function App() {
     });
   }, []);
 
-  // Function to mark a specific conversation as unread
   const handleMarkAsUnread = useCallback((otherUserId) => {
     setUnreadConversations(prev => {
       return { ...prev, [otherUserId]: true };
@@ -396,27 +353,18 @@ export default function App() {
 
   useEffect(() => {
     if (isLoggedIn && token && userId && currentUsername) {
-      // All authentication details are present, proceed with setup
-
-      // 1. Fetch initial data
       fetchUserData();
-
       const fetchParkingSpots = async () => {
         try {
           const response = await fetch(`${serverUrl}/api/parkingspots`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
+            headers: { 'Authorization': `Bearer ${token}` },
           });
           if (response.ok) {
             const data = await response.json();
             const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
             setParkingSpots(transformedData);
           } else if (response.status === 401 || response.status === 403) {
-            console.error('Authentication failed when fetching spots. Logging out...', response.status);
             await handleLogout();
-          } else {
-            console.error('Failed to fetch parking spots:', response.status, response.statusText);
           }
         } catch (error) {
           console.error('Error fetching parking spots:', error);
@@ -426,7 +374,6 @@ export default function App() {
     }
   }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, handleLogout]);
 
-  // Function to handle arrival confirmation
   const handleConfirmArrival = () => {
     if (socket.current && acceptedSpot && userId) {
       socket.current.emit('requester-arrived', {
@@ -435,9 +382,9 @@ export default function App() {
         requesterUsername: currentUsername,
       });
       Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
-      setArrivalConfirmed(true); // Set to true to prevent multiple alerts
-      setSpotDetailsVisible(false); // Close the modal
-      setRequesterArrivalModalOpen(false); // Close the confirmation modal
+      setArrivalConfirmed(true); 
+      setSpotDetailsVisible(false); 
+      setRequesterArrivalModalOpen(false); 
     }
   };
 
@@ -447,131 +394,13 @@ export default function App() {
       parkingSpots.forEach(spot => {
         const expirationTime = new Date(spot.declared_at).getTime() + spot.time_to_leave * 60 * 1000;
         if (now > expirationTime) {
-          // Spot has expired
           setParkingSpots(prevSpots => prevSpots.filter(s => s.id !== spot.id));
           setSpotRequests(prevRequests => prevRequests.filter(req => req.spotId !== spot.id));
         }
       });
-    }, 1000); // Run every second
-
+    }, 1000);
     return () => clearInterval(interval);
   }, [parkingSpots]);
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchUserData();
-  };
-
-  const handleProfileUpdate = (shouldClose = true) => {
-    fetchUserData();
-    if (shouldClose === true) {
-      setIsEditingProfile(false); // Go back to details view after update
-    }
-  };
-
-  const handleManualArrivalClick = () => {
-    if (acceptedSpot && userLocation) {
-      const spotLat = parseFloat(acceptedSpot.latitude);
-      const spotLon = parseFloat(acceptedSpot.longitude);
-      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
-      
-      const distanceThreshold = 100; // 100 meters
-
-      if (distance > distanceThreshold) {
-        Alert.alert(
-          'Too Far',
-          `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`
-        );
-        return;
-      }
-      
-      setRequesterArrivalModalOpen(true);
-    } else {
-      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
-    }
-  };
-
-  const handleFabPress = useCallback(() => {
-    if (acceptedSpot) {
-      if (!arrivalConfirmed) {
-        handleManualArrivalClick();
-      } else {
-        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
-      }
-    } else if (isAddingSpot) {
-      // If currently adding a spot, cancel it
-      setIsAddingSpot(false);
-      setNewSpotCoordinates(null);
-    } else {
-      // Otherwise, start adding a spot
-      setIsAddingSpot(true);
-      setLeavingModalVisible(false); // Close leaving modal if open
-    }
-  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
-
-  const handleOpenChat = (user) => {
-    // Navigate to the Chat tab and pass the user as a parameter
-    navigationRef.current?.navigate('Chat', { recipient: user });
-    setShowRequesterDetailsModal(false); // Close the modal after opening chat
-    setSelectedRequester(null); // Clear the selected requester
-  };
-
-  const handleRate = async (rating) => {
-    if (!userToRate) return;
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await fetch(`${serverUrl}/api/users/rate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to submit rating');
-      }
-      addNotification('Rating submitted successfully!', 'green');
-      setShowRatingModal(false);
-      setUserToRate(null);
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-      addNotification('Failed to submit rating', 'red');
-    }
-  };
-
-  const handleConfirmTransaction = () => {
-    if (socket.current && arrivalConfirmationData) {
-      socket.current.emit('confirm-transaction', {
-        spotId: arrivalConfirmationData.spotId,
-        requesterId: arrivalConfirmationData.requesterId,
-      });
-      setArrivalConfirmationModalOpen(false);
-      addNotification('Arrival confirmed!', 'green');
-      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
-      setShowRatingModal(true);
-      setArrivalConfirmationData(null);
-    }
-  };
-
-
-  const handleCloseArrivalModal = () => {
-    setArrivalConfirmationModalOpen(false);
-    setArrivalConfirmationData(null);
-  };
-
-  const handleNotIdentified = () => {
-    if (arrivalConfirmationData) {
-      console.log(`Owner did not identify requester for spot ${arrivalConfirmationData.spotId}`);
-      socket.current.emit('reject-arrival', {
-        spotId: arrivalConfirmationData.spotId,
-        requesterId: arrivalConfirmationData.requesterId,
-      });
-      addNotification(`You have indicated that the requester was not identified.`, 'default');
-    }
-    setArrivalConfirmationModalOpen(false);
-    setArrivalConfirmationData(null);
-  };
 
   const handleLogin = (data) => {
     setToken(data.token);
@@ -591,7 +420,6 @@ export default function App() {
       Alert.alert('Error', 'You must be logged in to request a spot.');
       return;
     }
-
     try {
       const response = await fetch(`${serverUrl}/api/request-spot`, {
         method: 'POST',
@@ -601,19 +429,14 @@ export default function App() {
         },
         body: JSON.stringify({ spotId, requesterLat, requesterLon }),
       });
-
       const data = await response.json();
-
-      if (response.ok) {
-        // Successfully requested
-      } else {
+      if (!response.ok) {
         Alert.alert('Error', data.message || 'Failed to request spot.');
       }
     } catch (error) {
       console.error('Error requesting spot:', error);
       Alert.alert('Error', 'Could not connect to the server to request the spot.');
     }
-
     setSpotDetailsVisible(false);
   };
 
@@ -622,22 +445,17 @@ export default function App() {
       Alert.alert('Error', 'You must be logged in to delete a spot.');
       return;
     }
-
     const executeDelete = async () => {
       try {
         const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Authorization': `Bearer ${token}` },
         });
-
         if (response.ok) {
           addNotification(`Spot ${spotId} deleted successfully!`);
           setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
-          setSpotDetailsVisible(false); // Close the modal after deletion
+          setSpotDetailsVisible(false); 
         } else if (response.status === 401 || response.status === 403) {
-          console.error('Authentication failed for deleting spot. Logging out...');
           handleLogout();
         } else {
           const data = await response.json();
@@ -648,29 +466,16 @@ export default function App() {
         Alert.alert('Error', 'Could not connect to the server to delete spot.');
       }
     };
-
-    Alert.alert(
-      'Confirm Deletion',
-      'Are you sure you want to delete this parking spot?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: executeDelete,
-        },
-      ],
-      { cancelable: true }
-    );
+    Alert.alert('Confirm Deletion', 'Are you sure you want to delete this parking spot?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: executeDelete },
+    ], { cancelable: true });
   };
 
-  const handleEditSpot = (spot) => { // Pass the full spot object
+  const handleEditSpot = (spot) => {
     setSpotToEdit(spot);
     setShowEditSpotMobileModal(true);
-    setSpotDetailsVisible(false); // Close the SpotDetails modal
+    setSpotDetailsVisible(false); 
   };
 
   const handleSaveEditedSpot = async (spotId, updatedDetails) => {
@@ -678,7 +483,6 @@ export default function App() {
       Alert.alert('Error', 'You must be logged in to edit a spot.');
       return;
     }
-
     try {
       const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
         method: 'PUT',
@@ -688,17 +492,13 @@ export default function App() {
         },
         body: JSON.stringify(updatedDetails),
       });
-
       const data = await response.json();
-
       if (response.ok) {
         addNotification(`Spot ${spotId} updated successfully!`);
-        // Update the parkingSpots state to reflect the changes
         setParkingSpots((prevSpots) =>
           prevSpots.map((spot) => (spot.id === spotId ? { ...spot, ...updatedDetails } : spot))
         );
       } else if (response.status === 401 || response.status === 403) {
-        console.error('Authentication failed for editing spot. Logging out...');
         handleLogout();
       } else {
         Alert.alert('Error', `Failed to update spot: ${data.message || 'Unknown error'}`);
@@ -707,8 +507,8 @@ export default function App() {
       console.error('Error updating spot:', error);
       Alert.alert('Error', 'Could not connect to the server to update spot.');
     } finally {
-      setShowEditSpotMobileModal(false); // Close the edit modal
-      setSpotToEdit(null); // Clear the spot to edit
+      setShowEditSpotMobileModal(false); 
+      setSpotToEdit(null); 
     }
   };
 
@@ -757,7 +557,6 @@ export default function App() {
       }
     } catch (e) {
       console.error('Error fetching live location for map centering:', e);
-      // Fallback to state if live location fails
       if (mapViewRef.current && userLocation) {
         mapViewRef.current.animateToRegion({
           latitude: userLocation.latitude,
@@ -770,11 +569,10 @@ export default function App() {
   };
 
   const handleCreateSpot = async (duration) => {
-    if (!token || !userId || !newSpotCoordinates) { // Use newSpotCoordinates
+    if (!token || !userId || !newSpotCoordinates) {
       Alert.alert('Error', 'Please log in and select a location to create a spot.');
       return;
     }
-
     try {
       const response = await fetch(`${serverUrl}/api/declare-spot`, {
         method: 'POST',
@@ -784,24 +582,21 @@ export default function App() {
         },
         body: JSON.stringify({
           userId: userId,
-          latitude: newSpotCoordinates.latitude, // Use newSpotCoordinates
-          longitude: newSpotCoordinates.longitude, // Use newSpotCoordinates
-          timeToLeave: duration, // Duration in minutes
+          latitude: newSpotCoordinates.latitude,
+          longitude: newSpotCoordinates.longitude,
+          timeToLeave: duration,
           costType: 'free',
           price: 0,
-          declaredCarType: 'sedan', // Placeholder, ideally from user's profile
+          declaredCarType: 'sedan', 
           comments: '',
         }),
       });
-
       const data = await response.json();
-
       if (response.ok) {
         addNotification(`Parking spot ${data.spotId} declared successfully by user ${currentUsername}`);
-        setShowTimeOptionsModal(false); // Close the modal on success
-        setNewSpotCoordinates(null); // Clear coordinates
+        setShowTimeOptionsModal(false); 
+        setNewSpotCoordinates(null); 
       } else if (response.status === 401 || response.status === 403) {
-        console.error('Authentication failed for creating spot. Logging out...');
         handleLogout();
       } else {
         Alert.alert('Error', `Failed to create spot: ${data.message || 'Unknown error'}`);
@@ -812,185 +607,177 @@ export default function App() {
     }
   };
 
-const MemoizedHomeScreen = React.memo(HomeScreen);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUserData();
+  };
 
-  const memoizedParkingSpots = useMemo(() => parkingSpots, [parkingSpots]);
-
-  const WrappedHomeScreen = useMemo(() => (props) => {
-    return <MemoizedHomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={memoizedParkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} parkedLocation={parkedLocation} />;
-  }, [userLocation, locationPermissionGranted, memoizedParkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, parkedLocation]);
-
-  // Pass unread status to ChatTab
-  const WrappedChatTab = useMemo(() => (props) => {
-    return (
-      <ChatTab 
-        {...props} 
-        userId={userId} 
-        token={token} 
-        socket={socket} 
-        serverUrl={serverUrl} 
-        currentUser={currentUser} 
-        setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
-        unreadConversations={unreadConversations}
-        onMarkAsRead={handleMarkAsRead}
-        activeChatPartnerRef={activeChatPartnerRef}
-      />
-    );
-  }, [userId, token, socket, serverUrl, currentUser, setTotalUnreadMessagesCount, unreadConversations, handleMarkAsRead]);
-
-  const WrappedSearchScreen = useMemo(() => (props) => {
-    return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;
-  }, [token, serverUrl]);
-
-  const WrappedRequestsScreen = useMemo(() => (props) => {
-    const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
-    return <RequestsScreen {...props} spotRequests={requests} handleAcceptRequest={handleAcceptRequest} handleDeclineRequest={handleDeclineRequest} token={token} serverUrl={serverUrl} onOpenChat={handleOpenChat} />;
-  }, [acceptedRequest, spotRequests, handleAcceptRequest, handleDeclineRequest, token, serverUrl, handleOpenChat]);
-
-  const ProfileScreen = useMemo(() => (props) => {
-    if (isEditingProfile) {
-      return (
-        <Profile
-          user={currentUser}
-          token={token}
-          onBack={() => setIsEditingProfile(false)}
-          onProfileUpdate={handleProfileUpdate}
-        />
-      );
+  const handleProfileUpdate = (shouldClose = true) => {
+    fetchUserData();
+    if (shouldClose === true) {
+      setIsEditingProfile(false); 
     }
+  };
 
-    return (
-      <UserDetails
-        user={currentUser}
-        token={token}
-        onBack={() => {}} // Or handle back navigation if needed
-        onEditProfile={() => setIsEditingProfile(true)}
-        onLogout={handleLogout}
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
-        onProfileUpdate={handleProfileUpdate}
-        serverUrl={serverUrl}
-      />
-    );
-  }, [isEditingProfile, currentUser, token, handleProfileUpdate, handleLogout, isRefreshing, handleRefresh, serverUrl]);
+  const handleManualArrivalClick = () => {
+    if (acceptedSpot && userLocation) {
+      const spotLat = parseFloat(acceptedSpot.latitude);
+      const spotLon = parseFloat(acceptedSpot.longitude);
+      const distance = getDistance(userLocation.latitude, userLocation.longitude, spotLat, spotLon);
+      const distanceThreshold = 100; 
+      if (distance > distanceThreshold) {
+        Alert.alert('Too Far', `You are too far from the spot to confirm arrival. Please get closer (within 100 meters). Current distance: ${distance.toFixed(0)}m`);
+        return;
+      }
+      setRequesterArrivalModalOpen(true);
+    } else {
+      Alert.alert('Error', 'Could not determine distance. Please check your location settings.');
+    }
+  };
 
-  if (!fontLoaded) {
-    return null;
-  }
+  const handleFabPress = useCallback(() => {
+    if (acceptedSpot) {
+      if (!arrivalConfirmed) {
+        handleManualArrivalClick();
+      } else {
+        Alert.alert('Arrival Confirmed', 'The owner has been notified of your arrival. Please wait for their confirmation.');
+      }
+    } else if (isAddingSpot) {
+      setIsAddingSpot(false);
+      setNewSpotCoordinates(null);
+    } else {
+      setIsAddingSpot(true);
+      setLeavingModalVisible(false); 
+    }
+  }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
+
+  const handleOpenChat = (user) => {
+    navigationRef.current?.navigate('Chat', { recipient: user });
+    setShowRequesterDetailsModal(false); 
+    setSelectedRequester(null); 
+  };
+
+  const handleRate = async (rating) => {
+    if (!userToRate) return;
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to submit rating');
+      }
+      addNotification('Rating submitted successfully!', 'green');
+      setShowRatingModal(false);
+      setUserToRate(null);
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      addNotification('Failed to submit rating', 'red');
+    }
+  };
+
+  const handleConfirmTransaction = () => {
+    if (socket.current && arrivalConfirmationData) {
+      socket.current.emit('confirm-transaction', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      setArrivalConfirmationModalOpen(false);
+      addNotification('Arrival confirmed!', 'green');
+      setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
+      setShowRatingModal(true);
+      setArrivalConfirmationData(null);
+    }
+  };
+
+  const handleCloseArrivalModal = () => {
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
+
+  const handleNotIdentified = () => {
+    if (arrivalConfirmationData) {
+      socket.current.emit('reject-arrival', {
+        spotId: arrivalConfirmationData.spotId,
+        requesterId: arrivalConfirmationData.requesterId,
+      });
+      addNotification(`You have indicated that the requester was not identified.`, 'default');
+    }
+    setArrivalConfirmationModalOpen(false);
+    setArrivalConfirmationData(null);
+  };
 
   const getAvatarUri = (avatarUrl, username) => {
-    if (!avatarUrl) {
-      return `https://i.pravatar.cc/150?u=${username}`;
-    }
-    
-    // If it's already a full URL but contains localhost, replace it with serverUrl
+    if (!avatarUrl) return `https://i.pravatar.cc/150?u=${username}`;
     if (avatarUrl.startsWith('http')) {
-      if (avatarUrl.includes('localhost')) {
-        return avatarUrl.replace('http://localhost:3001', serverUrl);
-      }
+      if (avatarUrl.includes('localhost')) return avatarUrl.replace('http://localhost:3001', serverUrl);
       return avatarUrl;
     }
-
-    // If it's a relative path, prepend serverUrl
     return `${serverUrl}${avatarUrl}`;
   };
 
-  // Log total unread count in App.js for debugging
-  // console.log('App.js: Rendering TabNavigator. Current totalUnreadMessagesCount:', totalUnreadMessagesCount); // Removed log
+  if (!fontLoaded) return null;
 
   return (
     <>
       <StatusBar style="auto" />
-      <NavigationContainer ref={navigationRef}>
-        {isLoggedIn && currentUser ? (
-          <View style={styles.fullContainer}>
-            <View style={styles.header}>
-              <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
-                <Image source={require('./assets/images/logo.png')} style={styles.logo} />
-              </TouchableOpacity>
-              <View style={styles.titleContainer}>
-                <Text style={styles.appName}>Parksphere</Text>
-              </View>
-            </View>
-            
-            <Tab.Navigator
-              screenListeners={{
-                state: (e) => {
-                  const currentScreen = e.data.state.routes[e.data.state.index].name;
-                  setActiveScreen(currentScreen);
-                },
-              }}
-              screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused, color, size }) => {
-                  let iconName;
-                  let showRequestBadge = false; // Renamed for clarity
-                  let showChatBadge = false; // New state for chat badge
-
-                  if (route.name === 'Home') {
-                    iconName = 'home';
-                  } else if (route.name === 'Chat') {
-                    iconName = 'comments';
-                    showChatBadge = totalUnreadMessagesCount > 0; // Use the new total unread count
-                  } else if (route.name === 'Requests') {
-                    iconName = 'list-alt';
-                    if (hasNewRequests) {
-                      showRequestBadge = true;
-                    }
-                  } else if (route.name === 'Search') {
-                    iconName = 'search';
-                  } else if (route.name === 'Profile') {
-                    return <Image source={{ uri: getAvatarUri(currentUser.avatar_url, currentUser.username) }} style={styles.tabBarIcon} />;
-                  }
-
-                  return (
-                    <View>
-                      <FontAwesome name={iconName} size={size} color={color} />
-                      {(showRequestBadge || showChatBadge) && ( // Conditionally render badge if either is true
-                        <View
-                          style={{
-                            position: 'absolute',
-                            right: -6,
-                            top: -3,
-                            backgroundColor: 'red',
-                            borderRadius: 6,
-                            width: 12,
-                            height: 12,
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                          }}
-                        />
-                      )}
-                    </View>
-                  );
-                },
-                tabBarActiveTintColor: 'tomato',
-                tabBarInactiveTintColor: 'gray',
-                headerShown: false,
-                tabBarStyle: { height: 60 },
-              })}
-            >
-              <Tab.Screen name="Home" component={WrappedHomeScreen} />
-              <Tab.Screen name="Chat" component={WrappedChatTab} />
-              <Tab.Screen
-                name="Requests"
-                component={WrappedRequestsScreen}
-                listeners={{
-                  tabPress: (e) => {
-                    setHasNewRequests(false);
-                    setAcceptedRequest(null);
-                  },
-                }}
-              />
-              <Tab.Screen name="Search" component={WrappedSearchScreen} />
-              <Tab.Screen name="Profile" component={ProfileScreen} />
-            </Tab.Navigator>
-          </View>
-        ) : showRegister ? (
-          <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
-        ) : (
-          <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
-        )}
-      </NavigationContainer>
+      {isLoggedIn && currentUser ? (
+        <RootNavigator
+          navigationRef={navigationRef}
+          isLoggedIn={isLoggedIn}
+          currentUser={currentUser}
+          userId={userId}
+          token={token}
+          socket={socket}
+          serverUrl={serverUrl}
+          totalUnreadMessagesCount={totalUnreadMessagesCount}
+          unreadConversations={unreadConversations}
+          hasNewRequests={hasNewRequests}
+          setHasNewRequests={setHasNewRequests}
+          setAcceptedRequest={setAcceptedRequest}
+          setActiveScreen={setActiveScreen}
+          getAvatarUri={getAvatarUri}
+          userLocation={userLocation}
+          locationPermissionGranted={locationPermissionGranted}
+          parkingSpots={parkingSpots}
+          handleSpotPress={handleSpotPress}
+          handleCenterMap={handleCenterMap}
+          mapViewRef={mapViewRef}
+          setSpotDetailsVisible={setSpotDetailsVisible}
+          notifications={notifications}
+          isAddingSpot={isAddingSpot}
+          setIsAddingSpot={setIsAddingSpot}
+          setNewSpotCoordinates={setNewSpotCoordinates}
+          setShowTimeOptionsModal={setShowTimeOptionsModal}
+          acceptedSpot={acceptedSpot}
+          hasActiveSpot={hasActiveSpot}
+          handleFabPress={handleFabPress}
+          parkedLocation={parkedLocation}
+          handleMarkAsRead={handleMarkAsRead}
+          activeChatPartnerRef={activeChatPartnerRef}
+          setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
+          spotRequests={spotRequests}
+          acceptedRequest={acceptedRequest}
+          handleAcceptRequest={handleAcceptRequest}
+          handleDeclineRequest={handleDeclineRequest}
+          handleOpenChat={handleOpenChat}
+          isEditingProfile={isEditingProfile}
+          setIsEditingProfile={setIsEditingProfile}
+          handleProfileUpdate={handleProfileUpdate}
+          handleLogout={handleLogout}
+          isRefreshing={isRefreshing}
+          handleRefresh={handleRefresh}
+        />
+      ) : showRegister ? (
+        <Register onBack={() => setShowRegister(false)} onLogin={handleLogin} />
+      ) : (
+        <Login onLogin={handleLogin} onRegister={() => setShowRegister(true)} />
+      )}
 
       {navigationRef.isReady() && navigationRef.getCurrentRoute()?.name === 'Home' && (
         <>
@@ -1000,7 +787,8 @@ const MemoizedHomeScreen = React.memo(HomeScreen);
       )}
 
       <LeavingModal
-        visible={isLeavingModalVisible}        onClose={() => setLeavingModalVisible(false)}
+        visible={isLeavingModalVisible}
+        onClose={() => setLeavingModalVisible(false)}
         onCreateSpot={handleCreateSpot}
       />
       <SpotDetails
@@ -1009,14 +797,14 @@ const MemoizedHomeScreen = React.memo(HomeScreen);
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
         currentUserId={userId}
-        onDeleteSpot={handleDeleteSpot} // Pass the delete handler
-        onEditSpot={handleEditSpot} // Pass the edit handler
-        userLocation={userLocation} // Pass userLocation here
+        onDeleteSpot={handleDeleteSpot}
+        onEditSpot={handleEditSpot}
+        userLocation={userLocation}
         acceptedSpot={acceptedSpot}
         arrivalConfirmed={arrivalConfirmed}
         onOpenChat={handleOpenChat}
         onConfirmArrival={handleManualArrivalClick}
-        />
+      />
       <Modal
         visible={showAboutScreen}
         animationType="slide"
@@ -1047,7 +835,7 @@ const MemoizedHomeScreen = React.memo(HomeScreen);
         isOpen={isRequesterArrivalModalOpen}
         onClose={() => {
           setRequesterArrivalModalOpen(false);
-          setArrivalConfirmed(false); // Reset so it can be triggered again by proximity
+          setArrivalConfirmed(false); 
         }}
         onConfirm={handleConfirmArrival}
       />
@@ -1067,258 +855,3 @@ const MemoizedHomeScreen = React.memo(HomeScreen);
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  fullContainer: {
-    flex: 1,
-    backgroundColor: '#f0f0f0',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    paddingHorizontal: 20,
-    backgroundColor: '#512da8',
-    paddingTop: 50,
-    height: 100,
-  },
-  headerLeft: {
-    zIndex: 1,
-  },
-  titleContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 50,
-    pointerEvents: 'none',
-  },
-  logo: {
-    width: 44,
-    height: 44,
-    borderRadius: 28,
-  },
-  appName: {
-    fontFamily: 'AdventPro-SemiBold',
-    fontSize: 21.12,
-    fontWeight: '600',
-    color: 'white',
-    letterSpacing: 0,
-  },
-  mapBorderWrapper: {
-    flex: 1,
-    borderWidth: 2,
-    borderColor: 'blue',
-    borderRadius: 10,
-    margin: 5,
-  },
-
-  tagline: {
-    fontSize: 12,
-    color: 'white',
-    marginTop: 5,
-  },
-  highlight: {
-    color: '#00FFFF',
-  },
-  // Login Screen Styles
-  backgroundImage: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-    // justifyContent: 'center', // Remove this
-    // alignItems: 'center', // Remove this
-  },
-  imageStyle: {
-    opacity: 0.6,
-  },
-  loginOverlay: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center', // Align content to the center vertically
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    // paddingBottom: 50, // Removed padding from the bottom
-  },
-  loginContainer: {
-    width: '85%',
-    maxWidth: 380,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 30,
-    borderRadius: 17,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
-    alignItems: 'center',
-    // No marginTop needed here as it's aligned to flex-end
-  },
-  loginTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 30,
-  },
-  loggedInContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  messageText: {
-    fontSize: 18,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#333',
-  },
-  input: {
-    width: '100%',
-    height: 50, // Taller input fields
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 9,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    backgroundColor: '#fefefe',
-    fontSize: 16,
-    color: '#333',
-  },
-  loginButton: {
-    width: '100%',
-    backgroundColor: '#007bff', // Blue button
-    paddingVertical: 15,
-    borderRadius: 9,
-    alignItems: 'center',
-    marginTop: 10,
-    shadowColor: '#007bff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
-  },
-  loginButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  registerPrompt: {
-    marginTop: 20,
-    width: '100%',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  registerText: {
-    fontSize: 14,
-    color: '#555',
-  },
-  registerLink: {
-    fontSize: 14,
-    color: '#007bff',
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-  registerLink: {
-    fontSize: 14,
-    color: '#007bff',
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-  registerScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f0f0',
-    padding: 20,
-  },
-  mapScreenContainer: {
-    flex: 1, // Ensure it takes available space
-    width: '100%',
-    // alignItems: 'center', // Removed
-    // justifyContent: 'center', // Removed
-  },
-  map: {
-    flex: 1, // Map takes all available space within its container
-    width: '100%', // Ensure it takes full width
-  },
-  mapControls: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'column',
-  },
-  centerButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 22,
-    padding: 10,
-    elevation: 2,
-  },
-  centerButtonText: {
-    fontSize: 20,
-    color: '#333',
-  },
-  tabBarIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 13,
-  },
-  fab: {
-    position: 'absolute',
-    width: 91,
-    height: 91,
-    borderRadius: 46,
-    backgroundColor: '#9b59b6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    bottom: 10,
-    alignSelf: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    transform: [{ rotate: '0deg' }],
-  },
-  fabText: {
-    color: 'white',
-    fontSize: 55,
-    fontWeight: '300',
-    lineHeight: 55,
-  },
-  fabTextSmall: {
-    color: 'red',
-    fontSize: 35,
-    fontWeight: '300',
-    lineHeight: 35,
-    top: 3, // Lower the X symbol by 3 pixels
-  },
-  fabTextArrived: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  fabIcon: {
-    width: 55,
-    height: 55,
-    resizeMode: 'contain',
-  },
-  logoutText: {
-    color: 'red',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'transparent', // Transparent so content below is visible
-    zIndex: 0, // Ensure it's below the menu but above other content
-  },
-  notificationsOverlay: {
-    position: 'absolute',
-    top: 100, // Adjust as needed to be below the header
-    left: 0,
-    right: 0,
-    zIndex: 1, // Ensure it's above the map
-  },
-});
