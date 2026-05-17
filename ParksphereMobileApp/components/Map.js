@@ -17,6 +17,7 @@ const Map = memo(({
   setNewSpotCoordinates,
   setShowTimeOptionsModal,
   acceptedSpot,
+  parkedLocation,
 }) => {
   return (
     <View style={styles.mapScreenContainer}>
@@ -46,6 +47,14 @@ const Map = memo(({
             }
           }}
         >
+          {parkedLocation && (
+            <Marker
+              coordinate={{ latitude: parkedLocation.latitude, longitude: parkedLocation.longitude }}
+              title="Your Car"
+              description="Where you parked"
+              pinColor="blue"
+            />
+          )}
           {parkingSpots.map((spot) => {
             const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
             const displaySpot = isAccepted ? acceptedSpot : spot;

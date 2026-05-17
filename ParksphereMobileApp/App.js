@@ -55,7 +55,7 @@ const generateFuzzyCircle = (centerLat, centerLon, radius) => {
   return coordinates;
 };
 
-function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress }) {
+function HomeScreen({ navigation, userLocation, locationPermissionGranted, parkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, parkedLocation }) {
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -73,6 +73,7 @@ function HomeScreen({ navigation, userLocation, locationPermissionGranted, parki
           setNewSpotCoordinates={setNewSpotCoordinates}
           setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
+          parkedLocation={parkedLocation}
         />
         <TouchableOpacity
           style={[
@@ -177,6 +178,7 @@ export default function App() {
   const [selectedRequester, setSelectedRequester] = useState(null); // State for selected requester
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); // State for total unread messages
   const [unreadConversations, setUnreadConversations] = useState({}); // Track which conversations have unread messages
+  const [parkedLocation, setParkedLocation] = useState(null); // New state for parked location
 
   // Notification and Auto-Detection setup
   useEffect(() => {
@@ -184,6 +186,11 @@ export default function App() {
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
       console.log('App.js: Received park detection update:', data.message);
       addNotification(data.message);
+      if (data.parkedLocation) {
+        setParkedLocation(data.parkedLocation);
+      } else if (data.clearParkedLocation) {
+        setParkedLocation(null);
+      }
     });
 
     const setupNotificationsAndDetection = async () => {
@@ -201,6 +208,15 @@ export default function App() {
             await AsyncStorage.setItem('autoDetectionEnabled', 'true');
           }
           await startParkDetection();
+        }
+      }
+
+      // 4. Load initial parked location from AsyncStorage
+      const saved = await AsyncStorage.getItem('PARK_STATE');
+      if (saved) {
+        const stateData = JSON.parse(saved);
+        if (stateData.parkedLocation) {
+          setParkedLocation(stateData.parkedLocation);
         }
       }
     };
@@ -988,8 +1004,8 @@ const MemoizedHomeScreen = React.memo(HomeScreen);
   const memoizedParkingSpots = useMemo(() => parkingSpots, [parkingSpots]);
 
   const WrappedHomeScreen = useMemo(() => (props) => {
-    return <MemoizedHomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={memoizedParkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} />;
-  }, [userLocation, locationPermissionGranted, memoizedParkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress]);
+    return <MemoizedHomeScreen {...props} userLocation={userLocation} locationPermissionGranted={locationPermissionGranted} parkingSpots={memoizedParkingSpots} userId={userId} handleSpotPress={handleSpotPress} handleCenterMap={handleCenterMap} mapViewRef={mapViewRef} setSpotDetailsVisible={setSpotDetailsVisible} notifications={notifications} isAddingSpot={isAddingSpot} setIsAddingSpot={setIsAddingSpot} setNewSpotCoordinates={setNewSpotCoordinates} setShowTimeOptionsModal={setShowTimeOptionsModal} acceptedSpot={acceptedSpot} hasActiveSpot={hasActiveSpot} handleFabPress={handleFabPress} parkedLocation={parkedLocation} />;
+  }, [userLocation, locationPermissionGranted, memoizedParkingSpots, userId, handleSpotPress, handleCenterMap, mapViewRef, setSpotDetailsVisible, notifications, isAddingSpot, setIsAddingSpot, setNewSpotCoordinates, setShowTimeOptionsModal, acceptedSpot, hasActiveSpot, handleFabPress, parkedLocation]);
 
   // Pass unread status to ChatTab
   const WrappedChatTab = useMemo(() => (props) => {

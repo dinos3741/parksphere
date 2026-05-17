@@ -186,9 +186,9 @@ async function deleteSpot(spotId) {
   }
 }
 
-function notify(message) {
+function notify(message, extraData = {}) {
   console.log(`[ParkDetection] ${message}`);
-  DeviceEventEmitter.emit('parkDetectionUpdate', { message });
+  DeviceEventEmitter.emit('parkDetectionUpdate', { message, ...extraData });
 }
 
 let lastVirtualUpdate = 0;
@@ -358,12 +358,13 @@ export async function handleLocationUpdate(arg1, arg2) {
     stateData.lastDistanceToCar = null;
     stateData.isAway = false;
     stateData._loggedParkedLoc = false;
-    notify('🏁 Spot cleared. Ready for next parking.');
+    notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
   }
 
   if (parkedEvent) {
-    notify('🅿️ Parking confirmed!');
-    stateData.parkedLocation = stateData.stoppedCandidateLocation || currentLoc;
+    const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
+    stateData.parkedLocation = finalParkedLoc;
+    notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
   }
 
   if (hmmState === 'DRIVING' && stateData.stoppedCandidateLocation) {
