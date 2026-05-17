@@ -10,41 +10,36 @@ import RequesterArrivalModal from './RequesterArrivalModal';
 import EditSpotMobileModal from './EditSpotMobileModal';
 import RequesterProfileModal from './RequesterProfileModal';
 
+import { useAuth } from '../context/AuthContext';
+
 export default function HomeScreen({ 
   userLocation, 
   locationPermissionGranted, 
   parkingSpots, 
-  setParkingSpots, // Now needed to update locally
-  userId, 
+  setParkingSpots, 
   handleCenterMap, 
   mapViewRef, 
   notifications, 
   acceptedSpot, 
-  setAcceptedSpot, // Now needed to update locally
+  setAcceptedSpot, 
   hasActiveSpot, 
   parkedLocation,
-  // Handlers from App.js
   handleRequestSpot,
   handleDeleteSpot,
-  handleEditSpot,
   handleSaveEditedSpot,
   handleOpenChat,
   handleRate,
   handleCreateSpot,
-  // Socket from App.js
   socket,
-  serverUrl,
-  token,
-  currentUsername,
   playSoundArrived,
   addNotification,
-  // Shared state that must stay in App.js for tracking but can be updated from here
   arrivalConfirmed,
   setArrivalConfirmed,
   setSpotRequests,
   setHasNewRequests,
   getDistance,
 }) {
+  const { userId, token, serverUrl, currentUsername } = useAuth();
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false);
@@ -167,7 +162,6 @@ export default function HomeScreen({
       setNewSpotCoordinates(null);
     } else {
       setIsAddingSpot(true);
-      // setLeavingModalVisible(false); // This one is still in App.js because it's a core workflow?
     }
   }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
 
@@ -202,18 +196,10 @@ export default function HomeScreen({
     setArrivalConfirmationData(null);
   };
 
-  const handleLocalConfirmArrival = () => {
-    if (socket.current && acceptedSpot && userId) {
-      socket.current.emit('requester-arrived', {
-        spotId: acceptedSpot.id,
-        requesterId: userId,
-        requesterUsername: currentUsername,
-      });
-      Alert.alert('Arrival Confirmed', 'Spot owner has been notified of your arrival.');
-      setArrivalConfirmed(true); 
-      setSpotDetailsVisible(false); 
-      setRequesterArrivalModalOpen(false); 
-    }
+  const handleEditSpot = (spot) => {
+    setSpotToEdit(spot);
+    setShowEditSpotMobileModal(true);
+    setSpotDetailsVisible(false); 
   };
 
   return (
@@ -223,7 +209,6 @@ export default function HomeScreen({
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
-          userId={userId}
           handleSpotPress={handleLocalSpotPress}
           handleCenterMap={handleCenterMap}
           mapViewRef={mapViewRef}
@@ -254,13 +239,11 @@ export default function HomeScreen({
       </View>
       <Notifications notifications={notifications} />
 
-      {/* Decentralized Modals moved from App.js */}
       <SpotDetails
         visible={isSpotDetailsVisible}
         spot={selectedSpot}
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
-        currentUserId={userId}
         onDeleteSpot={handleDeleteSpot}
         onEditSpot={handleEditSpot}
         userLocation={userLocation}
@@ -298,7 +281,7 @@ export default function HomeScreen({
           setRequesterArrivalModalOpen(false);
           setArrivalConfirmed(false); 
         }}
-        onConfirm={handleLocalConfirmArrival}
+        onConfirm={handleConfirmArrival}
       />
 
       <RatingModal
@@ -313,7 +296,6 @@ export default function HomeScreen({
         onClose={() => setShowRequesterDetailsModal(false)}
         user={selectedRequester}
         onOpenChat={handleLocalOpenChat}
-        serverUrl={serverUrl}
       />
     </View>
   );

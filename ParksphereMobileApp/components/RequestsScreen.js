@@ -3,7 +3,10 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import RequesterProfileModal from './RequesterProfileModal';
 
-const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineRequest, token, serverUrl, onOpenChat }) => {
+import { useAuth } from '../context/AuthContext';
+
+const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineRequest, onOpenChat }) => {
+  const { token, serverUrl } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isRequestAccepted, setIsRequestAccepted] = useState(false);
@@ -89,7 +92,6 @@ const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineReques
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
           onOpenChat={onOpenChat}
-          serverUrl={serverUrl}
         />
       )}
     </View>

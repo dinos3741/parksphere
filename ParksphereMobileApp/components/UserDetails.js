@@ -2,7 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, refreshing, onProfileUpdate, serverUrl }) => {
+import { useAuth } from '../context/AuthContext';
+
+const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUpdate }) => {
+  const { currentUser: user, token, logout: onLogout, serverUrl } = useAuth();
   if (!user) {
     return null;
   }
@@ -89,7 +92,7 @@ const UserDetails = ({ user, token, onBack, onEditProfile, onLogout, onRefresh, 
     });
 
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/avatar`, {
+      const response = await fetch(`${serverUrl}/api/users/avatar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

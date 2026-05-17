@@ -4,11 +4,12 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import HMMOverlay from './HMMOverlay';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
+import { useAuth } from '../context/AuthContext';
+
 const Map = memo(({
   userLocation,
   locationPermissionGranted,
   parkingSpots,
-  userId,
   handleSpotPress,
   handleCenterMap,
   mapViewRef,
@@ -20,6 +21,7 @@ const Map = memo(({
   acceptedSpot,
   parkedLocation,
 }) => {
+  const { userId } = useAuth();
   return (
     <View style={styles.mapScreenContainer}>
       {userLocation ? (

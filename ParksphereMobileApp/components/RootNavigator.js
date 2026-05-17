@@ -11,16 +11,13 @@ import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
 import Profile from './Profile';
 
+import { useAuth } from '../context/AuthContext';
+
 const Tab = createBottomTabNavigator();
 
 export default function RootNavigator({
   navigationRef,
-  isLoggedIn,
-  currentUser,
-  userId,
-  token,
   socket,
-  serverUrl,
   totalUnreadMessagesCount,
   unreadConversations,
   hasNewRequests,
@@ -59,7 +56,6 @@ export default function RootNavigator({
   isEditingProfile,
   setIsEditingProfile,
   handleProfileUpdate,
-  handleLogout,
   isRefreshing,
   handleRefresh,
   // New handlers and state for decentralization
@@ -71,7 +67,6 @@ export default function RootNavigator({
   handleCreateSpot,
   arrivalConfirmed,
   setArrivalConfirmed,
-  currentUsername,
   playSoundArrived,
   addNotification,
   setParkingSpots,
@@ -79,6 +74,7 @@ export default function RootNavigator({
   setSpotRequests,
   getDistance,
 }) {
+  const { currentUser } = useAuth();
 
   const WrappedHomeScreen = useMemo(() => (props) => {
     return (
@@ -88,7 +84,6 @@ export default function RootNavigator({
         locationPermissionGranted={locationPermissionGranted} 
         parkingSpots={parkingSpots} 
         setParkingSpots={setParkingSpots}
-        userId={userId} 
         handleCenterMap={handleCenterMap} 
         mapViewRef={mapViewRef} 
         notifications={notifications} 
@@ -107,10 +102,7 @@ export default function RootNavigator({
         // Decentralized State and Utilities
         arrivalConfirmed={arrivalConfirmed}
         setArrivalConfirmed={setArrivalConfirmed}
-        serverUrl={serverUrl}
-        token={token}
         socket={socket}
-        currentUsername={currentUsername}
         playSoundArrived={playSoundArrived}
         addNotification={addNotification}
         setSpotRequests={setSpotRequests}
@@ -118,28 +110,24 @@ export default function RootNavigator({
         getDistance={getDistance}
       />
     );
-  }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, userId, handleCenterMap, mapViewRef, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, serverUrl, token, socket, currentUsername, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
+  }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, handleCenterMap, mapViewRef, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
 
   const WrappedChatTab = useMemo(() => (props) => {
     return (
       <ChatTab 
         {...props} 
-        userId={userId} 
-        token={token} 
         socket={socket} 
-        serverUrl={serverUrl} 
-        currentUser={currentUser} 
         setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
         unreadConversations={unreadConversations}
         onMarkAsRead={handleMarkAsRead}
         activeChatPartnerRef={activeChatPartnerRef}
       />
     );
-  }, [userId, token, socket, serverUrl, currentUser, setTotalUnreadMessagesCount, unreadConversations, handleMarkAsRead, activeChatPartnerRef]);
+  }, [socket, setTotalUnreadMessagesCount, unreadConversations, handleMarkAsRead, activeChatPartnerRef]);
 
   const WrappedSearchScreen = useMemo(() => (props) => {
-    return <SearchScreen {...props} token={token} serverUrl={serverUrl} />;
-  }, [token, serverUrl]);
+    return <SearchScreen {...props} />;
+  }, []);
 
   const WrappedRequestsScreen = useMemo(() => (props) => {
     const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
@@ -149,19 +137,15 @@ export default function RootNavigator({
         spotRequests={requests} 
         handleAcceptRequest={handleAcceptRequest} 
         handleDeclineRequest={handleDeclineRequest} 
-        token={token} 
-        serverUrl={serverUrl} 
         onOpenChat={handleOpenChat} 
       />
     );
-  }, [acceptedRequest, spotRequests, handleAcceptRequest, handleDeclineRequest, token, serverUrl, handleOpenChat]);
+  }, [acceptedRequest, spotRequests, handleAcceptRequest, handleDeclineRequest, handleOpenChat]);
 
   const ProfileScreen = useMemo(() => (props) => {
     if (isEditingProfile) {
       return (
         <Profile
-          user={currentUser}
-          token={token}
           onBack={() => setIsEditingProfile(false)}
           onProfileUpdate={handleProfileUpdate}
         />
@@ -170,18 +154,14 @@ export default function RootNavigator({
 
     return (
       <UserDetails
-        user={currentUser}
-        token={token}
         onBack={() => {}} 
         onEditProfile={() => setIsEditingProfile(true)}
-        onLogout={handleLogout}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
         onProfileUpdate={handleProfileUpdate}
-        serverUrl={serverUrl}
       />
     );
-  }, [isEditingProfile, currentUser, token, handleProfileUpdate, handleLogout, isRefreshing, handleRefresh, serverUrl, setIsEditingProfile]);
+  }, [isEditingProfile, handleProfileUpdate, isRefreshing, handleRefresh, setIsEditingProfile]);
 
   return (
     <NavigationContainer ref={navigationRef}>

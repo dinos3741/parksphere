@@ -1,10 +1,13 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, Image } from 'react-native';
 
-const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, currentUserId, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, arrivalConfirmed, onOpenChat, onConfirmArrival }) => {
+import { useAuth } from '../context/AuthContext';
+
+const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, onDeleteSpot, onEditSpot, userLocation, acceptedSpot, arrivalConfirmed, onOpenChat, onConfirmArrival }) => {
+  const { userId } = useAuth();
   if (!spot) return null;
 
-  const isOwner = String(currentUserId) === String(spot.user_id); // Ensure type consistency
+  const isOwner = String(userId) === String(spot.user_id); // Use userId from context
   const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
 
   const handleUsernameClick = () => {

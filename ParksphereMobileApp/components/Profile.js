@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, Alert, TextInput, TouchableOpacity, KeyboardAvo
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { useAuth } from '../context/AuthContext';
+
 const carTypes = [
   'motorcycle',
   'city car',
@@ -14,7 +16,8 @@ const carTypes = [
   'truck',
 ];
 
-const Profile = ({ user, token, onBack, onProfileUpdate }) => {
+const Profile = ({ onBack, onProfileUpdate }) => {
+  const { currentUser: user, token, serverUrl } = useAuth();
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
@@ -55,7 +58,7 @@ const Profile = ({ user, token, onBack, onProfileUpdate }) => {
 
   const handleUpdate = async () => {
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/users/${user.id}/car-details`, {
+      const response = await fetch(`${serverUrl}/api/users/${user.id}/car-details`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
