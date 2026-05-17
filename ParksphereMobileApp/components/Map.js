@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import HMMOverlay from './HMMOverlay';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 
 const Map = memo(({
   userLocation,
@@ -52,8 +53,14 @@ const Map = memo(({
               coordinate={{ latitude: parkedLocation.latitude, longitude: parkedLocation.longitude }}
               title="Your Car"
               description="Where you parked"
-              pinColor="blue"
-            />
+            >
+              <View style={styles.parkedMarkerContainer}>
+                <View style={styles.parkedMarkerBubble}>
+                  <FontAwesome name="car" size={18} color="white" />
+                </View>
+                <View style={styles.parkedMarkerArrow} />
+              </View>
+            </Marker>
           )}
           {parkingSpots.map((spot) => {
             const isAccepted = acceptedSpot && spot.id === acceptedSpot.id;
@@ -190,6 +197,33 @@ const styles = StyleSheet.create({
     width: 2,
     height: 30,
     backgroundColor: 'red',
+  },
+  parkedMarkerContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  parkedMarkerBubble: {
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    padding: 8,
+    borderWidth: 2,
+    borderColor: 'white',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  parkedMarkerArrow: {
+    backgroundColor: '#007AFF',
+    width: 10,
+    height: 10,
+    transform: [{ rotate: '45deg' }],
+    marginTop: -6,
+    borderBottomRightRadius: 2,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: 'white',
   },
 });
 
