@@ -4,11 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { Picker } from '@react-native-picker/picker';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
 WebBrowser.maybeCompleteAuthSession();
 
-const Login = ({ onLogin, onRegister }) => {
+const Login = ({ onRegister }) => {
+  const { login, serverUrl } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
@@ -27,7 +29,7 @@ const Login = ({ onLogin, onRegister }) => {
   useEffect(() => {
     const fetchCarTypes = async () => {
       try {
-        const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/car-types`);
+        const response = await fetch(`${serverUrl}/api/car-types`);
         if (response.ok) {
           const data = await response.json();
           setCarTypes(data);
@@ -38,7 +40,7 @@ const Login = ({ onLogin, onRegister }) => {
       }
     };
     fetchCarTypes();
-  }, []);
+  }, [serverUrl]);
 
   useEffect(() => {
     if (response) {
@@ -57,7 +59,7 @@ const Login = ({ onLogin, onRegister }) => {
 
   const handleGoogleSuccess = async (idToken) => {
     try {
-      const res = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/auth/google`, {
+      const res = await fetch(`${serverUrl}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,12 +74,9 @@ const Login = ({ onLogin, onRegister }) => {
 
       if (res.ok) {
         const data = await res.json();
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userId', String(data.userId));
-        await AsyncStorage.setItem('username', data.username);
         // Ensure mock mode is disabled for real login
         await AsyncStorage.setItem('mockModeEnabled', 'false');
-        onLogin(data);
+        login(data);
       } else if (res.status === 428) { // Precondition Required - missing car details
         setTempIdToken(idToken);
         setShowCarDetailsFields(true);
@@ -100,7 +99,7 @@ const Login = ({ onLogin, onRegister }) => {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/login`, {
+      const response = await fetch(`${serverUrl}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,12 +109,9 @@ const Login = ({ onLogin, onRegister }) => {
 
       if (response.ok) {
         const data = await response.json();
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userId', String(data.userId));
-        await AsyncStorage.setItem('username', data.username);
         // Ensure mock mode is disabled for real login
         await AsyncStorage.setItem('mockModeEnabled', 'false');
-        onLogin(data);
+        login(data);
       } else {
         const errorText = await response.text();
         console.error('Login failed:', errorText);
@@ -134,12 +130,9 @@ const Login = ({ onLogin, onRegister }) => {
       username: 'dinos',
       carType: 'sedan'
     };
-    await AsyncStorage.setItem('userToken', mockData.token);
-    await AsyncStorage.setItem('userId', String(mockData.userId));
-    await AsyncStorage.setItem('username', mockData.username);
     // Explicitly enable mock mode for demo
     await AsyncStorage.setItem('mockModeEnabled', 'true');
-    onLogin(mockData);
+    login(mockData);
   };
 
   return (

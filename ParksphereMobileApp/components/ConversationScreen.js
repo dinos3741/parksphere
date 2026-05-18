@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 
-const ConversationScreen = ({ userId, token, onBack, otherUserId, socket, otherUsername, serverUrl, currentUser, onNewMessageReceived }) => { // Added onNewMessageReceived
+import { useAuth } from '../context/AuthContext';
+
+const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewMessageReceived }) => { 
+  const { userId, token, serverUrl, currentUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef(null);

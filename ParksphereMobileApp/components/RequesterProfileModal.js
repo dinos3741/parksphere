@@ -2,7 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Modal } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 
-const RequesterProfileModal = ({ user, visible, onClose, onOpenChat, serverUrl }) => {
+import { useAuth } from '../context/AuthContext';
+
+const RequesterProfileModal = ({ user, visible, onClose, onOpenChat }) => {
+  const { serverUrl } = useAuth();
   if (!user) {
     return null;
   }

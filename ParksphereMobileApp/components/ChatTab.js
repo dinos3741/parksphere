@@ -3,7 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import ConversationsList from './ConversationsList';
 import ConversationScreen from './ConversationScreen';
 
-const ChatTab = ({ userId, token, socket, onBack, route, serverUrl, currentUser, setTotalUnreadMessagesCount, unreadConversations, onMarkAsRead, activeChatPartnerRef }) => {
+import { useAuth } from '../context/AuthContext';
+
+const ChatTab = ({ socket, onBack, route, setTotalUnreadMessagesCount, unreadConversations, onMarkAsRead, activeChatPartnerRef }) => {
+  const { userId, token, serverUrl, currentUser } = useAuth();
   const [selectedOtherUserId, setSelectedOtherUserId] = useState(null);
   const [selectedOtherUsername, setSelectedOtherUsername] = useState(null);
 
@@ -46,22 +49,15 @@ const ChatTab = ({ userId, token, socket, onBack, route, serverUrl, currentUser,
     <View style={styles.container}>
       {selectedOtherUserId ? (
         <ConversationScreen
-          userId={userId}
-          token={token}
           onBack={handleBackToConversations}
           otherUserId={selectedOtherUserId}
           socket={socket}
           otherUsername={selectedOtherUsername}
-          serverUrl={serverUrl}
-          currentUser={currentUser}
           onNewMessageReceived={handleNewMessageReceived}
         />
       ) : (
         <ConversationsList
-          userId={userId}
-          token={token}
           onSelectConversation={handleSelectConversation}
-          serverUrl={serverUrl}
           unreadConversations={unreadConversations}
           onMarkAsRead={onMarkAsRead}
         />

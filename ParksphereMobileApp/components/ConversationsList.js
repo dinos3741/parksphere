@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Alert } from 'react-native';
 
-const ConversationsList = ({ userId, token, onSelectConversation, serverUrl, unreadConversations, onMarkAsRead }) => {
+import { useAuth } from '../context/AuthContext';
+
+const ConversationsList = ({ onSelectConversation, unreadConversations, onMarkAsRead }) => {
+  const { userId, token, serverUrl } = useAuth();
   const [conversations, setConversations] = useState([]);
 
   useEffect(() => {

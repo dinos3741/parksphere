@@ -3,13 +3,15 @@ import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, T
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { useAuth } from '../context/AuthContext';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
 WebBrowser.maybeCompleteAuthSession();
 
 const carTypes = ['motorcycle', 'city car', 'hatchback', 'sedan', 'family car', 'SUV', 'van', 'truck'];
 
-const Register = ({ onBack, onLogin }) => {
+const Register = ({ onBack }) => {
+  const { login, serverUrl } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [carType, setCarType] = useState('');
@@ -36,7 +38,7 @@ const Register = ({ onBack, onLogin }) => {
     }
 
     try {
-      const res = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/auth/google`, {
+      const res = await fetch(`${serverUrl}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -51,10 +53,7 @@ const Register = ({ onBack, onLogin }) => {
 
       if (res.ok) {
         const data = await res.json();
-        await AsyncStorage.setItem('userToken', data.token);
-        await AsyncStorage.setItem('userId', String(data.userId));
-        await AsyncStorage.setItem('username', data.username);
-        if (onLogin) onLogin(data);
+        login(data);
       } else {
         const errorData = await res.text();
         Alert.alert('Google Registration Failed', errorData);
@@ -71,7 +70,7 @@ const Register = ({ onBack, onLogin }) => {
       return;
     }
     try {
-      const response = await fetch(`http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001/api/register`, {
+      const response = await fetch(`${serverUrl}/api/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

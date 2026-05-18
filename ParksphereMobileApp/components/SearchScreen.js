@@ -3,7 +3,10 @@ import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpaci
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useIsFocused } from '@react-navigation/native';
 
-const SearchScreen = ({ token, serverUrl }) => {
+import { useAuth } from '../context/AuthContext';
+
+const SearchScreen = () => {
+  const { token, serverUrl } = useAuth();
   const [username, setUsername] = useState('');
   const [recentSearches, setRecentSearches] = useState([
     { id: '1', username: 'john_doe' },
