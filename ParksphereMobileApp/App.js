@@ -260,6 +260,8 @@ function AppContent() {
           currentUsername={currentUsername}
           fetchUserData={fetchUserData}
           setIsRefreshing={setIsRefreshing}
+          showRegister={showRegister}
+          setShowRegister={setShowRegister}
           />
           </ChatProvider>
 
@@ -293,6 +295,8 @@ function AppLayout({
   currentUsername,
   fetchUserData,
   setIsRefreshing,
+  showRegister,
+  setShowRegister,
 }) {
   const { 
     addNotification, 
