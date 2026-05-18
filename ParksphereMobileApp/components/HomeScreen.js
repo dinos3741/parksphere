@@ -24,7 +24,7 @@ export default function HomeScreen({
   getDistance,
   parkedLocation,
 }) {
-  const { userId, currentUsername } = useAuth();
+  const { userId, currentUsername, token, serverUrl } = useAuth();
   const { notifications, triggerNotification } = useNotifications();
   const { 
     parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
@@ -32,6 +32,25 @@ export default function HomeScreen({
     setSpotRequests, setHasNewRequests, arrivalConfirmed, setArrivalConfirmed, hasActiveSpot 
   } = useSpots();
   const { handleOpenChat } = useChat();
+
+  const handleRate = useCallback(async (rating, ratedUserId) => {
+    if (!token || !ratedUserId) return;
+    try {
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: ratedUserId, rating }),
+      });
+      if (response.ok) {
+        triggerNotification('Rating submitted successfully!', 'default');
+      }
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+    }
+  }, [token, serverUrl, triggerNotification]);
 
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
