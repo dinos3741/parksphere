@@ -151,13 +151,14 @@ function AppLayout({
   parkedLocation,
 }) {
   const { fetchParkingSpots } = useSpots();
+  const { userId, token } = useAuth();
 
   useEffect(() => {
-    if (isLoggedIn && currentUser) {
+    if (isLoggedIn && userId && token) {
       fetchUserData();
       fetchParkingSpots();
     }
-  }, [isLoggedIn, currentUser?.id, fetchUserData, fetchParkingSpots]);
+  }, [isLoggedIn, userId, token, fetchUserData, fetchParkingSpots]);
 
   return (
     <>
