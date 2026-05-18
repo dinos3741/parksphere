@@ -14,31 +14,23 @@ import LeavingModal from './LeavingModal';
 
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useSpots } from '../context/SpotContext';
+import { useChat } from '../context/ChatContext';
 
 export default function HomeScreen({ 
   userLocation, 
   locationPermissionGranted, 
-  parkingSpots, 
-  setParkingSpots, 
-  acceptedSpot, 
-  setAcceptedSpot, 
-  hasActiveSpot, 
-  parkedLocation,
-  handleRequestSpot,
-  handleDeleteSpot,
-  handleSaveEditedSpot,
-  handleOpenChat,
-  handleRate,
-  handleCreateSpot,
   socket,
-  arrivalConfirmed,
-  setArrivalConfirmed,
-  setSpotRequests,
-  setHasNewRequests,
   getDistance,
 }) {
   const { userId, token, currentUsername } = useAuth();
   const { notifications, addNotification, triggerNotification } = useNotifications();
+  const { 
+    parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
+    handleRequestSpot, handleDeleteSpot, handleSaveEditedSpot, handleCreateSpot, 
+    setSpotRequests, setHasNewRequests, arrivalConfirmed, setArrivalConfirmed, hasActiveSpot 
+  } = useSpots();
+  const { handleOpenChat } = useChat();
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false);
