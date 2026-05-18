@@ -13,12 +13,13 @@ export const useSpots = () => {
   return context;
 };
 
-export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setAcceptedSpot, setArrivalConfirmed }) => {
+export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification }) => {
   const { token, isLoggedIn, serverUrl, logout } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
   const [acceptedSpot, setAcceptedSpot] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
+  const [arrivalConfirmed, setArrivalConfirmed] = useState(false);
 
   useEffect(() => {
     if (socket && socket.current) {
