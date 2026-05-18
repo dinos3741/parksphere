@@ -13,6 +13,7 @@ import Profile from './Profile';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
+import { useNotifications } from '../context/NotificationContext';
 
 const Tab = createBottomTabNavigator();
 
@@ -30,7 +31,6 @@ export default function RootNavigator({
   parkingSpots,
   handleSpotPress,
   setSpotDetailsVisible,
-  notifications,
   isAddingSpot,
   setIsAddingSpot,
   setNewSpotCoordinates,
@@ -60,8 +60,6 @@ export default function RootNavigator({
   handleCreateSpot,
   arrivalConfirmed,
   setArrivalConfirmed,
-  playSoundArrived,
-  addNotification,
   setParkingSpots,
   setAcceptedSpot,
   setSpotRequests,
@@ -69,6 +67,7 @@ export default function RootNavigator({
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
+  const { notifications, addNotification, playSoundArrived } = useNotifications();
 
   const WrappedHomeScreen = useMemo(() => (props) => {
     return (
@@ -78,7 +77,6 @@ export default function RootNavigator({
         locationPermissionGranted={locationPermissionGranted} 
         parkingSpots={parkingSpots} 
         setParkingSpots={setParkingSpots}
-        notifications={notifications} 
         acceptedSpot={acceptedSpot} 
         setAcceptedSpot={setAcceptedSpot}
         hasActiveSpot={hasActiveSpot} 
@@ -95,14 +93,12 @@ export default function RootNavigator({
         arrivalConfirmed={arrivalConfirmed}
         setArrivalConfirmed={setArrivalConfirmed}
         socket={socket}
-        playSoundArrived={playSoundArrived}
-        addNotification={addNotification}
         setSpotRequests={setSpotRequests}
         setHasNewRequests={setHasNewRequests}
         getDistance={getDistance}
         />
         );
-        }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
+        }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, setSpotRequests, setHasNewRequests, getDistance]);
   const WrappedChatTab = useMemo(() => (props) => {
     return (
       <ChatTab 

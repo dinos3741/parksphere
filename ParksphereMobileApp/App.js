@@ -23,6 +23,7 @@ import RootNavigator from './components/RootNavigator';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SpotProvider, useSpots } from './context/SpotContext';
 import { ChatProvider, useChat } from './context/ChatContext';
+import { NotificationProvider, useNotifications } from './context/NotificationContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -44,22 +45,6 @@ function AppContent() {
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const activeChatPartnerRef = useRef(null); 
 
-  const newRequestPlayer = useAudioPlayer(require('./assets/sounds/new-request.wav'));
-  const arrivedPlayer = useAudioPlayer(require('./assets/sounds/arrived.wav'));
-  const messagePlayer = useAudioPlayer(require('./assets/sounds/message-sound.wav'));
-
-  const playSound = useCallback(() => {
-    newRequestPlayer.play();
-  }, [newRequestPlayer]);
-
-  const playSoundArrived = useCallback(() => {
-    arrivedPlayer.play();
-  }, [arrivedPlayer]);
-
-  const playSoundMessage = useCallback(() => {
-    messagePlayer.play();
-  }, [messagePlayer]);
-
   useEffect(() => {
     async function prepare() {
       try {
@@ -77,11 +62,6 @@ function AppContent() {
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
-  const [notifications, setNotifications] = useState([]); 
-  const addNotification = useCallback((msg) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
-  }, []);
   const [showRegister, setShowRegister] = useState(false); 
   const [showAboutScreen, setShowAboutScreen] = useState(false); 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -100,6 +80,14 @@ function AppContent() {
       DeviceEventEmitter.emit('proximityArrival');
     }
   );
+
+  const { 
+    notifications,
+    addNotification, 
+    playSound, 
+    playSoundArrived, 
+    playSoundMessage 
+  } = useNotifications();
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
@@ -215,7 +203,7 @@ function AppContent() {
         body: JSON.stringify({ rated_user_id: ratedUserId, rating }),
       });
       if (response.ok) {
-        addNotification('Rating submitted successfully!', 'green');
+        triggerNotification('Rating submitted successfully!', 'default');
       }
     } catch (error) {
       console.error('Error submitting rating:', error);
@@ -270,8 +258,6 @@ function AppContent() {
           handleRate={handleRate}
           arrivalConfirmed={arrivalConfirmed}
           setArrivalConfirmed={setArrivalConfirmed}
-          playSoundArrived={playSoundArrived}
-          addNotification={addNotification}
           getDistance={getDistance}
           isLeavingModalVisible={isLeavingModalVisible}
           setLeavingModalVisible={setLeavingModalVisible}
@@ -282,10 +268,9 @@ function AppContent() {
           currentUsername={currentUsername}
           fetchUserData={fetchUserData}
           setIsRefreshing={setIsRefreshing}
-          playSound={playSound}
-          playSoundMessage={playSoundMessage}
-        />
-      </ChatProvider>
+          />
+          </ChatProvider>
+
     </SpotProvider>
   );
 }
@@ -298,10 +283,8 @@ function AppLayout({
   navigationRef,
   socket,
   setActiveScreen,
-  getAvatarUri,
   userLocation,
   locationPermissionGranted,
-  notifications,
   parkedLocation,
   acceptedRequest,
   setAcceptedRequest,
@@ -310,11 +293,10 @@ function AppLayout({
   setIsEditingProfile,
   handleProfileUpdate,
   isRefreshing,
+  getAvatarUri,
   handleRate,
   arrivalConfirmed,
   setArrivalConfirmed,
-  playSoundArrived,
-  addNotification,
   getDistance,
   isLeavingModalVisible,
   setLeavingModalVisible,
@@ -325,26 +307,30 @@ function AppLayout({
   currentUsername,
   fetchUserData,
   setIsRefreshing,
-  playSound,
-  playSoundMessage,
 }) {
-  const {
-    parkingSpots,
-    setParkingSpots,
-    acceptedSpot,
-    setAcceptedSpot,
-    spotRequests,
-    setSpotRequests,
-    hasNewRequests,
-    setHasNewRequests,
-    fetchParkingSpots,
-    handleRequestSpot,
-    handleDeleteSpot,
-    handleSaveEditedSpot,
-    handleCreateSpot,
-    handleAcceptRequest,
-    handleDeclineRequest,
-  } = useSpots();
+  const { 
+    addNotification, 
+    triggerNotification,
+    playSound,
+    playSoundMessage 
+  } = useNotifications();
+const {
+  parkingSpots,
+  setParkingSpots,
+  acceptedSpot,
+  setAcceptedSpot,
+  spotRequests,
+  setSpotRequests,
+  hasNewRequests,
+  setHasNewRequests,
+  fetchParkingSpots,
+  handleRequestSpot,
+  handleDeleteSpot,
+  handleSaveEditedSpot,
+  handleCreateSpot,
+  handleAcceptRequest,
+  handleDeclineRequest,
+} = useSpots();
 
   const {
     totalUnreadMessagesCount,
@@ -394,8 +380,7 @@ function AppLayout({
       const onSpotRequest = (data) => {
         setSpotRequests(prevRequests => [...prevRequests, data]);
         setHasNewRequests(true);
-        addNotification(data.message);
-        playSound();
+        triggerNotification(data.message, 'newRequest');
       };
 
       const onReqAccDec = ({ spotId, requestId }) => {
@@ -415,7 +400,7 @@ function AppLayout({
 
       const onPrivateMessage = (message) => {
         if (message.to === userId && message.from !== userId) {
-          playSoundMessage();
+          triggerNotification(null, 'message');
           if (activeChatPartnerRef.current !== message.from) {
             handleMarkAsUnread(message.from);
           }
@@ -442,7 +427,7 @@ function AppLayout({
         s.off('privateMessage', onPrivateMessage);
       };
     }
-  }, [socket, userId, setParkingSpots, setSpotRequests, setHasNewRequests, setAcceptedSpot, setArrivalConfirmed, addNotification, playSound, playSoundMessage, activeChatPartnerRef, handleMarkAsUnread]);
+  }, [socket, userId, setParkingSpots, setSpotRequests, setHasNewRequests, setAcceptedSpot, setArrivalConfirmed, triggerNotification, playSoundMessage, activeChatPartnerRef, handleMarkAsUnread]);
 
   const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
 
@@ -462,7 +447,6 @@ function AppLayout({
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
           setParkingSpots={setParkingSpots}
-          notifications={notifications}
           acceptedSpot={acceptedSpot}
           setAcceptedSpot={setAcceptedSpot}
           hasActiveSpot={hasActiveSpot}
@@ -485,8 +469,6 @@ function AppLayout({
           handleCreateSpot={handleCreateSpot}
           arrivalConfirmed={arrivalConfirmed}
           setArrivalConfirmed={setArrivalConfirmed}
-          playSoundArrived={playSoundArrived}
-          addNotification={addNotification}
           getDistance={getDistance}
         />
       ) : showRegister ? (
@@ -530,12 +512,9 @@ function AppContentWrapper() {
   const { userId, currentUsername, isLoggedIn, token } = useAuth();
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
   
-  // We need addNotification and socket here, but they are defined in AppContent.
-  // This is a circular dependency. 
-  // Refactor: Move addNotification and socket management into their own providers or hooks if possible.
-  // For now, let's keep it simple: Move SpotProvider inside AppContent, but it must be above the useSpots call.
-  // Actually, standard practice is to have the SpotProvider higher up.
   return (
-    <AppContent />
+    <NotificationProvider>
+      <AppContent />
+    </NotificationProvider>
   );
 }

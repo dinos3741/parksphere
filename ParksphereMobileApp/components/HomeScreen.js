@@ -12,13 +12,13 @@ import EditSpotMobileModal from './EditSpotMobileModal';
 import RequesterProfileModal from './RequesterProfileModal';
 
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 
 export default function HomeScreen({ 
   userLocation, 
   locationPermissionGranted, 
   parkingSpots, 
   setParkingSpots, 
-  notifications, 
   acceptedSpot, 
   setAcceptedSpot, 
   hasActiveSpot, 
@@ -30,8 +30,6 @@ export default function HomeScreen({
   handleRate,
   handleCreateSpot,
   socket,
-  playSoundArrived,
-  addNotification,
   arrivalConfirmed,
   setArrivalConfirmed,
   setSpotRequests,
@@ -39,6 +37,7 @@ export default function HomeScreen({
   getDistance,
 }) {
   const { userId, token, serverUrl, currentUsername } = useAuth();
+  const { notifications, addNotification, triggerNotification } = useNotifications();
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
   const [showTimeOptionsModal, setShowTimeOptionsModal] = useState(false);
@@ -103,8 +102,7 @@ export default function HomeScreen({
       const onRequesterArrived = (data) => {
         console.log('[HomeScreen] Requester arrived notification received:', data);
         const message = `User ${data.requesterUsername} has arrived at spot ${data.spotId}. Please confirm to complete the transaction.`;
-        addNotification(message, 'default');
-        if (playSoundArrived) playSoundArrived();
+        triggerNotification(message, 'arrived');
         setArrivalConfirmationData(data);
         setArrivalConfirmationModalOpen(true);
       };
@@ -112,7 +110,7 @@ export default function HomeScreen({
       const onTransactionComplete = (data) => {
         console.log('[HomeScreen] Transaction complete received:', data);
         Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
-        addNotification(data.message, 'green');
+        triggerNotification(data.message, 'default'); // or any other type if you have one
         setAcceptedSpot(null);
         setArrivalConfirmed(false);
         if (data.ownerId && data.ownerUsername) {
@@ -139,7 +137,7 @@ export default function HomeScreen({
         s.off('arrivalRejected', onArrivalRejected);
       };
     }
-  }, [socket, setAcceptedSpot, setArrivalConfirmed, addNotification, playSoundArrived]);
+  }, [socket, setAcceptedSpot, setArrivalConfirmed, triggerNotification]);
 
 
   const handleConfirmArrival = () => {
@@ -205,7 +203,7 @@ export default function HomeScreen({
         requesterId: arrivalConfirmationData.requesterId,
       });
       setArrivalConfirmationModalOpen(false);
-      addNotification('Arrival confirmed!', 'green');
+      triggerNotification('Arrival confirmed!', 'default');
       setUserToRate({ requester_id: arrivalConfirmationData.requesterId, requester_username: arrivalConfirmationData.requesterUsername });
       setShowRatingModal(true);
       setArrivalConfirmationData(null);
