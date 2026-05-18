@@ -22,6 +22,7 @@ import RootNavigator from './components/RootNavigator';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SpotProvider, useSpots } from './context/SpotContext';
+import { ChatProvider, useChat } from './context/ChatContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -88,8 +89,6 @@ function AppContent() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [acceptedRequest, setAcceptedRequest] = useState(null);
   const navigationRef = useNavigationContainerRef(); 
-  const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); 
-  const [unreadConversations, setUnreadConversations] = useState({}); 
   const [parkedLocation, setParkedLocation] = useState(null); 
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); 
 
@@ -193,27 +192,6 @@ function AppContent() {
     }
   }, [isLoggedIn, userId, token, serverUrl, logout, setCurrentUser]);
 
-  useEffect(() => {
-    const currentTotalUnread = Object.keys(unreadConversations).length;
-    setTotalUnreadMessagesCount(currentTotalUnread);
-  }, [unreadConversations]);
-
-  const handleMarkAsRead = useCallback((otherUserId) => {
-    setUnreadConversations(prev => {
-      const newState = { ...prev };
-      if (newState[otherUserId]) {
-        delete newState[otherUserId];
-      }
-      return newState;
-    });
-  }, []);
-
-  const handleMarkAsUnread = useCallback((otherUserId) => {
-    setUnreadConversations(prev => {
-      return { ...prev, [otherUserId]: true };
-    });
-  }, []);
-
   const handleProfileUpdate = (shouldClose = true) => {
     fetchUserData();
     if (shouldClose === true) {
@@ -268,50 +246,46 @@ function AppContent() {
       userId={userId} 
       currentUsername={currentUsername}
     >
-      <AppLayout 
-        isLoggedIn={isLoggedIn}
-        currentUser={currentUser}
-        showRegister={showRegister}
-        setShowRegister={setShowRegister}
-        navigationRef={navigationRef}
-        socket={socket}
-        totalUnreadMessagesCount={totalUnreadMessagesCount}
-        unreadConversations={unreadConversations}
-        setActiveScreen={setActiveScreen}
-        getAvatarUri={getAvatarUri}
-        userLocation={userLocation}
-        locationPermissionGranted={locationPermissionGranted}
-        notifications={notifications}
-        parkedLocation={parkedLocation}
-        handleMarkAsRead={handleMarkAsRead}
-        activeChatPartnerRef={activeChatPartnerRef}
-        setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
-        acceptedRequest={acceptedRequest}
-        setAcceptedRequest={setAcceptedRequest}
-        handleOpenChat={handleOpenChat}
-        isEditingProfile={isEditingProfile}
-        setIsEditingProfile={setIsEditingProfile}
-        handleProfileUpdate={handleProfileUpdate}
-        isRefreshing={isRefreshing}
-        handleRate={handleRate}
-        arrivalConfirmed={arrivalConfirmed}
-        setArrivalConfirmed={setArrivalConfirmed}
-        playSoundArrived={playSoundArrived}
-        addNotification={addNotification}
-        getDistance={getDistance}
-        isLeavingModalVisible={isLeavingModalVisible}
-        setLeavingModalVisible={setLeavingModalVisible}
-        showAboutScreen={showAboutScreen}
-        setShowAboutScreen={setShowAboutScreen}
-        userId={userId}
-        token={token}
-        currentUsername={currentUsername}
-        fetchUserData={fetchUserData}
-        setIsRefreshing={setIsRefreshing}
-        playSound={playSound}
-        playSoundMessage={playSoundMessage}
-        handleMarkAsUnread={handleMarkAsUnread}
-      />
+      <ChatProvider>
+        <AppLayout 
+          isLoggedIn={isLoggedIn}
+          currentUser={currentUser}
+          showRegister={showRegister}
+          setShowRegister={setShowRegister}
+          navigationRef={navigationRef}
+          socket={socket}
+          setActiveScreen={setActiveScreen}
+          getAvatarUri={getAvatarUri}
+          userLocation={userLocation}
+          locationPermissionGranted={locationPermissionGranted}
+          notifications={notifications}
+          parkedLocation={parkedLocation}
+          acceptedRequest={acceptedRequest}
+          setAcceptedRequest={setAcceptedRequest}
+          handleOpenChat={handleOpenChat}
+          isEditingProfile={isEditingProfile}
+          setIsEditingProfile={setIsEditingProfile}
+          handleProfileUpdate={handleProfileUpdate}
+          isRefreshing={isRefreshing}
+          handleRate={handleRate}
+          arrivalConfirmed={arrivalConfirmed}
+          setArrivalConfirmed={setArrivalConfirmed}
+          playSoundArrived={playSoundArrived}
+          addNotification={addNotification}
+          getDistance={getDistance}
+          isLeavingModalVisible={isLeavingModalVisible}
+          setLeavingModalVisible={setLeavingModalVisible}
+          showAboutScreen={showAboutScreen}
+          setShowAboutScreen={setShowAboutScreen}
+          userId={userId}
+          token={token}
+          currentUsername={currentUsername}
+          fetchUserData={fetchUserData}
+          setIsRefreshing={setIsRefreshing}
+          playSound={playSound}
+          playSoundMessage={playSoundMessage}
+        />
+      </ChatProvider>
     </SpotProvider>
   );
 }
@@ -323,17 +297,12 @@ function AppLayout({
   setShowRegister,
   navigationRef,
   socket,
-  totalUnreadMessagesCount,
-  unreadConversations,
   setActiveScreen,
   getAvatarUri,
   userLocation,
   locationPermissionGranted,
   notifications,
   parkedLocation,
-  handleMarkAsRead,
-  activeChatPartnerRef,
-  setTotalUnreadMessagesCount,
   acceptedRequest,
   setAcceptedRequest,
   handleOpenChat,
@@ -358,7 +327,6 @@ function AppLayout({
   setIsRefreshing,
   playSound,
   playSoundMessage,
-  handleMarkAsUnread,
 }) {
   const {
     parkingSpots,
@@ -377,6 +345,15 @@ function AppLayout({
     handleAcceptRequest,
     handleDeclineRequest,
   } = useSpots();
+
+  const {
+    totalUnreadMessagesCount,
+    unreadConversations,
+    handleMarkAsRead,
+    handleMarkAsUnread,
+    activeChatPartnerRef,
+    setTotalUnreadMessagesCount,
+  } = useChat();
 
   useEffect(() => {
     if (isLoggedIn && token && userId) {
@@ -476,8 +453,6 @@ function AppLayout({
         <RootNavigator
           navigationRef={navigationRef}
           socket={socket}
-          totalUnreadMessagesCount={totalUnreadMessagesCount}
-          unreadConversations={unreadConversations}
           hasNewRequests={hasNewRequests}
           setHasNewRequests={setHasNewRequests}
           setAcceptedRequest={setAcceptedRequest}
@@ -492,9 +467,6 @@ function AppLayout({
           setAcceptedSpot={setAcceptedSpot}
           hasActiveSpot={hasActiveSpot}
           parkedLocation={parkedLocation}
-          handleMarkAsRead={handleMarkAsRead}
-          activeChatPartnerRef={activeChatPartnerRef}
-          setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
           spotRequests={spotRequests}
           setSpotRequests={setSpotRequests}
           acceptedRequest={acceptedRequest}

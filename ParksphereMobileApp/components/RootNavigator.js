@@ -12,14 +12,13 @@ import UserDetails from './UserDetails';
 import Profile from './Profile';
 
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function RootNavigator({
   navigationRef,
   socket,
-  totalUnreadMessagesCount,
-  unreadConversations,
   hasNewRequests,
   setHasNewRequests,
   setAcceptedRequest,
@@ -40,10 +39,6 @@ export default function RootNavigator({
   hasActiveSpot,
   handleFabPress,
   parkedLocation,
-  // Chat props
-  handleMarkAsRead,
-  activeChatPartnerRef,
-  setTotalUnreadMessagesCount,
   // Requests props
   spotRequests,
   acceptedRequest,
@@ -73,6 +68,7 @@ export default function RootNavigator({
   getDistance,
 }) {
   const { currentUser } = useAuth();
+  const { totalUnreadMessagesCount } = useChat();
 
   const WrappedHomeScreen = useMemo(() => (props) => {
     return (
@@ -112,13 +108,9 @@ export default function RootNavigator({
       <ChatTab 
         {...props} 
         socket={socket} 
-        setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
-        unreadConversations={unreadConversations}
-        onMarkAsRead={handleMarkAsRead}
-        activeChatPartnerRef={activeChatPartnerRef}
       />
     );
-  }, [socket, setTotalUnreadMessagesCount, unreadConversations, handleMarkAsRead, activeChatPartnerRef]);
+  }, [socket]);
 
   const WrappedSearchScreen = useMemo(() => (props) => {
     return <SearchScreen {...props} />;

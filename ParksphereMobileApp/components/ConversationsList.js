@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Alert } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 
-const ConversationsList = ({ onSelectConversation, unreadConversations, onMarkAsRead }) => {
+const ConversationsList = ({ onSelectConversation }) => {
   const { userId, token, serverUrl } = useAuth();
+  const { unreadConversations, handleMarkAsRead } = useChat();
   const [conversations, setConversations] = useState([]);
 
   useEffect(() => {
@@ -60,7 +62,7 @@ const ConversationsList = ({ onSelectConversation, unreadConversations, onMarkAs
       style={styles.conversationItem} 
       onPress={() => {
         onSelectConversation(item.other_user_id, item.other_username);
-        onMarkAsRead(item.other_user_id); // Mark as read when selected
+        handleMarkAsRead(item.other_user_id); // Mark as read when selected
       }}
     >
       <Image source={{ uri: getAvatarUri(item.other_avatar_url, item.other_username) }} style={styles.avatar} />

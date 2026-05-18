@@ -4,36 +4,36 @@ import ConversationsList from './ConversationsList';
 import ConversationScreen from './ConversationScreen';
 
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 
-const ChatTab = ({ socket, onBack, route, setTotalUnreadMessagesCount, unreadConversations, onMarkAsRead, activeChatPartnerRef }) => {
+const ChatTab = ({ socket, onBack, route }) => {
   const { userId, token, serverUrl, currentUser } = useAuth();
+  const { 
+    unreadConversations, 
+    handleMarkAsRead, 
+    activeChatPartnerRef 
+  } = useChat();
   const [selectedOtherUserId, setSelectedOtherUserId] = useState(null);
   const [selectedOtherUsername, setSelectedOtherUsername] = useState(null);
 
   // Sync the active chat partner ref whenever selectedOtherUserId changes
   useEffect(() => {
-    if (activeChatPartnerRef) {
-      activeChatPartnerRef.current = selectedOtherUserId;
-    }
+    activeChatPartnerRef.current = selectedOtherUserId;
   }, [selectedOtherUserId, activeChatPartnerRef]);
 
   useEffect(() => {
     if (route.params?.recipient) {
       setSelectedOtherUserId(route.params.recipient.id);
       setSelectedOtherUsername(route.params.recipient.username);
-      if (onMarkAsRead) {
-        onMarkAsRead(route.params.recipient.id);
-      }
+      handleMarkAsRead(route.params.recipient.id);
     }
-  }, [route.params?.recipient, onMarkAsRead]);
+  }, [route.params?.recipient, handleMarkAsRead]);
 
   const handleSelectConversation = useCallback((otherUserId, otherUsername) => {
-    if (onMarkAsRead) {
-      onMarkAsRead(otherUserId);
-    }
+    handleMarkAsRead(otherUserId);
     setSelectedOtherUserId(otherUserId);
     setSelectedOtherUsername(otherUsername);
-  }, [onMarkAsRead]);
+  }, [handleMarkAsRead]);
 
   const handleBackToConversations = useCallback(() => {
     setSelectedOtherUserId(null);
@@ -58,8 +58,6 @@ const ChatTab = ({ socket, onBack, route, setTotalUnreadMessagesCount, unreadCon
       ) : (
         <ConversationsList
           onSelectConversation={handleSelectConversation}
-          unreadConversations={unreadConversations}
-          onMarkAsRead={onMarkAsRead}
         />
       )}
     </View>
