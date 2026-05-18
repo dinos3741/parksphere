@@ -428,9 +428,37 @@ const {
         <RootNavigator
           navigationRef={navigationRef}
           socket={socket}
+          hasNewRequests={hasNewRequests}
+          setHasNewRequests={setHasNewRequests}
+          setAcceptedRequest={setAcceptedRequest}
           setActiveScreen={setActiveScreen}
+          getAvatarUri={getAvatarUri}
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
+          parkingSpots={parkingSpots}
+          setParkingSpots={setParkingSpots}
+          acceptedSpot={acceptedSpot}
+          setAcceptedSpot={setAcceptedSpot}
+          hasActiveSpot={hasActiveSpot}
+          parkedLocation={parkedLocation}
+          spotRequests={spotRequests}
+          setSpotRequests={setSpotRequests}
+          acceptedRequest={acceptedRequest}
+          handleAcceptRequest={handleAcceptRequest}
+          handleDeclineRequest={handleDeclineRequest}
+          handleOpenChat={handleOpenChat}
+          isEditingProfile={isEditingProfile}
+          setIsEditingProfile={setIsEditingProfile}
+          handleProfileUpdate={handleProfileUpdate}
+          isRefreshing={isRefreshing}
+          handleRefresh={localHandleRefresh}
+          handleRequestSpot={handleRequestSpot}
+          handleDeleteSpot={handleDeleteSpot}
+          handleSaveEditedSpot={handleSaveEditedSpot}
+          handleRate={handleRate}
+          handleCreateSpot={handleCreateSpot}
+          arrivalConfirmed={arrivalConfirmed}
+          setArrivalConfirmed={setArrivalConfirmed}
           getDistance={getDistance}
         />
       ) : showRegister ? (
