@@ -26,6 +26,7 @@ export default function RootNavigator({
   userLocation,
   locationPermissionGranted,
   getDistance,
+  parkedLocation,
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
@@ -40,9 +41,10 @@ export default function RootNavigator({
         locationPermissionGranted={locationPermissionGranted}
         socket={socket}
         getDistance={getDistance}
+        parkedLocation={parkedLocation}
       />
     );
-  }, [userLocation, locationPermissionGranted, socket, getDistance]);
+  }, [userLocation, locationPermissionGranted, socket, getDistance, parkedLocation]);
 
   const WrappedChatTab = useMemo(() => (props) => {
     return (
