@@ -62,8 +62,6 @@ function AppContent() {
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
-  const [showRegister, setShowRegister] = useState(false); 
-  const [showAboutScreen, setShowAboutScreen] = useState(false); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -238,8 +236,6 @@ function AppContent() {
         <AppLayout 
           isLoggedIn={isLoggedIn}
           currentUser={currentUser}
-          showRegister={showRegister}
-          setShowRegister={setShowRegister}
           navigationRef={navigationRef}
           socket={socket}
           setActiveScreen={setActiveScreen}
@@ -259,10 +255,6 @@ function AppContent() {
           arrivalConfirmed={arrivalConfirmed}
           setArrivalConfirmed={setArrivalConfirmed}
           getDistance={getDistance}
-          isLeavingModalVisible={isLeavingModalVisible}
-          setLeavingModalVisible={setLeavingModalVisible}
-          showAboutScreen={showAboutScreen}
-          setShowAboutScreen={setShowAboutScreen}
           userId={userId}
           token={token}
           currentUsername={currentUsername}
@@ -278,8 +270,6 @@ function AppContent() {
 function AppLayout({
   isLoggedIn,
   currentUser,
-  showRegister,
-  setShowRegister,
   navigationRef,
   socket,
   setActiveScreen,
@@ -298,10 +288,6 @@ function AppLayout({
   arrivalConfirmed,
   setArrivalConfirmed,
   getDistance,
-  isLeavingModalVisible,
-  setLeavingModalVisible,
-  showAboutScreen,
-  setShowAboutScreen,
   userId,
   token,
   currentUsername,
@@ -483,19 +469,6 @@ const {
           <DebugSimulator userLocation={userLocation} />
         </>
       )}
-
-      <LeavingModal
-        visible={isLeavingModalVisible}
-        onClose={() => setLeavingModalVisible(false)}
-        onCreateSpot={handleCreateSpot}
-      />
-      <Modal
-        visible={showAboutScreen}
-        animationType="slide"
-        onRequestClose={() => setShowAboutScreen(false)}
-      >
-        <AboutScreen onClose={() => setShowAboutScreen(false)} />
-      </Modal>
     </>
   );
 }
