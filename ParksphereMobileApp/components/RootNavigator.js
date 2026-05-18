@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -10,6 +10,7 @@ import SearchScreen from './SearchScreen';
 import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
 import Profile from './Profile';
+import AboutScreen from './AboutScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -67,7 +68,7 @@ export default function RootNavigator({
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
-  const { notifications, addNotification, playSoundArrived } = useNotifications();
+  const [showAboutScreen, setShowAboutScreen] = useState(false);
 
   const WrappedHomeScreen = useMemo(() => (props) => {
     return (
@@ -150,9 +151,16 @@ export default function RootNavigator({
     <NavigationContainer ref={navigationRef}>
       <View style={styles.fullContainer}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => {}} style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
             <Image source={require('../assets/images/logo.png')} style={styles.logo} />
           </TouchableOpacity>
+          <Modal
+            visible={showAboutScreen}
+            animationType="slide"
+            onRequestClose={() => setShowAboutScreen(false)}
+          >
+            <AboutScreen onClose={() => setShowAboutScreen(false)} />
+          </Modal>
           <View style={styles.titleContainer}>
             <Text style={styles.appName}>Parksphere</Text>
           </View>
