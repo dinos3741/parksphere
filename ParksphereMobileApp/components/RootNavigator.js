@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
@@ -9,12 +9,10 @@ import ChatTab from './ChatTab';
 import SearchScreen from './SearchScreen';
 import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
-import Profile from './Profile';
 import AboutScreen from './AboutScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
-import { useNotifications } from '../context/NotificationContext';
 import { useSpots } from '../context/SpotContext';
 
 const Tab = createBottomTabNavigator();
@@ -26,52 +24,12 @@ export default function RootNavigator({
   userLocation,
   locationPermissionGranted,
   getDistance,
+  parkedLocation,
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
+  const { hasNewRequests } = useSpots();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
-
-  const WrappedHomeScreen = useMemo(() => (props) => {
-    return (
-      <HomeScreen 
-        {...props} 
-        userLocation={userLocation} 
-        locationPermissionGranted={locationPermissionGranted}
-        socket={socket}
-        getDistance={getDistance}
-      />
-    );
-  }, [userLocation, locationPermissionGranted, socket, getDistance]);
-
-  const WrappedChatTab = useMemo(() => (props) => {
-    return (
-      <ChatTab 
-        {...props} 
-        socket={socket} 
-      />
-    );
-  }, [socket]);
-
-  const WrappedSearchScreen = useMemo(() => (props) => {
-    return <SearchScreen {...props} />;
-  }, []);
-
-  const WrappedRequestsScreen = useMemo(() => (props) => {
-    return (
-      <RequestsScreen 
-        {...props}
-      />
-    );
-  }, []);
-
-  const ProfileScreen = useMemo(() => (props) => {
-    return (
-      <UserDetails
-        onBack={() => {}} 
-        onEditProfile={() => {}}
-      />
-    );
-  }, []);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -112,10 +70,13 @@ export default function RootNavigator({
                 showChatBadge = totalUnreadMessagesCount > 0;
               } else if (route.name === 'Requests') {
                 iconName = 'list-alt';
+                if (hasNewRequests) {
+                    showRequestBadge = true;
+                }
               } else if (route.name === 'Search') {
                 iconName = 'search';
               } else if (route.name === 'Profile') {
-                return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
+                return <Image source={{ uri: currentUser?.avatar_url }} style={styles.tabBarIcon} />;
               }
 
               return (
@@ -145,11 +106,40 @@ export default function RootNavigator({
             tabBarStyle: { height: 60 },
           })}
         >
-          <Tab.Screen name="Home" component={WrappedHomeScreen} />
-          <Tab.Screen name="Chat" component={WrappedChatTab} />
-          <Tab.Screen name="Requests" component={WrappedRequestsScreen} />
-          <Tab.Screen name="Search" component={WrappedSearchScreen} />
-          <Tab.Screen name="Profile" component={ProfileScreen} />
+          <Tab.Screen name="Home">
+            {(props) => (
+              <HomeScreen 
+                {...props} 
+                userLocation={userLocation} 
+                locationPermissionGranted={locationPermissionGranted}
+                socket={socket}
+                getDistance={getDistance}
+                parkedLocation={parkedLocation}
+              />
+            )}
+          </Tab.Screen>
+          <Tab.Screen name="Chat">
+            {(props) => (
+              <ChatTab 
+                {...props} 
+                socket={socket} 
+              />
+            )}
+          </Tab.Screen>
+          <Tab.Screen name="Requests">
+            {(props) => <RequestsScreen {...props} />}
+          </Tab.Screen>
+          <Tab.Screen name="Search">
+            {(props) => <SearchScreen {...props} />}
+          </Tab.Screen>
+          <Tab.Screen name="Profile">
+            {(props) => (
+              <UserDetails
+                onBack={() => {}} 
+                onEditProfile={() => {}}
+              />
+            )}
+          </Tab.Screen>
         </Tab.Navigator>
       </View>
     </NavigationContainer>
