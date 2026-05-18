@@ -13,12 +13,77 @@ export const useSpots = () => {
   return context;
 };
 
-export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername }) => {
+export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification }) => {
   const { token, isLoggedIn, serverUrl, logout } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
   const [acceptedSpot, setAcceptedSpot] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
+  const [arrivalConfirmed, setArrivalConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (socket && socket.current) {
+      const s = socket.current;
+
+      const onNewSpot = (newSpot) => {
+        const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
+        setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
+      };
+
+      const onSpotDeleted = ({ spotId }) => {
+        setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
+        setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
+        setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
+      };
+
+      const onSpotUpdated = (updatedSpot) => {
+        setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+      };
+
+      const onSpotStatusUpdated = (updatedSpot) => {
+        setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+      };
+
+      const onSpotRequest = (data) => {
+        setSpotRequests(prevRequests => [...prevRequests, data]);
+        setHasNewRequests(true);
+        triggerNotification(data.message, 'newRequest');
+      };
+
+      const onReqAccDec = ({ spotId, requestId }) => {
+        setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
+      };
+
+      const onRequestResponse = (data) => {
+        Alert.alert('Spot Request Update', data.message);
+        if (data.spot) {
+          setAcceptedSpot(data.spot);
+          setArrivalConfirmed(false);
+        } else {
+          setAcceptedSpot(null);
+          setArrivalConfirmed(false);
+        }
+      };
+
+      s.on('newParkingSpot', onNewSpot);
+      s.on('spotDeleted', onSpotDeleted);
+      s.on('spotUpdated', onSpotUpdated);
+      s.on('spotStatusUpdated', onSpotStatusUpdated);
+      s.on('spotRequest', onSpotRequest);
+      s.on('requestAcceptedOrDeclined', onReqAccDec);
+      s.on('requestResponse', onRequestResponse);
+
+      return () => {
+        s.off('newParkingSpot', onNewSpot);
+        s.off('spotDeleted', onSpotDeleted);
+        s.off('spotUpdated', onSpotUpdated);
+        s.off('spotStatusUpdated', onSpotStatusUpdated);
+        s.off('spotRequest', onSpotRequest);
+        s.off('requestAcceptedOrDeclined', onReqAccDec);
+        s.off('requestResponse', onRequestResponse);
+      };
+    }
+  }, [socket, triggerNotification, setAcceptedSpot, setArrivalConfirmed]);
 
   // Expiration logic
   useEffect(() => {

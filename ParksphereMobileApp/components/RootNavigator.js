@@ -26,11 +26,9 @@ export default function RootNavigator({
   userLocation,
   locationPermissionGranted,
   getDistance,
-  parkedLocation,
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
-  const { hasNewRequests } = useSpots();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
 
   const WrappedHomeScreen = useMemo(() => (props) => {
@@ -41,10 +39,9 @@ export default function RootNavigator({
         locationPermissionGranted={locationPermissionGranted}
         socket={socket}
         getDistance={getDistance}
-        parkedLocation={parkedLocation}
       />
     );
-  }, [userLocation, locationPermissionGranted, socket, getDistance, parkedLocation]);
+  }, [userLocation, locationPermissionGranted, socket, getDistance]);
 
   const WrappedChatTab = useMemo(() => (props) => {
     return (
@@ -115,13 +112,10 @@ export default function RootNavigator({
                 showChatBadge = totalUnreadMessagesCount > 0;
               } else if (route.name === 'Requests') {
                 iconName = 'list-alt';
-                if (hasNewRequests) {
-                    showRequestBadge = true;
-                }
               } else if (route.name === 'Search') {
                 iconName = 'search';
               } else if (route.name === 'Profile') {
-                return <Image source={{ uri: currentUser?.avatar_url }} style={styles.tabBarIcon} />;
+                return <Image source={{ uri: currentUser.avatar_url }} style={styles.tabBarIcon} />;
               }
 
               return (

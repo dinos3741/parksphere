@@ -4,9 +4,13 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import RequesterProfileModal from './RequesterProfileModal';
 
 import { useAuth } from '../context/AuthContext';
+import { useSpots } from '../context/SpotContext';
+import { useChat } from '../context/ChatContext';
 
-const RequestsScreen = ({ spotRequests, handleAcceptRequest, handleDeclineRequest, onOpenChat }) => {
+const RequestsScreen = () => {
   const { token, serverUrl } = useAuth();
+  const { spotRequests, handleAcceptRequest, handleDeclineRequest } = useSpots();
+  const { handleOpenChat } = useChat();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [isRequestAccepted, setIsRequestAccepted] = useState(false);

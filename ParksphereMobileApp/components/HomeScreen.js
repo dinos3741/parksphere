@@ -24,8 +24,8 @@ export default function HomeScreen({
   getDistance,
   parkedLocation,
 }) {
-  const { userId, currentUsername, token, serverUrl } = useAuth();
-  const { notifications, triggerNotification } = useNotifications();
+  const { userId, token, currentUsername, serverUrl } = useAuth();
+  const { notifications, addNotification, triggerNotification } = useNotifications();
   const { 
     parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
     handleRequestSpot, handleDeleteSpot, handleSaveEditedSpot, handleCreateSpot, 

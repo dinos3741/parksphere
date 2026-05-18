@@ -16,6 +16,7 @@ import { startParkDetection, stopParkDetection, resetParkDetection, handleLocati
 import * as ExpoNotifications from 'expo-notifications';
 import { useLocationTracking } from './hooks/useLocationTracking';
 import { useSocketConnection } from './hooks/useSocketConnection';
+import { useParkDetectionEngine } from './hooks/useParkDetectionEngine';
 
 import AboutScreen from './components/AboutScreen';
 import RootNavigator from './components/RootNavigator';
@@ -75,59 +76,7 @@ function AppContent() {
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
-  useEffect(() => {
-    const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
-      addNotification(data.message);
-      if (data.parkedLocation) {
-        setParkedLocation(data.parkedLocation);
-      } else if (data.clearParkedLocation) {
-        setParkedLocation(null);
-      }
-    });
-
-    const setupNotificationsAndDetection = async () => {
-      const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
-      if (existingStatus !== 'granted') {
-        await ExpoNotifications.requestPermissionsAsync();
-      }
-      
-      if (currentUser && currentUser.auto_detect) {
-        await startParkDetection();
-      }
-
-      const saved = await AsyncStorage.getItem('PARK_STATE');
-      if (saved) {
-        const stateData = JSON.parse(saved);
-        if (stateData.parkedLocation) {
-          setParkedLocation(stateData.parkedLocation);
-        }
-      }
-    };
-    
-    let foregroundSubscription = null;
-    const setupForegroundFallback = async () => {
-       if (currentUser && currentUser.auto_detect) {
-         foregroundSubscription = await Location.watchPositionAsync({
-           accuracy: Location.Accuracy.High,
-           distanceInterval: 1,
-           timeInterval: 2000
-         }, async (location) => {
-           await handleLocationUpdate(location);
-         });
-       }
-    };
-
-    if (isLoggedIn && currentUser) {
-      setupNotificationsAndDetection();
-      setupForegroundFallback();
-    }
-
-    return () => {
-      if (foregroundSubscription) foregroundSubscription.remove();
-      detectionSubscription.remove();
-      stopParkDetection(); 
-    };
-  }, [isLoggedIn, currentUser?.id, currentUser?.auto_detect, addNotification]);
+  useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
 
   const fetchUserData = useCallback(async () => {
     if (isLoggedIn && userId && token) {
@@ -180,6 +129,7 @@ function AppContent() {
           fetchUserData={fetchUserData}
           showRegister={showRegister}
           setShowRegister={setShowRegister}
+          parkedLocation={parkedLocation}
           />
       </ChatProvider>
     </SpotProvider>
@@ -198,16 +148,16 @@ function AppLayout({
   fetchUserData,
   showRegister,
   setShowRegister,
+  parkedLocation,
 }) {
-  const { fetchParkingSpots, setArrivalConfirmed } = useSpots();
-  const { userId, token } = useAuth();
+  const { fetchParkingSpots } = useSpots();
 
   useEffect(() => {
-    if (isLoggedIn && userId && token) {
+    if (isLoggedIn && currentUser) {
       fetchUserData();
       fetchParkingSpots();
     }
-  }, [isLoggedIn, userId, token, fetchUserData, fetchParkingSpots]);
+  }, [isLoggedIn, currentUser?.id, fetchUserData, fetchParkingSpots]);
 
   return (
     <>
@@ -220,6 +170,7 @@ function AppLayout({
           userLocation={userLocation}
           locationPermissionGranted={locationPermissionGranted}
           getDistance={getDistance}
+          parkedLocation={parkedLocation}
         />
       ) : showRegister ? (
         <Register onBack={() => setShowRegister(false)} />
