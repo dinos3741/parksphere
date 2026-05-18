@@ -42,7 +42,6 @@ function AppContent() {
   } = useAuth();
 
   const [fontLoaded, setFontLoaded] = useState(false);
-  const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
   const activeChatPartnerRef = useRef(null); 
 
   useEffect(() => {
