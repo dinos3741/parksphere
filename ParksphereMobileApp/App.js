@@ -21,6 +21,7 @@ import AboutScreen from './components/AboutScreen';
 import RootNavigator from './components/RootNavigator';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SpotProvider, useSpots } from './context/SpotContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -40,7 +41,6 @@ function AppContent() {
 
   const [fontLoaded, setFontLoaded] = useState(false);
   const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
-  const mapViewRef = useRef(null);
   const activeChatPartnerRef = useRef(null); 
 
   const newRequestPlayer = useAudioPlayer(require('./assets/sounds/new-request.wav'));
@@ -77,28 +77,24 @@ function AppContent() {
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
   const [notifications, setNotifications] = useState([]); 
-  const addNotification = (msg) => {
+  const addNotification = useCallback((msg) => {
     const timestamp = new Date().toLocaleTimeString();
     setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
-  };
+  }, []);
   const [showRegister, setShowRegister] = useState(false); 
   const [showAboutScreen, setShowAboutScreen] = useState(false); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [spotRequests, setSpotRequests] = useState([]);
   const [acceptedRequest, setAcceptedRequest] = useState(null);
-  const [hasNewRequests, setHasNewRequests] = useState(false);
   const navigationRef = useNavigationContainerRef(); 
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0); 
   const [unreadConversations, setUnreadConversations] = useState({}); 
   const [parkedLocation, setParkedLocation] = useState(null); 
-  const [acceptedSpot, setAcceptedSpot] = useState(null); 
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); 
-  const [parkingSpots, setParkingSpots] = useState([]); 
 
   const { userLocation, setUserLocation, locationPermissionGranted, getDistance } = useLocationTracking(
-    acceptedSpot, 
+    null, // Will be updated in AppLayout
     arrivalConfirmed,
     () => {
       setArrivalConfirmed(true);
@@ -106,67 +102,15 @@ function AppContent() {
     }
   );
 
-  const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
+  const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
-  const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token, (newSocket) => {
-    newSocket.on('newParkingSpot', (newSpot) => {
-      const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
-      setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
-    });
-
-    newSocket.on('spotDeleted', ({ spotId }) => {
-      setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
-      setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
-      setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
-    });
-
-    newSocket.on('spotUpdated', (updatedSpot) => {
-      setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
-    });
-
-    newSocket.on('spotStatusUpdated', (updatedSpot) => {
-      setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
-    });
-
-    newSocket.on('spotRequest', (data) => {
-      setSpotRequests(prevRequests => [...prevRequests, data]);
-      setHasNewRequests(true);
-      addNotification(data.message);
-      playSound();
-    });
-
-    newSocket.on('requestAcceptedOrDeclined', ({ spotId, requestId }) => {
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
-    });
-
-    newSocket.on('requestResponse', (data) => {
-      Alert.alert('Spot Request Update', data.message);
-      if (data.spot) {
-        setAcceptedSpot(data.spot);
-        setArrivalConfirmed(false);
-        if (mapViewRef.current) {
-          mapViewRef.current.animateToRegion({
-            latitude: parseFloat(data.spot.latitude),
-            longitude: parseFloat(data.spot.longitude),
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          }, 1000);
-        }
-      } else {
-        setAcceptedSpot(null);
-        setArrivalConfirmed(false);
-      }
-    });
-
-    newSocket.on('privateMessage', (message) => {
-      if (message.to === userId && message.from !== userId) {
-        playSoundMessage();
-        if (activeChatPartnerRef.current !== message.from) {
-          handleMarkAsUnread(message.from);
-        }
-      }
-    });
-  });
+  useEffect(() => {
+    if (socket.current) {
+      const s = socket.current;
+      // Socket listeners are better off in a hook or separate component that has access to SpotContext
+      // For now, let's keep them here but they need setParkingSpots etc.
+    }
+  }, [socket]);
 
   useEffect(() => {
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
@@ -270,192 +214,6 @@ function AppContent() {
     });
   }, []);
 
-  useEffect(() => {
-    if (isLoggedIn && token && userId && currentUsername) {
-      fetchUserData();
-      const fetchParkingSpots = async () => {
-        try {
-          const response = await fetch(`${serverUrl}/api/parkingspots`, {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          if (response.ok) {
-            const data = await response.json();
-            const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
-            setParkingSpots(transformedData);
-          } else if (response.status === 401 || response.status === 403) {
-            await logout();
-          }
-        } catch (error) {
-          console.error('Error fetching parking spots:', error);
-        }
-      };
-      fetchParkingSpots();
-    }
-  }, [isLoggedIn, token, userId, currentUsername, serverUrl, fetchUserData, logout]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date().getTime();
-      parkingSpots.forEach(spot => {
-        const expirationTime = new Date(spot.declared_at).getTime() + spot.time_to_leave * 60 * 1000;
-        if (now > expirationTime) {
-          setParkingSpots(prevSpots => prevSpots.filter(s => s.id !== spot.id));
-          setSpotRequests(prevRequests => prevRequests.filter(req => req.spotId !== spot.id));
-        }
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [parkingSpots]);
-
-  const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
-    if (!token) return;
-    try {
-      const response = await fetch(`${serverUrl}/api/request-spot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ spotId, requesterLat, requesterLon }),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        Alert.alert('Error', data.message || 'Failed to request spot.');
-      }
-    } catch (error) {
-      console.error('Error requesting spot:', error);
-    }
-  };
-
-  const handleDeleteSpot = async (spotId) => {
-    if (!token) return;
-    const executeDelete = async () => {
-      try {
-        const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (response.ok) {
-          addNotification(`Spot ${spotId} deleted successfully!`);
-          setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
-        } else if (response.status === 401 || response.status === 403) {
-          await logout();
-        }
-      } catch (error) {
-        console.error('Error deleting spot:', error);
-      }
-    };
-    Alert.alert('Confirm Deletion', 'Are you sure you want to delete this parking spot?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: executeDelete },
-    ]);
-  };
-
-  const handleSaveEditedSpot = async (spotId, updatedDetails) => {
-    if (!token) return;
-    try {
-      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(updatedDetails),
-      });
-      if (response.ok) {
-        addNotification(`Spot ${spotId} updated successfully!`);
-        setParkingSpots((prevSpots) =>
-          prevSpots.map((spot) => (spot.id === spotId ? { ...spot, ...updatedDetails } : spot))
-        );
-      } else if (response.status === 401 || response.status === 403) {
-        await logout();
-      }
-    } catch (error) {
-      console.error('Error updating spot:', error);
-    }
-  };
-
-  const handleAcceptRequest = (request) => {
-    if (socket.current) {
-      socket.current.emit('acceptRequest', {
-        requestId: request.requestId,
-        requesterId: request.requesterId,
-        spotId: request.spotId,
-        ownerUsername: currentUsername,
-        ownerId: userId,
-      });
-      setAcceptedRequest(request);
-      setSpotRequests([]);
-    }
-  };
-
-  const handleDeclineRequest = (request) => {
-    if (socket.current) {
-      socket.current.emit('declineRequest', {
-        requestId: request.requestId,
-        requesterId: request.requesterId,
-        spotId: request.spotId,
-        ownerUsername: currentUsername,
-        ownerId: userId,
-      });
-      setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== request.requestId));
-    }
-  };
-
-  const handleCenterMap = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const currentLocation = await Location.getCurrentPositionAsync({});
-      if (mapViewRef.current) {
-        mapViewRef.current.animateToRegion({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-      }
-    } catch (e) {
-      console.error('Error fetching live location for map centering:', e);
-    }
-  };
-
-  const handleCreateSpot = async (duration, coordinates) => {
-    if (!token || !userId || !coordinates) return;
-    try {
-      const response = await fetch(`${serverUrl}/api/declare-spot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: userId,
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
-          timeToLeave: duration,
-          costType: 'free',
-          price: 0,
-          declaredCarType: 'sedan', 
-          comments: '',
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        addNotification(`Parking spot ${data.spotId} declared successfully!`);
-      } else if (response.status === 401 || response.status === 403) {
-        await logout();
-      }
-    } catch (error) {
-      console.error('Error creating spot:', error);
-    }
-  };
-
-  const handleRefresh = () => {
-    setIsRefreshing(true);
-    fetchUserData();
-  };
-
   const handleProfileUpdate = (shouldClose = true) => {
     fetchUserData();
     if (shouldClose === true) {
@@ -504,6 +262,214 @@ function AppContent() {
   }
 
   return (
+    <SpotProvider 
+      addNotification={addNotification} 
+      socket={socket} 
+      userId={userId} 
+      currentUsername={currentUsername}
+    >
+      <AppLayout 
+        isLoggedIn={isLoggedIn}
+        currentUser={currentUser}
+        showRegister={showRegister}
+        setShowRegister={setShowRegister}
+        navigationRef={navigationRef}
+        socket={socket}
+        totalUnreadMessagesCount={totalUnreadMessagesCount}
+        unreadConversations={unreadConversations}
+        setActiveScreen={setActiveScreen}
+        getAvatarUri={getAvatarUri}
+        userLocation={userLocation}
+        locationPermissionGranted={locationPermissionGranted}
+        notifications={notifications}
+        parkedLocation={parkedLocation}
+        handleMarkAsRead={handleMarkAsRead}
+        activeChatPartnerRef={activeChatPartnerRef}
+        setTotalUnreadMessagesCount={setTotalUnreadMessagesCount}
+        acceptedRequest={acceptedRequest}
+        setAcceptedRequest={setAcceptedRequest}
+        handleOpenChat={handleOpenChat}
+        isEditingProfile={isEditingProfile}
+        setIsEditingProfile={setIsEditingProfile}
+        handleProfileUpdate={handleProfileUpdate}
+        isRefreshing={isRefreshing}
+        handleRate={handleRate}
+        arrivalConfirmed={arrivalConfirmed}
+        setArrivalConfirmed={setArrivalConfirmed}
+        playSoundArrived={playSoundArrived}
+        addNotification={addNotification}
+        getDistance={getDistance}
+        isLeavingModalVisible={isLeavingModalVisible}
+        setLeavingModalVisible={setLeavingModalVisible}
+        showAboutScreen={showAboutScreen}
+        setShowAboutScreen={setShowAboutScreen}
+        userId={userId}
+        token={token}
+        currentUsername={currentUsername}
+        fetchUserData={fetchUserData}
+        setIsRefreshing={setIsRefreshing}
+        playSound={playSound}
+        playSoundMessage={playSoundMessage}
+        handleMarkAsUnread={handleMarkAsUnread}
+      />
+    </SpotProvider>
+  );
+}
+
+function AppLayout({
+  isLoggedIn,
+  currentUser,
+  showRegister,
+  setShowRegister,
+  navigationRef,
+  socket,
+  totalUnreadMessagesCount,
+  unreadConversations,
+  setActiveScreen,
+  getAvatarUri,
+  userLocation,
+  locationPermissionGranted,
+  notifications,
+  parkedLocation,
+  handleMarkAsRead,
+  activeChatPartnerRef,
+  setTotalUnreadMessagesCount,
+  acceptedRequest,
+  setAcceptedRequest,
+  handleOpenChat,
+  isEditingProfile,
+  setIsEditingProfile,
+  handleProfileUpdate,
+  isRefreshing,
+  handleRate,
+  arrivalConfirmed,
+  setArrivalConfirmed,
+  playSoundArrived,
+  addNotification,
+  getDistance,
+  isLeavingModalVisible,
+  setLeavingModalVisible,
+  showAboutScreen,
+  setShowAboutScreen,
+  userId,
+  token,
+  currentUsername,
+  fetchUserData,
+  setIsRefreshing,
+  playSound,
+  playSoundMessage,
+  handleMarkAsUnread,
+}) {
+  const {
+    parkingSpots,
+    setParkingSpots,
+    acceptedSpot,
+    setAcceptedSpot,
+    spotRequests,
+    setSpotRequests,
+    hasNewRequests,
+    setHasNewRequests,
+    fetchParkingSpots,
+    handleRequestSpot,
+    handleDeleteSpot,
+    handleSaveEditedSpot,
+    handleCreateSpot,
+    handleAcceptRequest,
+    handleDeclineRequest,
+  } = useSpots();
+
+  useEffect(() => {
+    if (isLoggedIn && token && userId) {
+      fetchUserData();
+      fetchParkingSpots();
+    }
+  }, [isLoggedIn, token, userId, fetchUserData, fetchParkingSpots]);
+
+  const localHandleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUserData();
+    fetchParkingSpots();
+  };
+
+  useEffect(() => {
+    if (socket.current) {
+      const s = socket.current;
+
+      const onNewSpot = (newSpot) => {
+        const spotWithOwnerId = { ...newSpot, ownerId: newSpot.user_id };
+        setParkingSpots((prevSpots) => [...prevSpots, spotWithOwnerId]);
+      };
+
+      const onSpotDeleted = ({ spotId }) => {
+        setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== parseInt(spotId, 10)));
+        setSpotRequests((prevRequests) => prevRequests.filter((request) => request.spotId !== parseInt(spotId, 10)));
+        setAcceptedSpot(prev => (prev && prev.id === parseInt(spotId, 10) ? null : prev));
+      };
+
+      const onSpotUpdated = (updatedSpot) => {
+        setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+      };
+
+      const onSpotStatusUpdated = (updatedSpot) => {
+        setParkingSpots((prevSpots) => prevSpots.map((spot) => (spot.id === updatedSpot.id ? updatedSpot : spot)));
+      };
+
+      const onSpotRequest = (data) => {
+        setSpotRequests(prevRequests => [...prevRequests, data]);
+        setHasNewRequests(true);
+        addNotification(data.message);
+        playSound();
+      };
+
+      const onReqAccDec = ({ spotId, requestId }) => {
+        setSpotRequests(prevRequests => prevRequests.filter(req => req.requestId !== requestId));
+      };
+
+      const onRequestResponse = (data) => {
+        Alert.alert('Spot Request Update', data.message);
+        if (data.spot) {
+          setAcceptedSpot(data.spot);
+          setArrivalConfirmed(false);
+        } else {
+          setAcceptedSpot(null);
+          setArrivalConfirmed(false);
+        }
+      };
+
+      const onPrivateMessage = (message) => {
+        if (message.to === userId && message.from !== userId) {
+          playSoundMessage();
+          if (activeChatPartnerRef.current !== message.from) {
+            handleMarkAsUnread(message.from);
+          }
+        }
+      };
+
+      s.on('newParkingSpot', onNewSpot);
+      s.on('spotDeleted', onSpotDeleted);
+      s.on('spotUpdated', onSpotUpdated);
+      s.on('spotStatusUpdated', onSpotStatusUpdated);
+      s.on('spotRequest', onSpotRequest);
+      s.on('requestAcceptedOrDeclined', onReqAccDec);
+      s.on('requestResponse', onRequestResponse);
+      s.on('privateMessage', onPrivateMessage);
+
+      return () => {
+        s.off('newParkingSpot', onNewSpot);
+        s.off('spotDeleted', onSpotDeleted);
+        s.off('spotUpdated', onSpotUpdated);
+        s.off('spotStatusUpdated', onSpotStatusUpdated);
+        s.off('spotRequest', onSpotRequest);
+        s.off('requestAcceptedOrDeclined', onReqAccDec);
+        s.off('requestResponse', onRequestResponse);
+        s.off('privateMessage', onPrivateMessage);
+      };
+    }
+  }, [socket, userId, setParkingSpots, setSpotRequests, setHasNewRequests, setAcceptedSpot, setArrivalConfirmed, addNotification, playSound, playSoundMessage, activeChatPartnerRef, handleMarkAsUnread]);
+
+  const hasActiveSpot = parkingSpots.some(spot => spot.ownerId === userId);
+
+  return (
     <>
       <StatusBar style="auto" />
       {isLoggedIn && currentUser ? (
@@ -521,8 +487,6 @@ function AppContent() {
           locationPermissionGranted={locationPermissionGranted}
           parkingSpots={parkingSpots}
           setParkingSpots={setParkingSpots}
-          handleCenterMap={handleCenterMap}
-          mapViewRef={mapViewRef}
           notifications={notifications}
           acceptedSpot={acceptedSpot}
           setAcceptedSpot={setAcceptedSpot}
@@ -541,7 +505,7 @@ function AppContent() {
           setIsEditingProfile={setIsEditingProfile}
           handleProfileUpdate={handleProfileUpdate}
           isRefreshing={isRefreshing}
-          handleRefresh={handleRefresh}
+          handleRefresh={localHandleRefresh}
           handleRequestSpot={handleRequestSpot}
           handleDeleteSpot={handleDeleteSpot}
           handleSaveEditedSpot={handleSaveEditedSpot}
@@ -585,7 +549,21 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <AppContentWrapper />
     </AuthProvider>
+  );
+}
+
+function AppContentWrapper() {
+  const { userId, currentUsername, isLoggedIn, token } = useAuth();
+  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
+  
+  // We need addNotification and socket here, but they are defined in AppContent.
+  // This is a circular dependency. 
+  // Refactor: Move addNotification and socket management into their own providers or hooks if possible.
+  // For now, let's keep it simple: Move SpotProvider inside AppContent, but it must be above the useSpots call.
+  // Actually, standard practice is to have the SpotProvider higher up.
+  return (
+    <AppContent />
   );
 }

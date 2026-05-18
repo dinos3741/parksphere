@@ -30,8 +30,6 @@ export default function RootNavigator({
   locationPermissionGranted,
   parkingSpots,
   handleSpotPress,
-  handleCenterMap,
-  mapViewRef,
   setSpotDetailsVisible,
   notifications,
   isAddingSpot,
@@ -84,8 +82,6 @@ export default function RootNavigator({
         locationPermissionGranted={locationPermissionGranted} 
         parkingSpots={parkingSpots} 
         setParkingSpots={setParkingSpots}
-        handleCenterMap={handleCenterMap} 
-        mapViewRef={mapViewRef} 
         notifications={notifications} 
         acceptedSpot={acceptedSpot} 
         setAcceptedSpot={setAcceptedSpot}
@@ -108,10 +104,9 @@ export default function RootNavigator({
         setSpotRequests={setSpotRequests}
         setHasNewRequests={setHasNewRequests}
         getDistance={getDistance}
-      />
-    );
-  }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, handleCenterMap, mapViewRef, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
-
+        />
+        );
+        }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, notifications, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, playSoundArrived, addNotification, setSpotRequests, setHasNewRequests, getDistance]);
   const WrappedChatTab = useMemo(() => (props) => {
     return (
       <ChatTab 

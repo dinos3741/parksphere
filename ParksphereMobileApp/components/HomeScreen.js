@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, TouchableOpacity, Text, Image, StyleSheet, Modal, DeviceEventEmitter, Alert } from 'react-native';
+import * as Location from 'expo-location'; 
 import Map from './Map';
 import Notifications from './Notifications';
 import SpotDetails from './SpotDetails';
@@ -17,8 +18,6 @@ export default function HomeScreen({
   locationPermissionGranted, 
   parkingSpots, 
   setParkingSpots, 
-  handleCenterMap, 
-  mapViewRef, 
   notifications, 
   acceptedSpot, 
   setAcceptedSpot, 
@@ -55,6 +54,26 @@ export default function HomeScreen({
   const [newSpotCoordinates, setNewSpotCoordinates] = useState(null);
   const [isAddingSpot, setIsAddingSpot] = useState(false);
 
+  const mapViewRef = useRef(null);
+
+  const handleCenterMap = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const currentLocation = await Location.getCurrentPositionAsync({});
+      if (mapViewRef.current) {
+        mapViewRef.current.animateToRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+      }
+    } catch (e) {
+      console.error('[HomeScreen] Error fetching live location for map centering:', e);
+    }
+  };
+
   useEffect(() => {
     const proximitySubscription = DeviceEventEmitter.addListener('proximityArrival', () => {
       console.log('[HomeScreen] Proximity arrival event received.');
@@ -69,6 +88,17 @@ export default function HomeScreen({
   useEffect(() => {
     if (socket && socket.current) {
       const s = socket.current;
+
+      const onRequestResponse = (data) => {
+        if (data.spot && mapViewRef.current) {
+          mapViewRef.current.animateToRegion({
+            latitude: parseFloat(data.spot.latitude),
+            longitude: parseFloat(data.spot.longitude),
+            latitudeDelta: 0.005,
+            longitudeDelta: 0.005,
+          }, 1000);
+        }
+      };
 
       const onRequesterArrived = (data) => {
         console.log('[HomeScreen] Requester arrived notification received:', data);
@@ -97,17 +127,20 @@ export default function HomeScreen({
         setArrivalConfirmed(false); 
       };
 
+      s.on('requestResponse', onRequestResponse);
       s.on('requesterArrived', onRequesterArrived);
       s.on('transactionComplete', onTransactionComplete);
       s.on('arrivalRejected', onArrivalRejected);
 
       return () => {
+        s.off('requestResponse', onRequestResponse);
         s.off('requesterArrived', onRequesterArrived);
         s.off('transactionComplete', onTransactionComplete);
         s.off('arrivalRejected', onArrivalRejected);
       };
     }
   }, [socket, setAcceptedSpot, setArrivalConfirmed, addNotification, playSoundArrived]);
+
 
   const handleConfirmArrival = () => {
     if (socket.current && acceptedSpot && userId) {
