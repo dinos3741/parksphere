@@ -15,59 +15,21 @@ import AboutScreen from './AboutScreen';
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useNotifications } from '../context/NotificationContext';
+import { useSpots } from '../context/SpotContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function RootNavigator({
   navigationRef,
   socket,
-  hasNewRequests,
-  setHasNewRequests,
-  setAcceptedRequest,
   setActiveScreen,
-  getAvatarUri,
-  // HomeScreen Props
   userLocation,
   locationPermissionGranted,
-  parkingSpots,
-  handleSpotPress,
-  setSpotDetailsVisible,
-  isAddingSpot,
-  setIsAddingSpot,
-  setNewSpotCoordinates,
-  setShowTimeOptionsModal,
-  acceptedSpot,
-  hasActiveSpot,
-  handleFabPress,
-  parkedLocation,
-  // Requests props
-  spotRequests,
-  acceptedRequest,
-  handleAcceptRequest,
-  handleDeclineRequest,
-  handleOpenChat,
-  // Profile props
-  isEditingProfile,
-  setIsEditingProfile,
-  handleProfileUpdate,
-  isRefreshing,
-  handleRefresh,
-  // New handlers and state for decentralization
-  handleRequestSpot,
-  handleDeleteSpot,
-  handleEditSpot,
-  handleSaveEditedSpot,
-  handleRate,
-  handleCreateSpot,
-  arrivalConfirmed,
-  setArrivalConfirmed,
-  setParkingSpots,
-  setAcceptedSpot,
-  setSpotRequests,
   getDistance,
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
+  const { hasNewRequests } = useSpots();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
 
   const WrappedHomeScreen = useMemo(() => (props) => {
@@ -75,31 +37,13 @@ export default function RootNavigator({
       <HomeScreen 
         {...props} 
         userLocation={userLocation} 
-        locationPermissionGranted={locationPermissionGranted} 
-        parkingSpots={parkingSpots} 
-        setParkingSpots={setParkingSpots}
-        acceptedSpot={acceptedSpot} 
-        setAcceptedSpot={setAcceptedSpot}
-        hasActiveSpot={hasActiveSpot} 
-        parkedLocation={parkedLocation}
-        // Decentralized Handlers
-        handleRequestSpot={handleRequestSpot}
-        handleDeleteSpot={handleDeleteSpot}
-        handleEditSpot={handleEditSpot}
-        handleSaveEditedSpot={handleSaveEditedSpot}
-        handleOpenChat={handleOpenChat}
-        handleRate={handleRate}
-        handleCreateSpot={handleCreateSpot}
-        // Decentralized State and Utilities
-        arrivalConfirmed={arrivalConfirmed}
-        setArrivalConfirmed={setArrivalConfirmed}
+        locationPermissionGranted={locationPermissionGranted}
         socket={socket}
-        setSpotRequests={setSpotRequests}
-        setHasNewRequests={setHasNewRequests}
         getDistance={getDistance}
-        />
-        );
-        }, [userLocation, locationPermissionGranted, parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, hasActiveSpot, parkedLocation, handleRequestSpot, handleDeleteSpot, handleEditSpot, handleSaveEditedSpot, handleOpenChat, handleRate, handleCreateSpot, arrivalConfirmed, setArrivalConfirmed, socket, setSpotRequests, setHasNewRequests, getDistance]);
+      />
+    );
+  }, [userLocation, locationPermissionGranted, socket, getDistance]);
+
   const WrappedChatTab = useMemo(() => (props) => {
     return (
       <ChatTab 
@@ -114,38 +58,21 @@ export default function RootNavigator({
   }, []);
 
   const WrappedRequestsScreen = useMemo(() => (props) => {
-    const requests = acceptedRequest ? [acceptedRequest] : spotRequests;
     return (
       <RequestsScreen 
-        {...props} 
-        spotRequests={requests} 
-        handleAcceptRequest={handleAcceptRequest} 
-        handleDeclineRequest={handleDeclineRequest} 
-        onOpenChat={handleOpenChat} 
+        {...props}
       />
     );
-  }, [acceptedRequest, spotRequests, handleAcceptRequest, handleDeclineRequest, handleOpenChat]);
+  }, []);
 
   const ProfileScreen = useMemo(() => (props) => {
-    if (isEditingProfile) {
-      return (
-        <Profile
-          onBack={() => setIsEditingProfile(false)}
-          onProfileUpdate={handleProfileUpdate}
-        />
-      );
-    }
-
     return (
       <UserDetails
         onBack={() => {}} 
-        onEditProfile={() => setIsEditingProfile(true)}
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
-        onProfileUpdate={handleProfileUpdate}
+        onEditProfile={() => {}}
       />
     );
-  }, [isEditingProfile, handleProfileUpdate, isRefreshing, handleRefresh, setIsEditingProfile]);
+  }, []);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -187,12 +114,12 @@ export default function RootNavigator({
               } else if (route.name === 'Requests') {
                 iconName = 'list-alt';
                 if (hasNewRequests) {
-                  showRequestBadge = true;
+                    showRequestBadge = true;
                 }
               } else if (route.name === 'Search') {
                 iconName = 'search';
               } else if (route.name === 'Profile') {
-                return <Image source={{ uri: getAvatarUri(currentUser.avatar_url, currentUser.username) }} style={styles.tabBarIcon} />;
+                return <Image source={{ uri: currentUser?.avatar_url }} style={styles.tabBarIcon} />;
               }
 
               return (
@@ -224,16 +151,7 @@ export default function RootNavigator({
         >
           <Tab.Screen name="Home" component={WrappedHomeScreen} />
           <Tab.Screen name="Chat" component={WrappedChatTab} />
-          <Tab.Screen
-            name="Requests"
-            component={WrappedRequestsScreen}
-            listeners={{
-              tabPress: (e) => {
-                setHasNewRequests(false);
-                setAcceptedRequest(null);
-              },
-            }}
-          />
+          <Tab.Screen name="Requests" component={WrappedRequestsScreen} />
           <Tab.Screen name="Search" component={WrappedSearchScreen} />
           <Tab.Screen name="Profile" component={ProfileScreen} />
         </Tab.Navigator>
