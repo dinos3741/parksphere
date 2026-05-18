@@ -10,10 +10,30 @@ export const useChat = () => {
   return context;
 };
 
-export const ChatProvider = ({ children }) => {
+export const ChatProvider = ({ children, socket, userId, triggerNotification }) => {
   const [unreadConversations, setUnreadConversations] = useState({});
   const [totalUnreadMessagesCount, setTotalUnreadMessagesCount] = useState(0);
   const activeChatPartnerRef = useRef(null);
+
+  useEffect(() => {
+    if (socket && socket.current) {
+      const s = socket.current;
+      const onPrivateMessage = (message) => {
+        if (message.to === userId && message.from !== userId) {
+          triggerNotification(null, 'message');
+          if (activeChatPartnerRef.current !== message.from) {
+            handleMarkAsUnread(message.from);
+          }
+        }
+      };
+
+      s.on('privateMessage', onPrivateMessage);
+
+      return () => {
+        s.off('privateMessage', onPrivateMessage);
+      };
+    }
+  }, [socket, userId, triggerNotification]);
 
   useEffect(() => {
     const currentTotalUnread = Object.keys(unreadConversations).length;
