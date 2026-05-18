@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, TouchableOpacity, Text, Image, StyleSheet, Modal, DeviceEventEmitter, Alert } from 'react-native';
+import { View, TouchableOpacity, Text, Image, StyleSheet, DeviceEventEmitter, Alert } from 'react-native';
 import * as Location from 'expo-location'; 
 import Map from './Map';
 import Notifications from './Notifications';
@@ -10,6 +10,7 @@ import RatingModal from './RatingModal';
 import RequesterArrivalModal from './RequesterArrivalModal';
 import EditSpotMobileModal from './EditSpotMobileModal';
 import RequesterProfileModal from './RequesterProfileModal';
+import LeavingModal from './LeavingModal';
 
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -36,7 +37,7 @@ export default function HomeScreen({
   setHasNewRequests,
   getDistance,
 }) {
-  const { userId, token, serverUrl, currentUsername } = useAuth();
+  const { userId, token, currentUsername } = useAuth();
   const { notifications, addNotification, triggerNotification } = useNotifications();
   const [selectedSpot, setSelectedSpot] = useState(null);
   const [isSpotDetailsVisible, setSpotDetailsVisible] = useState(false);
@@ -52,6 +53,7 @@ export default function HomeScreen({
   const [selectedRequester, setSelectedRequester] = useState(null);
   const [newSpotCoordinates, setNewSpotCoordinates] = useState(null);
   const [isAddingSpot, setIsAddingSpot] = useState(false);
+  const [isLeavingModalVisible, setLeavingModalVisible] = useState(false);
 
   const mapViewRef = useRef(null);
 
@@ -110,7 +112,7 @@ export default function HomeScreen({
       const onTransactionComplete = (data) => {
         console.log('[HomeScreen] Transaction complete received:', data);
         Alert.alert('Arrival Confirmed', 'Spot owner confirmed arrival.');
-        triggerNotification(data.message, 'default'); // or any other type if you have one
+        triggerNotification(data.message, 'default');
         setAcceptedSpot(null);
         setArrivalConfirmed(false);
         if (data.ownerId && data.ownerUsername) {
@@ -192,7 +194,7 @@ export default function HomeScreen({
       setIsAddingSpot(false);
       setNewSpotCoordinates(null);
     } else {
-      setIsAddingSpot(true);
+      setLeavingModalVisible(true);
     }
   }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
 
@@ -269,6 +271,15 @@ export default function HomeScreen({
         </TouchableOpacity>
       </View>
       <Notifications notifications={notifications} />
+
+      <LeavingModal
+        visible={isLeavingModalVisible}
+        onClose={() => setLeavingModalVisible(false)}
+        onCreateSpot={(time) => {
+          handleCreateSpot(time);
+          setLeavingModalVisible(false);
+        }}
+      />
 
       <SpotDetails
         visible={isSpotDetailsVisible}
