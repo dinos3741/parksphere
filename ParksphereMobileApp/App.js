@@ -66,6 +66,7 @@ function AppContent() {
   const [activeScreen, setActiveScreen] = useState('Home');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [acceptedRequest, setAcceptedRequest] = useState(null);
+  const [showRegister, setShowRegister] = useState(false);
   const navigationRef = useNavigationContainerRef(); 
   const [parkedLocation, setParkedLocation] = useState(null); 
   const [arrivalConfirmed, setArrivalConfirmed] = useState(false); 
