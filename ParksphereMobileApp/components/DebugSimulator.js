@@ -2,17 +2,20 @@ import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
 import { resetAllAppData } from '../utils/dataReset';
+import { useOverlay } from '../context/OverlayContext';
 
-const pan = new Animated.ValueXY({ x: 10, y: 500 }); // Moved out of component
+const pan = new Animated.ValueXY({ x: 10, y: 500 });
 
 const DebugSimulator = ({ userLocation }) => {
+  const { activeOverlay, setActiveOverlay } = useOverlay();
+  const zIndex = activeOverlay === 'Debug' ? 11 : 10;
+  
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
   const autoTriggerRef = useRef(null);
 
   useEffect(() => {
-    // Check initial engine state
     setIsEngineRunning(isDetectionEngineRunning());
     return () => {
       if (autoTriggerRef.current) clearTimeout(autoTriggerRef.current);
@@ -23,6 +26,7 @@ const DebugSimulator = ({ userLocation }) => {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
+        setActiveOverlay('Debug');
         pan.setOffset({
           x: pan.x._value,
           y: pan.y._value,
@@ -144,6 +148,7 @@ const DebugSimulator = ({ userLocation }) => {
         styles.container,
         {
           transform: [{ translateX: pan.x }, { translateY: pan.y }],
+          zIndex: zIndex
         },
       ]}
       {...panResponder.panHandlers}

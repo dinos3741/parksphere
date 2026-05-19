@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
+import { useOverlay } from '../context/OverlayContext';
 
 const HMMOverlay = ({ isVisible }) => {
+  const { activeOverlay, setActiveOverlay } = useOverlay();
+  const zIndex = activeOverlay === 'HMM' ? 11 : 10;
+
   const [hmmStatus, setHmmStatus] = useState({
     state: 'INITIALIZING',
     bestState: '...',
@@ -10,11 +16,12 @@ const HMMOverlay = ({ isVisible }) => {
   });
 
   const pan = useRef(new Animated.ValueXY({ x: 10, y: 100 })).current;
-  
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
+        setActiveOverlay('HMM');
         pan.setOffset({
           x: pan.x._value,
           y: pan.y._value,
@@ -53,8 +60,11 @@ const HMMOverlay = ({ isVisible }) => {
         styles.statusOverlay,
         {
           transform: [{ translateX: pan.x }, { translateY: pan.y }],
+          zIndex: zIndex
         },
       ]}
+      {...panResponder.panHandlers}
+    >
       {...panResponder.panHandlers}
     >
       <Text style={styles.statusTitle}>HMM Engine</Text>

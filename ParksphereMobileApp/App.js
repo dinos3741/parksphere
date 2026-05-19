@@ -26,6 +26,7 @@ import { SpotProvider, useSpots } from './context/SpotContext';
 import { ChatProvider, useChat } from './context/ChatContext';
 import { NotificationProvider, useNotifications } from './context/NotificationContext';
 import { LocationProvider, useLocation } from './context/LocationContext';
+import { OverlayProvider } from './context/OverlayContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -156,7 +157,9 @@ function AppLayout({
 
       {navigationRef.isReady() && (
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-           <HMMOverlay isVisible={navigationRef.getCurrentRoute()?.name === 'Home'} />
+           <HMMOverlay 
+             isVisible={navigationRef.getCurrentRoute()?.name === 'Home'} 
+           />
            {navigationRef.getCurrentRoute()?.name === 'Home' && <DebugSimulator userLocation={userLocation} />}
         </View>
       )}
@@ -168,7 +171,9 @@ export default function App() {
   return (
     <AuthProvider>
       <LocationProvider>
-        <AppContentWrapper />
+        <OverlayProvider>
+          <AppContentWrapper />
+        </OverlayProvider>
       </LocationProvider>
     </AuthProvider>
   );
