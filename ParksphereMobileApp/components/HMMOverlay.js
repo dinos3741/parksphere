@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
 import { useOverlay } from '../context/OverlayContext';
 
 const HMMOverlay = ({ isVisible }) => {
@@ -63,8 +61,6 @@ const HMMOverlay = ({ isVisible }) => {
           zIndex: zIndex
         },
       ]}
-      {...panResponder.panHandlers}
-    >
       {...panResponder.panHandlers}
     >
       <Text style={styles.statusTitle}>HMM Engine</Text>
