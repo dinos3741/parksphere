@@ -250,7 +250,7 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && context.dist < 1.0) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
-  if (to === 'IN_CAR' && context.dist > 35) return false; 
+  if (to === 'IN_CAR' && context.dist > 20) return false; 
   if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 15 && context.deltaRate > 0.2) return false; 
   if (to === 'IN_CAR' && context.speed > 10) return false;
   if (to === 'IN_CAR' && context.stepRate > 2.0) return false;
