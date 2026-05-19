@@ -32,10 +32,6 @@ export const LocationProvider = ({ children }) => {
     return R * c;
   };
 
-  const resetLocation = useCallback(() => {
-    setParkedLocation(null);
-  }, []);
-
   return (
     <LocationContext.Provider value={{ 
       userLocation, 
