@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { DeviceEventEmitter } from 'react-native';
 
 const LocationContext = createContext();
 
@@ -6,6 +7,15 @@ export const LocationProvider = ({ children }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
   const [parkedLocation, setParkedLocation] = useState(null);
+
+  const resetLocation = useCallback(() => {
+    setParkedLocation(null);
+  }, []);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('dataReset', resetLocation);
+    return () => subscription.remove();
+  }, [resetLocation]);
 
   const getDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371e3; // metres
@@ -22,6 +32,10 @@ export const LocationProvider = ({ children }) => {
     return R * c;
   };
 
+  const resetLocation = useCallback(() => {
+    setParkedLocation(null);
+  }, []);
+
   return (
     <LocationContext.Provider value={{ 
       userLocation, 
@@ -30,6 +44,7 @@ export const LocationProvider = ({ children }) => {
       setLocationPermissionGranted,
       parkedLocation,
       setParkedLocation,
+      resetLocation,
       getDistance
     }}>
       {children}
