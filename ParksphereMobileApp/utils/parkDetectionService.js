@@ -371,7 +371,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     stateData.stoppedCandidateLocation = null;
   }
 
-  if (stateData.state === 'STOPPED') {
+  if (stateData.state === 'STOPPED' && !stateData.stoppedCandidateLocation) {
     stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords };
   }
 
