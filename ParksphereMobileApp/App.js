@@ -40,6 +40,7 @@ function AppContent() {
     isLoading, 
     login, 
     logout,
+    serverUrl
   } = useAuth();
 
   const [fontLoaded, setFontLoaded] = useState(false);
