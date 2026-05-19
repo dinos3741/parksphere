@@ -33,6 +33,10 @@ export default function HomeScreen({
   } = useSpots();
   const { handleOpenChat } = useChat();
 
+  const handleLocalOpenChat = useCallback((userId) => {
+    handleOpenChat(userId);
+  }, [handleOpenChat]);
+
   const handleRate = useCallback(async (rating, ratedUserId) => {
     if (!token || !ratedUserId) return;
     try {
