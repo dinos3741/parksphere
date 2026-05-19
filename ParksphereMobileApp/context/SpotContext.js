@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Alert } from 'react-native';
+import { Alert, DeviceEventEmitter } from 'react-native';
 import { useAuth } from './AuthContext';
 import { apiRequest } from '../utils/apiService';
 
@@ -251,6 +251,18 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     }
   };
 
+  const resetParkingSpots = useCallback(() => {
+    setParkingSpots([]);
+    setAcceptedSpot(null);
+    setSpotRequests([]);
+    setHasNewRequests(false);
+  }, []);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('dataReset', resetParkingSpots);
+    return () => subscription.remove();
+  }, [resetParkingSpots]);
+
   const value = {
     parkingSpots,
     setParkingSpots,
@@ -267,6 +279,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     handleCreateSpot,
     handleAcceptRequest,
     handleDeclineRequest,
+    resetParkingSpots,
   };
 
   return (

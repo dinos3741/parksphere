@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DeviceEventEmitter } from 'react-native';
 import { stopParkDetection, resetParkDetection } from './parkDetectionService';
 
 /**
@@ -15,7 +16,10 @@ export const resetAllAppData = async () => {
     // 2. Perform the engine-specific reset (deletes server spots, clears HMM storage)
     await resetParkDetection();
 
-    // 3. Clear other persistent application keys
+    // 3. Trigger a global reset event for components (like SpotContext)
+    DeviceEventEmitter.emit('dataReset');
+
+    // 4. Clear other persistent application keys
     const keysToClear = [
       'userToken',
       'userId',
