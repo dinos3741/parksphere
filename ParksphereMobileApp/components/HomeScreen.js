@@ -16,15 +16,13 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useSpots } from '../context/SpotContext';
 import { useChat } from '../context/ChatContext';
+import { useLocation } from '../context/LocationContext';
 
 export default function HomeScreen({ 
-  userLocation, 
-  locationPermissionGranted, 
   socket,
-  getDistance,
-  parkedLocation,
 }) {
   const { userId, token, currentUsername, serverUrl } = useAuth();
+  const { userLocation, getDistance, locationPermissionGranted, parkedLocation } = useLocation();
   const { notifications, addNotification, triggerNotification } = useNotifications();
   const { 
     parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
@@ -140,7 +138,8 @@ export default function HomeScreen({
       setIsAddingSpot(false);
       setNewSpotCoordinates(null);
     } else {
-      setLeavingModalVisible(true);
+      // Flow fix: Start adding spot mode
+      setIsAddingSpot(true);
     }
   }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
 

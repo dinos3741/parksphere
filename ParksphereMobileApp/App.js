@@ -25,6 +25,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SpotProvider, useSpots } from './context/SpotContext';
 import { ChatProvider, useChat } from './context/ChatContext';
 import { NotificationProvider, useNotifications } from './context/NotificationContext';
+import { LocationProvider, useLocation } from './context/LocationContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -45,7 +46,7 @@ function AppContent() {
 
   const [fontLoaded, setFontLoaded] = useState(false);
   const navigationRef = useNavigationContainerRef(); 
-  const [parkedLocation, setParkedLocation] = useState(null); 
+  const { setParkedLocation } = useLocation(); 
   const [showRegister, setShowRegister] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
 
@@ -66,13 +67,20 @@ function AppContent() {
 
   const { addNotification, triggerNotification, notifications } = useNotifications();
 
+  const { setUserLocation, setLocationPermissionGranted } = useLocation();
+
   const { userLocation, locationPermissionGranted, getDistance } = useLocationTracking(
-    null, // Will be updated if needed
-    false, // Default
+    null,
+    false,
     () => {
       DeviceEventEmitter.emit('proximityArrival');
     }
   );
+
+  useEffect(() => {
+    setUserLocation(userLocation);
+    setLocationPermissionGranted(locationPermissionGranted);
+  }, [userLocation, locationPermissionGranted, setUserLocation, setLocationPermissionGranted]);
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
@@ -123,13 +131,9 @@ function AppContent() {
           navigationRef={navigationRef}
           socket={socket}
           setActiveScreen={setActiveScreen}
-          userLocation={userLocation}
-          locationPermissionGranted={locationPermissionGranted}
-          getDistance={getDistance}
           fetchUserData={fetchUserData}
           showRegister={showRegister}
           setShowRegister={setShowRegister}
-          parkedLocation={parkedLocation}
           />
       </ChatProvider>
     </SpotProvider>
@@ -142,16 +146,13 @@ function AppLayout({
   navigationRef,
   socket,
   setActiveScreen,
-  userLocation,
-  locationPermissionGranted,
-  getDistance,
   fetchUserData,
   showRegister,
   setShowRegister,
-  parkedLocation,
 }) {
   const { fetchParkingSpots } = useSpots();
   const { userId, token } = useAuth();
+  const { userLocation } = useLocation();
 
   useEffect(() => {
     if (isLoggedIn && userId && token) {
@@ -168,10 +169,6 @@ function AppLayout({
           navigationRef={navigationRef}
           socket={socket}
           setActiveScreen={setActiveScreen}
-          userLocation={userLocation}
-          locationPermissionGranted={locationPermissionGranted}
-          getDistance={getDistance}
-          parkedLocation={parkedLocation}
         />
       ) : showRegister ? (
         <Register onBack={() => setShowRegister(false)} />
@@ -179,11 +176,11 @@ function AppLayout({
         <Login onRegister={() => setShowRegister(true)} />
       )}
 
-      {navigationRef.isReady() && navigationRef.getCurrentRoute()?.name === 'Home' && (
-        <>
-          <HMMOverlay />
-          <DebugSimulator userLocation={userLocation} />
-        </>
+      {navigationRef.isReady() && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+           <HMMOverlay isVisible={navigationRef.getCurrentRoute()?.name === 'Home'} />
+           {navigationRef.getCurrentRoute()?.name === 'Home' && <DebugSimulator userLocation={userLocation} />}
+        </View>
       )}
     </>
   );
@@ -192,7 +189,9 @@ function AppLayout({
 export default function App() {
   return (
     <AuthProvider>
-      <AppContentWrapper />
+      <LocationProvider>
+        <AppContentWrapper />
+      </LocationProvider>
     </AuthProvider>
   );
 }

@@ -21,10 +21,6 @@ export default function RootNavigator({
   navigationRef,
   socket,
   setActiveScreen,
-  userLocation,
-  locationPermissionGranted,
-  getDistance,
-  parkedLocation,
 }) {
   const { currentUser } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
@@ -107,16 +103,7 @@ export default function RootNavigator({
           })}
         >
           <Tab.Screen name="Home">
-            {(props) => (
-              <HomeScreen 
-                {...props} 
-                userLocation={userLocation} 
-                locationPermissionGranted={locationPermissionGranted}
-                socket={socket}
-                getDistance={getDistance}
-                parkedLocation={parkedLocation}
-              />
-            )}
+            {(props) => <HomeScreen {...props} socket={socket} />}
           </Tab.Screen>
           <Tab.Screen name="Chat">
             {(props) => (

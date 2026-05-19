@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
 
-const HMMOverlay = () => {
+const HMMOverlay = ({ isVisible }) => {
   const [hmmStatus, setHmmStatus] = useState({
     state: 'INITIALIZING',
     bestState: '...',
@@ -34,6 +34,8 @@ const HMMOverlay = () => {
     });
     return () => subscription.remove();
   }, []);
+
+  if (!isVisible) return null;
 
   const getMotionText = () => {
     const act = hmmStatus.metrics?.motionActivity;
