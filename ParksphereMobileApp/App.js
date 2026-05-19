@@ -36,12 +36,10 @@ function AppContent() {
     userId, 
     currentUsername, 
     currentUser, 
-    setCurrentUser,
     isLoggedIn, 
     isLoading, 
     login, 
     logout,
-    serverUrl
   } = useAuth();
 
   const [fontLoaded, setFontLoaded] = useState(false);
@@ -86,24 +84,6 @@ function AppContent() {
 
   useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
 
-  const fetchUserData = useCallback(async () => {
-    if (isLoggedIn && userId && token) {
-      try {
-        const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUser(data);
-        } else if (response.status === 401 || response.status === 403) {
-          await logout();
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    }
-  }, [isLoggedIn, userId, token, serverUrl, logout, setCurrentUser]);
-
   if (isLoading || !fontLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -131,7 +111,6 @@ function AppContent() {
           navigationRef={navigationRef}
           socket={socket}
           setActiveScreen={setActiveScreen}
-          fetchUserData={fetchUserData}
           showRegister={showRegister}
           setShowRegister={setShowRegister}
           />
@@ -146,12 +125,11 @@ function AppLayout({
   navigationRef,
   socket,
   setActiveScreen,
-  fetchUserData,
   showRegister,
   setShowRegister,
 }) {
   const { fetchParkingSpots } = useSpots();
-  const { userId, token } = useAuth();
+  const { userId, token, fetchUserData } = useAuth();
   const { userLocation } = useLocation();
 
   useEffect(() => {
@@ -160,7 +138,6 @@ function AppLayout({
       fetchParkingSpots();
     }
   }, [isLoggedIn, userId, token, fetchUserData, fetchParkingSpots]);
-
   return (
     <>
       <StatusBar style="auto" />

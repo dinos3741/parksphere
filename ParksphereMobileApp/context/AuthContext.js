@@ -1,5 +1,6 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiRequest } from '../utils/apiService';
 
 // 1. Create the Context
 const AuthContext = createContext({});
@@ -12,6 +13,8 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // To show a spinner while checking storage
+
+  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
   // Check AsyncStorage when the app boots
   useEffect(() => {
@@ -26,7 +29,6 @@ export const AuthProvider = ({ children }) => {
           setUserId(parseInt(storedUserId, 10));
           setCurrentUsername(storedUsername);
           setIsLoggedIn(true);
-          // Note: You would also fetch the full currentUser profile from the API here
         }
       } catch (error) {
         console.error('Failed to load auth data', error);
@@ -36,6 +38,69 @@ export const AuthProvider = ({ children }) => {
     };
     loadToken();
   }, []);
+
+  const fetchUserData = useCallback(async () => {
+    if (isLoggedIn && userId && token) {
+      try {
+        const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data);
+        } else if (response.status === 401 || response.status === 403) {
+          await logout();
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    }
+  }, [isLoggedIn, userId, token, serverUrl]);
+
+  const rateUser = async (ratedUserId, rating) => {
+    if (!token || !ratedUserId) return;
+    try {
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ rated_user_id: ratedUserId, rating }),
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error submitting rating:', error);
+      return false;
+    }
+  };
+
+  const updateProfile = async (userData) => {
+    if (!token || !userId) return;
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(userData),
+      });
+      if (response.ok) {
+        const updatedData = await response.json();
+        setCurrentUser(updatedData);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      return false;
+    }
+  };
+
+  const getAvatarUri = (avatarPath) => {
+    return avatarPath ? `${serverUrl}${avatarPath}` : null;
+  };
 
   // The Login function
   const login = async (data) => {
@@ -58,8 +123,6 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.multiRemove(['userToken', 'userId', 'username']);
   };
 
-  const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
-
   // 3. Expose the data and functions
   return (
     <AuthContext.Provider 
@@ -68,12 +131,16 @@ export const AuthProvider = ({ children }) => {
         userId, 
         currentUsername, 
         currentUser, 
-        setCurrentUser, // Added to allow updating user profile from other components
+        setCurrentUser,
         isLoggedIn, 
         isLoading, 
         login, 
         logout,
-        serverUrl
+        serverUrl,
+        fetchUserData,
+        rateUser,
+        updateProfile,
+        getAvatarUri
       }}
     >
       {children}
