@@ -7,7 +7,7 @@ const AboutScreen = ({ onClose }) => {
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onClose}>
-        <FontAwesome name="arrow-left" size={30} color="#4dd0e1" style={{ transform: [{ scaleX: 1.2 }, { scaleY: 0.8 }], fontWeight: '300' }} />
+        <FontAwesome name="arrow-left" size={24} color="#4dd0e1" style={{ transform: [{ scaleX: 1.2 }, { scaleY: 0.8 }] }} />
       </TouchableOpacity>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>What is ParkSphere?</Text>
@@ -47,11 +47,12 @@ const styles = StyleSheet.create({
     top: 60,
     left: 20,
     zIndex: 1,
+    padding: 10,
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 80, // Adjust for back button
-    paddingBottom: 60, // Adjust for footer
+    paddingTop: 80, 
+    paddingBottom: 60, 
   },
   title: {
     fontFamily: 'AdventPro-SemiBold',
@@ -59,6 +60,7 @@ const styles = StyleSheet.create({
     color: '#df1a83',
     textAlign: 'center',
     marginBottom: 20,
+    marginTop: 10, // Added vertical space
     letterSpacing: 2,
   },
   mainImage: {
