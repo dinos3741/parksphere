@@ -187,8 +187,23 @@ const PROGRESS_WINDOW_SIZE = 15;
 let progressHistory = []; 
 let pgrHistory = []; 
 
+function calculateIntentSlope(data) {
+  const n = data.length;
+  if (n < 5) return 0;
+  
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += data[i];
+    sumXY += i * data[i];
+    sumXX += i * i;
+  }
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  return slope;
+}
+
 function calculatePGR(currentDist, currentX, currentY) {
-  if (progressHistory.length < 5) return { pgr: 0, trend: 0, consistency: 0 };
+  if (progressHistory.length < 5) return { pgr: 0, slope: 0, consistency: 0 };
   const start = progressHistory[0];
   const netGain = start.dist - currentDist;
   let totalPath = 0;
@@ -202,18 +217,11 @@ function calculatePGR(currentDist, currentX, currentY) {
   const pgr = totalPath < 1.0 ? 0 : netGain / totalPath;
 
   pgrHistory.push(pgr);
-  if (pgrHistory.length > 10) pgrHistory.shift();
+  if (pgrHistory.length > 15) pgrHistory.shift();
 
-  let trend = 0;
-  if (pgrHistory.length >= 5) {
-    const firstHalf = pgrHistory.slice(0, Math.floor(pgrHistory.length/2));
-    const secondHalf = pgrHistory.slice(Math.floor(pgrHistory.length/2));
-    const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
-    const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
-    trend = avgSecond - avgFirst; 
-  }
+  const slope = calculateIntentSlope(pgrHistory);
   const consistency = pgrHistory.filter(v => v > 0.2).length / pgrHistory.length;
-  return { pgr, trend, consistency };
+  return { pgr, slope, consistency };
 }
 
 
@@ -286,7 +294,7 @@ const RETURN_ZONE_RADIUS = 70;
 const AWAY_THRESHOLD = 5;
 
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency, activity } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity } = obs;
 
   let logp = 0;
   const TEMP = 0.5;
@@ -385,7 +393,7 @@ function emissionLogProb(state, obs) {
 
     const consistentScore = directionalScore * Math.pow(pgrConsistency, 1.5);
     logp += (consistentScore * proximityWeight) * gpsWeight;
-    if (pgrTrend > 0) logp += (pgrTrend * 30.0 * proximityWeight) * gpsWeight; 
+    if (slope > 0.01) logp += (slope * 50.0 * proximityWeight) * gpsWeight; 
     if (isReturningIntentLocked) logp += (10.0 * TEMP); 
   }
 
@@ -551,7 +559,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     accuracy: supplemental.accuracy || 10, 
     approachAlignment, 
     pgr: pgrMetrics.pgr, 
-    pgrTrend: pgrMetrics.trend,
+    slope: pgrMetrics.slope,
     pgrConsistency: pgrMetrics.consistency,
     activity: supplemental.motion_activity
   };
@@ -563,7 +571,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     dist: obs.dist,
     speed: obs.speed,
     pgr: obs.pgr,
-    pgrTrend: obs.pgrTrend,
+    slope: obs.slope,
     pgrConsistency: obs.pgrConsistency,
     isAway,
     activity: obs.activity
@@ -583,7 +591,15 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const hasDrivingSignal = obs.activity && obs.activity.automotive && obs.activity.confidence >= 1;
   const hasStillSignal = obs.activity && obs.activity.stationary && obs.activity.confidence >= 1;
 
-  if (candidate === 'RETURNING') _returnCounter++; else _returnCounter = 0;
+  // ==============================
+  // 🔒 GATED RETURN COUNTER
+  // ==============================
+  const hasReturningTrend = obs.pgr > 0.1 && obs.slope > -0.01;
+  if (candidate === 'RETURNING' && hasReturningTrend) {
+    _returnCounter++;
+  } else {
+    _returnCounter = 0;
+  }
   if (candidate === 'IN_CAR') _inCarCounter++; else _inCarCounter = 0;
   
   // Resilient Walking Counter
