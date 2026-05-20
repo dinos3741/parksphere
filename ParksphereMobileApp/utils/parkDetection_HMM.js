@@ -44,8 +44,8 @@ export const A = {
     IDLE: 0.05      
   },
   RETURNING: {
-    RETURNING: 0.7,
-    IN_CAR: 0.2,
+    RETURNING: 0.65,
+    IN_CAR: 0.25,
     IDLE: 0.05,       
     WALKING: 0.05   
   },
@@ -283,7 +283,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 30;    
+const AWAY_THRESHOLD = 5;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, pgrTrend, pgrConsistency, activity } = obs;
@@ -308,7 +308,7 @@ function emissionLogProb(state, obs) {
       // Balanced boosts (Maxes out around +10)
       if (state === 'DRIVING' && automotive) logp += (5.0 * activityWeight);
       if (isWalkingState && walking) logp += (5.0 * activityWeight);
-      if (isStationaryState && stationary) logp += (3.0 * activityWeight);
+      if (isStationaryState && stationary) logp += (4.0 * activityWeight);
       
       // Balanced penalties (Maxes out around -16)
       if (confidence >= 1) {
@@ -332,14 +332,14 @@ function emissionLogProb(state, obs) {
   else {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 5) * gpsWeight;
+      logp += logGaussian(dist, 0, 6) * gpsWeight;
       if (dist > 15) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 1, 2) * gpsWeight;
       if (stepRate > 1.2) logp -= 5; 
       
-      const magnetRadius = isReturningIntentLocked ? 4.0 : 2.5; 
+      const magnetRadius = isReturningIntentLocked ? 4.0 : 3.0; 
       if (dist < magnetRadius) {
-        logp += 2.0; 
+        logp += 2.8; 
         if (isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
            logp += 20.0; 
         }
