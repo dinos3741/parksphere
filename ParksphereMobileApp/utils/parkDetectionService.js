@@ -270,7 +270,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     // 🚀 FIX: Read instantly from the cache, never block the TaskManager loop
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
     
-    if (timeSinceLastStep < 6000) {
+    if (timeSinceLastStep < 4000) {
       stepRate = Math.max(1.2, currentStepRate); 
       console.log(`[ParkDetection] 👟 Fast-Path Step Active: ${stepRate.toFixed(2)}`);
     } else {
@@ -518,6 +518,13 @@ async function startSensors() {
               };
 
               console.log(`[ParkDetection] RECEIVED Activity: state=${state}, conf=${confidence}`);
+
+              // 🚀 FAST-PATH HINTS: Use OS Activity to pre-emptively set/clear steps
+              if (currentActivity.walking && isInitialized) {
+                lastStepTimestamp = Date.now();
+              } else if (currentActivity.stationary && isInitialized) {
+                lastStepTimestamp = 0; 
+              }
 
               // 🚀 TRIGGER VIRTUAL UPDATE ON ACTIVITY CHANGE
               // If we change state (e.g. Still -> Walk), don't wait for GPS.
