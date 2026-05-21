@@ -9,6 +9,7 @@ import ChatTab from './ChatTab';
 import SearchScreen from './SearchScreen';
 import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
+import Profile from './Profile';
 import AboutScreen from './AboutScreen';
 
 import { useAuth } from '../context/AuthContext';
@@ -22,10 +23,11 @@ export default function RootNavigator({
   socket,
   setActiveScreen,
 }) {
-  const { currentUser } = useAuth();
+  const { currentUser, fetchUserData } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
   const { hasNewRequests } = useSpots();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   return (
     <NavigationContainer ref={navigationRef}>
@@ -121,10 +123,18 @@ export default function RootNavigator({
           </Tab.Screen>
           <Tab.Screen name="Profile">
             {(props) => (
-              <UserDetails
-                onBack={() => {}} 
-                onEditProfile={() => {}}
-              />
+              isEditingProfile ? (
+                <Profile 
+                  onBack={() => setIsEditingProfile(false)} 
+                  onProfileUpdate={fetchUserData}
+                />
+              ) : (
+                <UserDetails
+                  onBack={() => {}} 
+                  onEditProfile={() => setIsEditingProfile(true)}
+                  onProfileUpdate={fetchUserData}
+                />
+              )
             )}
           </Tab.Screen>
         </Tab.Navigator>

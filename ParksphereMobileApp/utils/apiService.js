@@ -3,11 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const MOCK_DATA = {
   user: {
     id: 766,
-    username: 'dinos',
+    username: 'demo user',
     credits: 100,
     car_type: 'sedan',
-    avatar_url: 'https://i.pravatar.cc/150?u=dinos',
-    auto_detect: true
+    car_color: 'black',
+    plate_number: 'ABC-1234',
+    avatar_url: 'https://i.pravatar.cc/150?u=demouser',
+    auto_detect: true,
+    created_at: '2020-01-01T00:00:00.000Z'
   },
   spots: [
     {
@@ -37,9 +40,9 @@ export const apiRequest = async (endpoint, options = {}) => {
       return {
         ok: true,
         json: () => Promise.resolve({
-          token: 'mock-jwt-token-dinos',
+          token: 'mock-jwt-token-demo',
           userId: 766,
-          username: 'dinos',
+          username: 'demo user',
           carType: 'sedan'
         })
       };

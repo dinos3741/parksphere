@@ -33,11 +33,14 @@ let parkingSpots = [
 
   const mockUser = {
   id: 766,
-  username: 'dinos',
+  username: 'demo user',
   credits: 100,
   car_type: 'sedan',
-  avatar_url: 'https://i.pravatar.cc/150?u=dinos',
-  auto_detect: true
+  car_color: 'black',
+  plate_number: 'ABC-1234',
+  avatar_url: 'https://i.pravatar.cc/150?u=demouser',
+  auto_detect: true,
+  created_at: '2020-01-01T00:00:00.000Z'
   };
 
   // API Endpoints
@@ -47,15 +50,15 @@ let parkingSpots = [
 
   app.post('/api/login', (req, res) => {
   const { username } = req.body;
-  if (username === 'dinos') {
+  if (username === 'demo user') {
     res.json({
-      token: 'mock-jwt-token-dinos',
+      token: 'mock-jwt-token-demo',
       userId: 766,
-      username: 'dinos',
+      username: 'demo user',
       carType: 'sedan'
     });
   } else {
-    res.status(401).json({ message: 'Only "dinos" is supported in mock mode.' });
+    res.status(401).json({ message: 'Only "demo user" is supported in mock mode.' });
   }
   });
 

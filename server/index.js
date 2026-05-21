@@ -487,7 +487,14 @@ async function authenticateToken(req, res, next) {
     // Development bypass for mock tokens
     if (token.startsWith('mock-jwt-token-')) {
       console.warn('DEBUG: Using mock token bypass for:', token);
-      req.user = { userId: 766, username: 'dinos', carType: 'sedan' }; // Corrected ID for 'dinos'
+      req.user = { 
+        userId: 766, 
+        username: 'demo user', 
+        carType: 'sedan',
+        carColor: 'black',
+        plateNumber: 'ABC-1234',
+        createdAt: '2020-01-01T00:00:00.000Z'
+      }; 
       return next();
     }
 

@@ -127,7 +127,7 @@ const Login = ({ onRegister }) => {
     const mockData = {
       token: 'mock-jwt-token-demo',
       userId: 766,
-      username: 'dinos',
+      username: 'demo user',
       carType: 'sedan'
     };
     // Explicitly enable mock mode for demo
