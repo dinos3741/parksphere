@@ -57,7 +57,6 @@ function AppContent() {
           'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
         });
         setFontLoaded(true);
-        await resetParkDetection();
       } catch (e) {
         console.warn('[App.js] Initialization error:', e);
       }
@@ -101,6 +100,7 @@ function AppContent() {
       userId={userId} 
       currentUsername={currentUsername}
       triggerNotification={triggerNotification}
+      setParkedLocation={setParkedLocation}
     >
       <ChatProvider 
         socket={socket} 

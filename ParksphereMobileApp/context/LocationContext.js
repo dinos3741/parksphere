@@ -1,15 +1,40 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LocationContext = createContext();
 
 export const LocationProvider = ({ children }) => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
-  const [parkedLocation, setParkedLocation] = useState(null);
+  const [parkedLocation, setParkedLocationState] = useState(null);
 
-  const resetLocation = useCallback(() => {
-    setParkedLocation(null);
+  const setParkedLocation = useCallback(async (location) => {
+    setParkedLocationState(location);
+    if (location) {
+      await AsyncStorage.setItem('parkedLocation', JSON.stringify(location));
+    } else {
+      await AsyncStorage.removeItem('parkedLocation');
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadParkedLocation = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('parkedLocation');
+        if (saved) {
+          setParkedLocationState(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.error('[LocationContext] Failed to load parked location:', e);
+      }
+    };
+    loadParkedLocation();
+  }, []);
+
+  const resetLocation = useCallback(async () => {
+    setParkedLocationState(null);
+    await AsyncStorage.removeItem('parkedLocation');
   }, []);
 
   useEffect(() => {

@@ -221,8 +221,9 @@ export default function HomeScreen({
         visible={isLeavingModalVisible}
         onClose={() => setLeavingModalVisible(false)}
         onCreateSpot={(time) => {
-          handleCreateSpot(time);
+          handleCreateSpot(time, newSpotCoordinates || userLocation);
           setLeavingModalVisible(false);
+          setNewSpotCoordinates(null);
         }}
       />
 
@@ -243,7 +244,10 @@ export default function HomeScreen({
       <TimeOptionsModal
         visible={showTimeOptionsModal}
         onClose={() => setShowTimeOptionsModal(false)}
-        onSelectTime={handleCreateSpot}
+        onSelectTime={(time) => {
+          handleCreateSpot(time, newSpotCoordinates || userLocation);
+          setNewSpotCoordinates(null);
+        }}
       />
 
       <EditSpotMobileModal

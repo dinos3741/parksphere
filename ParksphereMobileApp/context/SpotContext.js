@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Alert, DeviceEventEmitter } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { apiRequest } from '../utils/apiService';
 
@@ -13,13 +14,46 @@ export const useSpots = () => {
   return context;
 };
 
-export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification }) => {
+export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation }) => {
   const { token, isLoggedIn, serverUrl, logout } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
-  const [acceptedSpot, setAcceptedSpot] = useState(null);
+  const [acceptedSpot, setAcceptedSpotState] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
-  const [arrivalConfirmed, setArrivalConfirmed] = useState(false);
+  const [arrivalConfirmed, setArrivalConfirmedState] = useState(false);
+
+  const setAcceptedSpot = useCallback(async (spot) => {
+    setAcceptedSpotState(spot);
+    if (spot) {
+      await AsyncStorage.setItem('acceptedSpot', JSON.stringify(spot));
+    } else {
+      await AsyncStorage.removeItem('acceptedSpot');
+    }
+  }, []);
+
+  const setArrivalConfirmed = useCallback(async (confirmed) => {
+    setArrivalConfirmedState(confirmed);
+    await AsyncStorage.setItem('arrivalConfirmed', JSON.stringify(confirmed));
+  }, []);
+
+  useEffect(() => {
+    const loadPersistedState = async () => {
+      try {
+        const savedSpot = await AsyncStorage.getItem('acceptedSpot');
+        const savedArrival = await AsyncStorage.getItem('arrivalConfirmed');
+        
+        if (savedSpot) {
+          setAcceptedSpotState(JSON.parse(savedSpot));
+        }
+        if (savedArrival) {
+          setArrivalConfirmedState(JSON.parse(savedArrival));
+        }
+      } catch (e) {
+        console.error('[SpotContext] Failed to load persisted state:', e);
+      }
+    };
+    loadPersistedState();
+  }, []);
 
   useEffect(() => {
     if (socket && socket.current) {
@@ -215,6 +249,9 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       if (response.ok) {
         const data = await response.json();
         addNotification(`Parking spot ${data.spotId} declared successfully!`);
+        if (setParkedLocation) {
+          setParkedLocation(coordinates);
+        }
       } else if (response.status === 401 || response.status === 403) {
         await logout();
       }
@@ -251,11 +288,13 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     }
   };
 
-  const resetParkingSpots = useCallback(() => {
+  const resetParkingSpots = useCallback(async () => {
     setParkingSpots([]);
-    setAcceptedSpot(null);
+    setAcceptedSpotState(null);
+    setArrivalConfirmedState(false);
     setSpotRequests([]);
     setHasNewRequests(false);
+    await AsyncStorage.multiRemove(['acceptedSpot', 'arrivalConfirmed']);
   }, []);
 
   useEffect(() => {
@@ -268,6 +307,8 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     setParkingSpots,
     acceptedSpot,
     setAcceptedSpot,
+    arrivalConfirmed,
+    setArrivalConfirmed,
     spotRequests,
     setSpotRequests,
     hasNewRequests,

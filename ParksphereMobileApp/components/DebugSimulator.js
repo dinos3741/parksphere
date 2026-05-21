@@ -130,9 +130,16 @@ const DebugSimulator = ({ userLocation }) => {
       case 'PARKED':
         simulateMotionActivity('STATIONARY', 'HIGH');
         const parkedLoc = getMockLocation(0);
+        
+        // 🚀 FIX: Only force the park event on the first update to prevent triple notifications
         parkedLoc.forcePark = true;
-        for (let i = 0; i < 3; i++) {
-          await handleLocationUpdate(parkedLoc);
+        await handleLocationUpdate(parkedLoc);
+        await sleep(500);
+
+        // Subsequent updates should just maintain the state without forcing the event
+        const normalLoc = getMockLocation(0);
+        for (let i = 0; i < 2; i++) {
+          await handleLocationUpdate(normalLoc);
           await sleep(500);
         }
         return;
