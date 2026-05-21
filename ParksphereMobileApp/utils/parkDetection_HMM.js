@@ -20,11 +20,11 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.35,      
-    WALKING: 0.5, // 🚀 Boosted for faster initial pick-up
-    RETURNING: 0.05, 
-    IN_CAR: 0.05,   
-    DRIVING: 0.05
+    IDLE: 0.2,      
+    WALKING: 0.4, // 🚀 Boosted for faster initial pick-up
+    RETURNING: 0.1, 
+    IN_CAR: 0.2,   // 🚀 Increased for snappier arrival detection
+    DRIVING: 0.1
   },
   WALKING: {
     WALKING: 0.75, 
@@ -38,10 +38,11 @@ export const A = {
     WALKING: 0.05   
   },
   STOPPED: {
-    STOPPED: 0.60, 
-    DRIVING: 0.2,
-    WALKING: 0.15,   
-    IDLE: 0.05      
+    STOPPED: 0.75, 
+    DRIVING: 0.1,
+    WALKING: 0.1,   
+    IN_CAR: 0.03,   
+    IDLE: 0.02      
   },
   RETURNING: {
     RETURNING: 0.65,
@@ -50,10 +51,10 @@ export const A = {
     WALKING: 0.05   
   },
   IN_CAR: {
-    IN_CAR: 0.7,
-    DRIVING: 0.2,
-    WALKING: 0.05,  
-    IDLE: 0.05      
+    IN_CAR: 0.85,
+    DRIVING: 0.1,
+    WALKING: 0.03,  
+    IDLE: 0.02      
   }
 };
 
@@ -232,22 +233,32 @@ function isTransitionAllowed(from, to, context) {
   // 🛡️ ESCAPE HATCH: Always allow staying in the current state
   if (from === to) return true;
 
-  const { hasParkedLocation, isAway, activity } = context;
+  const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist } = context;
 
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
-    const hasSteps = context.stepRate >= 0.05;
+    const hasSteps = stepRate >= 0.05;
     const hasWalkingActivity = activity && activity.walking;
     if (!hasSteps && !hasWalkingActivity) return false;
   }
-  if (to === 'WALKING' && context.speed > 12) return false; 
+  if (to === 'WALKING' && speed > 15) return false; 
 
   // 🚗 DRIVING Rules
   if (to === 'DRIVING' && from !== 'DRIVING') {
-    if (from === 'IDLE' && context.speed < 12) return false; 
-    if (context.stepRate > 0.4 && context.speed < 10) return false;
-    // 🚀 We removed the hard OS overrides here. If speed is high enough, let it drive!
-    if (from === 'WALKING' && context.speed < 20 && !(activity && activity.automotive)) return false;
+    // IDLE -> DRIVING needs a clear speed signal
+    if (from === 'IDLE' && speed < 12) return false; 
+    
+    // If we have high step rate, we are likely not driving unless speed is high
+    if (stepRate > 0.4 && speed < 12) return false;
+    
+    // IN_CAR -> DRIVING needs at least some movement
+    if (from === 'IN_CAR' && speed < 8) return false;
+
+    // STOPPED -> DRIVING needs at least some movement
+    if (from === 'STOPPED' && speed < 8) return false;
+
+    // WALKING -> DRIVING needs high speed or automotive activity
+    if (from === 'WALKING' && speed < 20 && !(activity && activity.automotive)) return false;
   }
 
   if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
@@ -255,13 +266,13 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && !hasParkedLocation) return false;
   if (to === 'RETURNING' && !isAway) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
-  if (to === 'RETURNING' && context.dist < 1.0) return false;
+  if (to === 'RETURNING' && dist < 0.5) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
-  if (to === 'IN_CAR' && context.dist > 20) return false; 
-  if (to === 'IN_CAR' && from !== 'IN_CAR' && context.dist > 15 && context.deltaRate > 0.2) return false; 
-  if (to === 'IN_CAR' && context.speed > 10) return false;
-  if (to === 'IN_CAR' && context.stepRate > 2.0) return false;
+  if (to === 'IN_CAR' && dist > 10) return false; 
+  if (to === 'IN_CAR' && from !== 'IN_CAR' && dist > 10 && context.deltaRate > 0.4) return false; 
+  if (to === 'IN_CAR' && speed > 10) return false;
+  if (to === 'IN_CAR' && stepRate > 2.5) return false;
 
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
@@ -294,7 +305,7 @@ const RETURN_ZONE_RADIUS = 70;
 const AWAY_THRESHOLD = 5;
 
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill } = obs;
 
   let logp = 0;
   const TEMP = 0.5;
@@ -341,13 +352,12 @@ function emissionLogProb(state, obs) {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 6) * gpsWeight;
-      if (dist > 15) logp -= (15 * gpsWeight);
-      logp += logGaussian(speed, 1, 2) * gpsWeight;
+      if (dist > 10) logp -= (15 * gpsWeight);
+      logp += logGaussian(speed, 0.5, 2) * gpsWeight;
       if (stepRate > 1.2) logp -= 5; 
       
-      const magnetRadius = isReturningIntentLocked ? 4.0 : 3.0; 
-      if (dist < magnetRadius) {
-        logp += 2.8; 
+      if (dist < 10) {
+        logp += 5.0; 
         if (isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
            logp += 20.0; 
         }
@@ -369,12 +379,13 @@ function emissionLogProb(state, obs) {
 
   // 🛡️ STATIONARY GUARD (Raw Accelerometer)
   // If the phone is literally not moving (e.g. on a desk), penalize movement states heavily.
-  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.03 && !hasSteps;
   if (isPhysicallyStill) {
     if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
-      logp -= 20; 
+      logp -= 25; 
     } else {
-      logp += 5; 
+      // Balance IDLE, STOPPED, and IN_CAR when perfectly still
+      // This prevents IDLE from being a "magnet" while you are actually STOPPED or IN_CAR
+      logp += 10; 
     }
   }
 
@@ -549,10 +560,15 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     if (progressHistory.length > PROGRESS_WINDOW_SIZE) progressHistory.shift();
   }
 
+  // 🛡️ THE DESK GUARD: If phone is perfectly still (magnitude ~1.0g and no steps), it's on a surface
+  const stepRate = supplemental.step_rate || 0;
+  const accel = supplemental.acceleration_magnitude || 1;
+  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.03 && stepRate < 0.1;
+
   const obs = {
     speed,
-    stepRate: supplemental.step_rate || 0,
-    accel: supplemental.acceleration_magnitude || 1,
+    stepRate,
+    accel,
     dist,
     deltaRate: stableDeltaRate,
     stopDuration: supplemental.stop_duration || 0,
@@ -561,7 +577,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     pgr: pgrMetrics.pgr, 
     slope: pgrMetrics.slope,
     pgrConsistency: pgrMetrics.consistency,
-    activity: supplemental.motion_activity
+    activity: supplemental.motion_activity,
+    isPhysicallyStill
   };
 
   const context = {
@@ -574,7 +591,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     slope: obs.slope,
     pgrConsistency: obs.pgrConsistency,
     isAway,
-    activity: obs.activity
+    activity: obs.activity,
+    isPhysicallyStill
   };
 
   belief = updateBelief(belief, obs, context);
