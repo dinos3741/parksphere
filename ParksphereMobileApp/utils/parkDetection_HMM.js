@@ -245,23 +245,34 @@ function isTransitionAllowed(from, to, context) {
 
   // 🚗 DRIVING Rules
   if (to === 'DRIVING' && from !== 'DRIVING') {
-    // IDLE -> DRIVING needs a clear speed signal
-    if (from === 'IDLE' && speed < 12) return false; 
+    const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
+
+    // IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
+    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
     
-    // If we have high step rate, we are likely not driving unless speed is high
-    if (stepRate > 0.4 && speed < 12) return false;
+    // If we have high step rate, we are likely not driving unless speed is high or activity confirms
+    if (stepRate > 0.4 && speed < 15 && !hasAutomotiveActivity) return false;
     
     // IN_CAR -> DRIVING needs at least some movement
-    if (from === 'IN_CAR' && speed < 8) return false;
+    if (from === 'IN_CAR' && speed < 8 && !hasAutomotiveActivity) return false;
 
     // STOPPED -> DRIVING needs at least some movement
-    if (from === 'STOPPED' && speed < 8) return false;
+    if (from === 'STOPPED' && speed < 8 && !hasAutomotiveActivity) return false;
 
     // WALKING -> DRIVING needs high speed or automotive activity
-    if (from === 'WALKING' && speed < 20 && !(activity && activity.automotive)) return false;
+    // 🛡️ Raised threshold from 20 to 25 to prevent indoor GPS "sprints"
+    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity) return false;
   }
 
-  if (to === 'STOPPED' && from !== 'DRIVING' && from !== 'STOPPED') return false;
+  // 🛑 STOPPED Rules
+  if (to === 'STOPPED' && from !== 'STOPPED') {
+    // Only allow entering STOPPED if we were actually DRIVING
+    if (from !== 'DRIVING') return false;
+
+    // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
+    // This prevents a single jittery frame from enabling the STOPPED transition math
+    if (context.drivingCounter < 1) return false;
+  }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
   if (to === 'RETURNING' && !isAway) return false;
@@ -302,7 +313,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 5;
+const AWAY_THRESHOLD = 20;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill } = obs;
@@ -592,7 +603,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     pgrConsistency: obs.pgrConsistency,
     isAway,
     activity: obs.activity,
-    isPhysicallyStill
+    isPhysicallyStill,
+    drivingCounter: _drivingCounter // 🛡️ Pass this for STOPPED transition gating
   };
 
   belief = updateBelief(belief, obs, context);
@@ -635,9 +647,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // 🚀 FIX: The Phantom Trip Guard
-  // Only accumulate trip time if we are actually moving in a vehicle.
+  // Only accumulate trip time if we are actually moving in a vehicle or stopped during a trip.
   // This prevents the timer from filling up while drinking coffee next to the parked car!
-  if (candidate === 'DRIVING' || (candidate === 'IN_CAR' && speed > 5)) {
+  const isVehicleState = candidate === 'DRIVING' || candidate === 'STOPPED';
+  if (isVehicleState || (candidate === 'IN_CAR' && speed > 5)) {
     _tripDrivingTime += dt; 
   }
   // Note: We intentionally DO NOT reset the timer to 0 here. 
