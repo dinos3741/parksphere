@@ -72,6 +72,7 @@ let _inCarCounter = 0;
 let _drivingCounter = 0;
 let _walkingCounter = 0;
 let _tripDrivingTime = 0; 
+let _proximityCounter = 0; // 🛡️ Tracks sustained time spent near the car
 
 for (const s of STATES) {
   belief[s] = s === 'IDLE' ? 1 : 0;
@@ -497,6 +498,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   _drivingCounter = supplemental.drivingCounter || 0;
   _walkingCounter = supplemental.walkingCounter || 0;
   _tripDrivingTime = supplemental.tripDrivingTime || 0;
+  _proximityCounter = supplemental.proximityCounter || 0;
 
   const now = Date.now();
   let dt = 1;
@@ -726,6 +728,20 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (isAway && (currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
     console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
     isAway = false;
+    _proximityCounter = 0;
+  }
+
+  // 🛡️ PROXIMITY RESET: If the user is near the car for a sustained time but NOT in it
+  // reset isAway to close the gate for 'RETURNING' flips.
+  if (isAway && dist < 25) {
+    _proximityCounter++;
+    if (_proximityCounter >= 10) { // ~50-60 seconds of hanging out near the car
+      console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
+      isAway = false;
+      _proximityCounter = 0;
+    }
+  } else {
+    _proximityCounter = 0;
   }
 
   // ==============================
@@ -763,7 +779,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     inCarCounter: _inCarCounter,
     drivingCounter: _drivingCounter,
     walkingCounter: _walkingCounter,
-    tripDrivingTime: _tripDrivingTime
+    tripDrivingTime: _tripDrivingTime,
+    proximityCounter: _proximityCounter
   };
 }
 
@@ -809,6 +826,7 @@ export function resetHMM() {
   _drivingCounter = 0;
   _walkingCounter = 0;
   _tripDrivingTime = 0; 
+  _proximityCounter = 0; 
 
   console.log('[HMM] Engine fully reset to IDLE.');
   return { 
