@@ -12,6 +12,11 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
   useEffect(() => {
     // ⚡ Inject Bluetooth state into the HMM engine on change
     handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
+    
+    // Notify user on Bluetooth connection
+    if (isConnected) {
+        DeviceEventEmitter.emit('parkDetectionUpdate', { message: '🚗 Connected to car Bluetooth' });
+    }
   }, [isConnected]);
 
   useEffect(() => {
@@ -23,7 +28,7 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
         if (setParkedLocation) setParkedLocation(null);
       }
     });
-...
+
     const setupNotificationsAndDetection = async () => {
       const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
       if (existingStatus !== 'granted') {
