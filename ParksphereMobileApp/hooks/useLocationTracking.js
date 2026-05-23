@@ -50,39 +50,32 @@ export const useLocationTracking = (acceptedSpot, arrivalConfirmed, onProximityA
   }, []);
 
   useEffect(() => {
-    let locationSubscription;
+    let isMounted = true;
 
     const setupLocationTracking = async () => {
       if (locationPermissionGranted && acceptedSpot && !arrivalConfirmed) {
-        locationSubscription = await Location.watchPositionAsync(
-          {
-            accuracy: Location.Accuracy.High,
-            distanceInterval: 5, // Update every 5 meters
-          },
-          (newLocation) => {
-            const { latitude, longitude } = newLocation.coords;
-            setUserLocation({ ...newLocation.coords, latitudeDelta: 0.0922, longitudeDelta: 0.0421 });
-
-            const spotLat = parseFloat(acceptedSpot.latitude);
-            const spotLon = parseFloat(acceptedSpot.longitude);
-            const distance = getDistance(latitude, longitude, spotLat, spotLon);
-
-            console.log(`[useLocationTracking] Distance to spot ${acceptedSpot.id}: ${distance.toFixed(2)} meters`);
-
-            if (distance <= 10 && !arrivalConfirmed && onProximityArrival) { // Within 10 meters
-              onProximityArrival();
-            }
-          }
-        );
+        const hasStarted = await Location.hasStartedLocationUpdatesAsync('background-location-task');
+        if (!hasStarted) {
+            await Location.startLocationUpdatesAsync('background-location-task', {
+              accuracy: Location.Accuracy.Balanced,
+              distanceInterval: 50,
+              timeInterval: 30000,
+              foregroundService: {
+                notificationTitle: 'Parksphere',
+                notificationBody: 'Tracking location in background',
+              },
+            });
+        }
       }
     };
 
     setupLocationTracking();
 
     return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
+      isMounted = false;
+      // Note: We might NOT want to stop here if we want background persistence
+      // For now, keeping it simple as per original hook design
+      Location.stopLocationUpdatesAsync('background-location-task');
     };
   }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed]);
 

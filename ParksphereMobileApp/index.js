@@ -1,9 +1,24 @@
-// import './polyfills';
 import { registerRootComponent } from 'expo';
+import * as TaskManager from 'expo-task-manager';
+import * as Location from 'expo-location';
+import { processLocationHMM } from './utils/parkDetection_HMM';
 
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+const LOCATION_TASK_NAME = 'background-location-task';
+
+TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }) => {
+  if (error) {
+    console.error('[TaskManager] Error:', error);
+    return;
+  }
+  if (data) {
+    const { locations } = data;
+    const location = locations[0];
+    // In a real implementation, we'd pull parkedLocation from AsyncStorage
+    console.log('[TaskManager] Background location update:', location);
+    processLocationHMM(location, null, {});
+  }
+});
+
 registerRootComponent(App);
