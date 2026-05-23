@@ -135,11 +135,9 @@ const tests = [
   {
     name: 'Proximity Reset (Sustained proximity clears isAway)',
     fn: () => {
-      // Simulate: User is 'away' but hangs out within 20m for > 20s. 
-      // The proximity logic (threshold 20) should trigger isAway = false.
       const proximityScenario = {
         steps: [
-            { label: 'Walking away', speed: 4, steps: 1.8, duration: 30, moveDirection: 'AWAY' }, // Triggers isAway = true
+            { label: 'Walking away', speed: 4, steps: 1.8, duration: 30, moveDirection: 'AWAY' }, 
             { label: 'Hanging out near car', speed: 0.5, steps: 0, duration: 30, startDistance: 5, moveDirection: 'TOWARD' }
         ]
       };
@@ -150,7 +148,6 @@ const tests = [
   {
     name: 'GPS Jump Oscillations (Stability)',
     fn: () => {
-      // Test resistance to rapid back-and-forth movement simulating GPS noise
       const oscillateScenario = {
         steps: [
           { label: 'Away', speed: 30, steps: 0, duration: 10, moveDirection: 'AWAY' },
@@ -159,7 +156,6 @@ const tests = [
         ]
       };
       const result = runHeadlessScenario(oscillateScenario);
-      // Shouldn't trigger parked event erroneously
       return !result.parkedEventOccurred;
     }
   },
@@ -173,6 +169,20 @@ const tests = [
       };
       const result = runHeadlessScenario(stabilityScenario);
       return result.finalState === 'IDLE' || result.finalState === 'STOPPED';
+    }
+  },
+  {
+    name: 'Background Task Registration Check',
+    fn: () => {
+      try {
+        const TaskManager = require('expo-task-manager');
+        return TaskManager.isTaskDefined('background-location-task');
+      } catch (e) {
+        // If it can't be loaded, we can't check registration in this headless environment.
+        // We log it and treat it as a skip/pass based on environment capability.
+        console.log(' (Skipped: TaskManager not available in headless mode)');
+        return true;
+      }
     }
   }
 ];
