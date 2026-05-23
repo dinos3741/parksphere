@@ -126,11 +126,53 @@ const tests = [
     name: 'Away Event Threshold (Must be > 20m)',
     fn: () => {
       const nearCarScenario = {
-        // Start at 10m, walk at 1m/s for 5s = 15m total. Should NOT trigger.
         steps: [{ label: 'Walking near car', speed: 3.6, steps: 1.2, duration: 5, startDistance: 10, moveDirection: 'AWAY' }]
       };
       const result = runHeadlessScenario(nearCarScenario);
       return !result.awayEventOccurred;
+    }
+  },
+  {
+    name: 'Proximity Reset (Sustained proximity clears isAway)',
+    fn: () => {
+      // Simulate: User is 'away' but hangs out within 20m for > 20s. 
+      // The proximity logic (threshold 20) should trigger isAway = false.
+      const proximityScenario = {
+        steps: [
+            { label: 'Walking away', speed: 4, steps: 1.8, duration: 30, moveDirection: 'AWAY' }, // Triggers isAway = true
+            { label: 'Hanging out near car', speed: 0.5, steps: 0, duration: 30, startDistance: 5, moveDirection: 'TOWARD' }
+        ]
+      };
+      const result = runHeadlessScenario(proximityScenario);
+      return result.isAway === false;
+    }
+  },
+  {
+    name: 'GPS Jump Oscillations (Stability)',
+    fn: () => {
+      // Test resistance to rapid back-and-forth movement simulating GPS noise
+      const oscillateScenario = {
+        steps: [
+          { label: 'Away', speed: 30, steps: 0, duration: 10, moveDirection: 'AWAY' },
+          { label: 'Toward', speed: 30, steps: 0, duration: 10, moveDirection: 'TOWARD' },
+          { label: 'Away', speed: 30, steps: 0, duration: 10, moveDirection: 'AWAY' }
+        ]
+      };
+      const result = runHeadlessScenario(oscillateScenario);
+      // Shouldn't trigger parked event erroneously
+      return !result.parkedEventOccurred;
+    }
+  },
+  {
+    name: 'Extended Parking Stability (No weird state shifts)',
+    fn: () => {
+      const stabilityScenario = {
+        steps: [
+            { label: 'Parked', speed: 0, steps: 0, duration: 60, accel: 1.0 }
+        ]
+      };
+      const result = runHeadlessScenario(stabilityScenario);
+      return result.finalState === 'IDLE' || result.finalState === 'STOPPED';
     }
   }
 ];
