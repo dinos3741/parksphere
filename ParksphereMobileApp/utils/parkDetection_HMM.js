@@ -735,7 +735,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // reset isAway to close the gate for 'RETURNING' flips.
   if (isAway && dist < 25) {
     _proximityCounter++;
-    if (_proximityCounter >= 10) { // ~50-60 seconds of hanging out near the car
+    if (_proximityCounter >= 20) { // ~100-120 seconds of hanging out near the car
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
       isAway = false;
       _proximityCounter = 0;
