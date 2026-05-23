@@ -88,13 +88,13 @@ async function getRecentStepRate() {
     const available = await checkPedometer();
     if (!available) return 0;
 
-    // Look at the last 12 seconds
+    // Look at the last 6 seconds
     const end = new Date();
     const start = new Date();
-    start.setSeconds(end.getSeconds() - 12);
+    start.setSeconds(end.getSeconds() - 6);
 
     const result = await withTimeout(Pedometer.getStepCountAsync(start, end), 3000, 'Pedometer.getStepCount');
-    return (result.steps || 0) / 12.0; // steps per second
+    return (result.steps || 0) / 6.0; // steps per second
   } catch (error) {
     console.error('[ParkDetection] Error fetching step count:', error.message);
     return 0;
@@ -192,14 +192,16 @@ function notify(message, extraData = {}) {
 }
 
 let lastVirtualUpdate = 0;
+let isProcessing = false;
 
 async function triggerVirtualUpdate() {
-  if (!isInitialized) return;
+  if (!isInitialized || isProcessing) return;
   
   const now = Date.now();
   // 🚀 FIX: 2-second throttle to prevent AsyncStorage/Bridge flooding
   if (now - lastVirtualUpdate < 2000) return; 
   lastVirtualUpdate = now;
+  isProcessing = true;
 
   try {
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
@@ -211,6 +213,8 @@ async function triggerVirtualUpdate() {
     }
   } catch (e) {
     console.error('[ParkDetection] Virtual update failed:', e.message);
+  } finally {
+    isProcessing = false;
   }
 }
 
@@ -307,7 +311,8 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     inCarCounter: stateData.inCarCounter,
     drivingCounter: stateData.drivingCounter,
     walkingCounter: stateData.walkingCounter,
-    tripDrivingTime: stateData.tripDrivingTime
+    tripDrivingTime: stateData.tripDrivingTime,
+    proximityCounter: stateData.proximityCounter
   });
 
   let {
@@ -328,7 +333,8 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     inCarCounter,
     drivingCounter,
     walkingCounter,
-    tripDrivingTime
+    tripDrivingTime,
+    proximityCounter
   } = hmmResult;
 
   if (location.forcePark) {
@@ -351,6 +357,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
   stateData.drivingCounter = drivingCounter;
   stateData.walkingCounter = walkingCounter;
   stateData.tripDrivingTime = tripDrivingTime;
+  stateData.proximityCounter = proximityCounter;
 
   if (awayEvent) {
     notify('🚶 You have left the vicinity of your car.');
