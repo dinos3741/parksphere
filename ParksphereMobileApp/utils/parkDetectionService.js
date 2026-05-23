@@ -215,9 +215,19 @@ async function triggerVirtualUpdate() {
 }
 
 // ---------------- CORE ENGINE (HMM) ----------------
-export async function handleLocationUpdate(arg1, arg2) {
-  if (!isInitialized) {
+// 🚀 Store latest Bluetooth state as a module-level variable to be used in HMM calls
+let lastBluetoothState = false;
+
+export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false) {
+  if (!isInitialized && !isBluetoothUpdate) {
     return arg2 ? arg1 : {}; 
+  }
+
+  // 🚀 If this is a Bluetooth event, just update the state variable
+  if (isBluetoothUpdate) {
+    lastBluetoothState = arg1.bluetoothConnected;
+    console.log(`[ParkDetection] Bluetooth state updated to: ${lastBluetoothState}`);
+    return;
   }
 
   let stateData, location;
@@ -267,14 +277,13 @@ export async function handleLocationUpdate(arg1, arg2) {
   
   let stepRate = 0;
   if (!location.isFromSimulator) {
-    // 🚀 FIX: Read instantly from the cache, never block the TaskManager loop
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
     
     if (timeSinceLastStep < 4000) {
       stepRate = Math.max(1.2, currentStepRate); 
       console.log(`[ParkDetection] 👟 Fast-Path Step Active: ${stepRate.toFixed(2)}`);
     } else {
-      stepRate = currentStepRate; // Instant read!
+      stepRate = currentStepRate;
     }
   } else {
     stepRate = currentStepRate;
@@ -292,6 +301,7 @@ export async function handleLocationUpdate(arg1, arg2) {
     isAway: stateData.isAway,
     minDistDuringReturn: stateData.minDistDuringReturn,
     accuracy: location.coords.accuracy,
+    bluetoothConnected: lastBluetoothState, // 🛡️ NEW SIGNAL
     // Restore counters
     returnCounter: stateData.returnCounter,
     inCarCounter: stateData.inCarCounter,

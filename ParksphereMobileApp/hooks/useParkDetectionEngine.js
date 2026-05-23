@@ -4,8 +4,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ExpoNotifications from 'expo-notifications';
 import { startParkDetection, stopParkDetection, handleLocationUpdate } from '../utils/parkDetectionService';
+import { useBluetoothMonitoring } from './useBluetoothMonitoring';
 
 export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification, setParkedLocation) => {
+  const { isConnected } = useBluetoothMonitoring();
+
+  useEffect(() => {
+    // ⚡ Inject Bluetooth state into the HMM engine on change
+    handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
+  }, [isConnected]);
+
   useEffect(() => {
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
       if (addNotification) addNotification(data.message);
@@ -15,7 +23,7 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
         if (setParkedLocation) setParkedLocation(null);
       }
     });
-
+...
     const setupNotificationsAndDetection = async () => {
       const { status: existingStatus } = await ExpoNotifications.getPermissionsAsync();
       if (existingStatus !== 'granted') {
