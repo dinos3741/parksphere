@@ -172,6 +172,19 @@ const tests = [
     }
   },
   {
+    name: 'Bluetooth Status Integration',
+    fn: () => {
+      // Manually trigger handleLocationUpdate with bluetoothConnected: true
+      const { processLocationHMM } = require('./parkDetection_HMM.js');
+      const mockLoc = { coords: { latitude: 37.7749, longitude: -122.4194, speed: 0 } };
+      const result = processLocationHMM(mockLoc, null, { bluetoothConnected: true });
+      
+      // We don't have a direct way to peek at the internal HMM state influence, 
+      // but we can verify it doesn't crash and the observation was accepted.
+      return result !== undefined;
+    }
+  },
+  {
     name: 'Background Task Registration Check',
     fn: () => {
       try {
