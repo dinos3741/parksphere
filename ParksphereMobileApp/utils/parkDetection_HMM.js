@@ -38,11 +38,11 @@ export const A = {
     WALKING: 0.05   
   },
   STOPPED: {
-    STOPPED: 0.75, 
+    STOPPED: 0.65, 
     DRIVING: 0.1,
     WALKING: 0.1,   
     IN_CAR: 0.03,   
-    IDLE: 0.02      
+    IDLE: 0.12 // 🚀 Snappier reset to IDLE      
   },
   RETURNING: {
     RETURNING: 0.65,
@@ -96,7 +96,7 @@ class Kalman1D {
     return this.x;
   }
 }
-const speedFilter = new Kalman1D(0.01, 4.0);
+const speedFilter = new Kalman1D(0.01, 3.0);
 
 // ==============================
 // 2D KALMAN FILTER (POSITION)
@@ -238,10 +238,14 @@ function calculatePGR(currentDist, currentX, currentY) {
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
-  // 🛡️ ESCAPE HATCH: Always allow staying in the current state
-  if (from === to) return true;
-
   const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate } = context;
+
+  // 🛡️ ESCAPE HATCH: Always allow staying in the current state UNLESS we are physically still.
+  // This prevents the system from getting stuck in DRIVING or WALKING while on a desk.
+  if (from === to) {
+    if (isPhysicallyStill && (from === 'DRIVING' || from === 'WALKING')) return false;
+    return true;
+  }
 
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
@@ -605,7 +609,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ THE DESK GUARD: If phone is perfectly still (magnitude ~1.0g and no steps), it's on a surface
   const stepRate = supplemental.step_rate || 0;
   const accel = supplemental.acceleration_magnitude || 1;
-  const isPhysicallyStill = Math.abs(accel - 1.0) < 0.03 && stepRate < 0.1;
+  
+  // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.015g), ignore pedometer lag.
+  // This allows the engine to snap to IDLE immediately when placed on a desk.
+  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.015) || (Math.abs(accel - 1.0) < 0.05 && stepRate < 0.1);
 
   const obs = {
     speed,
@@ -650,7 +657,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // Only switch if the new state is significantly more likely than the current one
   // This prevents "flapping" between two states that have similar belief values.
-  const HYSTERESIS_GAP = 0.15; // 15% difference required to trigger a change
+  const HYSTERESIS_GAP = 0.12; // Slightly reduced for better responsiveness
 
   // ==============================
   // ⏱️ SECURE TEMPORAL CONFIRMATION

@@ -209,7 +209,16 @@ async function triggerVirtualUpdate() {
     
     if (stateData.lastLocation) {
       console.log('[ParkDetection] ⚡ Triggering virtual HMM update from sensor fast-path.');
-      await handleLocationUpdate(stateData, stateData.lastLocation);
+      
+      // 🚀 FIX: If the phone is perfectly still, we must ensure we aren't 
+      // accidentally reusing "simulated" walking/driving flags from the past.
+      const isActuallyStill = Math.abs(currentAcceleration - 1.0) < 0.015;
+      const virtualLocation = {
+        ...stateData.lastLocation,
+        isFromSimulator: stateData.lastLocation.isFromSimulator && !isActuallyStill
+      };
+
+      await handleLocationUpdate(stateData, virtualLocation);
     }
   } catch (e) {
     console.error('[ParkDetection] Virtual update failed:', e.message);
@@ -279,6 +288,12 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
 
   const acceleration = currentAcceleration;
   
+  // 🚀 FIX: Actually fetch the recent step rate from the pedometer history!
+  // This ensures the HMM sees real data, not just stale simulated values.
+  if (!location.isFromSimulator) {
+    currentStepRate = await getRecentStepRate();
+  }
+
   let stepRate = 0;
   if (!location.isFromSimulator) {
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
@@ -537,13 +552,6 @@ async function startSensors() {
               };
 
               console.log(`[ParkDetection] RECEIVED Activity: state=${state}, conf=${confidence}`);
-
-              // 🚀 FAST-PATH HINTS: Use OS Activity to pre-emptively set/clear steps
-              if (currentActivity.walking && isInitialized) {
-                lastStepTimestamp = Date.now();
-              } else if (currentActivity.stationary && isInitialized) {
-                lastStepTimestamp = 0; 
-              }
 
               // 🚀 TRIGGER VIRTUAL UPDATE ON ACTIVITY CHANGE
               // If we change state (e.g. Still -> Walk), don't wait for GPS.
