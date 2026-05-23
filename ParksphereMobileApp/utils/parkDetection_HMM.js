@@ -631,10 +631,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   belief = updateBelief(belief, obs, context);
 
+  // ==============================
+  // STABILITY GUARD: Hysteresis Threshold
+  // ==============================
   const sorted = Object.entries(belief).sort((a, b) => b[1] - a[1]);
   const candidate = sorted[0][0];
   const candidateConf = sorted[0][1];
-  const currentConf = belief[currentState] || 0;
+
+  // Only switch if the new state is significantly more likely than the current one
+  // This prevents "flapping" between two states that have similar belief values.
+  const HYSTERESIS_GAP = 0.15; // 15% difference required to trigger a change
 
   // ==============================
   // ⏱️ SECURE TEMPORAL CONFIRMATION
@@ -767,13 +773,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   // STATE SWITCH
   // ==============================
-  if (candidate !== currentState && candidateConf > (currentConf + 0.05)) {
-    if (candidate === 'RETURNING' && !returnConfirmed) {} 
-    else if (candidate === 'IN_CAR' && !inCarConfirmed) {} 
-    else if (candidate === 'DRIVING' && !drivingConfirmed) {} 
-    else if (candidate === 'WALKING' && !walkingConfirmed) {} 
-    else {
-      currentState = candidate;
+  if (candidate !== currentState) {
+    if (candidateConf > (belief[currentState] || 0) + HYSTERESIS_GAP) {
+      if (candidate === 'RETURNING' && !returnConfirmed) {} 
+      else if (candidate === 'IN_CAR' && !inCarConfirmed) {} 
+      else if (candidate === 'DRIVING' && !drivingConfirmed) {} 
+      else if (candidate === 'WALKING' && !walkingConfirmed) {} 
+      else {
+        console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
+        currentState = candidate;
+      }
     }
   }
 
