@@ -96,7 +96,7 @@ class Kalman1D {
     return this.x;
   }
 }
-const speedFilter = new Kalman1D(0.1, 1);
+const speedFilter = new Kalman1D(0.01, 4.0);
 
 // ==============================
 // 2D KALMAN FILTER (POSITION)
@@ -109,13 +109,20 @@ class Kalman2D {
     this.R = mathIdentity(2, 25);   
     this.lastTime = null;
   }
-  update(z, dt) {
+  update(z, dt, accuracy = 10) {
     if (!this.lastTime) {
       this.lastTime = Date.now();
       this.x[0] = z[0];
       this.x[1] = z[1];
       return [this.x[0], this.x[1]];
     }
+
+    // 🚀 DYNAMIC MEASUREMENT NOISE
+    // Square the accuracy to get variance. 
+    // We floor it at 25 to prevent the filter from becoming too jumpy even under perfect skies.
+    const dynamicRValue = Math.max(25, accuracy * accuracy);
+    this.R = mathIdentity(2, dynamicRValue);
+
     const F = [
       [1, 0, dt, 0],
       [0, 1, 0, dt],
@@ -234,7 +241,7 @@ function isTransitionAllowed(from, to, context) {
   // 🛡️ ESCAPE HATCH: Always allow staying in the current state
   if (from === to) return true;
 
-  const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist } = context;
+  const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate } = context;
 
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
@@ -248,11 +255,12 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'DRIVING' && from !== 'DRIVING') {
     const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
 
-    // IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
-    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
+    // 1. Restore absolute block: If taking steps, we are NOT driving. Period.
+    // We ignore OS 'automotive' flags here because physical steps are ground truth.
+    if (stepRate > 0.35) return false; 
     
-    // If we have high step rate, we are likely not driving unless speed is high or activity confirms
-    if (stepRate > 0.4 && speed < 15 && !hasAutomotiveActivity) return false;
+    // 2. IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
+    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
     
     // IN_CAR -> DRIVING needs at least some movement
     if (from === 'IN_CAR' && speed < 8 && !hasAutomotiveActivity) return false;
@@ -281,14 +289,22 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && dist < 0.5) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
-  if (to === 'IN_CAR' && dist > 10) return false; 
-  if (to === 'IN_CAR' && from !== 'IN_CAR' && dist > 10 && context.deltaRate > 0.4) return false; 
+  if (to === 'IN_CAR' && from !== 'IN_CAR') {
+    // 1. Hard distance limit: If you aren't within 5 meters, don't even consider it.
+    if (dist > 5) return false;
+
+    // 2. Approach check: Ensure the rate is negative (you are closing the gap)
+    // Since it's snappier, require at least -0.1 m/s (slow closing)
+    if (deltaRate > -0.1) return false;
+  }
   if (to === 'IN_CAR' && speed > 10) return false;
   if (to === 'IN_CAR' && stepRate > 2.5) return false;
 
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
-    if (context.deltaRate >= -0.2 && context.pgr < 0.2) return false;
+    // 🛡️ Require a stronger negative delta (approaching) and higher PGR (progress)
+    // -0.5 m/s is a solid walking pace, -0.2 was too easily met by GPS drift.
+    if (deltaRate >= -0.5 && context.pgr < 0.3) return false;
   }
 
   return true;
@@ -354,7 +370,10 @@ function emissionLogProb(state, obs) {
   if (state === 'DRIVING') {
     logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
-    if (stepRate > 0.5 && speed < 10) logp -= 15; 
+
+    // Restore the wider penalty net. If we have steps and are under 25km/h, 
+    // penalize driving heavily. This absorbs fast walking and GPS spikes.
+    if (stepRate > 0.4 && speed < 25) logp -= 25; 
   }
   else if (isWalkingState) {
     logp += logGaussian(speed, 2.5, 4.0) * gpsWeight;
@@ -408,7 +427,7 @@ function emissionLogProb(state, obs) {
     const proximityWeight = Math.max(0.2, 1.0 - (dist / RETURN_ZONE_RADIUS));
 
     let directionalScore = 0;
-    if (pgr > 0) directionalScore += (pgr * 6.0); 
+    if (pgr > 0) directionalScore += (pgr * 4.0); 
     else directionalScore += (pgr * 10.0); 
 
     if (approachAlignment > 0) directionalScore += (approachAlignment * 3.0); 
@@ -526,8 +545,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   const rawLat = location.coords.latitude;
   const rawLon = location.coords.longitude;
+  const rawAccuracy = location.coords.accuracy || 10;
   const [mx, my] = latLonToMeters(rawLat, rawLon);
-  const [fx, fy] = positionFilter.update([mx, my], dt);
+  const [fx, fy] = positionFilter.update([mx, my], dt, rawAccuracy);
   const filteredCoords = metersToLatLon(fx, fy);
 
   const rawSpeed = Math.max(0, (location.coords.speed || 0) * 3.6);
@@ -544,7 +564,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     deltaRate = Math.max(-10, Math.min(10, delta)) / dt;
   }
 
-  const alpha = 0.7; 
+  const alpha = 0.3; 
   smoothedDeltaRate = alpha * smoothedDeltaRate + (1 - alpha) * (isNaN(deltaRate) ? 0 : deltaRate);
   
   // 🚀 FIX: Prevent rate values from infecting the state with NaN
