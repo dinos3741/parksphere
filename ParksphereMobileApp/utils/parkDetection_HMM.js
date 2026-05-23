@@ -333,7 +333,7 @@ const RETURN_ZONE_RADIUS = 70;
 const AWAY_THRESHOLD = 20;
 
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
 
   let logp = 0;
   const TEMP = 0.5;
@@ -343,6 +343,15 @@ function emissionLogProb(state, obs) {
 
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
+
+  // 🚀 BLUETOOTH SIGNAL (The "New Signal")
+  if (bluetoothConnected) {
+    if (state === 'IN_CAR' || state === 'DRIVING') {
+      logp += 5.0; // Strong signal that we are in the vehicle
+    } else {
+      logp -= 5.0; // Penalty if we claim to be WALKING while BT is connected
+    }
+  }
 
   // 🚀 OS MOTION ACTIVITY BOOST (Balanced "Advisor" Logic)
   if (activity) {
@@ -611,7 +620,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     slope: pgrMetrics.slope,
     pgrConsistency: pgrMetrics.consistency,
     activity: supplemental.motion_activity,
-    isPhysicallyStill
+    isPhysicallyStill,
+    bluetoothConnected: supplemental.bluetoothConnected
   };
 
   const context = {
