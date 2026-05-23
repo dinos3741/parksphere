@@ -356,7 +356,15 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     notify('🚶 You have left the vicinity of your car.');
   }
 
+  if (parkedEvent && !stateData.parkingNotified) {
+    const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
+    stateData.parkedLocation = finalParkedLoc;
+    stateData.parkingNotified = true;
+    notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
+  }
+
   if (clearParkingEvent) {
+    stateData.parkingNotified = false;
     // 🚀 FIX: Don't orphan the server spot!
     if (stateData.serverSpotId) {
       await updateSpotStatus(stateData.serverSpotId, 'free');
@@ -369,12 +377,6 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     stateData.isAway = false;
     stateData._loggedParkedLoc = false;
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
-  }
-
-  if (parkedEvent) {
-    const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
-    stateData.parkedLocation = finalParkedLoc;
-    notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
   }
 
   if (hmmState === 'DRIVING' && stateData.stoppedCandidateLocation) {
