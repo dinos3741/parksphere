@@ -7,14 +7,30 @@ This guide explains how to run and interpret the automated tests for the Park De
 The primary test suite is a headless Node.js runner that simulates real-world sensor data (GPS, Accelerometer, Pedometer, Bluetooth) and validates the HMM's state transitions.
 
 ### 1. Run the HMM Regression Suite (Recommended)
-This is the fastest and most reliable way to verify the model. It runs 12+ scenarios covering standard usage, edge cases, and stability fixes.
+This is the fastest and most reliable way to verify the model. It runs 13+ scenarios covering standard usage, edge cases, and stability fixes.
 
 ```bash
 # Run from the ParksphereMobileApp directory
 npm run test:hmm
 ```
 
-### 2. Run with Jest (Alternative)
+### 2. Detailed Lifecycle Tracing
+Run a second-by-second analysis of the "Real-Life Odyssey" scenario to observe state transitions, confidence dips, and event triggers (Parking, Away, Returning, Spot Clearing).
+
+```bash
+# Run from the ParksphereMobileApp directory
+node utils/trace-odyssey.js
+```
+
+### 3. HMM Stress Testing (Monte Carlo)
+Run each scenario 100 times with injected "real-world chaos" (randomized speeds, coordinate jitter, timing variations, and sensor inaccuracies). A pass rate below 95% indicates the math has become too brittle.
+
+```bash
+# Run from the ParksphereMobileApp directory
+node utils/hmm-stress-test.js
+```
+
+### 4. Run with Jest (Alternative)
 The project also includes Jest-based tests for environment-specific integrations. Note: If your local environment has Jest dependency issues, use the command above.
 
 ```bash
@@ -38,7 +54,11 @@ The suite covers 12 critical scenarios to ensure the engine is both responsive a
 *   **Tightened Gates:** Verifies that entering `IN_CAR` requires being within 5m and moving toward the car.
 *   **Proximity Reset:** Confirms that staying near the car for a sustained period resets the "IsAway" flag.
 
-### 3. New Signals
+### 3. Advanced Analysis Tools
+*   **Detailed Lifecycle Tracing:** The `trace-odyssey.js` tool provides a second-by-second log of the "Real-Life Odyssey" scenario, ensuring that every transition (e.g., detour resilience) and event (Parking confirmed, Spot cleared) occurs at the correct physical distance.
+*   **Monte Carlo Stress Testing:** The `hmm-stress-test.js` tool calculates statistical reliability by running scenarios 100 times with random speed, coordinate, and timing jitter.
+
+### 4. New Signals
 *   **Bluetooth Integration:** Confirms that an active Bluetooth connection correctly boosts the confidence of `IN_CAR` and `DRIVING` states.
 
 ---
