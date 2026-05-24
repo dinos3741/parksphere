@@ -23,6 +23,7 @@ function runHeadlessScenario(scenario) {
 
   // Counters to maintain state between steps
   let tripDrivingTime = 0;
+  let tripDrivingDistance = 0;
   let drivingCounter = 0;
   let walkingCounter = 0;
   let returnCounter = 0;
@@ -72,6 +73,7 @@ function runHeadlessScenario(scenario) {
         acceleration_magnitude: step.accel || 1.0,
         motion_activity: motionActivity,
         tripDrivingTime,
+        tripDrivingDistance,
         drivingCounter,
         walkingCounter,
         returnCounter,
@@ -86,6 +88,7 @@ function runHeadlessScenario(scenario) {
       belief = result.belief;
       isAway = result.isAway;
       tripDrivingTime = result.tripDrivingTime;
+      tripDrivingDistance = result.tripDrivingDistance;
       drivingCounter = result.drivingCounter;
       walkingCounter = result.walkingCounter;
       returnCounter = result.returnCounter;
@@ -134,7 +137,7 @@ describe('HMM Regression Suite', () => {
     const redLightScenario = {
       name: "Red Light",
       steps: [
-        { label: "Driving", speed: 40, steps: 0, duration: 15, accel: 1.3 },
+        { label: "Driving", speed: 40, steps: 0, duration: 35, accel: 1.3, moveDirection: 'AWAY' },
         { label: "Stopped at Light", speed: 0, steps: 0, duration: 20, accel: 1.0 },
         { label: "Walking Away (Parked)", speed: 4, steps: 1.8, duration: 10, accel: 1.2, moveDirection: 'AWAY' }
       ]

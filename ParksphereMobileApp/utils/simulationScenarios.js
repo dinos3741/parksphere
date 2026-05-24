@@ -9,8 +9,8 @@ export const SCENARIOS = {
     description: "Drive at 50km/h, stop, and walk away from the car.",
     steps: [
       { label: "Engine Start", speed: 0, steps: 0, duration: 2, accel: 1.0 },
-      { label: "Driving (50 km/h)", speed: 50, steps: 0, duration: 15, accel: 1.2 },
-      { label: "Stopping", speed: 5, steps: 0, duration: 5, accel: 1.1 },
+      { label: "Driving (50 km/h)", speed: 50, steps: 0, duration: 30, accel: 1.2, moveDirection: 'AWAY' },
+      { label: "Stopping", speed: 5, steps: 0, duration: 5, accel: 1.1, moveDirection: 'AWAY' },
       { label: "Parked (Still)", speed: 0, steps: 0, duration: 10, accel: 1.0 },
       { label: "Walking Away", speed: 5, steps: 1.8, duration: 20, accel: 1.2, moveDirection: 'AWAY' }
     ]
@@ -20,7 +20,7 @@ export const SCENARIOS = {
     description: "Start far from car, take a bus, get off and walk.",
     steps: [
       { label: "Waiting at Bus Stop", speed: 0, steps: 0, duration: 10, accel: 1.0, startDistance: 200 },
-      { label: "Bus Driving", speed: 35, steps: 0, duration: 20, accel: 1.3 },
+      { label: "Bus Driving", speed: 35, steps: 0, duration: 35, accel: 1.3, moveDirection: 'AWAY' },
       { label: "Bus Stop (Idle)", speed: 0, steps: 0, duration: 10, accel: 1.0 },
       { label: "Get off & Walk", speed: 4, steps: 1.5, duration: 15, accel: 1.2, moveDirection: 'AWAY' }
     ]

@@ -27,12 +27,15 @@ function runHeadlessScenario(scenario) {
 
   // Internal counters maintained across steps
   let tripDrivingTime = 0;
+  let tripDrivingDistance = 0;
   let drivingCounter = 0;
   let walkingCounter = 0;
   let returnCounter = 0;
   let inCarCounter = 0;
   let proximityCounter = 0;
   let lastDistanceToCar = undefined;
+  let lastTripX = null;
+  let lastTripY = null;
 
   scenario.steps.forEach((step, stepIndex) => {
     if (step.startDistance !== undefined) {
@@ -78,11 +81,14 @@ function runHeadlessScenario(scenario) {
         acceleration_magnitude: step.accel || 1.0,
         motion_activity: motionActivity,
         tripDrivingTime,
+        tripDrivingDistance,
         drivingCounter,
         walkingCounter,
         returnCounter,
         inCarCounter,
         proximityCounter,
+        lastTripX,
+        lastTripY,
         bluetoothConnected: step.bluetoothConnected || false,
         accuracy: step.accuracy || 10,
         lastDistanceToCar: lastDistanceToCar
@@ -92,11 +98,14 @@ function runHeadlessScenario(scenario) {
       belief = result.belief;
       isAway = result.isAway;
       tripDrivingTime = result.tripDrivingTime;
+      tripDrivingDistance = result.tripDrivingDistance;
       drivingCounter = result.drivingCounter;
       walkingCounter = result.walkingCounter;
       returnCounter = result.returnCounter;
       inCarCounter = result.inCarCounter;
       proximityCounter = result.proximityCounter;
+      lastTripX = result.lastTripX;
+      lastTripY = result.lastTripY;
       lastDistanceToCar = result.distToParked;
 
       if (result.parkedEvent) parkedEventOccurred = true;
@@ -142,7 +151,7 @@ const tests = [
     fn: () => {
       const redLightScenario = {
         steps: [
-          { label: 'Driving', speed: 45, steps: 0, duration: 20, accel: 1.3 },
+          { label: 'Driving', speed: 45, steps: 0, duration: 35, accel: 1.3, moveDirection: 'AWAY' },
           { label: 'Stopped at Light', speed: 0, steps: 0, duration: 30, accel: 1.0 },
           { label: 'Walking Away (Parked)', speed: 4, steps: 1.8, duration: 10, accel: 1.2, moveDirection: 'AWAY' }
         ]

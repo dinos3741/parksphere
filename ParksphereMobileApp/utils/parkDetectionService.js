@@ -9,7 +9,7 @@ console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
 console.log('***************************************************');
 
 // Import the modified processLocationHMM which now returns belief
-import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus } from './parkDetection_HMM';
+import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -88,13 +88,13 @@ async function getRecentStepRate() {
     const available = await checkPedometer();
     if (!available) return 0;
 
-    // Look at the last 6 seconds
+    // Look at the last 8 seconds
     const end = new Date();
     const start = new Date();
-    start.setSeconds(end.getSeconds() - 6);
+    start.setSeconds(end.getSeconds() - 8);
 
     const result = await withTimeout(Pedometer.getStepCountAsync(start, end), 3000, 'Pedometer.getStepCount');
-    return (result.steps || 0) / 6.0; // steps per second
+    return (result.steps || 0) / 8.0; // steps per second
   } catch (error) {
     console.error('[ParkDetection] Error fetching step count:', error.message);
     return 0;
@@ -204,6 +204,9 @@ async function triggerVirtualUpdate() {
   isProcessing = true;
 
   try {
+    // 🚀 Refresh step rate cache
+    currentStepRate = await getRecentStepRate();
+
     const saved = await AsyncStorage.getItem(STORAGE_KEY);
     const stateData = saved ? JSON.parse(saved) : {};
     
@@ -253,6 +256,8 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
       isInternal = true;
     } else { 
       location = arg1;
+      // 🚀 Refresh step rate for foreground updates
+      currentStepRate = await getRecentStepRate();
       const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'AsyncStorage.getItem');
       stateData = saved ? JSON.parse(saved) : {};
     }
@@ -288,12 +293,6 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
 
   const acceleration = currentAcceleration;
   
-  // 🚀 FIX: Actually fetch the recent step rate from the pedometer history!
-  // This ensures the HMM sees real data, not just stale simulated values.
-  if (!location.isFromSimulator) {
-    currentStepRate = await getRecentStepRate();
-  }
-
   let stepRate = 0;
   if (!location.isFromSimulator) {
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
@@ -308,7 +307,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     stepRate = currentStepRate;
   }
 
-  const hmmResult = await processLocationHMM(location, stateData.parkedLocation, {
+  const hmmResult = processLocationHMM(location, stateData.parkedLocation, {
     acceleration_magnitude: acceleration,
     step_rate: stepRate,
     motion_activity: currentActivity,
@@ -318,6 +317,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     previousState: stateData.state,
     previousBelief: stateData.belief,
     isAway: stateData.isAway,
+    isReturningIntentLocked: stateData.isReturningIntentLocked,
     minDistDuringReturn: stateData.minDistDuringReturn,
     accuracy: location.coords.accuracy,
     bluetoothConnected: lastBluetoothState, // 🛡️ NEW SIGNAL
@@ -327,6 +327,9 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     drivingCounter: stateData.drivingCounter,
     walkingCounter: stateData.walkingCounter,
     tripDrivingTime: stateData.tripDrivingTime,
+    tripDrivingDistance: stateData.tripDrivingDistance,
+    lastTripX: stateData.lastTripX,
+    lastTripY: stateData.lastTripY,
     proximityCounter: stateData.proximityCounter
   });
 
@@ -342,6 +345,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     awayEvent,
     clearParkingEvent,
     isAway: hmmIsAway,
+    isReturningIntentLocked: hmmIsReturningIntentLocked,
     minDistDuringReturn: hmmMinDistDuringReturn,
     // Get counters for persistence
     returnCounter,
@@ -349,6 +353,9 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     drivingCounter,
     walkingCounter,
     tripDrivingTime,
+    tripDrivingDistance,
+    lastTripX,
+    lastTripY,
     proximityCounter
   } = hmmResult;
 
@@ -364,6 +371,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
   stateData.state = hmmState;
   stateData.belief = currentBelief;
   stateData.isAway = hmmIsAway;
+  stateData.isReturningIntentLocked = hmmIsReturningIntentLocked;
   stateData.minDistDuringReturn = hmmMinDistDuringReturn;
   
   // Persist counters
@@ -372,6 +380,9 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
   stateData.drivingCounter = drivingCounter;
   stateData.walkingCounter = walkingCounter;
   stateData.tripDrivingTime = tripDrivingTime;
+  stateData.tripDrivingDistance = tripDrivingDistance;
+  stateData.lastTripX = lastTripX;
+  stateData.lastTripY = lastTripY;
   stateData.proximityCounter = proximityCounter;
 
   if (awayEvent) {
@@ -380,24 +391,30 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
 
   if (parkedEvent && !stateData.parkingNotified) {
     const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
+
+    const spotId = await declareSpot(finalParkedLoc);
+
+    // Allow parking confirmation even if server declaration fails (offline-first)
     stateData.parkedLocation = finalParkedLoc;
+    stateData.serverSpotId = spotId || `local-${Date.now()}`;
     stateData.parkingNotified = true;
+
     notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
   }
-
   if (clearParkingEvent) {
     stateData.parkingNotified = false;
     // 🚀 FIX: Don't orphan the server spot!
-    if (stateData.serverSpotId) {
+    if (stateData.serverSpotId && !stateData.serverSpotId.startsWith('local-')) {
       await updateSpotStatus(stateData.serverSpotId, 'free');
-      stateData.serverSpotId = null;
     }
+    stateData.serverSpotId = null;
 
     stateData.parkedLocation = null;
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
     stateData.isAway = false;
     stateData._loggedParkedLoc = false;
+    resetPGRHistory(); // 🚀 Clear stale position history for the new trip
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
   }
 
@@ -426,11 +443,6 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
 
     let debugInfo = ` ${Math.round(confidence * 100)}%`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
-
-    if (stateData.state === 'RETURNING' && !stateData.serverSpotId) {
-      const finalParkedLoc = stateData.parkedLocation || stateData.stoppedCandidateLocation || currentLoc;
-      stateData.serverSpotId = await declareSpot(finalParkedLoc);
-    }
 
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
       await updateSpotStatus(stateData.serverSpotId, 'soon_free');
@@ -597,23 +609,37 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
     return;
   }
 
-  let stateData = {};
-  try {
-    const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'TaskManager.getItem');
-    if (saved) stateData = JSON.parse(saved);
-  } catch (e) {
-    console.error('[ParkDetection] Failed to load state from storage in TaskManager:', e.message);
+  // 🚀 SHARED MUTEX: Prevent clobbering state if a virtual update is running
+  if (isProcessing) {
+    console.warn('[ParkDetection] TaskManager update skipped — processing in progress.');
+    return;
   }
-
-  for (const loc of data.locations) {
-    // Pass the current stateData to handleLocationUpdate for sequential processing
-    stateData = await handleLocationUpdate(stateData, loc);
-  }
+  isProcessing = true;
 
   try {
-    await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'TaskManager.setItem');
-  } catch (e) {
-    console.error('[ParkDetection] Failed to save state to storage in TaskManager:', e.message);
+    // 🚀 OPTIMIZATION: Fetch step rate once for the entire batch
+    currentStepRate = await getRecentStepRate();
+
+    let stateData = {};
+    try {
+      const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'TaskManager.getItem');
+      if (saved) stateData = JSON.parse(saved);
+    } catch (e) {
+      console.error('[ParkDetection] Failed to load state from storage in TaskManager:', e.message);
+    }
+
+    for (const loc of data.locations) {
+      // Pass the current stateData to handleLocationUpdate for sequential processing
+      stateData = await handleLocationUpdate(stateData, loc);
+    }
+
+    try {
+      await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'TaskManager.setItem');
+    } catch (e) {
+      console.error('[ParkDetection] Failed to save state to storage in TaskManager:', e.message);
+    }
+  } finally {
+    isProcessing = false;
   }
 });
 
@@ -727,6 +753,9 @@ export const resetParkDetection = async () => {
     // Reset local sensor cache as well
     currentAcceleration = 1.0;
     currentStepRate = 0;
+    lastStepTimestamp = 0;
+    lastReportedSteps = 0;
+    lastBluetoothState = false;
 
     // Emit a final "IDLE" update to clear UI
     DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {

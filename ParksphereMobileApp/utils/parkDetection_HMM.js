@@ -33,16 +33,16 @@ export const A = {
     RETURNING: 0.1  
   },
   DRIVING: {
-    DRIVING: 0.8,
-    STOPPED: 0.15,
-    WALKING: 0.05   
+    DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
+    STOPPED: 0.04,   // 🚀 Reduced to prevent quick-flipping
+    WALKING: 0.01   
   },
   STOPPED: {
-    STOPPED: 0.65, 
-    DRIVING: 0.1,
-    WALKING: 0.1,   
-    IN_CAR: 0.03,   
-    IDLE: 0.12 // 🚀 Snappier reset to IDLE      
+    STOPPED: 0.85,   // 🚀 High stability
+    DRIVING: 0.05,   // 🚀 Reduced
+    WALKING: 0.05,   
+    IN_CAR: 0.02,   
+    IDLE: 0.03       // 🚀 Less aggressive reset
   },
   RETURNING: {
     RETURNING: 0.65,
@@ -72,6 +72,9 @@ let _inCarCounter = 0;
 let _drivingCounter = 0;
 let _walkingCounter = 0;
 let _tripDrivingTime = 0; 
+let _tripDrivingDistance = 0; // 🚀 New: Track actual meters traveled in trip
+let _lastTripX = null; // 🚀 Anchor for displacement math
+let _lastTripY = null;
 let _proximityCounter = 0; // 🛡️ Tracks sustained time spent near the car
 
 for (const s of STATES) {
@@ -162,6 +165,10 @@ function matSub(A, B) { return A.map((row, i) => row.map((val, j) => val - B[i][
 function vecAdd(a, b) { return a.map((v, i) => v + b[i]); }
 function vecSub(a, b) { return a.map((v, i) => v - b[i]); }
 function inverse2x2(M) {
+  if (M.length !== 2 || M[0].length !== 2) {
+    console.error('[Kalman] inverse2x2 called with non-2x2 matrix!');
+    return identity(M.length);
+  }
   const det = M[0][0]*M[1][1] - M[0][1]*M[1][0];
   if (Math.abs(det) < 1e-6) return identity(2);
   return [[ M[1][1]/det, -M[0][1]/det ], [ -M[1][0]/det, M[0][0]/det ]];
@@ -234,6 +241,12 @@ function calculatePGR(currentDist, currentX, currentY) {
 }
 
 
+export function resetPGRHistory() {
+  progressHistory = [];
+  pgrHistory = [];
+  console.log('[HMM] PGR History cleared.');
+}
+
 // ==============================
 // HARD TRANSITION RULES
 // ==============================
@@ -241,9 +254,9 @@ function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate } = context;
 
   // 🛡️ ESCAPE HATCH: Always allow staying in the current state UNLESS we are physically still.
-  // This prevents the system from getting stuck in DRIVING or WALKING while on a desk.
+  // This prevents the system from getting stuck in movement states while on a desk/seat.
   if (from === to) {
-    if (isPhysicallyStill && (from === 'DRIVING' || from === 'WALKING')) return false;
+    if (isPhysicallyStill && ['DRIVING', 'WALKING', 'STOPPED'].includes(from)) return false;
     return true;
   }
 
@@ -284,7 +297,7 @@ function isTransitionAllowed(from, to, context) {
 
     // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
     // This prevents a single jittery frame from enabling the STOPPED transition math
-    if (context.drivingCounter < 1) return false;
+    if (context.drivingCounter < 5) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
@@ -297,9 +310,12 @@ function isTransitionAllowed(from, to, context) {
     // 1. Hard distance limit: If you aren't within 5 meters, don't even consider it.
     if (dist > 5) return false;
 
-    // 2. Approach check: Ensure the rate is negative (you are closing the gap)
-    // Since it's snappier, require at least -0.1 m/s (slow closing)
-    if (deltaRate > -0.1) return false;
+    // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
+    // This prevents the rule from blocking when you stop exactly at the door to enter.
+    const isApproaching = deltaRate <= -0.1;
+    const isStationaryAtCar = dist < 3.5 && speed < 2 && stepRate < 0.1;
+    
+    if (!isApproaching && !isStationaryAtCar) return false;
   }
   if (to === 'IN_CAR' && speed > 10) return false;
   if (to === 'IN_CAR' && stepRate > 2.5) return false;
@@ -334,7 +350,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 20;
+const AWAY_THRESHOLD = 3;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
@@ -410,7 +426,7 @@ function emissionLogProb(state, obs) {
   }
 
   // STEP RATE (Sensor - THE FAST PATH)
-  const hasSteps = stepRate > 0.3;
+  const hasSteps = stepRate > 0.3 && !isPhysicallyStill; // 🛡️ Veto steps if physically still (desk guard)
   if (hasSteps) {
     // If we have physical steps, WALKING should win regardless of what Apple's classifier says
     logp += isWalkingState ? 25.0 : -35.0; 
@@ -425,11 +441,11 @@ function emissionLogProb(state, obs) {
   // If the phone is literally not moving (e.g. on a desk), penalize movement states heavily.
   if (isPhysicallyStill) {
     if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
-      logp -= 25; 
+      logp -= 40; // 🚀 Increased penalty to snap to stationary states
     } else {
       // Balance IDLE, STOPPED, and IN_CAR when perfectly still
       // This prevents IDLE from being a "magnet" while you are actually STOPPED or IN_CAR
-      logp += 10; 
+      logp += 15; // 🚀 Increased boost
     }
   }
 
@@ -530,6 +546,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   _drivingCounter = supplemental.drivingCounter || 0;
   _walkingCounter = supplemental.walkingCounter || 0;
   _tripDrivingTime = supplemental.tripDrivingTime || 0;
+  _tripDrivingDistance = supplemental.tripDrivingDistance || 0;
+  _lastTripX = supplemental.lastTripX !== undefined ? supplemental.lastTripX : null;
+  _lastTripY = supplemental.lastTripY !== undefined ? supplemental.lastTripY : null;
   _proximityCounter = supplemental.proximityCounter || 0;
 
   const now = Date.now();
@@ -599,7 +618,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     }
   }
 
-  let pgrMetrics = { pgr: 0, trend: 0, consistency: 0 };
+  let pgrMetrics = { pgr: 0, slope: 0, consistency: 0 };
   if (parkedLocation && !isNaN(fx) && !isNaN(fy)) {
     pgrMetrics = calculatePGR(dist, fx, fy);
     progressHistory.push({ dist, x: fx, y: fy, time: now });
@@ -610,9 +629,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const stepRate = supplemental.step_rate || 0;
   const accel = supplemental.acceleration_magnitude || 1;
   
-  // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.015g), ignore pedometer lag.
+  // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.05g), ignore pedometer lag.
   // This allows the engine to snap to IDLE immediately when placed on a desk.
-  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.015) || (Math.abs(accel - 1.0) < 0.05 && stepRate < 0.1);
+  // We relaxed this from 0.015 to 0.05 to account for real-world sensor noise.
+  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.05);
 
   const obs = {
     speed,
@@ -693,13 +713,29 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // 🚀 FIX: The Phantom Trip Guard
   // Only accumulate trip time if we are actually moving in a vehicle or stopped during a trip.
-  // This prevents the timer from filling up while drinking coffee next to the parked car!
   const isVehicleState = candidate === 'DRIVING' || candidate === 'STOPPED';
   if (isVehicleState || (candidate === 'IN_CAR' && speed > 5)) {
     _tripDrivingTime += dt; 
+    
+    // 🚀 NEW: Accumulate physical distance using explicit Kalman displacement
+    if (_lastTripX !== null) {
+      const dx = fx - _lastTripX;
+      const dy = fy - _lastTripY;
+      const moved = Math.sqrt(dx * dx + dy * dy);
+      // Cap at 50m to ignore large GPS jumps, require > 0.5m to ignore noise
+      if (moved > 0.5 && moved < 50) {
+        _tripDrivingDistance += moved;
+      }
+    }
+    _lastTripX = fx;
+    _lastTripY = fy;
+  } else {
+    // Clear anchors when clearly exited vehicle mode
+    if (candidate === 'WALKING' || candidate === 'IDLE') {
+      _lastTripX = null;
+      _lastTripY = null;
+    }
   }
-  // Note: We intentionally DO NOT reset the timer to 0 here. 
-  // It naturally pauses at red lights, and only resets to 0 when a true parking event occurs.
 
   const returnConfirmed = _returnCounter >= 2;
   const inCarConfirmed = _inCarCounter >= 2;
@@ -739,13 +775,17 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
-    ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE'].includes(currentState) &&
-    _tripDrivingTime >= 10; 
+    ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
+    _tripDrivingTime >= 5 &&
+    _tripDrivingDistance >= 5; // 🚀 Reduced thresholds for simulation testing
   
   if (isExitEvent) {
-    console.log('[HMM] 🚗 Parking detected via confirmed exit event');
+    console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
     parkedEvent = true;
     _tripDrivingTime = 0; 
+    _tripDrivingDistance = 0; 
+    _lastTripX = null;
+    _lastTripY = null;
   }
 
   // ==============================
@@ -826,6 +866,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     drivingCounter: _drivingCounter,
     walkingCounter: _walkingCounter,
     tripDrivingTime: _tripDrivingTime,
+    tripDrivingDistance: _tripDrivingDistance,
+    lastTripX: _lastTripX,
+    lastTripY: _lastTripY,
     proximityCounter: _proximityCounter
   };
 }
@@ -872,6 +915,9 @@ export function resetHMM() {
   _drivingCounter = 0;
   _walkingCounter = 0;
   _tripDrivingTime = 0; 
+  _tripDrivingDistance = 0; 
+  _lastTripX = null;
+  _lastTripY = null;
   _proximityCounter = 0; 
 
   console.log('[HMM] Engine fully reset to IDLE.');

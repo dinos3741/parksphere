@@ -73,10 +73,10 @@ const DebugSimulator = ({ userLocation }) => {
 
     if (!userLocation) return;
     
-    const getMockLocation = (speed = 0) => ({
+    const getMockLocation = (speed = 0, latOff = offsetLat, lonOff = offsetLon) => ({
       coords: {
-        latitude: userLocation.latitude + offsetLat,
-        longitude: userLocation.longitude + offsetLon,
+        latitude: userLocation.latitude + latOff,
+        longitude: userLocation.longitude + lonOff,
         speed: speed / 3.6, // Convert km/h back to m/s
         accuracy: 5,
       },
@@ -85,51 +85,55 @@ const DebugSimulator = ({ userLocation }) => {
     });
 
     const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    let currentLatOff = offsetLat;
+    let currentLonOff = offsetLon;
 
     switch (type) {
       case 'DRIVING':
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        for (let i = 0; i < 5; i++) {
-          await handleLocationUpdate(getMockLocation(50));
+        // 🚀 Extended to 20 updates (~10 seconds) to ensure drivingConfirmed >= 5
+        for (let i = 0; i < 20; i++) {
+          currentLatOff += 0.0001; // Move ~11 meters per step
+          await handleLocationUpdate(getMockLocation(40, currentLatOff, currentLonOff));
           await sleep(500);
         }
+        setOffsetLat(currentLatOff);
         autoTriggerRef.current = setTimeout(async () => {
           console.log('[Debug] Auto-triggering STOPPED...');
           await simulate('STOPPED');
-        }, 5000);
+        }, 5000); // 🚀 Increased delay
         return;
 
       case 'STOPPED':
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        for (let i = 0; i < 5; i++) {
-          await handleLocationUpdate(getMockLocation(0.5));
+        for (let i = 0; i < 8; i++) {
+          await handleLocationUpdate(getMockLocation(0.2, currentLatOff, currentLonOff));
           await sleep(500);
         }
         return;
 
       case 'WALKING':
         simulateMotionActivity('WALKING', 'HIGH');
-        for (let i = 0; i < 6; i++) {
-          await handleLocationUpdate(getMockLocation(5));
+        // 🚀 Extended to 15 updates (~7.5 seconds)
+        for (let i = 0; i < 15; i++) {
+          currentLatOff += 0.00005; // Move ~5 meters per step
+          await handleLocationUpdate(getMockLocation(1.5, currentLatOff, currentLonOff));
           await sleep(500);
         }
-        autoTriggerRef.current = setTimeout(async () => {
-          console.log('[Debug] Auto-triggering STATIONARY...');
-          await simulate('STATIONARY');
-        }, 3000);
+        setOffsetLat(currentLatOff);
         return;
 
       case 'STATIONARY':
         simulateMotionActivity('STATIONARY', 'HIGH');
         for (let i = 0; i < 4; i++) {
-          await handleLocationUpdate(getMockLocation(0));
+          await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
           await sleep(500);
         }
         return;
 
       case 'PARKED':
         simulateMotionActivity('STATIONARY', 'HIGH');
-        const parkedLoc = getMockLocation(0);
+        const parkedLoc = getMockLocation(0, currentLatOff, currentLonOff);
         
         // 🚀 FIX: Only force the park event on the first update to prevent triple notifications
         parkedLoc.forcePark = true;
@@ -137,7 +141,7 @@ const DebugSimulator = ({ userLocation }) => {
         await sleep(500);
 
         // Subsequent updates should just maintain the state without forcing the event
-        const normalLoc = getMockLocation(0);
+        const normalLoc = getMockLocation(0, currentLatOff, currentLonOff);
         for (let i = 0; i < 2; i++) {
           await handleLocationUpdate(normalLoc);
           await sleep(500);
@@ -145,8 +149,8 @@ const DebugSimulator = ({ userLocation }) => {
         return;
     }
     
-    console.log(`[Debug] Simulating ${type} at offset ${offsetLat.toFixed(5)}...`);
-    await handleLocationUpdate(getMockLocation(0));
+    console.log(`[Debug] Simulating ${type} at offset ${currentLatOff.toFixed(5)}...`);
+    await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
   };
 
   return (
