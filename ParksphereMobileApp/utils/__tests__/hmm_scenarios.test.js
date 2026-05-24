@@ -17,6 +17,7 @@ function runHeadlessScenario(scenario) {
   let parkedEventOccurred = false;
   let awayEventOccurred = false;
   let isAway = false;
+  let activeParkedLocation = null;
 
   const baseLocation = { latitude: 37.7749, longitude: -122.4194 };
   let latOffset = 0;
@@ -30,10 +31,13 @@ function runHeadlessScenario(scenario) {
   let inCarCounter = 0;
   let proximityCounter = 0;
   let lastDistanceToCar = undefined;
+  let lastTripX = null;
+  let lastTripY = null;
 
   scenario.steps.forEach((step, stepIndex) => {
     if (step.startDistance !== undefined) {
       latOffset = step.startDistance * 0.000009;
+      activeParkedLocation = baseLocation;
     }
 
     // Simulate 1-second intervals for the duration of the step
@@ -65,7 +69,7 @@ function runHeadlessScenario(scenario) {
         }
       }
 
-      const result = processLocationHMM(mockLocation, (stepIndex > 0 || step.startDistance !== undefined) ? baseLocation : null, {
+      const result = processLocationHMM(mockLocation, activeParkedLocation, {
         previousState: currentState,
         previousBelief: belief,
         isAway: isAway,
@@ -79,6 +83,8 @@ function runHeadlessScenario(scenario) {
         returnCounter,
         inCarCounter,
         proximityCounter,
+        lastTripX,
+        lastTripY,
         bluetoothConnected: step.bluetoothConnected || false,
         accuracy: step.accuracy || 10,
         lastDistanceToCar: lastDistanceToCar
@@ -94,10 +100,16 @@ function runHeadlessScenario(scenario) {
       returnCounter = result.returnCounter;
       inCarCounter = result.inCarCounter;
       proximityCounter = result.proximityCounter;
+      lastTripX = result.lastTripX;
+      lastTripY = result.lastTripY;
       lastDistanceToCar = result.distToParked;
 
-      if (result.parkedEvent) parkedEventOccurred = true;
+      if (result.parkedEvent) {
+        parkedEventOccurred = true;
+        activeParkedLocation = mockLocation.coords;
+      }
       if (result.awayEvent) awayEventOccurred = true;
+      if (result.clearParkingEvent) activeParkedLocation = null;
 
       history.push({ 
         time: t, 
@@ -233,5 +245,16 @@ describe('HMM Regression Suite', () => {
     const result = runHeadlessScenario(scenario);
     // Approach speed < 0.5 m/s should block RETURNING
     expect(result.finalState).not.toBe('RETURNING');
+  });
+
+  test('Real-Life Odyssey: Full Cycle (Walk -> Drive -> Park -> Return -> Drive)', () => {
+    const result = runHeadlessScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
+    
+    expect(result.parkedEventOccurred).toBe(true);
+    expect(result.awayEventOccurred).toBe(true);
+    expect(['DRIVING', 'STOPPED']).toContain(result.finalState);
+    
+    const sawReturning = result.history.some(h => h.state === 'RETURNING');
+    expect(sawReturning).toBe(true);
   });
 });

@@ -21,6 +21,7 @@ function runHeadlessScenario(scenario) {
   let parkedEventOccurred = false;
   let awayEventOccurred = false;
   let isAway = false;
+  let activeParkedLocation = null;
 
   const baseLocation = { latitude: 37.7749, longitude: -122.4194 };
   let latOffset = 0;
@@ -40,6 +41,7 @@ function runHeadlessScenario(scenario) {
   scenario.steps.forEach((step, stepIndex) => {
     if (step.startDistance !== undefined) {
       latOffset = step.startDistance * 0.000009;
+      activeParkedLocation = baseLocation; // Initialize if scenario starts with a distance
     }
 
     // Simulate 1-second intervals for the duration of the step
@@ -73,7 +75,7 @@ function runHeadlessScenario(scenario) {
         }
       }
 
-      const result = HMM.processLocationHMM(mockLocation, (stepIndex > 0 || step.startDistance !== undefined) ? baseLocation : null, {
+      const result = HMM.processLocationHMM(mockLocation, activeParkedLocation, {
         previousState: currentState,
         previousBelief: belief,
         isAway: isAway,
@@ -108,8 +110,12 @@ function runHeadlessScenario(scenario) {
       lastTripY = result.lastTripY;
       lastDistanceToCar = result.distToParked;
 
-      if (result.parkedEvent) parkedEventOccurred = true;
+      if (result.parkedEvent) {
+        parkedEventOccurred = true;
+        activeParkedLocation = mockLocation.coords;
+      }
       if (result.awayEvent) awayEventOccurred = true;
+      if (result.clearParkingEvent) activeParkedLocation = null;
 
       history.push({ 
         time: t, 
@@ -257,10 +263,11 @@ const tests = [
     }
   },
   {
-    name: 'Away Event Threshold (Must be > 20m)',
+    name: 'Away Event Threshold (Must be > 3m)',
     fn: () => {
       const nearCarScenario = {
-        steps: [{ label: 'Walking near car', speed: 3.6, steps: 1.2, duration: 5, startDistance: 10, moveDirection: 'AWAY' }]
+        // Start at 1m, walk 1s at 1m/s -> 2m total. Still < 3m.
+        steps: [{ label: 'Walking near car', speed: 3.6, steps: 1.2, duration: 1, startDistance: 1, moveDirection: 'AWAY' }]
       };
       const result = runHeadlessScenario(nearCarScenario);
       return !result.awayEventOccurred;
@@ -277,6 +284,21 @@ const tests = [
       };
       const result = runHeadlessScenario(proximityScenario);
       return result.isAway === false;
+    }
+  },
+  {
+    name: 'Real-Life Odyssey (Full Cycle: Walk -> Drive -> Park -> Return -> Drive)',
+    fn: () => {
+      const result = runHeadlessScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
+      
+      const hasParked = result.parkedEventOccurred;
+      const hasLeftVicinity = result.awayEventOccurred;
+      const returnedToCar = result.finalState === 'DRIVING' || result.finalState === 'STOPPED';
+      const sawReturning = result.history.some(h => h.state === 'RETURNING');
+      
+      console.log(`      [Odyssey Stats] Parked: ${hasParked}, Away: ${hasLeftVicinity}, Returned: ${returnedToCar}, Saw Returning: ${sawReturning}`);
+      
+      return hasParked && hasLeftVicinity && returnedToCar && sawReturning;
     }
   }
 ];
