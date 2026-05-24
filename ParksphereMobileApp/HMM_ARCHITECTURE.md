@@ -45,5 +45,13 @@ These files are used to verify and debug the behavior without needing a physical
     *   **Purpose:** Headless validation.
     *   **Logic:** Runs the HMM engine against scenarios in a pure JavaScript environment (Node/Jest) to ensure logic changes haven't introduced regressions.
 
+## 4. Advanced Validation & Stress Analysis
+Tools for granular behavior analysis and statistical stability verification. For detailed instructions on running these tools, refer to the **[HMM Testing Guide](./HMM_TESTING_GUIDE.md)**.
+
+*   **`utils/trace-odyssey.js`**
+    *   **Purpose:** Detailed lifecycle tracing.
+*   **`utils/hmm-stress-test.js`**
+    *   **Purpose:** Monte Carlo robustness testing.
+
 ---
 *Last Updated: May 24, 2026*
