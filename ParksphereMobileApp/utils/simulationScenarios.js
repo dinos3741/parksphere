@@ -64,5 +64,32 @@ export const SCENARIOS = {
       { label: "At Car Door", speed: 0.5, steps: 0.2, duration: 5, startDistance: 1.5, accel: 1.0 },
       { label: "Enter & Drive Away", speed: 45, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5 }
     ]
+  },
+  EXTREME_ODYSSEY: {
+    name: "Extreme Odyssey (Edge Case Stress)",
+    description: "Trip with GPS spikes, tunnels, stoplight fidgeting, running vs driving, and detour return.",
+    steps: [
+      { label: "GPS Jitter (Home)", speed: 12, steps: 0, duration: 5, accuracy: 80, accel: 1.0 },
+      { label: "Walk to Car", speed: 5, steps: 1.8, duration: 25, startDistance: 35, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Fidgeting in Seat", speed: 2, steps: 0.4, duration: 10, startDistance: 0.5, accel: 1.1 },
+      { label: "Enter & Start", speed: 0, steps: 0, duration: 5, accel: 1.0 },
+      { label: "Drive & GPS Spike", speed: 45, steps: 0, duration: 10, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "1s Spike (120km/h)", speed: 120, steps: 0, duration: 1, moveDirection: 'AWAY', accel: 1.0 },
+      { label: "Drive (Resume)", speed: 50, steps: 0, duration: 15, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "Tunnel (Bad GPS)", speed: 45, steps: 0, duration: 10, accuracy: 250, accel: 1.0 },
+      { label: "Stoplight Fidget", speed: 0, steps: 0.2, duration: 5, accel: 1.0 },
+      { label: "Stoplight Creep", speed: 8, steps: 0, duration: 5, accel: 1.1 },
+      { label: "Stoplight Wait", speed: 0, steps: 0, duration: 10, accel: 1.0 },
+      { label: "Sprint to Park", speed: 80, steps: 0, duration: 20, moveDirection: 'AWAY', accel: 1.5 },
+      { label: "Sudden Stop", speed: 0, steps: 0, duration: 30, accel: 1.0 },
+      { label: "Walk Away (No Steps)", speed: 4, steps: 0, duration: 10, moveDirection: 'AWAY', accel: 1.1, activity: { walking: true, confidence: 1 } },
+      { label: "Normal Walk Away", speed: 5, steps: 1.7, duration: 20, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Intermission (Far)", speed: 0, steps: 0, duration: 60, startDistance: 200, accel: 1.0 }, // 🚀 Reduced from 400m
+      { label: "Ambiguous Return", speed: 10, steps: 2.2, duration: 30, moveDirection: 'TOWARD', accel: 1.4, activity: { walking: true, confidence: 2 } }, // 🚀 10s -> 30s (~83m)
+      { label: "Pause/Looking", speed: 0, steps: 0.5, duration: 10, accel: 1.0 },
+      { label: "Final Sprint Back", speed: 8, steps: 2.8, duration: 40, moveDirection: 'TOWARD', accel: 1.3 }, // 🚀 30s -> 40s (~88m). Total: 83+88=171m. 200-171 = 29m (within return zone)
+      { label: "Back in Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0 },
+      { label: "Drive Away", speed: 40, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 }
+    ]
   }
 };

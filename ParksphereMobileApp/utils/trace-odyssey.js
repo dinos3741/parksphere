@@ -127,4 +127,4 @@ function traceScenario(scenario) {
     console.log('\n=== TRACE COMPLETE ===\n');
 }
 
-traceScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
+traceScenario(SCENARIOS.EXTREME_ODYSSEY);

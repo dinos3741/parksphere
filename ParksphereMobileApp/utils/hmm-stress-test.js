@@ -124,7 +124,8 @@ const STRESS_SESSIONS = 100;
 const testTargets = [
     { name: 'Happy Path', key: 'HAPPY_PATH', validate: (r) => r.parkedEventOccurred && r.finalState === 'WALKING' },
     { name: 'Red Light Persistence', key: 'HAPPY_PATH', validate: (r) => r.parkedEventOccurred }, // Reuse happy path but check persistence
-    { name: 'Real-Life Odyssey', key: 'REAL_LIFE_ODYSSEY', validate: (r) => r.parkedEventOccurred && r.awayEventOccurred && r.returningDetected }
+    { name: 'Real-Life Odyssey', key: 'REAL_LIFE_ODYSSEY', validate: (r) => r.parkedEventOccurred && r.awayEventOccurred && r.returningDetected },
+    { name: 'Extreme Odyssey', key: 'EXTREME_ODYSSEY', validate: (r) => r.parkedEventOccurred && r.awayEventOccurred && r.returningDetected }
 ];
 
 console.log(`\n🚀 STARTING HMM STRESS TEST (${STRESS_SESSIONS} iterations per scenario)\n`);

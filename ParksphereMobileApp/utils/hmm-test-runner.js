@@ -300,6 +300,21 @@ const tests = [
       
       return hasParked && hasLeftVicinity && returnedToCar && sawReturning;
     }
+  },
+  {
+    name: 'Extreme Odyssey (Stress Test: GPS Spikes, Tunnels, Fidgeting)',
+    fn: () => {
+      const result = runHeadlessScenario(SCENARIOS.EXTREME_ODYSSEY);
+      
+      const hasParked = result.parkedEventOccurred;
+      const hasLeftVicinity = result.awayEventOccurred;
+      const returnedToCar = result.finalState === 'DRIVING' || result.finalState === 'STOPPED';
+      const sawReturning = result.history.some(h => h.state === 'RETURNING');
+      
+      console.log(`      [Extreme Stats] Parked: ${hasParked}, Away: ${hasLeftVicinity}, Returned: ${returnedToCar}, Saw Returning: ${sawReturning}`);
+      
+      return hasParked && hasLeftVicinity && returnedToCar && sawReturning;
+    }
   }
 ];
 
