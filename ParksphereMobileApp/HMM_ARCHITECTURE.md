@@ -30,6 +30,10 @@ These files connect the detection engine to the rest of the application.
     *   **Purpose:** State cleanup.
     *   **Logic:** Defines how the HMM state and associated parking data are cleared, ensuring a "clean slate" for new detection runs.
 
+*   **`utils/telemetryService.js`**
+    *   **Purpose:** The "Flight Recorder."
+    *   **Logic:** Captures second-by-second snapshots of raw sensor data and HMM states during real-world drives. Stores data locally using `expo-file-system` and allows exporting via `expo-sharing`.
+
 ## 3. Simulation & Validation (The "Testing Lab")
 These files are used to verify and debug the behavior without needing a physical drive.
 

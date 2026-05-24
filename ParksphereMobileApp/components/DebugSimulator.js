@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
+import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning, resetParkDetection } from '../utils/parkDetectionService';
+import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
 
@@ -51,6 +52,21 @@ const DebugSimulator = ({ userLocation }) => {
   };
 
   const [isBluetoothSimulated, setIsBluetoothSimulated] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+
+  useEffect(() => {
+    setIsRecording(getTelemetryStatus());
+  }, []);
+
+  const handleStartRecording = async () => {
+    await startTelemetry();
+    setIsRecording(true);
+  };
+
+  const handleStopRecording = async () => {
+    await stopTelemetry();
+    setIsRecording(false);
+  };
 
   const toggleBluetooth = () => {
     const newState = !isBluetoothSimulated;
@@ -200,6 +216,30 @@ const DebugSimulator = ({ userLocation }) => {
           <Text style={styles.btnText}>🛑 Stop & Reset</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={[styles.divider, { marginVertical: 5 }]} />
+      <Text style={styles.title}>Flight Recorder</Text>
+      
+      <View style={styles.row}>
+        {!isRecording ? (
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#5cb85c' }]} onPress={handleStartRecording}>
+            <Text style={styles.btnText}>⏺ Start Recording</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#d9534f' }]} onPress={handleStopRecording}>
+            <Text style={styles.btnText}>⏹ Stop & Save</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#0275d8' }]} onPress={shareTelemetryLog}>
+          <Text style={styles.btnText}>📤 Export</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#f0ad4e' }]} onPress={clearTelemetryLog}>
+          <Text style={styles.btnText}>🗑️ Clear</Text>
+        </TouchableOpacity>
+      </View>
     </Animated.View>
   );
 };
@@ -215,6 +255,10 @@ const styles = StyleSheet.create({
     elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   title: {
     color: 'white',

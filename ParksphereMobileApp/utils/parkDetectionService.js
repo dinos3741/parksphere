@@ -10,6 +10,7 @@ console.log('***************************************************');
 
 // Import the modified processLocationHMM which now returns belief
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
+import { logTelemetry } from './telemetryService';
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -332,6 +333,15 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     lastTripY: stateData.lastTripY,
     proximityCounter: stateData.proximityCounter
   });
+
+  // 📡 Telemetry: Record snapshot for offline analysis
+  logTelemetry({
+    speed: location.coords.speed,
+    stepRate: stepRate,
+    accel: acceleration,
+    accuracy: location.coords.accuracy,
+    bluetoothConnected: lastBluetoothState
+  }, hmmResult);
 
   let {
     state: hmmState,

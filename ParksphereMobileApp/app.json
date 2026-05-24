@@ -20,10 +20,12 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use location to detect parking.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We use location in background to detect parking.",
+        "NSLocationAlwaysUsageDescription": "Allow Parksphere to detect your parking spots automatically even when the app is in the background.",
         "NSBluetoothAlwaysUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.",
         "NSBluetoothPeripheralUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system.",
         "UIBackgroundModes": [
           "location",
+          "fetch",
           "bluetooth-central"
         ]
       }
