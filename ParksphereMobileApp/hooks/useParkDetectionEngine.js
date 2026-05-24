@@ -10,14 +10,17 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
   const { isConnected } = useBluetoothMonitoring();
 
   useEffect(() => {
+    console.log(`[useParkDetectionEngine] Bluetooth isConnected: ${isConnected}`);
+    
     // ⚡ Inject Bluetooth state into the HMM engine on change
     handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
     
     // Notify user on Bluetooth connection
-    if (isConnected) {
-        DeviceEventEmitter.emit('parkDetectionUpdate', { message: '🚗 Connected to car Bluetooth' });
+    if (isConnected && addNotification) {
+        console.log('[useParkDetectionEngine] Triggering Bluetooth connection notification');
+        addNotification('🚗 Connected to car Bluetooth');
     }
-  }, [isConnected]);
+  }, [isConnected, addNotification]);
 
   useEffect(() => {
     const detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {

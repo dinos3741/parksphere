@@ -50,6 +50,14 @@ const DebugSimulator = ({ userLocation }) => {
     }
   };
 
+  const [isBluetoothSimulated, setIsBluetoothSimulated] = useState(false);
+
+  const toggleBluetooth = () => {
+    const newState = !isBluetoothSimulated;
+    setIsBluetoothSimulated(newState);
+    handleLocationUpdate({ bluetoothConnected: newState }, null, true);
+  };
+
   const simulate = async (type) => {
     // Clear any pending auto-triggers to prevent race conditions
     if (autoTriggerRef.current) {
@@ -62,6 +70,7 @@ const DebugSimulator = ({ userLocation }) => {
       setOffsetLon(0);
       await resetAllAppData();
       setIsEngineRunning(false);
+      setIsBluetoothSimulated(false);
       return;
     }
 
@@ -166,19 +175,19 @@ const DebugSimulator = ({ userLocation }) => {
     >
       <Text style={styles.title}>HMM Simulator</Text>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('DRIVING')}>
-          <Text style={styles.btnText}>🚗 Drive</Text>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('WALKING')}>
+          <Text style={styles.btnText}>🏃 Walk</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('STOPPED')}>
-          <Text style={styles.btnText}>🛑 Stop</Text>
+        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#5cb85c' : '#444'}]} onPress={toggleBluetooth}>
+          <Text style={styles.btnText}>BT: {isBluetoothSimulated ? 'ON' : 'OFF'}</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('PARKED')}>
-          <Text style={styles.btnText}>🅿️ Park</Text>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
+          <Text style={styles.btnText}>🛑 Still</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('STEP')}>
-          <Text style={styles.btnText}>🚶 Walk</Text>
+          <Text style={styles.btnText}>🚶 Step</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.row}>
