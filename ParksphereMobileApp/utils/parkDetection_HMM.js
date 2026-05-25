@@ -277,7 +277,8 @@ function isTransitionAllowed(from, to, context) {
     if (stepRate > 0.35) return false; 
     
     // 2. IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
-    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
+    // 🛡️ Raised speed to 20m/s (~72km/h) for raw GPS jumps, or 10m/s with Automotive hint.
+    if (from === 'IDLE' && speed < 20 && !hasAutomotiveActivity) return false; 
     
     // IN_CAR -> DRIVING needs at least some movement
     if (from === 'IN_CAR' && speed < 8 && !hasAutomotiveActivity) return false;
@@ -286,8 +287,11 @@ function isTransitionAllowed(from, to, context) {
     if (from === 'STOPPED' && speed < 8 && !hasAutomotiveActivity) return false;
 
     // WALKING -> DRIVING needs high speed or automotive activity
-    // 🛡️ Raised threshold from 20 to 25 to prevent indoor GPS "sprints"
-    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity) return false;
+    // 🛡️ Raised threshold to 30m/s for raw GPS "sprints" to prevent ghost driving
+    if (from === 'WALKING' && speed < 30 && !hasAutomotiveActivity) return false;
+
+    // 🛡️ NEARBY VETO: If you are within 15m of your car, strongly discourage DRIVING unless confirmed.
+    // Logic moved to emissionLogProb for a "softer" probabilistic penalty.
   }
 
   // 🛑 STOPPED Rules
@@ -296,23 +300,28 @@ function isTransitionAllowed(from, to, context) {
     if (from !== 'DRIVING') return false;
 
     // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
-    // This prevents a single jittery frame from enabling the STOPPED transition math
-    if (context.drivingCounter < 5) return false;
+    // Increased from 5 to 10 to require ~20-30 seconds of solid driving before allowing STOPPED.
+    if (context.drivingCounter < 10) return false;
+
+    // 🛡️ ARRIVAL VETO: If you are within 100m of your spot, don't trigger STOPPED.
+    // We want the system to stay in DRIVING until you actually park and walk (Transition to WALKING).
+    if (hasParkedLocation && dist < 100) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
-  if (to === 'RETURNING' && !isAway) return false;
+  // 🛡️ Relaxed: Allow RETURNING even if isAway was reset, if user is very close and moving
+  if (to === 'RETURNING' && !isAway && dist > 8) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
   if (to === 'RETURNING' && dist < 0.5) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
   if (to === 'IN_CAR' && from !== 'IN_CAR') {
-    // 1. Hard distance limit: If you aren't within 5 meters, don't even consider it.
-    if (dist > 5) return false;
+    // 1. Hard distance limit: 🚀 Increased from 5m to 8m to account for house-shadowing GPS noise.
+    if (dist > 8) return false;
 
     // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
-    // 🛡️ Tightened stationary check to 3.0m (from 3.5m) to prevent indoor flips.
-    const isApproaching = deltaRate <= -0.1;
+    // 🛡️ Relaxed deltaRate to -0.05 (from -0.1) for slower approaches.
+    const isApproaching = deltaRate <= -0.05;
     const isStationaryAtCar = dist < 3.0 && speed < 2 && stepRate < 0.1;
     
     if (!isApproaching && !isStationaryAtCar) return false;
@@ -389,13 +398,22 @@ function emissionLogProb(state, obs) {
       // Balanced penalties (Maxes out around -16)
       if (confidence >= 1) {
         if (state === 'DRIVING' && (walking || stationary)) logp -= (8.0 * activityWeight);
-        if (isWalkingState && (automotive || stationary)) logp -= (8.0 * activityWeight);
-        if (isStationaryState && (automotive || walking)) logp -= (8.0 * activityWeight);
+        if (isWalkingState && (automotive || stationary)) logp -= (6.0 * activityWeight);
+        if (isStationaryState && (automotive || walking)) logp -= (4.0 * activityWeight);
       }
-    }
-  }
+      }
+      }
 
-  // SPEED (GPS)
+      // 🛡️ SOFT NEARBY VETO: Strongly discourage DRIVING while very close to the spot
+      // unless we have an explicit automotive signal. This absorbs GPS jitter near buildings.
+      if (state === 'DRIVING' && dist < 15) {
+      const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
+      if (!hasAutomotiveActivity) {
+      logp -= 15.0; 
+      }
+      }
+
+      // GPS SPEED (Primary signal)
   if (state === 'DRIVING') {
     logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
@@ -816,7 +834,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // 🛡️ PROXIMITY RESET: If the user is near the car for a sustained time but NOT in it
   // reset isAway to close the gate for 'RETURNING' flips.
-  if (isAway && dist < 25) {
+  // 🚀 Added: Only reset if the user is IDLE (stationary). This prevents resets while walking.
+  if (isAway && dist < 25 && currentState === 'IDLE') {
     _proximityCounter++;
     if (_proximityCounter >= 40) { // 🚀 Increased from 20 to 40 (~80-100 seconds)
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');

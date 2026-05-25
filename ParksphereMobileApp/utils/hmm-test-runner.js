@@ -238,11 +238,11 @@ const tests = [
     }
   },
   {
-    name: 'Tightened IN_CAR Gate: Distance > 5m Block',
+    name: 'Tightened IN_CAR Gate: Distance > 8m Block',
     fn: () => {
       const scenario = {
         steps: [
-          { label: 'Approaching but far', speed: 2, steps: 0, duration: 5, startDistance: 8, moveDirection: 'TOWARD', activity: { stationary: true, confidence: 2 } }
+          { label: 'Approaching but far', speed: 2, steps: 0, duration: 5, startDistance: 11, moveDirection: 'TOWARD', activity: { stationary: true, confidence: 2 } }
         ]
       };
       const result = runHeadlessScenario(scenario);
@@ -314,6 +314,28 @@ const tests = [
       console.log(`      [Extreme Stats] Parked: ${hasParked}, Away: ${hasLeftVicinity}, Returned: ${returnedToCar}, Saw Returning: ${sawReturning}`);
       
       return hasParked && hasLeftVicinity && returnedToCar && sawReturning;
+    }
+  },
+  {
+    name: 'Residential Arrival (Jitter Resilience)',
+    fn: () => {
+      const result = runHeadlessScenario(SCENARIOS.RESIDENTIAL_ARRIVAL);
+      const enteredCar = result.finalState === 'IN_CAR' || result.finalState === 'DRIVING';
+      const noPrematureVeto = !result.history.slice(0, 20).some(h => h.state === 'DRIVING');
+      
+      console.log(`      [Res. Arrival] Final State: ${result.finalState}, No Ghost Driving: ${noPrematureVeto}`);
+      return enteredCar && noPrematureVeto;
+    }
+  },
+  {
+    name: 'Pass-By Spot (Arrival Gating)',
+    fn: () => {
+      const result = runHeadlessScenario(SCENARIOS.PASS_BY_SPOT);
+      const neverEnteredCar = !result.history.some(h => h.state === 'IN_CAR');
+      const recoveredToWalking = result.finalState === 'WALKING' || result.finalState === 'IDLE';
+      
+      console.log(`      [Pass-By] Never In-Car: ${neverEnteredCar}, Recovered: ${recoveredToWalking}, Max Conf IN_CAR: ${(Math.max(...result.history.map(h => h.belief['IN_CAR'] || 0)) * 100).toFixed(1)}%`);
+      return neverEnteredCar && recoveredToWalking;
     }
   }
 ];

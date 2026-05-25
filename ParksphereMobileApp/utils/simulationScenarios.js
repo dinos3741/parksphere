@@ -91,5 +91,24 @@ export const SCENARIOS = {
       { label: "Back in Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0 },
       { label: "Drive Away", speed: 40, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 }
     ]
+  },
+  RESIDENTIAL_ARRIVAL: {
+    name: "Residential Arrival (Indoor Jitter)",
+    description: "User is near the car (inside house), moves around, then eventually enters the car.",
+    steps: [
+      { label: "Parked at Spot", speed: 0, steps: 0, duration: 5, accel: 1.0 },
+      { label: "Indoor Jitter (Near)", speed: 1.5, steps: 0.8, duration: 50, startDistance: 6, accel: 1.1 },
+      { label: "Walk to Car", speed: 3, steps: 1.4, duration: 10, startDistance: 10, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Enter Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0 }
+    ]
+  },
+  PASS_BY_SPOT: {
+    name: "Pass-By Spot (No Entry)",
+    description: "User walks toward the car but passes it and continues walking away.",
+    steps: [
+      { label: "Approach Car", speed: 4, steps: 1.6, duration: 15, startDistance: 50, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Passing Spot", speed: 4, steps: 1.6, duration: 5, startDistance: 5, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Walk Away", speed: 4, steps: 1.6, duration: 20, startDistance: 2, moveDirection: 'AWAY', accel: 1.2 }
+    ]
   }
 };
