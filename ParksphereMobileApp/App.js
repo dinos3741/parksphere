@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Alert, Modal, DeviceEventEmitter, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, Alert, Modal, DeviceEventEmitter, View, ActivityIndicator, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigationContainerRef } from '@react-navigation/native';
 import * as Location from 'expo-location'; 
@@ -13,7 +13,7 @@ import DebugSimulator from './components/DebugSimulator';
 import Login from './components/Login';
 import Register from './components/Register';
 import { startParkDetection, stopParkDetection, resetParkDetection, handleLocationUpdate } from './utils/parkDetectionService';
-import * as ExpoNotifications from 'expo-notifications';
+// import * as ExpoNotifications from 'expo-notifications';
 import { useLocationTracking } from './hooks/useLocationTracking';
 import { useSocketConnection } from './hooks/useSocketConnection';
 import { useParkDetectionEngine } from './hooks/useParkDetectionEngine';
@@ -32,6 +32,7 @@ import { enableScreens } from 'react-native-screens';
 enableScreens(false);
 
 function AppContent() {
+  console.log('[App.js] AppContent rendering...');
   const { 
     token, 
     userId, 
@@ -52,20 +53,23 @@ function AppContent() {
 
   useEffect(() => {
     async function prepare() {
+      console.log('[App.js] Starting preparation...');
       try {
         await Font.loadAsync({
           'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
         });
-        setFontLoaded(true);
+        console.log('[App.js] Fonts loaded successfully');
       } catch (e) {
-        console.warn('[App.js] Initialization error:', e);
+        console.warn('[App.js] Font loading error:', e);
+      } finally {
+        setFontLoaded(true);
+        console.log('[App.js] Preparation complete');
       }
     }
     prepare();
   }, []);
 
   const { addNotification, triggerNotification, notifications } = useNotifications();
-
   const { setUserLocation, setLocationPermissionGranted } = useLocation();
 
   const { userLocation, locationPermissionGranted, getDistance } = useLocationTracking(
@@ -85,9 +89,11 @@ function AppContent() {
 
   useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
 
+  console.log(`[App.js] isLoading: ${isLoading}, fontLoaded: ${fontLoaded}`);
+
   if (isLoading || !fontLoaded) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color="#512da8" />
       </View>
     );
@@ -130,12 +136,14 @@ function AppLayout({
   showRegister,
   setShowRegister,
 }) {
+  console.log(`[App.js] AppLayout rendering. isLoggedIn: ${isLoggedIn}`);
   const { fetchParkingSpots } = useSpots();
   const { userId, token, fetchUserData } = useAuth();
   const { userLocation } = useLocation();
 
   useEffect(() => {
     if (isLoggedIn && userId && token) {
+      console.log('[App.js] AppLayout: Fetching user data and spots...');
       fetchUserData();
       fetchParkingSpots();
     }
@@ -156,7 +164,10 @@ function AppLayout({
       )}
 
       {navigationRef.isReady() && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+        <View 
+          pointerEvents="box-none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
+        >
            <HMMOverlay 
              isVisible={navigationRef.getCurrentRoute()?.name === 'Home'} 
            />

@@ -21,9 +21,13 @@ const MOCK_DATA = {
       time_to_leave: 30,
       declared_at: new Date().toISOString(),
       car_type: 'sedan',
-      ownerId: 766
+      ownerId: 766,
+      status: 'active'
     }
-  ]
+  ],
+  carTypes: ['sedan', 'suv', 'truck', 'van', 'electric'],
+  conversations: [],
+  messages: []
 };
 
 export const apiRequest = async (endpoint, options = {}) => {
@@ -34,11 +38,12 @@ export const apiRequest = async (endpoint, options = {}) => {
     console.log(`[MOCK] Request to ${endpoint}`, options);
     
     // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     if (endpoint.includes('/api/login')) {
       return {
         ok: true,
+        status: 200,
         json: () => Promise.resolve({
           token: 'mock-jwt-token-demo',
           userId: 766,
@@ -48,9 +53,34 @@ export const apiRequest = async (endpoint, options = {}) => {
       };
     }
 
+    if (endpoint.includes('/api/car-types')) {
+      return {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(MOCK_DATA.carTypes)
+      };
+    }
+
+    if (endpoint.includes('/api/declare-spot')) {
+      return {
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ spotId: 999, message: 'Spot created (Mock)' })
+      };
+    }
+
+    if (endpoint.includes('/api/request-spot')) {
+      return {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ message: 'Request sent (Mock)' })
+      };
+    }
+
     if (endpoint.includes('/api/users/')) {
         return {
             ok: true,
+            status: 200,
             json: () => Promise.resolve(MOCK_DATA.user)
         }
     }
@@ -58,12 +88,26 @@ export const apiRequest = async (endpoint, options = {}) => {
     if (endpoint.includes('/api/parkingspots')) {
         return {
             ok: true,
+            status: 200,
             json: () => Promise.resolve(MOCK_DATA.spots)
         }
     }
+
+    if (endpoint.includes('/api/messages')) {
+      return {
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([])
+      }
+    }
     
     // Default fallback
-    return { ok: true, json: () => Promise.resolve({}) };
+    return { 
+      ok: true, 
+      status: 200, 
+      json: () => Promise.resolve({}),
+      text: () => Promise.resolve('Mock response')
+    };
   }
 
   // Real fetch implementation

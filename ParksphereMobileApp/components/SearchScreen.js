@@ -4,6 +4,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useIsFocused } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../utils/apiService';
 
 const SearchScreen = () => {
   const { token, serverUrl } = useAuth();
@@ -22,7 +23,7 @@ const SearchScreen = () => {
       if (!token || !serverUrl) return;
 
       try {
-        const response = await fetch(`${serverUrl}/api/users/interactions`, {
+        const response = await apiRequest(`${serverUrl}/api/users/interactions`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -60,7 +61,7 @@ const SearchScreen = () => {
     }
 
     try {
-      const response = await fetch(`${serverUrl}/api/users/username/${searchUsername.trim()}`, {
+      const response = await apiRequest(`${serverUrl}/api/users/username/${searchUsername.trim()}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing/legacy';
+import * as Sharing from 'expo-sharing';
 import { Alert } from 'react-native';
 
 const LOG_FILE = `${FileSystem.documentDirectory}telemetry_log.json`;
@@ -49,7 +49,8 @@ export const logTelemetry = (obs, result) => {
       stepRate: obs.stepRate,
       accel: obs.accel,
       accuracy: obs.accuracy,
-      bluetooth: obs.bluetoothConnected
+      bluetooth: obs.bluetoothConnected,
+      activity: result.metrics?.motionActivity // 🚀 NEW: Add OS activity signal
     },
     hmm: {
       state: result.state,
@@ -75,6 +76,12 @@ export const shareTelemetryLog = async () => {
         return;
     }
 
+    // Defensive check for the native module
+    if (!Sharing || typeof Sharing.isAvailableAsync !== 'function') {
+        Alert.alert("Module Error", "The native sharing module is not loaded correctly. Please rebuild the app.");
+        return;
+    }
+
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
         Alert.alert("Sharing Unavailable", "Sharing is not available on this device.");
@@ -84,7 +91,7 @@ export const shareTelemetryLog = async () => {
     await Sharing.shareAsync(LOG_FILE);
   } catch (e) {
     console.error('[Telemetry] Share failed:', e.message);
-    Alert.alert("Share Error", "An error occurred while opening the share sheet.");
+    Alert.alert("Share Error", `An error occurred: ${e.message}`);
   }
 };
 

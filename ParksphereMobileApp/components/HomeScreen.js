@@ -17,6 +17,7 @@ import { useNotifications } from '../context/NotificationContext';
 import { useSpots } from '../context/SpotContext';
 import { useChat } from '../context/ChatContext';
 import { useLocation } from '../context/LocationContext';
+import { apiRequest } from '../utils/apiService';
 
 export default function HomeScreen({ 
   socket,
@@ -38,7 +39,7 @@ export default function HomeScreen({
   const handleRate = useCallback(async (rating, ratedUserId) => {
     if (!token || !ratedUserId) return;
     try {
-      const response = await fetch(`${serverUrl}/api/users/rate`, {
+      const response = await apiRequest(`${serverUrl}/api/users/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

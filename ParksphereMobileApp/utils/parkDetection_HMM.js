@@ -629,10 +629,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const stepRate = supplemental.step_rate || 0;
   const accel = supplemental.acceleration_magnitude || 1;
   
-  // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.05g), ignore pedometer lag.
-  // This allows the engine to snap to IDLE immediately when placed on a desk.
-  // We relaxed this from 0.015 to 0.05 to account for real-world sensor noise.
-  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.05);
+  // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.025g) AND speed is low (< 1m/s), 
+  // then we assume it's on a stationary surface.
+  // We tightened the threshold and added a speed check to prevent "stuck in IDLE" while driving.
+  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.025) && (speed < 1.0);
 
   const obs = {
     speed,

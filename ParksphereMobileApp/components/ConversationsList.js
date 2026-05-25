@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, Alert } from
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
+import { apiRequest } from '../utils/apiService';
 
 const ConversationsList = ({ onSelectConversation }) => {
   const { userId, token, serverUrl } = useAuth();
@@ -15,7 +16,7 @@ const ConversationsList = ({ onSelectConversation }) => {
         return;
       }
       try {
-        const response = await fetch(`${serverUrl}/api/messages/conversations`, {
+        const response = await apiRequest(`${serverUrl}/api/messages/conversations`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

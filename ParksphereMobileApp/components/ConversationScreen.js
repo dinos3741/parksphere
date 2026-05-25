@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../utils/apiService';
 
 const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewMessageReceived }) => { 
   const { userId, token, serverUrl, currentUser } = useAuth();
@@ -22,7 +23,7 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
     const fetchMessages = async () => {
       if (!token || !otherUserId) return;
       try {
-        const response = await fetch(`${serverUrl}/api/messages/conversations/${otherUserId}`, {
+        const response = await apiRequest(`${serverUrl}/api/messages/conversations/${otherUserId}`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
         const data = await response.json();

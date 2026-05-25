@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }) => {
   const rateUser = async (ratedUserId, rating) => {
     if (!token || !ratedUserId) return;
     try {
-      const response = await fetch(`${serverUrl}/api/users/rate`, {
+      const response = await apiRequest(`${serverUrl}/api/users/rate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

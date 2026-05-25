@@ -6,6 +6,7 @@ import RequesterProfileModal from './RequesterProfileModal';
 import { useAuth } from '../context/AuthContext';
 import { useSpots } from '../context/SpotContext';
 import { useChat } from '../context/ChatContext';
+import { apiRequest } from '../utils/apiService';
 
 const RequestsScreen = () => {
   const { token, serverUrl } = useAuth();
@@ -26,7 +27,7 @@ const RequestsScreen = () => {
 
   const handleUserPress = async (requesterId) => {
     try {
-      const response = await fetch(`${serverUrl}/api/users/${requesterId}`, {
+      const response = await apiRequest(`${serverUrl}/api/users/${requesterId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

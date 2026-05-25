@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -23,6 +23,9 @@
         "NSLocationAlwaysUsageDescription": "Allow Parksphere to detect your parking spots automatically even when the app is in the background.",
         "NSBluetoothAlwaysUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.",
         "NSBluetoothPeripheralUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system.",
+        "UISupportedExternalAccessoryProtocols": [
+          "com.apple.mfi.externalaccessory"
+        ],
         "UIBackgroundModes": [
           "location",
           "fetch",
@@ -52,7 +55,6 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "expo-notifications",
       [
         "react-native-motion-activity-tracker",
         {

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshCon
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../utils/apiService';
 
 const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUpdate }) => {
   const { currentUser: user, token, logout: onLogout, serverUrl } = useAuth();
@@ -92,7 +93,7 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
     });
 
     try {
-      const response = await fetch(`${serverUrl}/api/users/avatar`, {
+      const response = await apiRequest(`${serverUrl}/api/users/avatar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'multipart/form-data',

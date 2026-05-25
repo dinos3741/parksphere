@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../utils/apiService';
 
 const carTypes = [
   'motorcycle',
@@ -58,7 +59,7 @@ const Profile = ({ onBack, onProfileUpdate }) => {
 
   const handleUpdate = async () => {
     try {
-      const response = await fetch(`${serverUrl}/api/users/${user.id}/car-details`, {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/car-details`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

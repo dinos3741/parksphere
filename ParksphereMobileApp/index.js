@@ -15,7 +15,6 @@ TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }) => {
   if (data) {
     const { locations } = data;
     const location = locations[0];
-    // In a real implementation, we'd pull parkedLocation from AsyncStorage
     console.log('[TaskManager] Background location update:', location);
     processLocationHMM(location, null, {});
   }

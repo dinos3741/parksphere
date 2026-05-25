@@ -149,7 +149,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   const fetchParkingSpots = useCallback(async () => {
     if (!isLoggedIn || !token) return;
     try {
-      const response = await fetch(`${serverUrl}/api/parkingspots`, {
+      const response = await apiRequest(`${serverUrl}/api/parkingspots`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
@@ -167,7 +167,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
     if (!token) return;
     try {
-      const response = await fetch(`${serverUrl}/api/request-spot`, {
+      const response = await apiRequest(`${serverUrl}/api/request-spot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -187,7 +187,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   const handleDeleteSpot = async (spotId) => {
     if (!token) return;
     try {
-      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+      const response = await apiRequest(`${serverUrl}/api/parkingspots/${spotId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -205,7 +205,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   const handleSaveEditedSpot = async (spotId, updatedDetails) => {
     if (!token) return;
     try {
-      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+      const response = await apiRequest(`${serverUrl}/api/parkingspots/${spotId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   const handleCreateSpot = async (duration, coordinates) => {
     if (!token || !userId || !coordinates) return;
     try {
-      const response = await fetch(`${serverUrl}/api/declare-spot`, {
+      const response = await apiRequest(`${serverUrl}/api/declare-spot`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -5,6 +5,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { Picker } from '@react-native-picker/picker';
 import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../utils/apiService';
 import logo from '../assets/images/logo.png'; // Import the logo image
 
 WebBrowser.maybeCompleteAuthSession();
@@ -29,7 +30,7 @@ const Login = ({ onRegister }) => {
   useEffect(() => {
     const fetchCarTypes = async () => {
       try {
-        const response = await fetch(`${serverUrl}/api/car-types`);
+        const response = await apiRequest(`${serverUrl}/api/car-types`);
         if (response.ok) {
           const data = await response.json();
           setCarTypes(data);
@@ -99,7 +100,7 @@ const Login = ({ onRegister }) => {
 
   const handleLogin = async () => {
     try {
-      const response = await fetch(`${serverUrl}/api/login`, {
+      const response = await apiRequest(`${serverUrl}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

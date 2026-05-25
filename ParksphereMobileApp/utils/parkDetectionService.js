@@ -11,6 +11,7 @@ console.log('***************************************************');
 // Import the modified processLocationHMM which now returns belief
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
 import { logTelemetry } from './telemetryService';
+import { apiRequest } from './apiService';
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -114,7 +115,7 @@ async function declareSpot(location) {
       return;
     }
 
-    const response = await withTimeout(fetch(`${serverUrl}/api/declare-spot`, {
+    const response = await withTimeout(apiRequest(`${serverUrl}/api/declare-spot`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -155,7 +156,7 @@ async function updateSpotStatus(spotId, status) {
     const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
     if (!token || !spotId) return;
 
-    await withTimeout(fetch(`${serverUrl}/api/parkingspots/${spotId}/status`, {
+    await withTimeout(apiRequest(`${serverUrl}/api/parkingspots/${spotId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -175,7 +176,7 @@ async function deleteSpot(spotId) {
     const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
     if (!token || !spotId) return;
 
-    await withTimeout(fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
+    await withTimeout(apiRequest(`${serverUrl}/api/parkingspots/${spotId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
