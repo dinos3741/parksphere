@@ -311,9 +311,9 @@ function isTransitionAllowed(from, to, context) {
     if (dist > 5) return false;
 
     // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
-    // This prevents the rule from blocking when you stop exactly at the door to enter.
+    // 🛡️ Tightened stationary check to 3.0m (from 3.5m) to prevent indoor flips.
     const isApproaching = deltaRate <= -0.1;
-    const isStationaryAtCar = dist < 3.5 && speed < 2 && stepRate < 0.1;
+    const isStationaryAtCar = dist < 3.0 && speed < 2 && stepRate < 0.1;
     
     if (!isApproaching && !isStationaryAtCar) return false;
   }
@@ -350,7 +350,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 3;
+const AWAY_THRESHOLD = 12; // 🚀 Increased from 3m to 12m to prevent house-jitter
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
@@ -818,7 +818,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // reset isAway to close the gate for 'RETURNING' flips.
   if (isAway && dist < 25) {
     _proximityCounter++;
-    if (_proximityCounter >= 20) { // ~100-120 seconds of hanging out near the car
+    if (_proximityCounter >= 40) { // 🚀 Increased from 20 to 40 (~80-100 seconds)
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
       isAway = false;
       _proximityCounter = 0;
