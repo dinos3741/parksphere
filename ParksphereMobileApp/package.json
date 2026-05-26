@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "postinstall": "patch-package",
     "test": "jest",
-    "test:hmm": "node utils/hmm-test-runner.js"
+    "test:hmm": "node tests/hmm-test-runner.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
