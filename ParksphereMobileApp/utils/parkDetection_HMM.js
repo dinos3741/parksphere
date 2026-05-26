@@ -770,11 +770,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🔒 INTENT LOCK LOGIC (RETURNING)
   // ==============================
   if (!isReturningIntentLocked) {
+    const isVehicleState = currentState === 'IN_CAR' || currentState === 'DRIVING';
+    
     if (currentState === 'RETURNING' && candidateConf > 0.85) {
       console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
       isReturningIntentLocked = true;
       minDistDuringReturn = dist;
-    } else if (obs.bluetoothConnected && !isReturningIntentLocked) {
+    } else if (obs.bluetoothConnected && !isReturningIntentLocked && !isVehicleState) {
       // 🚀 Bluetooth as a "Late-Intent" Lock: If we missed the walk, 
       // the BT pairing confirms we are arrived.
       console.log('[HMM] 🔒 Intent Lock ACTIVATED: Bluetooth connection detected.');
