@@ -47,33 +47,53 @@ const executeStep = async (scenario, stepIndex, baseLocation) => {
   }
 
   let elapsed = 0;
+  let currentSpeed = 0; // 🚀 New: track actual physical speed for acceleration
+  const tick = 2000; // 🚀 Run HMM more frequently (every 2s) for better physics
+
   timer = setInterval(async () => {
-    elapsed += 5;
+    elapsed += (tick / 1000);
     
-    const shift = (step.speed / 3.6) * 5 * 0.000009;
+    // 🚀 PHYSICS: Realistic acceleration curve
+    const targetSpeed = step.speed / 3.6;
+    const accelRate = 1.5; // m/s^2 (conservative car accel)
+    if (currentSpeed < targetSpeed) {
+      currentSpeed = Math.min(targetSpeed, currentSpeed + (accelRate * (tick / 1000)));
+    } else if (currentSpeed > targetSpeed) {
+      currentSpeed = Math.max(targetSpeed, currentSpeed - (accelRate * 2 * (tick / 1000)));
+    }
+
+    const shift = currentSpeed * (tick / 1000) * 0.000009;
     if (step.moveDirection === 'AWAY') {
       latOffset += shift;
     } else if (step.moveDirection === 'TOWARD') {
       latOffset -= shift;
     }
 
+    // 🚀 GPS JITTER: Add random noise based on accuracy
+    const accuracy = step.accuracy || 10;
+    const jitterLat = (Math.random() - 0.5) * (accuracy * 0.000009);
+    const jitterLon = (Math.random() - 0.5) * (accuracy * 0.000009);
+
     const mockLocation = {
       coords: {
-        latitude: baseLocation.latitude + latOffset,
-        longitude: baseLocation.longitude + lonOffset,
-        speed: step.speed / 3.6,
-        accuracy: 5,
+        latitude: baseLocation.latitude + latOffset + jitterLat,
+        longitude: baseLocation.longitude + lonOffset + jitterLon,
+        speed: currentSpeed,
+        accuracy: accuracy,
       },
       timestamp: Date.now(),
     };
 
     // Update sensor cache
-    if (step.steps > 0) {
-      simulateMotionActivity('WALKING', step.steps > 1.5 ? 'HIGH' : 'LOW');
-    } else if (step.speed > 10) {
-      simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-    } else {
-      simulateMotionActivity('STATIONARY');
+    // 🚀 SENSOR LAG: 20% chance to report old activity to simulate transition noise
+    if (Math.random() > 0.2) {
+      if (step.steps > 0) {
+        simulateMotionActivity('WALKING', step.steps > 1.5 ? 'HIGH' : 'LOW');
+      } else if (currentSpeed > 5) {
+        simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+      } else {
+        simulateMotionActivity('STATIONARY');
+      }
     }
 
     await handleLocationUpdate(mockLocation);
@@ -82,7 +102,7 @@ const executeStep = async (scenario, stepIndex, baseLocation) => {
       clearInterval(timer);
       executeStep(scenario, stepIndex + 1, baseLocation);
     }
-  }, 5000);
+  }, tick);
 };
 
 // Stop current simulation

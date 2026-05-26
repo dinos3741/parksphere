@@ -110,5 +110,34 @@ export const SCENARIOS = {
       { label: "Passing Spot", speed: 4, steps: 1.6, duration: 5, startDistance: 5, moveDirection: 'TOWARD', accel: 1.2 },
       { label: "Walk Away", speed: 4, steps: 1.6, duration: 20, startDistance: 2, moveDirection: 'AWAY', accel: 1.2 }
     ]
+  },
+  CITY_TRAFFIC_CLEANUP: {
+    name: "City Traffic Cleanup (Regression Test)",
+    description: "Stand near car (triggering proximity reset), then drive away slowly in traffic.",
+    steps: [
+      { label: "Walk to Car", speed: 4, steps: 1.5, duration: 20, startDistance: 30, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Fumbling for Keys (Long)", speed: 0.2, steps: 0.1, duration: 60, startDistance: 1.5, accel: 1.0 },
+      { label: "Enter Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0 },
+      { label: "Driving in Traffic", speed: 22, steps: 0, duration: 40, moveDirection: 'AWAY', accel: 1.2 }
+    ]
+  },
+  GYM_FAILURE_REPRODUCTION: {
+    name: "Gym Failure Reproduction (The Real Test)",
+    description: "Mirrors the exact user experience: Walking to car, stop-and-go driving, parking, walking near car, and quick departure.",
+    steps: [
+      { label: "Walk to Car", speed: 4, steps: 1.5, duration: 25, startDistance: 45, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Getting In", speed: 0.5, steps: 0.2, duration: 8, startDistance: 1.5, accel: 1.0 },
+      { label: "Drive: City Start", speed: 25, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "Stop: Red Light", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Drive: Speeding Up", speed: 45, steps: 0, duration: 40, moveDirection: 'AWAY', accel: 1.4 },
+      { label: "Stop: Arrival", speed: 5, steps: 0, duration: 10, accel: 1.1 },
+      { label: "Parked (Gym)", speed: 0, steps: 0, duration: 20, accel: 1.0 },
+      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 25, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Wait (Gym Session)", speed: 0, steps: 0, duration: 120, startDistance: 150, accel: 1.0 },
+      { label: "Approach Car", speed: 4, steps: 1.5, duration: 30, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Walk Around (Yard)", speed: 2, steps: 1.0, duration: 40, startDistance: 6, accel: 1.1, accuracy: 40 }, // GPS Noise
+      { label: "Quick Entry", speed: 1.5, steps: 0.5, duration: 5, startDistance: 2, moveDirection: 'TOWARD', accel: 1.0 },
+      { label: "Drive Away Fast", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true }
+    ]
   }
 };

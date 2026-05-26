@@ -30,7 +30,8 @@ export const A = {
     WALKING: 0.75, 
     IDLE: 0.1,
     DRIVING: 0.05,   
-    RETURNING: 0.1  
+    RETURNING: 0.1,
+    IN_CAR: 0.05 // 🚀 Added direct transition for snappier entry
   },
   DRIVING: {
     DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
@@ -415,19 +416,22 @@ function emissionLogProb(state, obs) {
 
       // GPS SPEED (Primary signal)
   if (state === 'DRIVING') {
-    logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
-    if (speed < 2) logp -= (15 * gpsWeight);
+    // 🚀 Lowered midpoint to 18 km/h to catch slow city driving/traffic
+    logp += logSigmoid(speed, 18, 0.4) * gpsWeight;
+    if (speed < 1.5) logp -= (20 * gpsWeight);
 
-    // Restore the wider penalty net. If we have steps and are under 25km/h, 
-    // penalize driving heavily. This absorbs fast walking and GPS spikes.
-    if (stepRate > 0.4 && speed < 25) logp -= 25; 
+    // 🛡️ Lowered threshold to 15km/h for the step-rate penalty to allow city traffic.
+    // If we have steps AND speed < 15km/h, it's very likely walking, not driving.
+    if (stepRate > 0.4 && speed < 15) logp -= 25; 
   }
   else if (isWalkingState) {
-    logp += logGaussian(speed, 2.5, 4.0) * gpsWeight;
+    // 🚀 Lowered mean walking speed to 1.5 km/h for more accurate pedestrian model
+    logp += logGaussian(speed, 1.5, 3.5) * gpsWeight;
     if (state === 'WALKING') logp += 1.0; 
   } 
   else {
-    logp += logGaussian(speed, 0, 1.5) * gpsWeight;
+    // 🚀 Tightened stationary speed model
+    logp += logGaussian(speed, 0, 1.2) * gpsWeight;
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 6) * gpsWeight;
       if (dist > 10) logp -= (15 * gpsWeight);
@@ -765,10 +769,17 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   // 🔒 INTENT LOCK LOGIC (RETURNING)
   // ==============================
-  if (!isReturningIntentLocked && currentState === 'RETURNING' && candidateConf > 0.85) {
-    console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
-    isReturningIntentLocked = true;
-    minDistDuringReturn = dist;
+  if (!isReturningIntentLocked) {
+    if (currentState === 'RETURNING' && candidateConf > 0.85) {
+      console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
+      isReturningIntentLocked = true;
+      minDistDuringReturn = dist;
+    } else if (obs.bluetoothConnected && !isReturningIntentLocked) {
+      // 🚀 Bluetooth as a "Late-Intent" Lock: If we missed the walk, 
+      // the BT pairing confirms we are arrived.
+      console.log('[HMM] 🔒 Intent Lock ACTIVATED: Bluetooth connection detected.');
+      isReturningIntentLocked = true;
+    }
   }
 
   if (isReturningIntentLocked) {
@@ -811,8 +822,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let clearParkingEvent = false;
 
-  if (parkedLocation && currentState === 'DRIVING' && _tripDrivingTime >= 10 && dist > 50) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>50m).`);
+  // 🛡️ BUS GUARD: Only clear if we are NOT 'away' (meaning we just visited the car)
+  if (parkedLocation && currentState === 'DRIVING' && !isAway && _tripDrivingTime >= 8 && dist > 40) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Confirmed departure from car detected.`);
     clearParkingEvent = true;
   }
 
@@ -826,8 +838,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     awayEvent = true;
   }
 
-  if (isAway && (currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
-    console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
+  if (isAway && (obs.bluetoothConnected || currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
+    console.log('[HMM] 🚗 User confirmed back at car (Bluetooth or State). Resetting isAway flag.');
     isAway = false;
     _proximityCounter = 0;
   }

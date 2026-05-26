@@ -41,6 +41,7 @@ function traceScenario(scenario) {
     console.log('-'.repeat(80));
 
     let totalSeconds = 0;
+    let currentSpeed = 0; // 🚀 PHYSICS: Track real speed for acceleration
 
     scenario.steps.forEach((step, stepIndex) => {
         if (step.startDistance !== undefined) {
@@ -48,26 +49,40 @@ function traceScenario(scenario) {
             activeParkedLocation = baseLocation;
         }
 
-        for (let t = 0; t < step.duration; t++) {
-            simulatedTime += 1000;
-            totalSeconds++;
+        for (let t = 0; t < step.duration; t += 2) { // 🚀 2s tick for smoother physics
+            simulatedTime += 2000;
+            totalSeconds += 2;
 
-            const shift = (step.speed / 3.6) * 1 * 0.000009; 
+            // 🚀 PHYSICS: Smooth acceleration
+            const targetSpeed = step.speed / 3.6;
+            const accelRate = 1.5; // m/s^2
+            if (currentSpeed < targetSpeed) {
+                currentSpeed = Math.min(targetSpeed, currentSpeed + (accelRate * 2));
+            } else if (currentSpeed > targetSpeed) {
+                currentSpeed = Math.max(targetSpeed, currentSpeed - (accelRate * 2 * 2)); // Braking
+            }
+
+            const shift = currentSpeed * 2 * 0.000009;
             if (step.moveDirection === 'AWAY') latOffset += shift;
             else if (step.moveDirection === 'TOWARD') latOffset -= shift;
 
+            // 🚀 JITTER: Mock GPS Noise
+            const accuracy = step.accuracy || 10;
+            const jitterLat = (Math.random() - 0.5) * (accuracy * 0.000009);
+            const jitterLon = (Math.random() - 0.5) * (accuracy * 0.000009);
+
             const mockLocation = {
                 coords: {
-                    latitude: baseLocation.latitude + latOffset,
-                    longitude: baseLocation.longitude,
-                    speed: step.speed / 3.6,
-                    accuracy: 10
+                    latitude: baseLocation.latitude + latOffset + jitterLat,
+                    longitude: baseLocation.longitude + jitterLon,
+                    speed: currentSpeed,
+                    accuracy: accuracy
                 }
             };
 
             const motionActivity = {};
-            if (step.speed > 10) motionActivity.automotive = true;
-            else if (step.steps > 0 || step.speed > 1) motionActivity.walking = true;
+            if (currentSpeed > 5) motionActivity.automotive = true;
+            else if (step.steps > 0 || currentSpeed > 1) motionActivity.walking = true;
             else motionActivity.stationary = true;
             motionActivity.confidence = 2;
 
@@ -78,7 +93,8 @@ function traceScenario(scenario) {
                 step_rate: step.steps || 0,
                 acceleration_magnitude: step.accel || 1.0,
                 motion_activity: motionActivity,
-                bluetoothConnected: step.bluetoothConnected || false
+                bluetoothConnected: step.bluetoothConnected || false,
+                accuracy: accuracy
             });
 
             // Detect changes for logging
@@ -127,4 +143,9 @@ function traceScenario(scenario) {
     console.log('\n=== TRACE COMPLETE ===\n');
 }
 
-traceScenario(SCENARIOS.EXTREME_ODYSSEY);
+const scenarioName = process.argv[2] && process.argv[2].startsWith('--scenario=') 
+    ? process.argv[2].split('=')[1] 
+    : (process.argv[3] || 'EXTREME_ODYSSEY');
+
+const scenario = SCENARIOS[scenarioName] || SCENARIOS.EXTREME_ODYSSEY;
+traceScenario(scenario);
