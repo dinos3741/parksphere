@@ -139,5 +139,17 @@ export const SCENARIOS = {
       { label: "Quick Entry", speed: 1.5, steps: 0.5, duration: 5, startDistance: 2, moveDirection: 'TOWARD', accel: 1.0 },
       { label: "Drive Away Fast", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true }
     ]
+  },
+  CLOSE_PROXIMITY_PARKING: {
+    name: "Close-Proximity Parking (The Bench Test)",
+    description: "Drive, park, and sit on a bench 3m away. Then drive off without ever having 'left' the car's vicinity.",
+    steps: [
+      { label: "Initial Drive", speed: 45, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 },
+      { label: "Park & Exit", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Walk to Bench", speed: 2, steps: 0.8, duration: 5, moveDirection: 'AWAY', startDistance: 0.5, accel: 1.1 },
+      { label: "Sitting (3m away)", speed: 0.2, steps: 0, duration: 60, startDistance: 3.5, accel: 1.0 }, // Stay close for 1 min
+      { label: "Walk back to Car", speed: 2, steps: 0.8, duration: 5, moveDirection: 'TOWARD', startDistance: 3.5, accel: 1.1 },
+      { label: "Enter & Drive", speed: 30, steps: 0, duration: 25, moveDirection: 'AWAY', accel: 1.3, bluetoothConnected: true }
+    ]
   }
 };
