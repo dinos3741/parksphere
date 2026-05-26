@@ -1,4 +1,4 @@
-const HMM = require('./parkDetection_HMM.js');
+const HMM = require('../utils/parkDetection_HMM.js');
 const { SCENARIOS } = require('./simulationScenarios.js');
 
 /**

@@ -1,4 +1,4 @@
-import { handleLocationUpdate, resetParkDetection, simulateMotionActivity } from './parkDetectionService';
+import { handleLocationUpdate, resetParkDetection, simulateMotionActivity } from '../utils/parkDetectionService';
 import { SCENARIOS } from './simulationScenarios';
 
 let timer = null;
