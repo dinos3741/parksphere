@@ -182,5 +182,17 @@ export const SCENARIOS = {
       { label: "Getting In", speed: 0.5, steps: 0.2, duration: 10, startDistance: 18, accel: 1.0 }, // Still 18m away from the 'spot' point
       { label: "Drive Away", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', startDistance: 18, accel: 1.4, bluetoothConnected: true }
     ]
+  },
+  CLOSE_WALK_PASS_BY: {
+    name: "Close Walk Pass-By (No Entry)",
+    description: "User walks around the car at a 5-15m distance but never enters. Tests for false 'Returning' triggers.",
+    steps: [
+      { label: "Park & Exit", speed: 0, steps: 0, duration: 10, accel: 1.0 },
+      { label: "Walk to Sidewalk", speed: 3, steps: 1.2, duration: 10, moveDirection: 'AWAY', startDistance: 2, accel: 1.1 },
+      { label: "Walk Parallel (5m)", speed: 3, steps: 1.2, duration: 20, startDistance: 5, moveDirection: 'TOWARD', accel: 1.1 }, // Walking 'toward' but only to a point
+      { label: "Loop Around (15m)", speed: 4, steps: 1.5, duration: 20, startDistance: 15, moveDirection: 'AWAY', accel: 1.1 },
+      { label: "Walk Past Again (8m)", speed: 3.5, steps: 1.4, duration: 20, startDistance: 8, moveDirection: 'TOWARD', accel: 1.1 },
+      { label: "Finally Leave", speed: 5, steps: 1.8, duration: 30, startDistance: 15, moveDirection: 'AWAY', accel: 1.2 }
+    ]
   }
 };
