@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning, resetParkDetection } from '../utils/parkDetectionService';
 import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
+import { SCENARIOS } from '../tests/simulationScenarios';
+import { runScenario, stopScenario } from '../tests/scenarioRunner';
 
 const pan = new Animated.ValueXY({ x: 10, y: 500 });
 
@@ -14,6 +17,8 @@ const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState('HAPPY_PATH');
+  const [isScenarioRunning, setIsScenarioRunning] = useState(false);
   const autoTriggerRef = useRef(null);
 
   useEffect(() => {
@@ -40,6 +45,17 @@ const DebugSimulator = ({ userLocation }) => {
       },
     })
   ).current;
+
+  const handleRunScenario = async () => {
+    if (!userLocation) return;
+    setIsScenarioRunning(true);
+    await runScenario(selectedScenario, userLocation);
+  };
+
+  const handleStopScenario = () => {
+    stopScenario();
+    setIsScenarioRunning(false);
+  };
 
   const toggleEngine = async () => {
     if (isEngineRunning) {
@@ -75,7 +91,6 @@ const DebugSimulator = ({ userLocation }) => {
   };
 
   const simulate = async (type) => {
-    // Clear any pending auto-triggers to prevent race conditions
     if (autoTriggerRef.current) {
       clearTimeout(autoTriggerRef.current);
       autoTriggerRef.current = null;
@@ -87,6 +102,8 @@ const DebugSimulator = ({ userLocation }) => {
       await resetAllAppData();
       setIsEngineRunning(false);
       setIsBluetoothSimulated(false);
+      setIsScenarioRunning(false);
+      stopScenario();
       return;
     }
 
@@ -102,7 +119,7 @@ const DebugSimulator = ({ userLocation }) => {
       coords: {
         latitude: userLocation.latitude + latOff,
         longitude: userLocation.longitude + lonOff,
-        speed: speed / 3.6, // Convert km/h back to m/s
+        speed: speed / 3.6,
         accuracy: 5,
       },
       isFromSimulator: true,
@@ -116,17 +133,15 @@ const DebugSimulator = ({ userLocation }) => {
     switch (type) {
       case 'DRIVING':
         simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        // 🚀 Extended to 20 updates (~10 seconds) to ensure drivingConfirmed >= 5
         for (let i = 0; i < 20; i++) {
-          currentLatOff += 0.0001; // Move ~11 meters per step
+          currentLatOff += 0.0001;
           await handleLocationUpdate(getMockLocation(40, currentLatOff, currentLonOff));
           await sleep(500);
         }
         setOffsetLat(currentLatOff);
         autoTriggerRef.current = setTimeout(async () => {
-          console.log('[Debug] Auto-triggering STOPPED...');
           await simulate('STOPPED');
-        }, 5000); // 🚀 Increased delay
+        }, 5000);
         return;
 
       case 'STOPPED':
@@ -139,9 +154,8 @@ const DebugSimulator = ({ userLocation }) => {
 
       case 'WALKING':
         simulateMotionActivity('WALKING', 'HIGH');
-        // 🚀 Extended to 15 updates (~7.5 seconds)
         for (let i = 0; i < 15; i++) {
-          currentLatOff += 0.00005; // Move ~5 meters per step
+          currentLatOff += 0.00005;
           await handleLocationUpdate(getMockLocation(1.5, currentLatOff, currentLonOff));
           await sleep(500);
         }
@@ -155,26 +169,8 @@ const DebugSimulator = ({ userLocation }) => {
           await sleep(500);
         }
         return;
-
-      case 'PARKED':
-        simulateMotionActivity('STATIONARY', 'HIGH');
-        const parkedLoc = getMockLocation(0, currentLatOff, currentLonOff);
-        
-        // 🚀 FIX: Only force the park event on the first update to prevent triple notifications
-        parkedLoc.forcePark = true;
-        await handleLocationUpdate(parkedLoc);
-        await sleep(500);
-
-        // Subsequent updates should just maintain the state without forcing the event
-        const normalLoc = getMockLocation(0, currentLatOff, currentLonOff);
-        for (let i = 0; i < 2; i++) {
-          await handleLocationUpdate(normalLoc);
-          await sleep(500);
-        }
-        return;
     }
     
-    console.log(`[Debug] Simulating ${type} at offset ${currentLatOff.toFixed(5)}...`);
     await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
   };
 
@@ -189,7 +185,35 @@ const DebugSimulator = ({ userLocation }) => {
       ]}
       {...panResponder.panHandlers}
     >
-      <Text style={styles.title}>HMM Simulator</Text>
+      <Text style={styles.title}>HMM Debug Simulator</Text>
+      
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedScenario}
+          onValueChange={(itemValue) => setSelectedScenario(itemValue)}
+          style={styles.picker}
+          itemStyle={styles.pickerItem}
+        >
+          {Object.keys(SCENARIOS).map(key => (
+            <Picker.Item key={key} label={SCENARIOS[key].name} value={key} />
+          ))}
+        </Picker>
+      </View>
+
+      <View style={styles.row}>
+        {!isScenarioRunning ? (
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#0275d8' }]} onPress={handleRunScenario}>
+            <Text style={styles.btnText}>🚀 Run Selected</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#d9534f' }]} onPress={handleStopScenario}>
+            <Text style={styles.btnText}>🛑 Stop Scenario</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={[styles.divider, { marginVertical: 5 }]} />
+
       <View style={styles.row}>
         <TouchableOpacity style={styles.btn} onPress={() => simulate('WALKING')}>
           <Text style={styles.btnText}>🏃 Walk</Text>
@@ -250,11 +274,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 10,
     borderRadius: 10,
-    width: 160,
+    width: 180, // 🚀 Slightly wider for picker
     zIndex: 9999,
     elevation: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
+  },
+  pickerContainer: {
+    backgroundColor: '#333',
+    borderRadius: 5,
+    marginBottom: 5,
+    height: 40,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  picker: {
+    color: 'white',
+    height: 40,
+  },
+  pickerItem: {
+    fontSize: 10,
+    height: 40,
   },
   divider: {
     height: 1,
@@ -276,7 +316,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#444',
     padding: 5,
     borderRadius: 5,
-    width: 65,
+    width: 75, // 🚀 Slightly wider
     alignItems: 'center',
   },
   btnText: {
