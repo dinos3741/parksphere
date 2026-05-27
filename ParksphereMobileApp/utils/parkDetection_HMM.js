@@ -438,8 +438,9 @@ function emissionLogProb(state, obs) {
       logp += logGaussian(speed, 0.5, 2) * gpsWeight;
       if (stepRate > 1.2) logp -= 5; 
       
-      if (dist < 10) {
-        logp += 5.0; 
+      // 🛡️ Precision Zone: Relaxed to 6.0m to allow for offset parking spots.
+      if (dist < 6.0) {
+        logp += 8.0; // 🚀 Increased from 5.0
         if (isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
            logp += 20.0; 
         }
@@ -851,7 +852,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🚀 Added: Only reset if the user is IDLE (stationary). This prevents resets while walking.
   if (isAway && dist < 25 && currentState === 'IDLE') {
     _proximityCounter++;
-    if (_proximityCounter >= 40) { // 🚀 Increased from 20 to 40 (~80-100 seconds)
+    if (_proximityCounter >= 25) { // 🚀 Reduced from 40 to 25 (~50-60 seconds)
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
       isAway = false;
       _proximityCounter = 0;

@@ -169,5 +169,18 @@ export const SCENARIOS = {
       { label: "Getting In (Final)", speed: 0.5, steps: 0.2, duration: 10, startDistance: 1.5, accel: 1.0 },
       { label: "Drive Home", speed: 40, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4, bluetoothConnected: true }
     ]
+  },
+  OFFSET_SPOT_DEPARTURE: {
+    name: "Offset Spot Departure (Inaccuracy Test)",
+    description: "Parking spot is detected 18m away from car. Tests if system can still clear spot upon departure.",
+    steps: [
+      { label: "Initial Drive", speed: 40, steps: 0, duration: 20, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "Park & Exit", speed: 0, steps: 0, duration: 10, accel: 1.0 },
+      { label: "Walk Away", speed: 4, steps: 1.5, duration: 20, moveDirection: 'AWAY', startDistance: 18, accel: 1.2 }, // User is actually 18m from the 'logic' spot
+      { label: "Wait (Away)", speed: 0, steps: 0, duration: 30, startDistance: 150, accel: 1.0 },
+      { label: "Return to Car", speed: 4, steps: 1.5, duration: 25, moveDirection: 'TOWARD', startDistance: 18, accel: 1.2 },
+      { label: "Getting In", speed: 0.5, steps: 0.2, duration: 10, startDistance: 18, accel: 1.0 }, // Still 18m away from the 'spot' point
+      { label: "Drive Away", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', startDistance: 18, accel: 1.4, bluetoothConnected: true }
+    ]
   }
 };
