@@ -455,19 +455,17 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     let debugInfo = ` ${Math.round(confidence * 100)}%`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
-    if (stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') {
-      if (stateData.serverSpotId) {
-        await updateSpotStatus(stateData.serverSpotId, 'soon_free');
-      }
+    if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
+      await updateSpotStatus(stateData.serverSpotId, 'soon_free');
     }
 
-    // 🚀 Departed vehicle check (redundant safety to HMM clearParkingEvent)
-    if (stateData.state === 'DRIVING' && !stateData.isAway && stateData.parkedLocation && stateData.serverSpotId) {
-      if (distToParked > 60 || tripDrivingTime > 15) {
-         console.log('[ParkDetection] 🏁 Emergency clearance: Driving away from spot detected.');
-         // This block intentionally mirrors the HMM's clearance for extra reliability
-         clearParkingEvent = true; 
-      }
+    if (stateData.state === 'DRIVING' && prevState === 'IN_CAR' && stateData.serverSpotId) {
+      await updateSpotStatus(stateData.serverSpotId, 'free');
+      stateData.serverSpotId = null;
+      stateData.parkedLocation = null;
+      stateData.stoppedLocation = null;
+      stateData.stoppedCandidateLocation = null;
+      stateData.lastDistanceToCar = null;
     }
   }
 

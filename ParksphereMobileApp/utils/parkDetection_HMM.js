@@ -30,8 +30,7 @@ export const A = {
     WALKING: 0.75, 
     IDLE: 0.1,
     DRIVING: 0.05,   
-    RETURNING: 0.1,
-    IN_CAR: 0.05 // 🚀 Added direct transition for snappier entry
+    RETURNING: 0.1  
   },
   DRIVING: {
     DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
@@ -278,8 +277,7 @@ function isTransitionAllowed(from, to, context) {
     if (stepRate > 0.35) return false; 
     
     // 2. IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
-    // 🛡️ Raised speed to 20m/s (~72km/h) for raw GPS jumps, or 10m/s with Automotive hint.
-    if (from === 'IDLE' && speed < 20 && !hasAutomotiveActivity) return false; 
+    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
     
     // IN_CAR -> DRIVING needs at least some movement
     if (from === 'IN_CAR' && speed < 8 && !hasAutomotiveActivity) return false;
@@ -288,11 +286,8 @@ function isTransitionAllowed(from, to, context) {
     if (from === 'STOPPED' && speed < 8 && !hasAutomotiveActivity) return false;
 
     // WALKING -> DRIVING needs high speed or automotive activity
-    // 🛡️ Raised threshold to 30m/s for raw GPS "sprints" to prevent ghost driving
-    if (from === 'WALKING' && speed < 30 && !hasAutomotiveActivity) return false;
-
-    // 🛡️ NEARBY VETO: If you are within 15m of your car, strongly discourage DRIVING unless confirmed.
-    // Logic moved to emissionLogProb for a "softer" probabilistic penalty.
+    // 🛡️ Raised threshold from 20 to 25 to prevent indoor GPS "sprints"
+    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity) return false;
   }
 
   // 🛑 STOPPED Rules
@@ -301,29 +296,24 @@ function isTransitionAllowed(from, to, context) {
     if (from !== 'DRIVING') return false;
 
     // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
-    // Increased from 5 to 10 to require ~20-30 seconds of solid driving before allowing STOPPED.
-    if (context.drivingCounter < 10) return false;
-
-    // 🛡️ ARRIVAL VETO: If you are within 100m of your spot, don't trigger STOPPED.
-    // We want the system to stay in DRIVING until you actually park and walk (Transition to WALKING).
-    if (hasParkedLocation && dist < 100) return false;
+    // This prevents a single jittery frame from enabling the STOPPED transition math
+    if (context.drivingCounter < 5) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
-  // 🛡️ Relaxed: Allow RETURNING even if isAway was reset, if user is very close and moving
-  if (to === 'RETURNING' && !isAway && dist > 8) return false;
+  if (to === 'RETURNING' && !isAway) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
   if (to === 'RETURNING' && dist < 0.5) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
   if (to === 'IN_CAR' && from !== 'IN_CAR') {
-    // 1. Hard distance limit: 🚀 Increased from 5m to 8m to account for house-shadowing GPS noise.
-    if (dist > 8) return false;
+    // 1. Hard distance limit: If you aren't within 5 meters, don't even consider it.
+    if (dist > 5) return false;
 
     // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
-    // 🛡️ Relaxed deltaRate to -0.05 (from -0.1) for slower approaches.
-    const isApproaching = deltaRate <= -0.05;
-    const isStationaryAtCar = dist < 3.0 && speed < 2 && stepRate < 0.1;
+    // This prevents the rule from blocking when you stop exactly at the door to enter.
+    const isApproaching = deltaRate <= -0.1;
+    const isStationaryAtCar = dist < 3.5 && speed < 2 && stepRate < 0.1;
     
     if (!isApproaching && !isStationaryAtCar) return false;
   }
@@ -360,7 +350,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 12; // 🚀 Increased from 3m to 12m to prevent house-jitter
+const AWAY_THRESHOLD = 3;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
@@ -399,48 +389,35 @@ function emissionLogProb(state, obs) {
       // Balanced penalties (Maxes out around -16)
       if (confidence >= 1) {
         if (state === 'DRIVING' && (walking || stationary)) logp -= (8.0 * activityWeight);
-        if (isWalkingState && (automotive || stationary)) logp -= (6.0 * activityWeight);
-        if (isStationaryState && (automotive || walking)) logp -= (4.0 * activityWeight);
+        if (isWalkingState && (automotive || stationary)) logp -= (8.0 * activityWeight);
+        if (isStationaryState && (automotive || walking)) logp -= (8.0 * activityWeight);
       }
-      }
-      }
+    }
+  }
 
-      // 🛡️ SOFT NEARBY VETO: Strongly discourage DRIVING while very close to the spot
-      // unless we have an explicit automotive signal. This absorbs GPS jitter near buildings.
-      if (state === 'DRIVING' && dist < 15) {
-      const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
-      if (!hasAutomotiveActivity) {
-      logp -= 15.0; 
-      }
-      }
-
-      // GPS SPEED (Primary signal)
+  // SPEED (GPS)
   if (state === 'DRIVING') {
-    // 🚀 Lowered midpoint to 18 km/h to catch slow city driving/traffic
-    logp += logSigmoid(speed, 18, 0.4) * gpsWeight;
-    if (speed < 1.5) logp -= (20 * gpsWeight);
+    logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
+    if (speed < 2) logp -= (15 * gpsWeight);
 
-    // 🛡️ Lowered threshold to 15km/h for the step-rate penalty to allow city traffic.
-    // If we have steps AND speed < 15km/h, it's very likely walking, not driving.
-    if (stepRate > 0.4 && speed < 15) logp -= 25; 
+    // Restore the wider penalty net. If we have steps and are under 25km/h, 
+    // penalize driving heavily. This absorbs fast walking and GPS spikes.
+    if (stepRate > 0.4 && speed < 25) logp -= 25; 
   }
   else if (isWalkingState) {
-    // 🚀 Lowered mean walking speed to 1.5 km/h for more accurate pedestrian model
-    logp += logGaussian(speed, 1.5, 3.5) * gpsWeight;
+    logp += logGaussian(speed, 2.5, 4.0) * gpsWeight;
     if (state === 'WALKING') logp += 1.0; 
   } 
   else {
-    // 🚀 Tightened stationary speed model
-    logp += logGaussian(speed, 0, 1.2) * gpsWeight;
+    logp += logGaussian(speed, 0, 1.5) * gpsWeight;
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 6) * gpsWeight;
       if (dist > 10) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 0.5, 2) * gpsWeight;
       if (stepRate > 1.2) logp -= 5; 
       
-      // 🛡️ Precision Zone: Relaxed to 6.0m to allow for offset parking spots.
-      if (dist < 6.0) {
-        logp += 8.0; // 🚀 Increased from 5.0
+      if (dist < 10) {
+        logp += 5.0; 
         if (isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
            logp += 20.0; 
         }
@@ -770,19 +747,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   // 🔒 INTENT LOCK LOGIC (RETURNING)
   // ==============================
-  if (!isReturningIntentLocked) {
-    const isVehicleState = currentState === 'IN_CAR' || currentState === 'DRIVING';
-    
-    if (currentState === 'RETURNING' && candidateConf > 0.85) {
-      console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
-      isReturningIntentLocked = true;
-      minDistDuringReturn = dist;
-    } else if (obs.bluetoothConnected && !isReturningIntentLocked && !isVehicleState) {
-      // 🚀 Bluetooth as a "Late-Intent" Lock: If we missed the walk, 
-      // the BT pairing confirms we are arrived.
-      console.log('[HMM] 🔒 Intent Lock ACTIVATED: Bluetooth connection detected.');
-      isReturningIntentLocked = true;
-    }
+  if (!isReturningIntentLocked && currentState === 'RETURNING' && candidateConf > 0.85) {
+    console.log('[HMM] 🔒 Intent Lock ACTIVATED: User is likely returning.');
+    isReturningIntentLocked = true;
+    minDistDuringReturn = dist;
   }
 
   if (isReturningIntentLocked) {
@@ -825,9 +793,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let clearParkingEvent = false;
 
-  // 🛡️ BUS GUARD: Only clear if we are NOT 'away' (meaning we just visited the car)
-  if (parkedLocation && currentState === 'DRIVING' && !isAway && _tripDrivingTime >= 8 && dist > 40) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Confirmed departure from car detected.`);
+  if (parkedLocation && currentState === 'DRIVING' && _tripDrivingTime >= 10 && dist > 50) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>50m).`);
     clearParkingEvent = true;
   }
 
@@ -841,18 +808,17 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     awayEvent = true;
   }
 
-  if (isAway && (obs.bluetoothConnected || currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
-    console.log('[HMM] 🚗 User confirmed back at car (Bluetooth or State). Resetting isAway flag.');
+  if (isAway && (currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
+    console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
     isAway = false;
     _proximityCounter = 0;
   }
 
   // 🛡️ PROXIMITY RESET: If the user is near the car for a sustained time but NOT in it
   // reset isAway to close the gate for 'RETURNING' flips.
-  // 🚀 Added: Only reset if the user is IDLE (stationary). This prevents resets while walking.
-  if (isAway && dist < 25 && currentState === 'IDLE') {
+  if (isAway && dist < 25) {
     _proximityCounter++;
-    if (_proximityCounter >= 25) { // 🚀 Reduced from 40 to 25 (~50-60 seconds)
+    if (_proximityCounter >= 20) { // ~100-120 seconds of hanging out near the car
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
       isAway = false;
       _proximityCounter = 0;
