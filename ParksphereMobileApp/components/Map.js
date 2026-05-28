@@ -29,14 +29,19 @@ const Map = memo(({
           ref={mapViewRef}
           style={styles.map}
           initialRegion={
-            parkingSpots.length > 0
+            userLocation || (parkingSpots.length > 0
               ? {
                   latitude: parseFloat(parkingSpots[0].latitude),
                   longitude: parseFloat(parkingSpots[0].longitude),
                   latitudeDelta: 0.0922,
                   longitudeDelta: 0.0421,
                 }
-              : userLocation
+              : {
+                  latitude: 40.6401,
+                  longitude: 22.9444,
+                  latitudeDelta: 0.0922,
+                  longitudeDelta: 0.0421,
+                })
           }
           showsUserLocation={locationPermissionGranted}
           onPress={(e) => {
