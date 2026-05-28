@@ -458,15 +458,6 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
       await updateSpotStatus(stateData.serverSpotId, 'soon_free');
     }
-
-    if (stateData.state === 'DRIVING' && prevState === 'IN_CAR' && stateData.serverSpotId) {
-      await updateSpotStatus(stateData.serverSpotId, 'free');
-      stateData.serverSpotId = null;
-      stateData.parkedLocation = null;
-      stateData.stoppedLocation = null;
-      stateData.stoppedCandidateLocation = null;
-      stateData.lastDistanceToCar = null;
-    }
   }
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {

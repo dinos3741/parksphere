@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning, resetParkDetection } from '../utils/parkDetectionService';
-import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus } from '../utils/telemetryService';
+import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
 import { SCENARIOS } from '../tests/simulationScenarios';
@@ -19,6 +19,7 @@ const DebugSimulator = ({ userLocation }) => {
   const [isEngineRunning, setIsEngineRunning] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState('HAPPY_PATH');
   const [isScenarioRunning, setIsScenarioRunning] = useState(false);
+  const [manualLabel, setManualLabelState] = useState(null); // 'RETURNING' | 'NOT_RETURNING' | null
   const autoTriggerRef = useRef(null);
 
   useEffect(() => {
@@ -90,6 +91,12 @@ const DebugSimulator = ({ userLocation }) => {
     handleLocationUpdate({ bluetoothConnected: newState }, null, true);
   };
 
+  const updateManualLabel = (label) => {
+    const nextLabel = manualLabel === label ? null : label;
+    setManualLabelState(nextLabel);
+    setManualLabel(nextLabel);
+  };
+
   const simulate = async (type) => {
     if (autoTriggerRef.current) {
       clearTimeout(autoTriggerRef.current);
@@ -103,6 +110,8 @@ const DebugSimulator = ({ userLocation }) => {
       setIsEngineRunning(false);
       setIsBluetoothSimulated(false);
       setIsScenarioRunning(false);
+      setManualLabelState(null);
+      setManualLabel(null);
       stopScenario();
       return;
     }
@@ -242,6 +251,23 @@ const DebugSimulator = ({ userLocation }) => {
       </View>
 
       <View style={[styles.divider, { marginVertical: 5 }]} />
+      <Text style={styles.title}>AI Training Mode</Text>
+      <View style={styles.row}>
+        <TouchableOpacity 
+          style={[styles.btn, { width: '48%', backgroundColor: manualLabel === 'RETURNING' ? '#4ade80' : '#444' }]} 
+          onPress={() => updateManualLabel('RETURNING')}
+        >
+          <Text style={styles.btnText}>RETURNING</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.btn, { width: '48%', backgroundColor: manualLabel === 'NOT_RETURNING' ? '#f87171' : '#444' }]} 
+          onPress={() => updateManualLabel('NOT_RETURNING')}
+        >
+          <Text style={styles.btnText}>NOT RETURNING</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.divider, { marginVertical: 5 }]} />
       <Text style={styles.title}>Flight Recorder</Text>
       
       <View style={styles.row}>
@@ -274,7 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 10,
     borderRadius: 10,
-    width: 180, // 🚀 Slightly wider for picker
+    width: 180,
     zIndex: 9999,
     elevation: 10,
     borderWidth: 1,
@@ -316,7 +342,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#444',
     padding: 5,
     borderRadius: 5,
-    width: 75, // 🚀 Slightly wider
+    width: 75,
     alignItems: 'center',
   },
   btnText: {

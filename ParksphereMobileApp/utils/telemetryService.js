@@ -5,6 +5,15 @@ import { Alert } from 'react-native';
 const LOG_FILE = `${FileSystem.documentDirectory}telemetry_log.json`;
 let isRecording = false;
 let currentSession = [];
+let currentManualLabel = null; // 🚀 NEW: State for AI training labels
+
+/**
+ * Set the current manual label for training (e.g., 'RETURNING', 'NOT_RETURNING')
+ */
+export const setManualLabel = (label) => {
+  currentManualLabel = label;
+  console.log(`[Telemetry] Manual label set to: ${label}`);
+};
 
 /**
  * Start a new telemetry recording session.
@@ -44,13 +53,21 @@ export const logTelemetry = (obs, result) => {
 
   const entry = {
     timestamp: Date.now(),
+    manualLabel: currentManualLabel, // 🚀 NEW: The "Ground Truth" for AI training
     sensors: {
       speed: obs.speed,
       stepRate: obs.stepRate,
       accel: obs.accel,
       accuracy: obs.accuracy,
       bluetooth: obs.bluetoothConnected,
-      activity: result.metrics?.motionActivity // 🚀 NEW: Add OS activity signal
+      activity: result.metrics?.motionActivity || obs.activity
+    },
+    features: { // 🚀 NEW: Rich features for Neural Network input
+      pgr: result.pgr || 0,
+      pgrSlope: result.slope || 0,
+      pgrConsistency: result.pgrConsistency || 0,
+      approachAlignment: result.approachAlignment || 0,
+      deltaRate: result.deltaRate || 0
     },
     hmm: {
       state: result.state,

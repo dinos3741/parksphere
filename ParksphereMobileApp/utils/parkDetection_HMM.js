@@ -860,6 +860,11 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     deltaRate: stableDeltaRate,
     filteredSpeed: speed,
     filteredCoords,
+    // 🚀 NEW: Export features for AI Training
+    pgr: pgrMetrics.pgr,
+    slope: pgrMetrics.slope,
+    pgrConsistency: pgrMetrics.consistency,
+    approachAlignment: approachAlignment,
     // Export counters for persistence
     returnCounter: _returnCounter,
     inCarCounter: _inCarCounter,
