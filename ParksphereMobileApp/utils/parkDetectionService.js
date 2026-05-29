@@ -1,17 +1,17 @@
-import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
-import { Accelerometer, Pedometer } from 'expo-sensors';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter } from 'react-native';
+const Location = require('expo-location');
+const TaskManager = require('expo-task-manager');
+const { Accelerometer, Pedometer } = require('expo-sensors');
+const AsyncStorage = require('@react-native-async-storage/async-storage');
+const { DeviceEventEmitter } = require('react-native');
 
 console.log('***************************************************');
 console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
 console.log('***************************************************');
 
 // Import the modified processLocationHMM which now returns belief
-import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
-import { logTelemetry } from './telemetryService';
-import { apiRequest } from './apiService';
+const { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } = require('./parkDetection_HMM');
+const { logTelemetry } = require('./telemetryService');
+const { apiRequest } = require('./apiService');
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -22,7 +22,7 @@ try {
   console.log('[ParkDetection] MotionActivityTracker native module NOT available:', e.message);
 }
 
-export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
+const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
 
 // ---------------- CONSTANTS ----------------
 const STORAGE_KEY = 'PARK_STATE';
@@ -51,7 +51,7 @@ let accelSubscription = null;
 let pedometerSubscription = null; // 🚀 Added to keep listener alive
 let isPedometerAvailable = null;
 
-export function simulateMotionActivity(type, intensity = 'HIGH') {
+function simulateMotionActivity(type, intensity = 'HIGH') {
   console.log(`[ParkDetection] Simulating activity: ${type} (${intensity})`);
 
   if (type === 'AUTOMOTIVE') {
@@ -236,7 +236,7 @@ async function triggerVirtualUpdate() {
 // 🚀 Store latest Bluetooth state as a module-level variable to be used in HMM calls
 let lastBluetoothState = false;
 
-export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false) {
+async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false) {
   if (!isInitialized && !isBluetoothUpdate) {
     return arg2 ? arg1 : {}; 
   }
@@ -414,18 +414,18 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
   }
   if (clearParkingEvent) {
     stateData.parkingNotified = false;
-    // 🚀 FIX: Don't orphan the server spot!
-    if (stateData.serverSpotId && !stateData.serverSpotId.startsWith('local-')) {
+    
+    // ✅ FIX: Cast to String to prevent TypeError if ID is an integer
+    if (stateData.serverSpotId && !String(stateData.serverSpotId).startsWith('local-')) {
       await updateSpotStatus(stateData.serverSpotId, 'free');
     }
     stateData.serverSpotId = null;
-
     stateData.parkedLocation = null;
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
     stateData.isAway = false;
     stateData._loggedParkedLoc = false;
-    resetPGRHistory(); // 🚀 Clear stale position history for the new trip
+    resetPGRHistory();
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
   }
 
@@ -459,6 +459,18 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
       await updateSpotStatus(stateData.serverSpotId, 'soon_free');
     }
   }
+
+  // ✅ FIX: Restored instant transition clearing
+  if (stateData.state === 'DRIVING' && prevState === 'IN_CAR' && stateData.serverSpotId) {
+    if (!String(stateData.serverSpotId).startsWith('local-')) {
+      await updateSpotStatus(stateData.serverSpotId, 'free');
+    }
+  stateData.serverSpotId = null;
+  stateData.parkedLocation = null;
+  stateData.stoppedLocation = null;
+  stateData.stoppedCandidateLocation = null;
+  stateData.lastDistanceToCar = null;
+}
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
     state: stateData.state,
@@ -645,10 +657,10 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   }
 });
 
-export const isDetectionEngineRunning = () => isInitialized;
+const isDetectionEngineRunning = () => isInitialized;
 
 // ---------------- START/STOP ----------------
-export const startParkDetection = async () => {
+const startParkDetection = async () => {
   try {
     console.log('[ParkDetection] Attempting to start park detection...');
     const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
@@ -717,7 +729,7 @@ export const startParkDetection = async () => {
   }
 };
 
-export const stopParkDetection = async () => {
+const stopParkDetection = async () => {
   try {
     console.log('[ParkDetection] Stopping park detection...');
     isInitialized = false;
@@ -733,7 +745,7 @@ export const stopParkDetection = async () => {
   }
 };
 
-export const resetParkDetection = async () => {
+const resetParkDetection = async () => {
   console.log('[ParkDetection] Resetting park detection engine...');
   isInitialized = true; // Ensure engine is ready to process updates after reset
   const { currentState, belief } = resetHMM();
@@ -778,3 +790,5 @@ export const resetParkDetection = async () => {
   }
 };
 
+
+module.exports = { handleLocationUpdate, resetParkDetection, startParkDetection, stopParkDetection, PARK_DETECTION_TASK, isDetectionEngineRunning, simulateMotionActivity };
