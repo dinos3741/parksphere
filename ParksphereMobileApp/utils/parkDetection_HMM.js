@@ -5,7 +5,7 @@
 // ==============================
 // STATES
 // ==============================
-const STATES = [
+export const STATES = [
   'IDLE',
   'WALKING',
   'DRIVING',
@@ -18,7 +18,7 @@ const STATES = [
 // TRANSITIONS (base probabilities)
 // ==============================
 
-const A = {
+export const A = {
   IDLE: {
     IDLE: 0.2,      
     WALKING: 0.4, // 🚀 Boosted for faster initial pick-up
@@ -241,7 +241,7 @@ function calculatePGR(currentDist, currentX, currentY) {
 }
 
 
-function resetPGRHistory() {
+export function resetPGRHistory() {
   progressHistory = [];
   pgrHistory = [];
   console.log('[HMM] PGR History cleared.');
@@ -525,7 +525,7 @@ function updateBelief(prevBelief, obs, context) {
 // ==============================
 // MAIN FUNCTION
 // ==============================
-function processLocationHMM(location, parkedLocation, supplemental = {}) {
+export function processLocationHMM(location, parkedLocation, supplemental = {}) {
   // Restore state with 🚀 NaN Quarantine 
   if (supplemental.previousState) currentState = supplemental.previousState;
 
@@ -897,7 +897,7 @@ function getDistance(a, b) {
 // ==============================
 // HELPERS
 // ==============================
-function resetHMM() {
+export function resetHMM() {
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
   isAway = false; 
@@ -933,20 +933,10 @@ function resetHMM() {
   };
 }
 
-function getHMMStatus() {
+export function getHMMStatus() {
   return { currentState, belief };
 }
 
-function initMotionTracking() {
+export function initMotionTracking() {
   console.log('[HMM] Motion tracking disabled');
 }
-
-module.exports = {
-  STATES,
-  A,
-  processLocationHMM,
-  resetHMM,
-  getHMMStatus,
-  resetPGRHistory,
-  initMotionTracking
-};

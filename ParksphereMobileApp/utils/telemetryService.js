@@ -1,6 +1,6 @@
-const FileSystem = require('expo-file-system/legacy');
-const Sharing = require('expo-sharing');
-const { Alert } = require('react-native');
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import { Alert } from 'react-native';
 
 const LOG_FILE = `${FileSystem.documentDirectory}telemetry_log.json`;
 let isRecording = false;
@@ -10,7 +10,7 @@ let currentManualLabel = null; // 🚀 NEW: State for AI training labels
 /**
  * Set the current manual label for training (e.g., 'RETURNING', 'NOT_RETURNING')
  */
-const setManualLabel = (label) => {
+export const setManualLabel = (label) => {
   currentManualLabel = label;
   console.log(`[Telemetry] Manual label set to: ${label}`);
 };
@@ -18,7 +18,7 @@ const setManualLabel = (label) => {
 /**
  * Start a new telemetry recording session.
  */
-const startTelemetry = async () => {
+export const startTelemetry = async () => {
   isRecording = true;
   currentSession = [];
   console.log('[Telemetry] Recording started.');
@@ -27,7 +27,7 @@ const startTelemetry = async () => {
 /**
  * Stop recording and save to local storage.
  */
-const stopTelemetry = async () => {
+export const stopTelemetry = async () => {
   isRecording = false;
   if (currentSession.length === 0) {
     Alert.alert("Telemetry", "No data was recorded.");
@@ -48,7 +48,7 @@ const stopTelemetry = async () => {
 /**
  * Log a single snapshot of sensor data and HMM state.
  */
-const logTelemetry = (obs, result) => {
+export const logTelemetry = (obs, result) => {
   if (!isRecording) return;
 
   const entry = {
@@ -85,7 +85,7 @@ const logTelemetry = (obs, result) => {
 /**
  * Export the log file via iOS/Android sharing sheet.
  */
-const shareTelemetryLog = async () => {
+export const shareTelemetryLog = async () => {
   try {
     const fileExists = await FileSystem.getInfoAsync(LOG_FILE);
     if (!fileExists.exists) {
@@ -115,7 +115,7 @@ const shareTelemetryLog = async () => {
 /**
  * Clear the local log file.
  */
-const clearTelemetryLog = async () => {
+export const clearTelemetryLog = async () => {
     try {
         await FileSystem.deleteAsync(LOG_FILE, { idempotent: true });
         console.log('[Telemetry] Log file cleared.');
@@ -125,6 +125,4 @@ const clearTelemetryLog = async () => {
     }
 };
 
-const getTelemetryStatus = () => isRecording;
-
-module.exports = { setManualLabel, startTelemetry, stopTelemetry, logTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus };
+export const getTelemetryStatus = () => isRecording;

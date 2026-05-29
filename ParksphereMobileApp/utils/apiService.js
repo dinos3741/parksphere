@@ -1,4 +1,4 @@
-const AsyncStorage = require('@react-native-async-storage/async-storage');
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MOCK_DATA = {
   user: {
@@ -30,7 +30,7 @@ const MOCK_DATA = {
   messages: []
 };
 
-const apiRequest = async (endpoint, options = {}) => {
+export const apiRequest = async (endpoint, options = {}) => {
   const mockMode = await AsyncStorage.getItem('mockModeEnabled');
   const isMockMode = mockMode === 'true';
 
@@ -120,4 +120,3 @@ const apiRequest = async (endpoint, options = {}) => {
 
   return fetch(endpoint, { ...options, headers });
 };
-module.exports = { apiRequest };
