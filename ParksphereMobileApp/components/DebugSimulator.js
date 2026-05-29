@@ -1,14 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
-import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning, resetParkDetection } from '../utils/parkDetectionService';
+import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
 import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
-import { SCENARIOS } from '../tests/simulationScenarios';
-import { runScenario, stopScenario } from '../tests/scenarioRunner';
 
-const pan = new Animated.ValueXY({ x: 10, y: 500 });
+const pan = new Animated.ValueXY({ x: 10, y: 400 });
 
 const DebugSimulator = ({ userLocation }) => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
@@ -17,9 +14,7 @@ const DebugSimulator = ({ userLocation }) => {
   const [offsetLat, setOffsetLat] = useState(0);
   const [offsetLon, setOffsetLon] = useState(0);
   const [isEngineRunning, setIsEngineRunning] = useState(false);
-  const [selectedScenario, setSelectedScenario] = useState('HAPPY_PATH');
-  const [isScenarioRunning, setIsScenarioRunning] = useState(false);
-  const [manualLabel, setManualLabelState] = useState(null); // 'RETURNING' | 'NOT_RETURNING' | null
+  const [groundTruth, setGroundTruth] = useState(null); 
   const autoTriggerRef = useRef(null);
 
   useEffect(() => {
@@ -47,17 +42,6 @@ const DebugSimulator = ({ userLocation }) => {
     })
   ).current;
 
-  const handleRunScenario = async () => {
-    if (!userLocation) return;
-    setIsScenarioRunning(true);
-    await runScenario(selectedScenario, userLocation);
-  };
-
-  const handleStopScenario = () => {
-    stopScenario();
-    setIsScenarioRunning(false);
-  };
-
   const toggleEngine = async () => {
     if (isEngineRunning) {
       await stopParkDetection();
@@ -72,7 +56,10 @@ const DebugSimulator = ({ userLocation }) => {
   const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
-    setIsRecording(getTelemetryStatus());
+    const interval = setInterval(() => {
+        setIsRecording(getTelemetryStatus());
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleStartRecording = async () => {
@@ -91,9 +78,9 @@ const DebugSimulator = ({ userLocation }) => {
     handleLocationUpdate({ bluetoothConnected: newState }, null, true);
   };
 
-  const updateManualLabel = (label) => {
-    const nextLabel = manualLabel === label ? null : label;
-    setManualLabelState(nextLabel);
+  const updateGroundTruth = (label) => {
+    const nextLabel = groundTruth === label ? null : label;
+    setGroundTruth(nextLabel);
     setManualLabel(nextLabel);
   };
 
@@ -109,17 +96,9 @@ const DebugSimulator = ({ userLocation }) => {
       await resetAllAppData();
       setIsEngineRunning(false);
       setIsBluetoothSimulated(false);
-      setIsScenarioRunning(false);
-      setManualLabelState(null);
+      setGroundTruth(null);
       setManualLabel(null);
-      stopScenario();
       return;
-    }
-
-    if (type === 'STEP') {
-      setOffsetLat(prev => prev + 0.0002);
-      setOffsetLon(prev => prev + 0.0002);
-      type = 'WALKING';
     }
 
     if (!userLocation) return;
@@ -148,17 +127,6 @@ const DebugSimulator = ({ userLocation }) => {
           await sleep(500);
         }
         setOffsetLat(currentLatOff);
-        autoTriggerRef.current = setTimeout(async () => {
-          await simulate('STOPPED');
-        }, 5000);
-        return;
-
-      case 'STOPPED':
-        simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        for (let i = 0; i < 8; i++) {
-          await handleLocationUpdate(getMockLocation(0.2, currentLatOff, currentLonOff));
-          await sleep(500);
-        }
         return;
 
       case 'WALKING':
@@ -179,8 +147,6 @@ const DebugSimulator = ({ userLocation }) => {
         }
         return;
     }
-    
-    await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
   };
 
   return (
@@ -194,100 +160,77 @@ const DebugSimulator = ({ userLocation }) => {
       ]}
       {...panResponder.panHandlers}
     >
-      <Text style={styles.title}>HMM Debug Simulator</Text>
-      
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedScenario}
-          onValueChange={(itemValue) => setSelectedScenario(itemValue)}
-          style={styles.picker}
-          itemStyle={styles.pickerItem}
-        >
-          {Object.keys(SCENARIOS).map(key => (
-            <Picker.Item key={key} label={SCENARIOS[key].name} value={key} />
-          ))}
-        </Picker>
-      </View>
-
-      <View style={styles.row}>
-        {!isScenarioRunning ? (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#0275d8' }]} onPress={handleRunScenario}>
-            <Text style={styles.btnText}>🚀 Run Selected</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#d9534f' }]} onPress={handleStopScenario}>
-            <Text style={styles.btnText}>🛑 Stop Scenario</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={[styles.divider, { marginVertical: 5 }]} />
-
-      <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('WALKING')}>
-          <Text style={styles.btnText}>🏃 Walk</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#5cb85c' : '#444'}]} onPress={toggleBluetooth}>
-          <Text style={styles.btnText}>BT: {isBluetoothSimulated ? 'ON' : 'OFF'}</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
-          <Text style={styles.btnText}>🛑 Still</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('STEP')}>
-          <Text style={styles.btnText}>🚶 Step</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: isEngineRunning ? '#d9534f' : '#5cb85c'}]} onPress={toggleEngine}>
-          <Text style={styles.btnText}>{isEngineRunning ? '⏹ Stop Engine' : '▶ Start Engine'}</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#d9534f'}]} onPress={() => simulate('RESET')}>
-          <Text style={styles.btnText}>🛑 Stop & Reset</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.divider, { marginVertical: 5 }]} />
-      <Text style={styles.title}>AI Training Mode</Text>
-      <View style={styles.row}>
-        <TouchableOpacity 
-          style={[styles.btn, { width: '48%', backgroundColor: manualLabel === 'RETURNING' ? '#4ade80' : '#444' }]} 
-          onPress={() => updateManualLabel('RETURNING')}
-        >
-          <Text style={styles.btnText}>RETURNING</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.btn, { width: '48%', backgroundColor: manualLabel === 'NOT_RETURNING' ? '#f87171' : '#444' }]} 
-          onPress={() => updateManualLabel('NOT_RETURNING')}
-        >
-          <Text style={styles.btnText}>NOT RETURNING</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[styles.divider, { marginVertical: 5 }]} />
-      <Text style={styles.title}>Flight Recorder</Text>
+      <Text style={styles.headerTitle}>FLIGHT RECORDER</Text>
       
       <View style={styles.row}>
         {!isRecording ? (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#5cb85c' }]} onPress={handleStartRecording}>
-            <Text style={styles.btnText}>⏺ Start Recording</Text>
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#22c55e' }]} onPress={handleStartRecording}>
+            <Text style={styles.btnText}>⏺ START RECORDING</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#d9534f' }]} onPress={handleStopRecording}>
-            <Text style={styles.btnText}>⏹ Stop & Save</Text>
+          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#ef4444' }]} onPress={handleStopRecording}>
+            <Text style={styles.btnText}>⏹ STOP & SAVE</Text>
           </TouchableOpacity>
         )}
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#0275d8' }]} onPress={shareTelemetryLog}>
-          <Text style={styles.btnText}>📤 Export</Text>
+        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#3b82f6' }]} onPress={shareTelemetryLog}>
+          <Text style={styles.btnText}>📤 EXPORT</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#f0ad4e' }]} onPress={clearTelemetryLog}>
-          <Text style={styles.btnText}>🗑️ Clear</Text>
+        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#f59e0b' }]} onPress={clearTelemetryLog}>
+          <Text style={styles.btnText}>🗑️ CLEAR</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.divider} />
+      <Text style={styles.headerTitle}>GROUND TRUTH (ACTUAL STATE)</Text>
+      
+      <View style={styles.grid}>
+        {['DRIVING', 'WALKING', 'STOPPED', 'RETURNING'].map(state => (
+          <TouchableOpacity 
+            key={state}
+            style={[
+              styles.gridBtn, 
+              { backgroundColor: groundTruth === state ? '#22c55e' : '#333' }
+            ]} 
+            onPress={() => updateGroundTruth(state)}
+          >
+            <Text style={[styles.btnText, { fontSize: 8 }]}>{state}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.divider} />
+      <Text style={styles.headerTitle}>ENGINE & SIMULATION</Text>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: isEngineRunning ? '#ef4444' : '#22c55e', width: '100%' }]} onPress={toggleEngine}>
+          <Text style={styles.btnText}>{isEngineRunning ? '⏹ STOP ENGINE' : '▶ START ENGINE'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('DRIVING')}>
+          <Text style={styles.btnText}>🚗 DRIVE</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('WALKING')}>
+          <Text style={styles.btnText}>🏃 WALK</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
+          <Text style={styles.btnText}>🛑 STILL</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#22c55e' : '#333'}]} onPress={toggleBluetooth}>
+          <Text style={styles.btnText}>BT: {isBluetoothSimulated ? 'ON' : 'OFF'}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#ef4444', marginTop: 5}]} onPress={() => simulate('RESET')}>
+          <Text style={styles.btnText}>🔥 FACTORY RESET</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -297,57 +240,61 @@ const DebugSimulator = ({ userLocation }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    padding: 10,
-    borderRadius: 10,
-    width: 180,
+    backgroundColor: 'rgba(15, 15, 15, 0.95)',
+    padding: 12,
+    borderRadius: 16,
+    width: 200,
     zIndex: 9999,
     elevation: 10,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.2)',
-  },
-  pickerContainer: {
-    backgroundColor: '#333',
-    borderRadius: 5,
-    marginBottom: 5,
-    height: 40,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  picker: {
-    color: 'white',
-    height: 40,
-  },
-  pickerItem: {
-    fontSize: 10,
-    height: 40,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    marginVertical: 10,
   },
-  title: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 5,
+  headerTitle: {
+    color: '#4ade80',
+    fontSize: 9,
+    fontWeight: '900',
+    marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 1,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 5,
+    marginBottom: 6,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  gridBtn: {
+    width: '48%',
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 6,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   btn: {
-    backgroundColor: '#444',
-    padding: 5,
-    borderRadius: 5,
-    width: 75,
+    backgroundColor: '#333',
+    paddingVertical: 8,
+    borderRadius: 8,
+    width: 85,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   btnText: {
     color: 'white',
     fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

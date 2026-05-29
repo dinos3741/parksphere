@@ -9,6 +9,20 @@ import { Pedometer } from 'expo-sensors';
  * Runs full service integration with randomized noise and jitter.
  */
 
+// ==============================
+// STRESS CONFIGURATION
+// ==============================
+const STRESS_CONFIG = {
+  ITERATIONS: 100,           // Number of times to run each scenario
+  TEMPORAL_JITTER: 0.10,     // +/- 10% duration variance
+  SPEED_JITTER: 0.15,        // +/- 15% velocity variance
+  COORD_JITTER: 0.00002,     // ~2 meter physical wobble
+  ACCURACY_MIN: 5,           // Best case GPS accuracy (meters)
+  ACCURACY_MAX: 20,          // Worst case GPS accuracy (meters)
+  STEP_RATE_JITTER: 0.20,    // +/- 20% pedometer intensity variance
+  LOW_CONF_PROB: 0.10        // 10% chance of receiving LOW confidence from OS
+};
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
   setItem: jest.fn(),
@@ -84,17 +98,28 @@ describe('Service Stress Test', () => {
     let events = { parked: false, away: false, returned: false };
 
     for (const step of scenario.steps) {
-      const randomDuration = Math.max(1, Math.round(step.duration * (0.9 + Math.random() * 0.2)));
+      // 1. Temporal Jitter
+      const durationRange = STRESS_CONFIG.TEMPORAL_JITTER * 2;
+      const durationFactor = (1 - STRESS_CONFIG.TEMPORAL_JITTER) + (Math.random() * durationRange);
+      const randomDuration = Math.max(1, Math.round(step.duration * durationFactor));
+      
       if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
 
-      // Noise on activity simulation
+      // 2. Sensor Confidence Noise
       const activityType = step.speed > 10 ? 'AUTOMOTIVE' : (step.steps > 0.5 ? 'WALKING' : 'STATIONARY');
-      simulateMotionActivity(activityType, Math.random() > 0.1 ? 'HIGH' : 'LOW');
+      const confidence = Math.random() > STRESS_CONFIG.LOW_CONF_PROB ? 'HIGH' : 'LOW';
+      simulateMotionActivity(activityType, confidence);
 
       for (let t = 0; t < randomDuration; t++) {
         simulatedTime += 1000;
-        const randomSpeed = (step.speed * (0.85 + Math.random() * 0.3)) / 3.6;
-        const jitter = (Math.random() - 0.5) * 0.00001; 
+
+        // 3. Speed Jitter
+        const speedRange = STRESS_CONFIG.SPEED_JITTER * 2;
+        const speedFactor = (1 - STRESS_CONFIG.SPEED_JITTER) + (Math.random() * speedRange);
+        const randomSpeed = (step.speed * speedFactor) / 3.6;
+
+        // 4. GPS Coordinate Noise
+        const jitter = (Math.random() - 0.5) * STRESS_CONFIG.COORD_JITTER; 
 
         const shift = randomSpeed * 1 * 0.000009;
         if (step.moveDirection === 'AWAY') latOffset += shift;
@@ -105,16 +130,19 @@ describe('Service Stress Test', () => {
             latitude: baseLocation.latitude + latOffset + jitter,
             longitude: baseLocation.longitude + jitter,
             speed: randomSpeed,
-            accuracy: 5 + Math.random() * 15,
+            // 5. Accuracy Randomization
+            accuracy: STRESS_CONFIG.ACCURACY_MIN + Math.random() * (STRESS_CONFIG.ACCURACY_MAX - STRESS_CONFIG.ACCURACY_MIN),
             heading: 0
           },
           timestamp: simulatedTime
         };
 
-        const randomSteps = (step.steps || 0) * (0.8 + Math.random() * 0.4) * 8;
+        // 6. Step Rate Jitter
+        const stepsRange = STRESS_CONFIG.STEP_RATE_JITTER * 2;
+        const stepsFactor = (1 - STRESS_CONFIG.STEP_RATE_JITTER) + (Math.random() * stepsRange);
+        const randomSteps = (step.steps || 0) * stepsFactor * 8;
         Pedometer.getStepCountAsync.mockResolvedValue({ steps: randomSteps });
 
-        const prevState = finalStateData.state;
         finalStateData = await handleLocationUpdate(mockLocation);
 
         if (finalStateData.state === 'WALKING' && finalStateData.serverSpotId) events.parked = true;
@@ -125,25 +153,47 @@ describe('Service Stress Test', () => {
     return events;
   }
 
-  const STRESS_ITERATIONS = 5; // Reduced for CI speed
-
   test('Happy Path Reliability under noise', async () => {
     let successCount = 0;
-    for (let i = 0; i < STRESS_ITERATIONS; i++) {
+    let visualProgress = '';
+    
+    for (let i = 0; i < STRESS_CONFIG.ITERATIONS; i++) {
         await resetParkDetection();
         const res = await runRandomizedScenario(SCENARIOS.HAPPY_PATH);
-        if (res.parked) successCount++;
+        if (res.parked) {
+          successCount++;
+          visualProgress += '✅';
+        } else {
+          visualProgress += '❌';
+        }
     }
-    expect(successCount).toBeGreaterThanOrEqual(STRESS_ITERATIONS * 0.8);
-  }, 30000);
+    
+    const rate = (successCount / STRESS_CONFIG.ITERATIONS) * 100;
+    console.log(`\n   [HAPPY_PATH] Progress: ${visualProgress}`);
+    console.log(`   📊 PASS RATE: ${rate}% (${successCount}/${STRESS_CONFIG.ITERATIONS})\n`);
+    
+    expect(successCount).toBeGreaterThanOrEqual(STRESS_CONFIG.ITERATIONS * 0.8);
+  }, 120000); 
 
   test('Real-Life Odyssey Reliability under noise', async () => {
     let successCount = 0;
-    for (let i = 0; i < STRESS_ITERATIONS; i++) {
+    let visualProgress = '';
+    
+    for (let i = 0; i < STRESS_CONFIG.ITERATIONS; i++) {
         await resetParkDetection();
         const res = await runRandomizedScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
-        if (res.parked && res.away && res.returned) successCount++;
+        if (res.parked && res.away && res.returned) {
+          successCount++;
+          visualProgress += '✅';
+        } else {
+          visualProgress += '❌';
+        }
     }
-    expect(successCount).toBeGreaterThanOrEqual(STRESS_ITERATIONS * 0.6); // Lower threshold due to extreme randomness
-  }, 60000);
+    
+    const rate = (successCount / STRESS_CONFIG.ITERATIONS) * 100;
+    console.log(`\n   [ODYSSEY] Progress: ${visualProgress}`);
+    console.log(`   📊 PASS RATE: ${rate}% (${successCount}/${STRESS_CONFIG.ITERATIONS})\n`);
+    
+    expect(successCount).toBeGreaterThanOrEqual(STRESS_CONFIG.ITERATIONS * 0.6); 
+  }, 300000);
 });

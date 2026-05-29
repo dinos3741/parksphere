@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
+import { StyleSheet, View, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
 import { useOverlay } from '../context/OverlayContext';
+import { getTelemetryStatus } from '../utils/telemetryService';
 
 const HMMOverlay = ({ isVisible }) => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
@@ -12,6 +13,29 @@ const HMMOverlay = ({ isVisible }) => {
     confidence: 0,
     metrics: {}
   });
+
+  const [isRecording, setIsRecording] = useState(false);
+  const blinkAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIsRecording(getTelemetryStatus());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(blinkAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+          Animated.timing(blinkAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      blinkAnim.setValue(1);
+    }
+  }, [isRecording]);
 
   const pan = useRef(new Animated.ValueXY({ x: 10, y: 100 })).current;
 
@@ -63,7 +87,15 @@ const HMMOverlay = ({ isVisible }) => {
       ]}
       {...panResponder.panHandlers}
     >
-      <Text style={styles.statusTitle}>HMM Engine</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.statusTitle}>HMM Engine</Text>
+        {isRecording && (
+          <Animated.View style={[styles.recIndicator, { opacity: blinkAnim }]}>
+            <View style={styles.recDot} />
+            <Text style={styles.recText}>REC</Text>
+          </Animated.View>
+        )}
+      </View>
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
@@ -89,9 +121,30 @@ const styles = StyleSheet.create({
     color: '#00ff00',
     fontSize: 10,
     fontWeight: 'bold',
-    marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  recIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  recDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ff4444',
+    marginRight: 3,
+  },
+  recText: {
+    color: '#ff4444',
+    fontSize: 8,
+    fontWeight: 'bold',
   },
   statusText: {
     color: 'white',
