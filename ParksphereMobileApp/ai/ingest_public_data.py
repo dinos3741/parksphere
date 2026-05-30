@@ -2,11 +2,26 @@ import pandas as pd
 import json
 import os
 import argparse
+import requests
 
 """
 Ingest Public Transportation Datasets (e.g., US-TM2017)
 Converts public CSV datasets into the ParkSphere JSON telemetry format.
 """
+
+USTM2017_URL = "https://raw.githubusercontent.com/v-m-p-s/US-TM2017/master/data/balanced.csv"
+
+def download_dataset(url, dest_path):
+    print(f"📡 Downloading dataset from: {url}")
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(dest_path, 'wb') as f:
+            f.write(response.content)
+        print(f"✅ Download complete: {dest_path}")
+        return True
+    else:
+        print(f"❌ Download failed (Status {response.status_code})")
+        return False
 
 def ingest_ustm2017(csv_path, output_dir):
     """
@@ -95,7 +110,8 @@ def ingest_ustm2017(csv_path, output_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest public sensor datasets.")
-    parser.add_argument("--path", type=str, required=True, help="Path to the public dataset CSV")
+    parser.add_argument("--path", type=str, help="Path to the public dataset CSV (local)")
+    parser.add_argument("--download", action="store_true", help="Automatically download and ingest US-TM2017")
     parser.add_argument("--type", type=str, default="ustm2017", help="Dataset type (default: ustm2017)")
     
     args = parser.parse_args()
@@ -104,7 +120,19 @@ if __name__ == "__main__":
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
         
+    csv_path = args.path
+
+    if args.download:
+        csv_path = "balanced.csv"
+        if not download_dataset(USTM2017_URL, csv_path):
+            exit(1)
+
+    if not csv_path:
+        print("❌ Error: Please provide --path or use --download")
+        parser.print_help()
+        exit(1)
+
     if args.type == "ustm2017":
-        ingest_ustm2017(args.path, data_dir)
+        ingest_ustm2017(csv_path, data_dir)
     else:
         print(f"❌ Unknown dataset type: {args.type}")

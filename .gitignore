@@ -61,3 +61,11 @@ jspm_packages/
 
 # Notes
 notes.pages
+# Python / AI
+venv/
+__pycache__/
+*.h5
+*.hdf5
+ParksphereMobileApp/ai/balanced.csv
+ParksphereMobileApp/ai/data/*.json
+\!ParksphereMobileApp/ai/data/.gitkeep
