@@ -22,54 +22,69 @@ def ingest_ustm2017(csv_path, output_dir):
         return
 
     # Map public labels to ParkSphere states
-    # US-TM2017 maps: 0: Still, 1: Walking, 2: Run, 3: Bike, 4: Car, 5: Bus, 6: Train
     label_map = {
         0: 'STOPPED',
         1: 'WALKING',
-        2: 'WALKING', # Running is high-intensity walking for us
+        2: 'WALKING', # Running
         4: 'DRIVING',
-        5: 'DRIVING'  # Bus is also automotive
+        5: 'DRIVING'  # Bus
     }
 
-    # Extract available features
-    # Note: Public datasets might not have PGR/Alignment, so we'll fill with 0
-    # or calculate them if GPS coords are present.
-    telemetry_data = []
-    
+    # 1. First pass: Convert all rows to our basic states
+    mapped_entries = []
     for _, row in df.iterrows():
         target_val = row.get('target')
         if target_val not in label_map:
             continue
             
-        label = label_map[target_val]
+        mapped_entries.append({
+            'label': label_map[target_val],
+            'speed': float(row.get('speed', 0)),
+            'accel': float(row.get('acc_mean', 1.0))
+        })
+
+    # 2. Second pass: Synthesize 'RETURNING'
+    # We look for WALKING -> DRIVING transitions. 
+    # We'll label the 30 samples (~60-90s) before DRIVING as 'RETURNING'.
+    RETURNING_WINDOW = 30 
+    
+    for i in range(1, len(mapped_entries)):
+        prev = mapped_entries[i-1]['label']
+        curr = mapped_entries[i]['label']
         
-        # Calculate magnitude if raw axes exist
-        accel = row.get('acc_mean', 1.0) # Default to 1G if missing
-        speed = row.get('speed', 0)
-        
-        entry = {
-            "timestamp": int(pd.Timestamp.now().timestamp() * 1000), # Mock TS
+        # Detected transition into vehicle
+        if prev == 'WALKING' and curr == 'DRIVING':
+            # Go back and relabel WALKING as RETURNING
+            for j in range(max(0, i - RETURNING_WINDOW), i):
+                if mapped_entries[j]['label'] == 'WALKING':
+                    mapped_entries[j]['label'] = 'RETURNING'
+
+    # 3. Third pass: Build final JSON format
+    telemetry_data = []
+    for entry in mapped_entries:
+        label = entry['label']
+        telemetry_data.append({
+            "timestamp": int(pd.Timestamp.now().timestamp() * 1000), 
             "manualLabel": label,
             "sensors": {
-                "speed": float(speed),
-                "stepRate": 1.5 if label == 'WALKING' else 0, # Synthesize step rate
-                "accel": float(accel),
+                "speed": entry['speed'],
+                "stepRate": 1.5 if label in ['WALKING', 'RETURNING'] else 0,
+                "accel": entry['accel'],
                 "accuracy": 10,
                 "bluetoothConnected": False
             },
             "features": {
-                "pgr": 0.0,
-                "pgrSlope": 0.0,
-                "pgrConsistency": 0.0,
-                "approachAlignment": 0.0,
-                "deltaRate": 0.0
+                "pgr": 0.5 if label == 'RETURNING' else 0.0, # Seed with some "returning" vibe
+                "pgrSlope": 0.01 if label == 'RETURNING' else 0.0,
+                "pgrConsistency": 0.8 if label == 'RETURNING' else 0.0,
+                "approachAlignment": 0.7 if label == 'RETURNING' else 0.0,
+                "deltaRate": -1.0 if label == 'RETURNING' else 0.0
             },
             "hmm": {
                 "state": label,
                 "confidence": 1.0
             }
-        }
-        telemetry_data.append(entry)
+        })
 
     # Save as a single large JSON for the training script
     output_file = os.path.join(output_dir, "public_data_ustm2017.json")
