@@ -1,156 +1,131 @@
 import pandas as pd
+import numpy as np
 import json
 import os
 import argparse
-import requests
-import zipfile
-import io
+import re
 
 """
-Ingest Public Transportation Datasets (e.g., US-TM2017)
-Converts public CSV datasets into the ParkSphere JSON telemetry format.
+Ingest Raw Multi-User Dataset (US-TM2017 Format)
+Processes folders U1...U16 and converts raw session CSVs into ParkSphere JSON.
 """
 
-USTM2017_ZIP_URL = "http://cs.unibo.it/projects/us-tm2017/dataset/dataset.zip"
-
-def download_and_extract(url, extract_to="."):
-    print(f"📡 Downloading dataset from: {url}")
-    try:
-        response = requests.get(url, stream=True)
-        if response.status_code == 200:
-            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-                print(f"📦 Extracting files...")
-                z.extractall(extract_to)
-            print(f"✅ Extraction complete.")
-            return True
-        else:
-            print(f"❌ Download failed (Status {response.status_code})")
-            return False
-    except Exception as e:
-        print(f"❌ Error during download/extraction: {e}")
-        return False
-
-def ingest_ustm2017(csv_path, output_dir):
+def parse_filename(filename):
     """
-    Ingests the US-Transportation Mode Detection 2017 dataset.
-    Columns expected: acc_x, acc_y, acc_z, speed, target, etc.
+    Extracts label and base timestamp from filename like:
+    sensorfile_U1_Car_1480357774181.csv
     """
-    print(f"📂 Processing US-TM2017 dataset: {csv_path}")
+    parts = filename.replace(".csv", "").split("_")
+    if len(parts) >= 4:
+        label = parts[2]
+        try:
+            base_ts = int(parts[3])
+        except:
+            base_ts = 0
+        return label, base_ts
+    return None, None
+
+def process_raw_folder(raw_data_dir, output_dir):
+    print(f"📂 Processing raw data from: {raw_data_dir}")
     
-    try:
-        df = pd.read_csv(csv_path)
-    except Exception as e:
-        print(f"❌ Error reading CSV: {e}")
-        return
-
-    # Map public labels to ParkSphere states
     label_map = {
-        0: 'STOPPED',
-        1: 'WALKING',
-        2: 'WALKING', # Running
-        4: 'DRIVING',
-        5: 'DRIVING'  # Bus
+        'Still': 'STOPPED',
+        'Walking': 'WALKING',
+        'Run': 'WALKING',
+        'Car': 'DRIVING',
+        'Bus': 'DRIVING',
+        'Train': 'DRIVING'
     }
 
-    # 1. First pass: Convert all rows to our basic states
-    mapped_entries = []
-    for _, row in df.iterrows():
-        target_val = row.get('target')
-        if target_val not in label_map:
+    all_telemetry = []
+
+    # Iterate through U1, U2... folders
+    user_folders = [f for f in os.listdir(raw_data_dir) if f.startswith('U')]
+    for user_folder in sorted(user_folders, key=lambda x: int(x[1:]) if x[1:].isdigit() else 0):
+        user_path = os.path.join(raw_data_dir, user_folder)
+        if not os.path.isdir(user_path):
             continue
-            
-        mapped_entries.append({
-            'label': label_map[target_val],
-            'speed': float(row.get('speed', 0)),
-            'accel': float(row.get('acc_mean', 1.0))
-        })
 
-    # 2. Second pass: Synthesize 'RETURNING'
-    # We look for WALKING -> DRIVING transitions. 
-    # We'll label the 30 samples (~60-90s) before DRIVING as 'RETURNING'.
-    RETURNING_WINDOW = 30 
-    
-    for i in range(1, len(mapped_entries)):
-        prev = mapped_entries[i-1]['label']
-        curr = mapped_entries[i]['label']
+        print(f"  👤 Processing {user_folder}...")
         
-        # Detected transition into vehicle
-        if prev == 'WALKING' and curr == 'DRIVING':
-            # Go back and relabel WALKING as RETURNING
-            for j in range(max(0, i - RETURNING_WINDOW), i):
-                if mapped_entries[j]['label'] == 'WALKING':
-                    mapped_entries[j]['label'] = 'RETURNING'
+        for filename in os.listdir(user_path):
+            if not filename.endswith(".csv"):
+                continue
 
-    # 3. Third pass: Build final JSON format
-    telemetry_data = []
-    for entry in mapped_entries:
-        label = entry['label']
-        telemetry_data.append({
-            "timestamp": int(pd.Timestamp.now().timestamp() * 1000), 
-            "manualLabel": label,
-            "sensors": {
-                "speed": entry['speed'],
-                "stepRate": 1.5 if label in ['WALKING', 'RETURNING'] else 0,
-                "accel": entry['accel'],
-                "accuracy": 10,
-                "bluetoothConnected": False
-            },
-            "features": {
-                "pgr": 0.5 if label == 'RETURNING' else 0.0, # Seed with some "returning" vibe
-                "pgrSlope": 0.01 if label == 'RETURNING' else 0.0,
-                "pgrConsistency": 0.8 if label == 'RETURNING' else 0.0,
-                "approachAlignment": 0.7 if label == 'RETURNING' else 0.0,
-                "deltaRate": -1.0 if label == 'RETURNING' else 0.0
-            },
-            "hmm": {
-                "state": label,
-                "confidence": 1.0
-            }
-        })
+            label_raw, base_ts = parse_filename(filename)
+            if not label_raw or label_raw not in label_map:
+                continue
 
-    # Save as a single large JSON for the training script
-    output_file = os.path.join(output_dir, "public_data_ustm2017.json")
+            label = label_map[label_raw]
+            file_path = os.path.join(user_path, filename)
+            
+            try:
+                # Read the mess (offset_ms, sensor_name, x, y, z)
+                # We use encoding='latin1' to handle non-UTF-8 noise bytes
+                df = pd.read_csv(file_path, header=None, names=['offset', 'sensor', 'x', 'y', 'z'], on_bad_lines='skip', low_memory=False, encoding='latin1')
+                
+                # Filter for Accelerometer
+                accel_df = df[df['sensor'] == 'android.sensor.accelerometer'].copy()
+                if accel_df.empty:
+                    continue
+
+                # Convert to numeric (handle errors)
+                for col in ['offset', 'x', 'y', 'z']:
+                    accel_df[col] = pd.to_numeric(accel_df[col], errors='coerce')
+                
+                accel_df = accel_df.dropna(subset=['offset', 'x', 'y', 'z'])
+                
+                # Calculate Magnitude
+                accel_df['mag'] = np.sqrt(accel_df['x']**2 + accel_df['y']**2 + accel_df['z']**2)
+                
+                # Group by 1-second intervals (offset is in ms)
+                accel_df['sec'] = (accel_df['offset'] // 1000).astype(int)
+                sec_groups = accel_df.groupby('sec')['mag'].mean()
+
+                # Build Telemetry Entries
+                for sec, mag in sec_groups.items():
+                    entry = {
+                        "timestamp": base_ts + (sec * 1000),
+                        "manualLabel": label,
+                        "sensors": {
+                            "speed": 0.0, # Raw files often lack speed, we'll need field data for this
+                            "stepRate": 1.5 if label == 'WALKING' else 0,
+                            "accel": float(mag / 9.81), # Convert to Gs (approx)
+                            "accuracy": 10,
+                            "bluetoothConnected": False
+                        },
+                        "features": {
+                            "pgr": 0.0,
+                            "pgrSlope": 0.0,
+                            "pgrConsistency": 0.0,
+                            "approachAlignment": 0.0,
+                            "deltaRate": 0.0
+                        },
+                        "hmm": {
+                            "state": label,
+                            "confidence": 1.0
+                        }
+                    }
+                    all_telemetry.append(entry)
+
+            except Exception as e:
+                print(f"    ⚠️ Error processing {filename}: {e}")
+
+    # Save to JSON
+    output_file = os.path.join(output_dir, "raw_public_data.json")
     with open(output_file, 'w') as f:
-        json.dump(telemetry_data, f, indent=2)
+        json.dump(all_telemetry, f, indent=2)
     
-    print(f"✅ Successfully ingested {len(telemetry_data)} samples to {output_file}")
+    print(f"✅ Successfully ingested {len(all_telemetry)} seconds of data to {output_file}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest public sensor datasets.")
-    parser.add_argument("--path", type=str, help="Path to the public dataset CSV (local)")
-    parser.add_argument("--download", action="store_true", help="Automatically download and ingest US-TM2017")
-    parser.add_argument("--type", type=str, default="ustm2017", help="Dataset type (default: ustm2017)")
+    parser = argparse.ArgumentParser(description="Ingest raw multi-user sensor data.")
+    parser.add_argument("--dir", type=str, default="data/raw_data", help="Path to raw_data folder containing U1..U16")
     
     args = parser.parse_args()
     
-    data_dir = "data"
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
+    output_dir = "data"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
         
-    csv_path = args.path
-
-    if args.download:
-        if not download_and_extract(USTM2017_ZIP_URL, "."):
-            exit(1)
-        # Based on repo documentation, the balanced CSV should be here:
-        csv_path = "datasetBalanced/dataset_balanced.csv"
-        
-        if not os.path.exists(csv_path):
-            # Fallback check if ZIP structure is different
-            print(f"⚠️ {csv_path} not found. Searching for any CSV in extracted folders...")
-            for root, dirs, files in os.walk("."):
-                for file in files:
-                    if file.endswith("balanced.csv"):
-                        csv_path = os.path.join(root, file)
-                        print(f"✅ Found: {csv_path}")
-                        break
-
-    if not csv_path or not os.path.exists(csv_path):
-        print(f"❌ Error: CSV file not found at {csv_path}. Please provide --path or use --download")
-        parser.print_help()
-        exit(1)
-
-    if args.type == "ustm2017":
-        ingest_ustm2017(csv_path, data_dir)
-    else:
-        print(f"❌ Unknown dataset type: {args.type}")
+    process_raw_folder(args.dir, output_dir)
