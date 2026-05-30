@@ -42,9 +42,10 @@ def load_data(data_dir):
 def preprocess_data(raw_data):
     """
     Converts raw telemetry list into structured windows for the CNN.
+    Includes resampling to 1Hz for temporal consistency.
     """
     if not raw_data:
-        return None, None
+        return None, None, None
 
     # 1. Flatten to DataFrame
     rows = []
@@ -52,36 +53,42 @@ def preprocess_data(raw_data):
         row = {
             'timestamp': entry['timestamp'],
             'label': entry.get('manualLabel'),
-            'speed': entry['sensors']['speed'],
-            'stepRate': entry['sensors']['stepRate'],
-            'accel': entry['sensors']['accel'],
-            'pgr': entry['features']['pgr'],
-            'pgrSlope': entry['features']['pgrSlope'],
-            'approachAlignment': entry['features']['approachAlignment'],
-            'deltaRate': entry['features']['deltaRate']
+            'speed': entry['sensors'].get('speed', 0.0),
+            'stepRate': entry['sensors'].get('stepRate', 0.0),
+            'accel': entry['sensors'].get('accel', 1.0),
+            'pgr': entry['features'].get('pgr', 0.0),
+            'pgrSlope': entry['features'].get('pgrSlope', 0.0),
+            'approachAlignment': entry['features'].get('approachAlignment', 0.0),
+            'deltaRate': entry['features'].get('deltaRate', 0.0)
         }
         rows.append(row)
     
-    df = pd.DataFrame(rows).sort_values('timestamp')
+    df = pd.DataFrame(rows)
+    df['dt'] = pd.to_datetime(df['timestamp'], unit='ms')
+    df = df.set_index('dt').sort_index()
 
-    # 2. Handle missing labels (unlabeled data is ignored for supervised training)
-    # We map 'RETURNING' to 1, everything else to 0
+    # 2. Resample to 1s frequency (Handling irregular mobile sensor rates)
+    # Numerical features use interpolation, labels use 'nearest' or 'ffill'
+    print("   ⏳ Resampling data to 1Hz...")
+    resampled_num = df[FEATURES].resample('1S').mean().interpolate(method='linear')
+    resampled_label = df[['label']].resample('1S').ffill()
+    
+    df = pd.concat([resampled_num, resampled_label], axis=1).dropna(subset=FEATURES)
+
+    # 3. Target mapping
     df['target'] = df['label'].apply(lambda x: 1 if x == 'RETURNING' else 0)
     
-    # 3. Scale Features
+    # 4. Scale Features
     scaler = StandardScaler()
     df[FEATURES] = scaler.fit_transform(df[FEATURES])
 
-    # 4. Create Sliding Windows
+    # 5. Create Sliding Windows
     X, y = [], []
-    # We only create windows where all samples have the same session context
-    # (In a real scenario, you'd separate by recording session IDs)
     data_array = df[FEATURES].values
     target_array = df['target'].values
 
     for i in range(len(data_array) - WINDOW_SIZE):
         X.append(data_array[i:i + WINDOW_SIZE])
-        # We label the window based on the LAST sample's state
         y.append(target_array[i + WINDOW_SIZE - 1])
 
     return np.array(X), np.array(y), scaler
