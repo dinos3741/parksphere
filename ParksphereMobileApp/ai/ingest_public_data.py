@@ -3,24 +3,31 @@ import json
 import os
 import argparse
 import requests
+import zipfile
+import io
 
 """
 Ingest Public Transportation Datasets (e.g., US-TM2017)
 Converts public CSV datasets into the ParkSphere JSON telemetry format.
 """
 
-USTM2017_URL = "https://raw.githubusercontent.com/v-m-p-s/US-TM2017/master/data/balanced.csv"
+USTM2017_ZIP_URL = "http://cs.unibo.it/projects/us-tm2017/dataset/dataset.zip"
 
-def download_dataset(url, dest_path):
+def download_and_extract(url, extract_to="."):
     print(f"📡 Downloading dataset from: {url}")
-    response = requests.get(url)
-    if response.status_code == 200:
-        with open(dest_path, 'wb') as f:
-            f.write(response.content)
-        print(f"✅ Download complete: {dest_path}")
-        return True
-    else:
-        print(f"❌ Download failed (Status {response.status_code})")
+    try:
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+                print(f"📦 Extracting files...")
+                z.extractall(extract_to)
+            print(f"✅ Extraction complete.")
+            return True
+        else:
+            print(f"❌ Download failed (Status {response.status_code})")
+            return False
+    except Exception as e:
+        print(f"❌ Error during download/extraction: {e}")
         return False
 
 def ingest_ustm2017(csv_path, output_dir):
@@ -123,12 +130,23 @@ if __name__ == "__main__":
     csv_path = args.path
 
     if args.download:
-        csv_path = "balanced.csv"
-        if not download_dataset(USTM2017_URL, csv_path):
+        if not download_and_extract(USTM2017_ZIP_URL, "."):
             exit(1)
+        # Based on repo documentation, the balanced CSV should be here:
+        csv_path = "datasetBalanced/dataset_balanced.csv"
+        
+        if not os.path.exists(csv_path):
+            # Fallback check if ZIP structure is different
+            print(f"⚠️ {csv_path} not found. Searching for any CSV in extracted folders...")
+            for root, dirs, files in os.walk("."):
+                for file in files:
+                    if file.endswith("balanced.csv"):
+                        csv_path = os.path.join(root, file)
+                        print(f"✅ Found: {csv_path}")
+                        break
 
-    if not csv_path:
-        print("❌ Error: Please provide --path or use --download")
+    if not csv_path or not os.path.exists(csv_path):
+        print(f"❌ Error: CSV file not found at {csv_path}. Please provide --path or use --download")
         parser.print_help()
         exit(1)
 
