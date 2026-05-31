@@ -69,3 +69,4 @@ __pycache__/
 ParksphereMobileApp/ai/balanced.csv
 ParksphereMobileApp/ai/data/*.json
 \!ParksphereMobileApp/ai/data/.gitkeep
+ParksphereMobileApp/ai/data/raw_data/
