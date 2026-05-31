@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
 export const useBluetoothMonitoring = () => {
@@ -6,6 +7,12 @@ export const useBluetoothMonitoring = () => {
   const [lastEvent, setLastEvent] = useState(null);
 
   useEffect(() => {
+    // 🛡️ iOS PRIVACY GUARD: Apple forbids querying connected classic devices.
+    // We rely on Core Motion "automotive" state instead on iOS.
+    if (Platform.OS === 'ios') {
+      return; 
+    }
+
     const checkConnection = async () => {
       if (!RNBluetoothClassic) {
         console.warn('[useBluetoothMonitoring] RNBluetoothClassic module is NOT available.');

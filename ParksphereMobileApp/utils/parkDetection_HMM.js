@@ -370,16 +370,18 @@ function emissionLogProb(state, obs) {
   const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
-  // 🚀 BLUETOOTH SIGNAL (The "New Signal")
-  if (bluetoothConnected) {
+  // 🚀 BLUETOOTH / AUTOMOTIVE SIGNAL (The "Golden" Signals)
+  const hasStrongCarSignal = bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
+  if (hasStrongCarSignal) {
     if (state === 'IN_CAR' || state === 'DRIVING') {
-      logp += 5.0; // Strong signal that we are in the vehicle
+      logp += 15.0; // 🚀 Increased boost for vehicle presence
     } else {
-      logp -= 5.0; // Penalty if we claim to be WALKING while BT is connected
+      logp -= 15.0; // 🚀 Increased penalty for WALKING/RETURNING while in car
     }
   }
 
   // 🚀 OS MOTION ACTIVITY BOOST (Balanced "Advisor" Logic)
+  // (Keep the additional specific boosts below for gradual influence)
   if (activity) {
     const { automotive, walking, stationary, unknown, confidence } = activity;
     
