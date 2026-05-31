@@ -307,8 +307,8 @@ function isTransitionAllowed(from, to, context) {
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
   if (to === 'IN_CAR' && from !== 'IN_CAR') {
-    // 1. Hard distance limit: If you aren't within 5 meters, don't even consider it.
-    if (dist > 5) return false;
+    // 1. Hard distance limit: Relaxed from 5m to 8m to allow for GPS offset in cities.
+    if (dist > 8) return false;
 
     // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
     // This prevents the rule from blocking when you stop exactly at the door to enter.
@@ -793,8 +793,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let clearParkingEvent = false;
 
-  if (parkedLocation && currentState === 'DRIVING' && _tripDrivingTime >= 10 && dist > 50) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>50m).`);
+  if (parkedLocation && currentState === 'DRIVING' && _tripDrivingTime >= 5 && dist > 25) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>25m).`);
     clearParkingEvent = true;
   }
 
@@ -816,13 +816,22 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // 🛡️ PROXIMITY RESET: If the user is near the car for a sustained time but NOT in it
   // reset isAway to close the gate for 'RETURNING' flips.
-  if (isAway && dist < 25) {
+  // 🚀 FIX: Require at least 3 samples of close proximity to reset isAway, preventing GPS bounces.
+  if (isAway && dist < 10) {
     _proximityCounter++;
-    if (_proximityCounter >= 20) { // ~100-120 seconds of hanging out near the car
-      console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway to prevent indoor flips.');
+    if (_proximityCounter >= 3 || currentState === 'IN_CAR') { 
+      console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway.');
       isAway = false;
       _proximityCounter = 0;
     }
+  } else if (isAway && dist >= 10 && dist < 25) {
+     // Still track long-term proximity for intent gating
+     _proximityCounter++;
+     if (_proximityCounter >= 20) {
+        console.log('[HMM] 🧘 Long-term proximity detected (>100s). Resetting isAway.');
+        isAway = false;
+        _proximityCounter = 0;
+     }
   } else {
     _proximityCounter = 0;
   }

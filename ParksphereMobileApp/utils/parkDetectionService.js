@@ -395,7 +395,8 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
   stateData.lastTripY = lastTripY;
   stateData.proximityCounter = proximityCounter;
 
-  if (awayEvent) {
+  if (awayEvent && !stateData.vicinityNotified) {
+    stateData.vicinityNotified = true;
     notify('🚶 You have left the vicinity of your car.');
   }
 
@@ -411,24 +412,36 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
 
     notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
   }
-  if (clearParkingEvent) {
-    stateData.parkingNotified = false;
+  // ✅ ROBUST CLEARING: Handle clearance if HMM signals it OR if we detect driving away
+  const shouldInstantClear = stateData.state === 'DRIVING' && stateData.parkedLocation && (prevState === 'IN_CAR' || prevState === 'STOPPED');
+  
+  if (clearParkingEvent || shouldInstantClear) {
+    const spotIdToClear = stateData.serverSpotId;
     
-    // ✅ FIX: Cast to String to prevent TypeError if ID is an integer
-    if (stateData.serverSpotId && !String(stateData.serverSpotId).startsWith('local-')) {
-      await updateSpotStatus(stateData.serverSpotId, 'free');
-    }
+    // 1. CLEAR LOCAL STATE FIRST (Ensures the app doesn't stay 'Parked' if network is slow)
+    stateData.parkingNotified = false;
     stateData.serverSpotId = null;
     stateData.parkedLocation = null;
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
     stateData.isAway = false;
+    stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
     resetPGRHistory();
+    
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
+
+    // 2. TELL SERVER (Fire and forget, with a local retry/queue if needed later)
+    // ✅ FIX: Cast to String to prevent TypeError if ID is an integer
+    if (spotIdToClear && !String(spotIdToClear).startsWith('local-')) {
+      console.log(`[ParkDetection] Attempting to free spot ${spotIdToClear} on server...`);
+      updateSpotStatus(spotIdToClear, 'free').catch(e => {
+        console.error('[ParkDetection] Background server sync failed:', e.message);
+      });
+    }
   }
 
-  if (hmmState === 'DRIVING' && stateData.stoppedCandidateLocation) {
+  if (stateData.state === 'DRIVING' && stateData.stoppedCandidateLocation) {
     stateData.stoppedCandidateLocation = null;
   }
 
@@ -446,30 +459,13 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
       'IDLE': '💤 System Idle.'
     };
 
-    let activityTag = '❓ Unknown';
-    if (currentActivity.automotive) activityTag = '🚗 Automotive';
-    else if (currentActivity.walking) activityTag = '🚶 Walking';
-    else if (currentActivity.stationary) activityTag = '💤 Stationary';
-
     let debugInfo = ` ${Math.round(confidence * 100)}%`;
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
-      await updateSpotStatus(stateData.serverSpotId, 'soon_free');
+      updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
     }
   }
-
-  // ✅ FIX: Restored instant transition clearing
-  if (stateData.state === 'DRIVING' && prevState === 'IN_CAR' && stateData.serverSpotId) {
-    if (!String(stateData.serverSpotId).startsWith('local-')) {
-      await updateSpotStatus(stateData.serverSpotId, 'free');
-    }
-  stateData.serverSpotId = null;
-  stateData.parkedLocation = null;
-  stateData.stoppedLocation = null;
-  stateData.stoppedCandidateLocation = null;
-  stateData.lastDistanceToCar = null;
-}
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
     state: stateData.state,
