@@ -214,5 +214,20 @@ export const SCENARIOS = {
       { label: "Sitting (Drift 3)", speed: 0.5, steps: 0.1, duration: 5, moveDirection: 'AWAY', accel: 1.0 },
       { label: "Sitting (Final)", speed: 0, steps: 0, duration: 20, accel: 1.0 }
     ]
+  },
+  TRAFFIC_STRESS: {
+    name: "Traffic Stress (Stop-and-Go)",
+    description: "Repeated stops at traffic lights to test speed filter responsiveness and state agility.",
+    steps: [
+      { label: "Start Driving", speed: 30, steps: 0, duration: 15, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "Red Light 1", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Short Block", speed: 25, steps: 0, duration: 10, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Red Light 2", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Medium Block", speed: 45, steps: 0, duration: 20, moveDirection: 'AWAY', accel: 1.3 },
+      { label: "Red Light 3", speed: 0, steps: 0, duration: 20, accel: 1.0 },
+      { label: "Final Park", speed: 5, steps: 0, duration: 5, accel: 1.1 },
+      { label: "Exit Car", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 20, moveDirection: 'AWAY', accel: 1.2 }
+    ]
   }
 };

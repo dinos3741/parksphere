@@ -302,7 +302,8 @@ function isTransitionAllowed(from, to, context) {
 
     // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
     // This prevents a single jittery frame from enabling the STOPPED transition math
-    if (context.drivingCounter < 5) return false;
+    // 🚀 Relaxed from 5 to 3 for better responsiveness in city traffic
+    if (context.drivingCounter < 3) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
