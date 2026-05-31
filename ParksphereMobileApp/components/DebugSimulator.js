@@ -239,12 +239,6 @@ const DebugSimulator = ({ userLocation }) => {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#22c55e' : '#333', width: '100%'}]} onPress={toggleBluetooth}>
-          <Text style={styles.btnText}>BT: {isBluetoothSimulated ? 'ON' : 'OFF'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
         <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#ef4444', marginTop: 5}]} onPress={() => simulate('RESET')}>
           <Text style={styles.btnText}>🔥 FACTORY RESET</Text>
         </TouchableOpacity>
