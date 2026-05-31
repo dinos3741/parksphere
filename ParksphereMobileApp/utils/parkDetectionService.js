@@ -11,6 +11,7 @@ console.log('***************************************************');
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
 import { logTelemetry } from './telemetryService';
 import { apiRequest } from './apiService';
+import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -449,6 +450,26 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords };
   }
 
+  const aiFeatures = {
+    speed,
+    stepRate,
+    accel: acceleration,
+    pgr: hmmResult.pgr || 0,
+    pgrSlope: hmmResult.slope || 0,
+    approachAlignment: hmmResult.approachAlignment || 0,
+    deltaRate: hmmResult.deltaRate || 0
+  };
+
+  const aiConfidence = await predictReturning(aiFeatures);
+  const isAIReturning = aiConfidence > 0.996;
+
+  if (isAIReturning && stateData.serverSpotId && !stateData.soonFreeNotified) {
+    console.log(`[ParkDetection] 🤖 AI confidence: ${(aiConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
+    updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
+    stateData.soonFreeNotified = true;
+    notify('🤖 AI detected you are returning to your car.', { isAiTriggered: true });
+  }
+
   if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {
       'DRIVING': '🚗 Driving detected...',
@@ -463,7 +484,10 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
 
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
-      updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
+      if (!stateData.soonFreeNotified) {
+        updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
+        stateData.soonFreeNotified = true;
+      }
     }
   }
 
@@ -684,6 +708,7 @@ export const startParkDetection = async () => {
 
     console.log('[ParkDetection] Initializing HMM components...');
     const { shouldClearPersistedState } = resetHMM(); // Reset HMM state to IDLE
+    await initAIEngine(); // Initialize TFJS model
     await startSensors();
 
     // Clear persistent state on clean start to avoid immediate transitions from stale data
@@ -744,6 +769,7 @@ export const resetParkDetection = async () => {
   console.log('[ParkDetection] Resetting park detection engine...');
   isInitialized = true; // Ensure engine is ready to process updates after reset
   const { currentState, belief } = resetHMM();
+  resetAIBuffer();
   
   try {
     // 🚀 NEW: Try to delete the spot from the server before clearing local storage

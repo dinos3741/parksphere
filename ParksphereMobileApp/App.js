@@ -1,3 +1,5 @@
+import "./polyfills";
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Alert, Modal, DeviceEventEmitter, View, ActivityIndicator, Text } from 'react-native';
