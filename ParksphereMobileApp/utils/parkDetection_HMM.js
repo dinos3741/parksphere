@@ -262,6 +262,10 @@ function isTransitionAllowed(from, to, context) {
 
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
+    // 🛡️ PROXIMITY LOCK: If we were RETURNING and are within 10m, don't allow flipping back to WALKING.
+    // This forces the system to either stay RETURNING or enter IN_CAR/DRIVING.
+    if (from === 'RETURNING' && dist < 10) return false;
+
     const hasSteps = stepRate >= 0.05;
     const hasWalkingActivity = activity && activity.walking;
     if (!hasSteps && !hasWalkingActivity) return false;
@@ -271,23 +275,24 @@ function isTransitionAllowed(from, to, context) {
   // 🚗 DRIVING Rules
   if (to === 'DRIVING' && from !== 'DRIVING') {
     const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
+    const hasBT = context.bluetoothConnected;
+
+    // 🚀 HARD NOISE FLOOR: No driving transitions allowed under 10 km/h. Period.
+    // This protects against GPS drift and vibrating surfaces.
+    if (speed < 10) return false;
+
+    // 🛡️ DRIFT GUARD: Between 10 and 20 km/h, we REQUIRE evidence (BT or Vibrations).
+    // Above 20 km/h, we trust GPS speed alone.
+    if (speed < 20 && !hasBT && !hasAutomotiveActivity) return false;
 
     // 1. Restore absolute block: If taking steps, we are NOT driving. Period.
-    // We ignore OS 'automotive' flags here because physical steps are ground truth.
     if (stepRate > 0.35) return false; 
     
-    // 2. IDLE -> DRIVING needs a clear speed signal or explicit automotive hint
-    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity) return false; 
+    // 2. IDLE -> DRIVING needs a clear speed signal (15km/h) or proof of vehicle
+    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity && !hasBT) return false; 
     
-    // IN_CAR -> DRIVING needs at least some movement
-    if (from === 'IN_CAR' && speed < 8 && !hasAutomotiveActivity) return false;
-
-    // STOPPED -> DRIVING needs at least some movement
-    if (from === 'STOPPED' && speed < 8 && !hasAutomotiveActivity) return false;
-
-    // WALKING -> DRIVING needs high speed or automotive activity
-    // 🛡️ Raised threshold from 20 to 25 to prevent indoor GPS "sprints"
-    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity) return false;
+    // WALKING -> DRIVING needs higher speed (25km/h) or proof of vehicle
+    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity && !hasBT) return false;
   }
 
   // 🛑 STOPPED Rules

@@ -194,5 +194,25 @@ export const SCENARIOS = {
       { label: "Walk Past Again (8m)", speed: 3.5, steps: 1.4, duration: 20, startDistance: 8, moveDirection: 'TOWARD', accel: 1.1 },
       { label: "Finally Leave", speed: 5, steps: 1.8, duration: 30, startDistance: 15, moveDirection: 'AWAY', accel: 1.2 }
     ]
+  },
+  FIELD_TEST_REPLICA: {
+    name: "Field Test Replica (Today's Observations)",
+    description: "Mimics the drive-park-return cycle with specific focus on the 7m approach flip and home-parking notification spam.",
+    steps: [
+      { label: "Initial Drive", speed: 45, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 },
+      { label: "Park at Work", speed: 0, steps: 0, duration: 15, accel: 1.0 },
+      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 20, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Coffee Break (Far)", speed: 0, steps: 0, duration: 60, startDistance: 150, accel: 1.0 },
+      { label: "Start Return", speed: 4, steps: 1.5, duration: 30, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Close Approach (7m)", speed: 1.2, steps: 0.5, duration: 15, moveDirection: 'TOWARD', accel: 1.0 },
+      { label: "Get In & Leave", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true },
+      { label: "Drive Home", speed: 50, steps: 0, duration: 40, moveDirection: 'TOWARD', accel: 1.4 }, 
+      { label: "Park at Home", speed: 0, steps: 0, duration: 15, accel: 1.0 }, 
+      { label: "Enter House", speed: 3, steps: 1.2, duration: 10, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Sitting (Drift 1)", speed: 0.5, steps: 0.1, duration: 10, moveDirection: 'AWAY', accel: 1.0 },
+      { label: "Sitting (Drift 2)", speed: 1.5, steps: 0.3, duration: 5, moveDirection: 'TOWARD', accel: 1.1 },
+      { label: "Sitting (Drift 3)", speed: 0.5, steps: 0.1, duration: 5, moveDirection: 'AWAY', accel: 1.0 },
+      { label: "Sitting (Final)", speed: 0, steps: 0, duration: 20, accel: 1.0 }
+    ]
   }
 };
