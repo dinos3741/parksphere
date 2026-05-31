@@ -146,6 +146,16 @@ const DebugSimulator = ({ userLocation }) => {
           await sleep(500);
         }
         return;
+      case 'FORCE_PARK':
+        if (userLocation) {
+           await handleLocationUpdate({
+              coords: { ...userLocation, speed: 0, accuracy: 5 },
+              forcePark: true,
+              isFromSimulator: true,
+              timestamp: Date.now()
+           });
+        }
+        return;
     }
   };
 
@@ -223,7 +233,13 @@ const DebugSimulator = ({ userLocation }) => {
         <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
           <Text style={styles.btnText}>🛑 STILL</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#22c55e' : '#333'}]} onPress={toggleBluetooth}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: '#f59e0b' }]} onPress={() => simulate('FORCE_PARK')}>
+          <Text style={styles.btnText}>🅿️ PARK HERE</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, {backgroundColor: isBluetoothSimulated ? '#22c55e' : '#333', width: '100%'}]} onPress={toggleBluetooth}>
           <Text style={styles.btnText}>BT: {isBluetoothSimulated ? 'ON' : 'OFF'}</Text>
         </TouchableOpacity>
       </View>
