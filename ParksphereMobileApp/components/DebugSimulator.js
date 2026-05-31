@@ -234,7 +234,7 @@ const DebugSimulator = ({ userLocation }) => {
           <Text style={styles.btnText}>🛑 STILL</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btn, { backgroundColor: '#f59e0b' }]} onPress={() => simulate('FORCE_PARK')}>
-          <Text style={styles.btnText}>🅿️ PARK HERE</Text>
+          <Text style={styles.btnText}>🅿️ PARK</Text>
         </TouchableOpacity>
       </View>
 
