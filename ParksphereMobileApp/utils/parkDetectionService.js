@@ -302,6 +302,11 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
     if (timeSinceLastStep < 4000) {
       stepRate = Math.max(1.2, currentStepRate); 
       console.log(`[ParkDetection] 👟 Fast-Path Step Active: ${stepRate.toFixed(2)}`);
+    } else if (timeSinceLastStep > 5000) {
+      // 🚀 ANTI-LAG: If it has been more than 5 seconds since a physical step,
+      // force stepRate to 0 to override Apple's 8-second trailing average.
+      stepRate = 0;
+      currentStepRate = 0;
     } else {
       stepRate = currentStepRate;
     }
