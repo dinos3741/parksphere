@@ -236,7 +236,19 @@ async function triggerVirtualUpdate() {
 // 🚀 Store latest Bluetooth state as a module-level variable to be used in HMM calls
 let lastBluetoothState = false;
 
+// 🔒 SERIAL QUEUE: Prevents concurrent handleLocationUpdate calls from clobbering state
+let updateQueue = Promise.resolve();
+
 export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false) {
+  return updateQueue = updateQueue.then(async () => {
+    return _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate);
+  }).catch(e => {
+    console.error('[ParkDetection] Queue Error:', e.message);
+    return arg2 ? arg1 : {};
+  });
+}
+
+async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = false) {
   if (!isInitialized && !isBluetoothUpdate) {
     return arg2 ? arg1 : {}; 
   }
@@ -485,8 +497,7 @@ export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false
       'IDLE': '💤 System Idle.'
     };
 
-    let debugInfo = ` ${Math.round(confidence * 100)}%`;
-    notify((messages[stateData.state] || `System State: ${stateData.state}`) + debugInfo);
+    notify(messages[stateData.state] || `System State: ${stateData.state}`, { confidence: Math.round(confidence * 100) });
 
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
       if (!stateData.soonFreeNotified) {

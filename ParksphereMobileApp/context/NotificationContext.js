@@ -19,8 +19,25 @@ export const NotificationProvider = ({ children }) => {
   const messagePlayer = useAudioPlayer(require('../assets/sounds/message-sound.wav'));
 
   const addNotification = useCallback((msg) => {
+    const now = Date.now();
     const timestamp = new Date().toLocaleTimeString();
-    setNotifications((prevNotifications) => [...prevNotifications, { msg, timestamp }]);
+    
+    setNotifications((prevNotifications) => {
+      // 🛡️ DEDUPLICATION: Prevent identical messages within 5 seconds
+      const lastSameMessage = [...prevNotifications]
+        .reverse()
+        .find(n => n.msg === msg);
+      
+      if (lastSameMessage) {
+        const lastTime = lastSameMessage.rawTime || 0;
+        if (now - lastTime < 5000) {
+          console.log(`[NotificationContext] Deduplicated: ${msg}`);
+          return prevNotifications;
+        }
+      }
+
+      return [...prevNotifications, { msg, timestamp, rawTime: now }];
+    });
   }, []);
 
   const triggerNotification = useCallback((message, type) => {
