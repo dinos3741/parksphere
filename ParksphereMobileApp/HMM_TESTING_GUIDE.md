@@ -8,57 +8,56 @@ All commands below should be run from the `ParksphereMobileApp` directory.
 
 ---
 
-## 🚀 The Test Suites
+## 🏗️ Category 1: Synthetic / Logical Baselines
+These tests use hand-written "Golden Scripts" (like the **Real-Life Odyssey**). They represent the perfect theoretical behavior of the system and are used to prove that the AI's core logic is mathematically sound.
 
 ### 1. The Core Integration Suite
-Runs the foundational simulation scenarios to verify that the service layer correctly interprets simulated location and motion activity to derive the proper state.
-
+*   **What it does:** Runs the foundational synthetic scenarios to verify that the service layer correctly derives states (Driving, Walking, etc.) from "perfect" input data.
+*   **When to use:** Use this as a fast "Smoke Test" after any code change to ensure you haven't broken the basic ability to park or drive.
 ```bash
 npm run test:service
 ```
 
-### 2. Regression Testing
-Runs specific bug-fix scenarios (e.g., verifying that you cannot "ghost walk" or transition backward incorrectly). Used to ensure old bugs do not reappear.
-
-```bash
-npm run test:service:regression
-```
-
-### 3. Scenario Trace Analysis
-Runs detailed lifecycle traces (like the "Real-Life Odyssey" scenario) where every transition, confidence dip, and event trigger is logged second-by-second for visual debugging.
-
+### 2. Scenario Trace Analysis (The "Debugging Table")
+*   **What it does:** Runs the **Real-Life Odyssey** scenario and prints a second-by-second table showing HMM confidence, distances, and internal probabilities.
+*   **When to use:** Use this when you are fine-tuning Sigmoid or Gaussian curves. It allows you to see exactly how a change in math affects the "brain's" certainty at every step of a trip.
 ```bash
 npm run test:service:trace
 ```
 
-### 4. Mathematical Stress Testing (Monte Carlo)
-Runs the simulated scenarios with randomized noise applied to the simulated variables (speed, steps, acceleration) to ensure the HMM math remains stable and doesn't become brittle under chaotic conditions.
+### 3. Regression Testing
+*   **What it does:** Runs specific scripts designed to reproduce old bugs (e.g., "Ghost Walking" or incorrect state jumping).
+*   **When to use:** Use this to guarantee that a bug you fixed in the past hasn't accidentally returned.
+```bash
+npm run test:service:regression
+```
 
+### 4. Mathematical Stress Testing (Monte Carlo)
+*   **What it does:** Runs synthetic scenarios while applying +/- 20% randomized noise to the simulated sensors.
+*   **When to use:** Use this to verify that your mathematical thresholds aren't too "brittle" or sensitive to minor fluctuations.
 ```bash
 npm run test:service:stress
 ```
 
-### 5. Field Replica Integration
-Specifically mimics the exact observations and timings from real-world field tests (like the 7m approach flip and home-parking anti-spam rules) to ensure the engine behaves correctly in real-life edge cases.
+---
 
+## 🌍 Category 2: Real-World Field Analysis
+These tests use the **Flight Recorder JSON logs** captured from your real phone while driving. They prove that the AI can handle the messiness and chaos of the real world.
+
+### 5. Telemetry Replay (The "Flight Simulator")
+*   **What it does:** Parses raw `telemetry_log*.json` files and streams the thousands of recorded frames back through the AI. It synthesizes GPS movement based on your actual recorded speed.
+*   **When to use:** Use this to verify a fix for a specific real-world event. If the app failed to detect a park during your lunch drive, use this to "re-live" that drive and see if your code fix works.
 ```bash
-npm run test:service:replica
-```
-
-### 6. 🚀 Telemetry Replay (Real-World Data)
-Parses all `telemetry_log*.json` flight recorder files found in `ai/data/`, synthesizes the exact GPS movement, and streams them through the AI service layer.
-
-```bash
-# Run against all logs
+# Run against all recorded logs
 npm run test:service:telemetry
 
 # Run against a specific log only
 LOG_FILE=telemetry_log6.json npm run test:service:telemetry
 ```
 
-### 7. 🌪️ Telemetry Fuzzing (Real-World Stress)
-The ultimate robustness test. It takes all real-world telemetry logs and applies intense, randomized chaos to every frame.
-
+### 6. Telemetry Fuzzing (The "Ultimate Stress Test")
+*   **What it does:** Replays your real-world logs but adds intense, randomized chaos: Speed variance, GPS jitter, and 5% chance of OS Activity sensor dropouts.
+*   **When to use:** Use this for final validation before a production release. If the engine can correctly detect your parking events despite simulated sensor failure and massive noise, it is ready for the public.
 ```bash
 # Stress test all logs
 npm run test:service:telemetry:stress
@@ -67,12 +66,19 @@ npm run test:service:telemetry:stress
 LOG_FILE=telemetry_log6.json npm run test:service:telemetry:stress
 ```
 
+### 7. Field Replica Integration
+*   **What it does:** Specifically mimics the timings and observations from your first real-world field tests (e.g., the 7m approach behavior).
+*   **When to use:** Use this to ensure the "fine-tuning" we did for your specific phone's behavior is preserved.
+```bash
+npm run test:service:replica
+```
+
 ---
 
 ## 🛠 Troubleshooting
 
 *   **"TypeError: this._moduleMocker.clearMocksOnScope is not a function"** or **Native Binary Errors**:
-    If you try to run the standard `npm test` or `jest` directly, it will fail due to React Native and TensorFlow native binaries. **Always use the specific `test:service:...` npm scripts above**, as they use the `jest-simple.config.js` and `binaryMock.js` files to bypass these issues.
+    If you try to run the standard `npm test` or `jest` directly, it will fail due to React Native and TensorFlow native binaries. **Always use the specific `test:service:...` npm scripts above**.
 
 *   **Test Timeouts:**
     The Telemetry Replay tests iterate through thousands of frames and can take 8-15 seconds to run. They are configured with a 30,000ms (30s) timeout to accommodate this on slower machines.
