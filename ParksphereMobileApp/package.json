@@ -14,7 +14,8 @@
     "test:service:stress": "jest -c jest-simple.config.js tests/service.stress.test.js",
     "test:service:trace": "jest -c jest-simple.config.js tests/service.trace.test.js",
     "test:service:replica": "jest -c jest-simple.config.js tests/service.field_replica.test.js",
-    "test:service:telemetry": "jest -c jest-simple.config.js tests/service.telemetry_replay.test.js"
+    "test:service:telemetry": "jest -c jest-simple.config.js tests/service.telemetry_replay.test.js",
+    "test:service:telemetry:stress": "jest -c jest-simple.config.js tests/service.telemetry_stress.test.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
