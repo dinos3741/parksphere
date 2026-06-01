@@ -256,7 +256,7 @@ function isTransitionAllowed(from, to, context) {
   // 🛡️ ESCAPE HATCH: Always allow staying in the current state UNLESS we are physically still.
   // This prevents the system from getting stuck in movement states while on a desk/seat.
   if (from === to) {
-    if (isPhysicallyStill && ['DRIVING', 'WALKING', 'STOPPED'].includes(from)) return false;
+    if (isPhysicallyStill && ['DRIVING', 'WALKING'].includes(from)) return false;
     return true;
   }
 
@@ -299,11 +299,6 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'STOPPED' && from !== 'STOPPED') {
     // Only allow entering STOPPED if we were actually DRIVING
     if (from !== 'DRIVING') return false;
-
-    // 🛡️ STUBBORN STATE: Require that we were actually confirmed as driving recently
-    // This prevents a single jittery frame from enabling the STOPPED transition math
-    // 🚀 Relaxed from 5 to 3 for better responsiveness in city traffic
-    if (context.drivingCounter < 3) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;

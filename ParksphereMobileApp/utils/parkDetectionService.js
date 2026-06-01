@@ -360,7 +360,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stepRate: stepRate,
     accel: acceleration,
     accuracy: location.coords.accuracy,
-    bluetoothConnected: lastBluetoothState
+    bluetoothConnected: lastBluetoothState,
+    activity: currentActivity
   }, hmmResult);
 
   let {
