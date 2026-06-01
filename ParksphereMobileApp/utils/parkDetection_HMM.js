@@ -20,17 +20,17 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.2,      
+    IDLE: 0.15,      
     WALKING: 0.4, // 🚀 Boosted for faster initial pick-up
-    RETURNING: 0.1, 
+    RETURNING: 0.15, // 🚀 Slightly easier to start returning from a pause
     IN_CAR: 0.2,   // 🚀 Increased for snappier arrival detection
     DRIVING: 0.1
   },
   WALKING: {
-    WALKING: 0.75, 
+    WALKING: 0.6, 
     IDLE: 0.1,
     DRIVING: 0.05,   
-    RETURNING: 0.1  
+    RETURNING: 0.25  // 🚀 Increased from 0.2 to be more responsive to intent
   },
   DRIVING: {
     DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
@@ -251,7 +251,7 @@ export function resetPGRHistory() {
 // HARD TRANSITION RULES
 // ==============================
 function isTransitionAllowed(from, to, context) {
-  const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate } = context;
+  const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate, bluetoothConnected } = context;
 
   // 🛡️ ESCAPE HATCH: Always allow staying in the current state UNLESS we are physically still.
   // This prevents the system from getting stuck in movement states while on a desk/seat.
@@ -323,9 +323,10 @@ function isTransitionAllowed(from, to, context) {
 
   if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
-    // 🛡️ Require a stronger negative delta (approaching) and higher PGR (progress)
-    // -0.5 m/s is a solid walking pace, -0.2 was too easily met by GPS drift.
-    if (deltaRate >= -0.5 && context.pgr < 0.3) return false;
+    // 🛡️ Require a gentle negative delta (approaching) OR decent PGR (progress)
+    // Relaxed from -0.5 to -0.1 to handle slow walking/jitter.
+    // Also allowed either condition to pass instead of requiring both.
+    if (deltaRate > -0.1 && context.pgr < 0.2) return false;
   }
 
   return true;
@@ -666,6 +667,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     isAway,
     activity: obs.activity,
     isPhysicallyStill,
+    bluetoothConnected: obs.bluetoothConnected,
     drivingCounter: _drivingCounter // 🛡️ Pass this for STOPPED transition gating
   };
 

@@ -75,6 +75,7 @@ export const logTelemetry = (obs, result) => {
       parkedEvent: result.parkedEvent,
       awayEvent: result.awayEvent,
       clearParkingEvent: result.clearParkingEvent,
+      isAway: result.isAway,
       distToParked: result.distToParked
     }
   };
