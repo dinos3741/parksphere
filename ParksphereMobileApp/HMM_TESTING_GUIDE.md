@@ -46,23 +46,25 @@ npm run test:service:replica
 ```
 
 ### 6. 🚀 Telemetry Replay (Real-World Data)
-Parses a raw `telemetry_logX.json` flight recorder file, synthesizes the exact GPS movement using the recorded velocities, and streams the thousands of frames directly back through the AI service layer. This is the closest thing to re-driving the route in real life.
+Parses all `telemetry_log*.json` flight recorder files found in `ai/data/`, synthesizes the exact GPS movement, and streams them through the AI service layer.
 
 ```bash
+# Run against all logs
 npm run test:service:telemetry
+
+# Run against a specific log only
+LOG_FILE=telemetry_log6.json npm run test:service:telemetry
 ```
 
 ### 7. 🌪️ Telemetry Fuzzing (Real-World Stress)
-The ultimate robustness test. It takes the real-world telemetry replay and applies intense, randomized chaos to every frame:
-*   +/- 20% Speed variance
-*   +/- 50% GPS Accuracy jitter
-*   5% chance of OS Activity sensor dropouts
-*   1% chance of Bluetooth disconnection glitches
-
-Because the chaos is driven by `Math.random()`, **every single run of this test is completely unique.** Run this to prove the system won't fail under extreme hardware or environmental degradation.
+The ultimate robustness test. It takes all real-world telemetry logs and applies intense, randomized chaos to every frame.
 
 ```bash
+# Stress test all logs
 npm run test:service:telemetry:stress
+
+# Stress test a specific log only
+LOG_FILE=telemetry_log6.json npm run test:service:telemetry:stress
 ```
 
 ---

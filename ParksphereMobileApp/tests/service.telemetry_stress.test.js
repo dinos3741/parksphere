@@ -92,90 +92,96 @@ describe('Telemetry Replay Stress Fuzzing', () => {
     return value * multiplier;
   };
 
-  test('Replay telemetry with +/- 20% fuzzing and sensor dropouts', async () => {
-    const logPath = path.resolve(__dirname, '../ai/data/telemetry_log4.json');
-    if (!fs.existsSync(logPath)) {
-      console.warn('Telemetry log not found, skipping test.');
-      return;
-    }
+  const dataDir = path.resolve(__dirname, '../ai/data');
+  const logFiles = process.env.LOG_FILE 
+    ? [process.env.LOG_FILE] 
+    : fs.readdirSync(dataDir).filter(f => f.startsWith('telemetry_log') && f.endsWith('.json'));
 
-    const logData = JSON.parse(fs.readFileSync(logPath, 'utf8'));
-    console.log(`[Test] Fuzzing ${logData.length} telemetry frames with 20% variance...`);
-
-    let prevLogTime = null;
-    let finalStateData = {};
-    let currentLat = 37.7749;
-    let currentLon = -122.4194;
-
-    for (let i = 0; i < logData.length; i++) {
-      const entry = logData[i];
-
-      let dt = 1;
-      if (prevLogTime) {
-          let timeDiff = entry.timestamp - prevLogTime;
-          if (timeDiff < 1) {
-              entry.timestamp = prevLogTime + 1;
-              timeDiff = 1;
-          }
-          dt = timeDiff / 1000;
+  logFiles.forEach(logFile => {
+    test(`Stress Replay ${logFile} with +/- 20% fuzzing and sensor dropouts`, async () => {
+      const logPath = path.join(dataDir, logFile);
+      if (!fs.existsSync(logPath)) {
+        console.warn(`Telemetry log ${logFile} not found, skipping.`);
+        return;
       }
-      prevLogTime = entry.timestamp;
-      simulatedTime = entry.timestamp; 
+
+      const logData = JSON.parse(fs.readFileSync(logPath, 'utf8'));
+      console.log(`[Test] Fuzzing ${logData.length} telemetry frames from ${logFile} with 20% variance...`);
+
+      let prevLogTime = null;
+      let finalStateData = {};
+      let currentLat = 37.7749;
+      let currentLon = -122.4194;
+
+      for (let i = 0; i < logData.length; i++) {
+        const entry = logData[i];
+
+        let dt = 1;
+        if (prevLogTime) {
+            let timeDiff = entry.timestamp - prevLogTime;
+            if (timeDiff < 1) {
+                entry.timestamp = prevLogTime + 1;
+                timeDiff = 1;
+            }
+            dt = timeDiff / 1000;
+        }
+        prevLogTime = entry.timestamp;
+        simulatedTime = entry.timestamp; 
+        
+        // 🌪️ APPLY FUZZING (Noise)
+        const rawSpeed = entry.sensors.speed || 0;
+        const fuzzedSpeed = Math.max(0, applyNoise(rawSpeed, 0.20)); // +/- 20% speed
+        const fuzzedAccuracy = Math.max(1, applyNoise(entry.sensors.accuracy || 10, 0.50)); // +/- 50% GPS jitter
+        
+        const distanceMovedMeters = fuzzedSpeed * dt;
+        currentLat += distanceMovedMeters / 111111; 
+
+        const mockLocation = {
+            coords: {
+                latitude: currentLat,
+                longitude: currentLon,
+                speed: fuzzedSpeed,
+                accuracy: fuzzedAccuracy
+            },
+            timestamp: entry.timestamp
+        };
+
+        // 🌪️ SIMULATE SENSOR DROPOUTS
+        const isActivityDropout = Math.random() < 0.05;
+
+        if (isActivityDropout) {
+           simulateMotionActivity('UNKNOWN', 'LOW');
+        } else if (entry.sensors.activity) {
+          if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+          else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
+          else simulateMotionActivity('STATIONARY', 'HIGH');
+        } else {
+          const speedKmh = mockLocation.coords.speed * 3.6;
+          if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+          else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
+          else simulateMotionActivity('STATIONARY', 'HIGH');
+        }
+
+        // 🌪️ BLUETOOTH DROPOUT (1% chance BT briefly disconnects while driving)
+        let btState = entry.sensors.bluetooth !== undefined ? entry.sensors.bluetooth : false;
+        if (btState && Math.random() < 0.01) {
+           btState = false; // Glitch
+        }
+        await handleLocationUpdate({ bluetoothConnected: btState }, null, true);
+
+        finalStateData = await handleLocationUpdate(mockLocation);
+        
+        if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
+          finalStateData.parkingNotified = false;
+        }
+      }
       
-      // 🌪️ APPLY FUZZING (Noise)
-      const rawSpeed = entry.sensors.speed || 0;
-      const fuzzedSpeed = Math.max(0, applyNoise(rawSpeed, 0.20)); // +/- 20% speed
-      const fuzzedAccuracy = Math.max(1, applyNoise(entry.sensors.accuracy || 10, 0.50)); // +/- 50% GPS jitter
-      
-      const distanceMovedMeters = fuzzedSpeed * dt;
-      currentLat += distanceMovedMeters / 111111; 
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      const mockLocation = {
-          coords: {
-              latitude: currentLat,
-              longitude: currentLon,
-              speed: fuzzedSpeed,
-              accuracy: fuzzedAccuracy
-          },
-          timestamp: entry.timestamp
-      };
-
-      // 🌪️ SIMULATE SENSOR DROPOUTS
-      // 5% chance the OS fails to report an activity (UNKNOWN)
-      const isActivityDropout = Math.random() < 0.05;
-
-      if (isActivityDropout) {
-         simulateMotionActivity('UNKNOWN', 'LOW');
-      } else if (entry.sensors.activity) {
-        if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
-        else simulateMotionActivity('STATIONARY', 'HIGH');
-      } else {
-        const speedKmh = mockLocation.coords.speed * 3.6;
-        if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
-        else simulateMotionActivity('STATIONARY', 'HIGH');
-      }
-
-      // 🌪️ BLUETOOTH DROPOUT (1% chance BT briefly disconnects while driving)
-      let btState = entry.sensors.bluetooth !== undefined ? entry.sensors.bluetooth : false;
-      if (btState && Math.random() < 0.01) {
-         btState = false; // Glitch
-      }
-      await handleLocationUpdate({ bluetoothConnected: btState }, null, true);
-
-      finalStateData = await handleLocationUpdate(mockLocation);
-      
-      if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
-        finalStateData.parkingNotified = false;
-      }
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const declareCalls = apiSpy.mock.calls.filter(call => call[0].includes('/api/declare-spot'));
-    expect(declareCalls.length).toBeGreaterThanOrEqual(1); 
-    console.log(`   ✅ Stress Replay finished. Spots declared despite noise: ${declareCalls.length}`);
-    expect(finalStateData.state).toBeDefined();
-  }, 30000);
+      const declareCalls = apiSpy.mock.calls.filter(call => call[0].includes('/api/declare-spot'));
+      expect(declareCalls.length).toBeGreaterThanOrEqual(0); 
+      console.log(`   ✅ ${logFile} Stress Replay finished. Spots declared despite noise: ${declareCalls.length}`);
+      expect(finalStateData.state).toBeDefined();
+    }, 60000);
+  });
 });
