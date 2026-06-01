@@ -20,17 +20,17 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.15,      
-    WALKING: 0.4, // 🚀 Boosted for faster initial pick-up
+    IDLE: 0.55,      
+    WALKING: 0.2, 
     RETURNING: 0.15, // 🚀 Slightly easier to start returning from a pause
-    IN_CAR: 0.2,   // 🚀 Increased for snappier arrival detection
-    DRIVING: 0.1
+    IN_CAR: 0.05,
+    DRIVING: 0.05
   },
   WALKING: {
-    WALKING: 0.6, 
+    WALKING: 0.55, 
     IDLE: 0.1,
     DRIVING: 0.05,   
-    RETURNING: 0.25  // 🚀 Increased from 0.2 to be more responsive to intent
+    RETURNING: 0.3   // 🚀 Increased from 0.25 to be more responsive to intent
   },
   DRIVING: {
     DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
@@ -351,8 +351,8 @@ function logSigmoid(x, midpoint, steepness) {
 // ==============================
 // EMISSION MODEL
 // ==============================
-const RETURN_ZONE_RADIUS = 70; 
-const AWAY_THRESHOLD = 3;
+const RETURN_ZONE_RADIUS = 100; 
+const AWAY_THRESHOLD = 8;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
@@ -456,15 +456,20 @@ function emissionLogProb(state, obs) {
   // DIRECTION/DISTANCE (GPS)
   if (state === 'RETURNING') {
     logp += logSigmoid(RETURN_ZONE_RADIUS - dist, 0, 0.05) * gpsWeight; 
-    logp += logGaussian(deltaRate, -1.2, 1.0) * gpsWeight; 
+    
+    // 🚀 FIX: Use Sigmoid instead of Gaussian for deltaRate. 
+    // We want to favor ANY negative delta (approaching), and the faster the better.
+    // Gaussian was penalizing "fast" approaches because they were far from the mean.
+    logp += logSigmoid(-deltaRate, 0.2, 5.0) * 12.0 * gpsWeight; 
+
     const proximityWeight = Math.max(0.2, 1.0 - (dist / RETURN_ZONE_RADIUS));
 
     let directionalScore = 0;
-    if (pgr > 0) directionalScore += (pgr * 4.0); 
-    else directionalScore += (pgr * 10.0); 
+    if (pgr > 0) directionalScore += (pgr * 8.0); // 🚀 Boosted from 4.0
+    else directionalScore += (pgr * 12.0); // 🚀 Penalize moving away more
 
-    if (approachAlignment > 0) directionalScore += (approachAlignment * 3.0); 
-    else directionalScore += (approachAlignment * 5.0); 
+    if (approachAlignment > 0) directionalScore += (approachAlignment * 5.0); // 🚀 Boosted from 3.0
+    else directionalScore += (approachAlignment * 8.0); 
 
     const consistentScore = directionalScore * Math.pow(pgrConsistency, 1.5);
     logp += (consistentScore * proximityWeight) * gpsWeight;
