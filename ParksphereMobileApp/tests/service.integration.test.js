@@ -105,40 +105,59 @@ describe('ParkDetection Service Integration', () => {
     const baseLocation = { latitude: 37.7749, longitude: -122.4194 };
     let latOffset = 0;
     let finalStateData = {};
+    let lastState = 'IDLE';
 
     console.log(`[Test] Running Scenario: ${scenario.name}`);
 
-    for (const step of scenario.steps) {
-      if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
+    // 🔇 Silence the noise from the service layer during the heavy loop
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    console.log = () => {}; 
+    console.warn = () => {};
 
-      // Update Simulated Sensors
-      if (step.speed > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-      else if (step.steps > 0.5) simulateMotionActivity('WALKING', 'HIGH');
-      else simulateMotionActivity('STATIONARY', 'LOW');
+    try {
+      for (const step of scenario.steps) {
+        if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
 
-      // Mock pedometer rate for this step
-      const stepRateInResult = (step.steps || 0) * 8; 
-      Pedometer.getStepCountAsync.mockResolvedValue({ steps: stepRateInResult });
+        // Update Simulated Sensors
+        if (step.speed > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+        else if (step.steps > 0.5) simulateMotionActivity('WALKING', 'HIGH');
+        else simulateMotionActivity('STATIONARY', 'LOW');
 
-      for (let t = 0; t < step.duration; t++) {
-        simulatedTime += 1000;
-        const shift = (step.speed / 3.6) * 1 * 0.000009;
-        if (step.moveDirection === 'AWAY') latOffset += shift;
-        else if (step.moveDirection === 'TOWARD') latOffset -= shift;
+        // Mock pedometer rate for this step
+        const stepRateInResult = (step.steps || 0) * 8; 
+        Pedometer.getStepCountAsync.mockResolvedValue({ steps: stepRateInResult });
 
-        const mockLocation = {
-          coords: {
-            latitude: baseLocation.latitude + latOffset,
-            longitude: baseLocation.longitude,
-            speed: step.speed / 3.6,
-            accuracy: step.accuracy || 10,
-            heading: 0
-          },
-          timestamp: simulatedTime
-        };
+        for (let t = 0; t < step.duration; t++) {
+          simulatedTime += 1000;
+          const shift = (step.speed / 3.6) * 1 * 0.000009;
+          if (step.moveDirection === 'AWAY') latOffset += shift;
+          else if (step.moveDirection === 'TOWARD') latOffset -= shift;
 
-        finalStateData = await handleLocationUpdate(mockLocation);
+          const mockLocation = {
+            coords: {
+              latitude: baseLocation.latitude + latOffset,
+              longitude: baseLocation.longitude,
+              speed: step.speed / 3.6,
+              accuracy: step.accuracy || 10,
+              heading: 0
+            },
+            timestamp: simulatedTime
+          };
+
+          finalStateData = await handleLocationUpdate(mockLocation);
+
+          // 📢 Only log actual state transitions
+          if (finalStateData.state !== lastState) {
+            originalLog(`   [HMM] ${lastState} -> ${finalStateData.state}`);
+            lastState = finalStateData.state;
+          }
+        }
       }
+    } finally {
+      // 🔊 Restore logging
+      console.log = originalLog;
+      console.warn = originalWarn;
     }
 
     // --- VALIDATION ---

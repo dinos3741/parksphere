@@ -12,6 +12,7 @@ import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPG
 import { logTelemetry } from './telemetryService';
 import { apiRequest } from './apiService';
 import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
+import { extractSpectralFeatures } from './fftUtils'; // 🚀 NEW: Spectral Analysis
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -50,6 +51,17 @@ let currentActivity = { state: 'unknown', automotive: false, walking: false, sta
 let accelSubscription = null;
 let pedometerSubscription = null; // 🚀 Added to keep listener alive
 let isPedometerAvailable = null;
+
+// 🚀 NEW: Spectral (FFT) Window State
+let spectralBuffer = [];
+const SPECTRAL_WINDOW_SIZE = 128; // Power of 2 for FFT
+const SAMPLE_RATE_HZ = 50;
+let currentSpectralFeatures = {
+  walkingEnergy: 0,
+  vehicleEnergy: 0,
+  spectralEntropy: 0,
+  dominantFreq: 0
+};
 
 export function simulateMotionActivity(type, intensity = 'HIGH') {
   console.log(`[ParkDetection] Simulating activity: ${type} (${intensity})`);
@@ -341,7 +353,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     isReturningIntentLocked: stateData.isReturningIntentLocked,
     minDistDuringReturn: stateData.minDistDuringReturn,
     accuracy: location.coords.accuracy,
-    bluetoothConnected: lastBluetoothState, // 🛡️ NEW SIGNAL
+    bluetoothConnected: lastBluetoothState, 
+    // 🚀 NEW: Spectral Features for Frequency Domain Analysis
+    spectralFeatures: { ...currentSpectralFeatures },
     // Restore counters
     returnCounter: stateData.returnCounter,
     inCarCounter: stateData.inCarCounter,
@@ -361,7 +375,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     accel: acceleration,
     accuracy: location.coords.accuracy,
     bluetoothConnected: lastBluetoothState,
-    activity: currentActivity
+    activity: currentActivity,
+    spectralFeatures: { ...currentSpectralFeatures } // 🚀 NEW
   }, hmmResult);
 
   let {
@@ -542,10 +557,22 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
 // ---------------- SENSORS ----------------
 async function startSensors() {
-  // 🚀 Increase frequency to 10Hz for snappier reaction to movement
-  Accelerometer.setUpdateInterval(100); 
+  // 🚀 FFT PREP: Increase frequency to 50Hz (20ms) for high-res spectral analysis
+  Accelerometer.setUpdateInterval(20); 
   accelSubscription = Accelerometer.addListener(data => {
-    currentAcceleration = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
+    // 1. Calculate magnitude for HMM fast-path logic
+    const mag = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
+    currentAcceleration = mag;
+
+    // 2. 🚀 FFT SLIDING WINDOW
+    spectralBuffer.push(mag);
+    if (spectralBuffer.length >= SPECTRAL_WINDOW_SIZE) {
+      // Extract features from the latest window
+      currentSpectralFeatures = extractSpectralFeatures(spectralBuffer, SAMPLE_RATE_HZ);
+      
+      // Slide window by 25% (32 samples) for 0.6s overlap
+      spectralBuffer = spectralBuffer.slice(32);
+    }
     
     // ⚡ FAST-PATH: If we see a sudden burst of movement while IDLE, trigger HMM check
     if (currentAcceleration > 1.6 && isInitialized && getHMMStatus().currentState === 'IDLE') {

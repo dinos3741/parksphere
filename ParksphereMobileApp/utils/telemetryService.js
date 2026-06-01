@@ -5,7 +5,20 @@ import { Alert } from 'react-native';
 const LOG_FILE = `${FileSystem.documentDirectory}telemetry_log.json`;
 let isRecording = false;
 let currentSession = [];
-let currentManualLabel = null; // 🚀 NEW: State for AI training labels
+let currentManualLabel = null; 
+let rawAccelBuffer = []; // 🚀 NEW: High-frequency buffer (X, Y, Z, timestamp)
+const MAX_RAW_BUFFER = 512; // Store ~10 seconds at 50Hz
+
+/**
+ * Log a single high-frequency accelerometer sample
+ */
+export const logRawAccel = (x, y, z) => {
+  if (!isRecording) return;
+  rawAccelBuffer.push({ x, y, z, t: Date.now() });
+  if (rawAccelBuffer.length > MAX_RAW_BUFFER) {
+    rawAccelBuffer.shift();
+  }
+};
 
 /**
  * Set the current manual label for training (e.g., 'RETURNING', 'NOT_RETURNING')
@@ -21,6 +34,7 @@ export const setManualLabel = (label) => {
 export const startTelemetry = async () => {
   isRecording = true;
   currentSession = [];
+  rawAccelBuffer = [];
   console.log('[Telemetry] Recording started.');
 };
 
@@ -60,7 +74,8 @@ export const logTelemetry = (obs, result) => {
       accel: obs.accel,
       accuracy: obs.accuracy,
       bluetooth: obs.bluetoothConnected,
-      activity: result.metrics?.motionActivity || obs.activity
+      activity: result.metrics?.motionActivity || obs.activity,
+      spectral: obs.spectralFeatures // 🚀 NEW: Spectral snapshots
     },
     features: { // 🚀 NEW: Rich features for Neural Network input
       pgr: result.pgr || 0,
@@ -75,7 +90,7 @@ export const logTelemetry = (obs, result) => {
       parkedEvent: result.parkedEvent,
       awayEvent: result.awayEvent,
       clearParkingEvent: result.clearParkingEvent,
-      isAway: result.isAway,
+      isAway: result.isAway, // 🚀 NEW: Log current 'Away' status
       distToParked: result.distToParked
     }
   };

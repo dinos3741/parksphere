@@ -94,38 +94,57 @@ describe('Field Replica Integration', () => {
     const baseLocation = { latitude: 37.7749, longitude: -122.4194 };
     let latOffset = 0;
     let finalStateData = {};
+    let lastState = 'IDLE';
 
-    console.log(`[Test] Starting Field Replica Trace...`);
+    console.log(`[Test] Starting Field Replica Trace: ${scenario.name}`);
 
-    for (const step of scenario.steps) {
-      if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
+    // 🔇 Silence the noise from the service layer during the heavy loop
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    console.log = () => {}; 
+    console.warn = () => {};
 
-      const activityType = step.speed > 10 ? 'AUTOMOTIVE' : (step.steps > 0.5 ? 'WALKING' : 'STATIONARY');
-      simulateMotionActivity(activityType, 'HIGH');
+    try {
+      for (const step of scenario.steps) {
+        if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
 
-      for (let t = 0; t < step.duration; t++) {
-        simulatedTime += 1000;
-        const shift = (step.speed / 3.6) * 1 * 0.000009;
-        if (step.moveDirection === 'AWAY') latOffset += shift;
-        else if (step.moveDirection === 'TOWARD') latOffset -= shift;
+        const activityType = step.speed > 10 ? 'AUTOMOTIVE' : (step.steps > 0.5 ? 'WALKING' : 'STATIONARY');
+        simulateMotionActivity(activityType, 'HIGH');
 
-        const mockLocation = {
-          coords: {
-            latitude: baseLocation.latitude + latOffset,
-            longitude: baseLocation.longitude,
-            speed: step.speed / 3.6,
-            accuracy: step.accuracy || 10,
-            heading: 0
-          },
-          timestamp: simulatedTime
-        };
+        for (let t = 0; t < step.duration; t++) {
+          simulatedTime += 1000;
+          const shift = (step.speed / 3.6) * 1 * 0.000009;
+          if (step.moveDirection === 'AWAY') latOffset += shift;
+          else if (step.moveDirection === 'TOWARD') latOffset -= shift;
 
-        if (step.bluetoothConnected !== undefined) {
-           await handleLocationUpdate({ bluetoothConnected: step.bluetoothConnected }, null, true);
+          const mockLocation = {
+            coords: {
+              latitude: baseLocation.latitude + latOffset,
+              longitude: baseLocation.longitude,
+              speed: step.speed / 3.6,
+              accuracy: step.accuracy || 10,
+              heading: 0
+            },
+            timestamp: simulatedTime
+          };
+
+          if (step.bluetoothConnected !== undefined) {
+             await handleLocationUpdate({ bluetoothConnected: step.bluetoothConnected }, null, true);
+          }
+
+          finalStateData = await handleLocationUpdate(mockLocation);
+
+          // 📢 Only log actual state transitions
+          if (finalStateData.state !== lastState) {
+            originalLog(`   [HMM] ${lastState} -> ${finalStateData.state}`);
+            lastState = finalStateData.state;
+          }
         }
-
-        finalStateData = await handleLocationUpdate(mockLocation);
       }
+    } finally {
+      // 🔊 Restore logging
+      console.log = originalLog;
+      console.warn = originalWarn;
     }
 
     // Small buffer to allow background async cleanup calls to complete

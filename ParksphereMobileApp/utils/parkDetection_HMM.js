@@ -355,7 +355,7 @@ const RETURN_ZONE_RADIUS = 100;
 const AWAY_THRESHOLD = 8;
 
 function emissionLogProb(state, obs) {
-  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected } = obs;
+  const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected, spectralFeatures } = obs;
 
   let logp = 0;
   const TEMP = 0.5;
@@ -373,6 +373,31 @@ function emissionLogProb(state, obs) {
       logp += 15.0; // 🚀 Increased boost for vehicle presence
     } else {
       logp -= 15.0; // 🚀 Increased penalty for WALKING/RETURNING while in car
+    }
+  }
+
+  // 🚀 SPECTRAL FEATURES (FFT / Frequency Domain Analysis)
+  // These provide evidence of physical rhythms (walking) or mechanical hums (engine)
+  if (spectralFeatures) {
+    const { walkingEnergy, vehicleEnergy, spectralEntropy } = spectralFeatures;
+    
+    if (isWalkingState) {
+      // 👟 Boost if we detect periodic oscillations in the 1-3Hz walking band
+      logp += (walkingEnergy * 15.0); 
+      // Rhythmic walking has low entropy (energy is concentrated in peaks)
+      if (spectralEntropy > 0 && spectralEntropy < 0.6) logp += 5.0;
+    }
+
+    if (state === 'DRIVING' || state === 'STOPPED') {
+      // 🚗 Boost if we detect engine/road vibrations in the 10-25Hz band
+      logp += (vehicleEnergy * 12.0);
+      // Road/Engine noise is often more chaotic (higher entropy) than walking
+      if (spectralEntropy > 0.8) logp += 3.0;
+    }
+
+    if (state === 'IDLE' && !isPhysicallyStill) {
+      // If we are vibrating significantly, we aren't truly "Idle"
+      if (walkingEnergy > 0.3 || vehicleEnergy > 0.2) logp -= 10.0;
     }
   }
 
@@ -657,7 +682,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     pgrConsistency: pgrMetrics.consistency,
     activity: supplemental.motion_activity,
     isPhysicallyStill,
-    bluetoothConnected: supplemental.bluetoothConnected
+    bluetoothConnected: supplemental.bluetoothConnected,
+    // 🚀 NEW: Spectral Features (FFT)
+    spectralFeatures: supplemental.spectralFeatures || {
+      walkingEnergy: 0,
+      vehicleEnergy: 0,
+      spectralEntropy: 0,
+      dominantFreq: 0
+    }
   };
 
   const context = {
@@ -673,6 +705,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     activity: obs.activity,
     isPhysicallyStill,
     bluetoothConnected: obs.bluetoothConnected,
+    spectralFeatures: obs.spectralFeatures, // 🚀 Added
     drivingCounter: _drivingCounter // 🛡️ Pass this for STOPPED transition gating
   };
 
