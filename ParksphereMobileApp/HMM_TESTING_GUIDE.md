@@ -1,81 +1,76 @@
 # Parksphere HMM Detection Engine: Testing Guide
 
-This guide explains how to run and interpret the automated tests for the Park Detection Hidden Markov Model (HMM).
+This guide explains how to run and interpret the automated tests for the Park Detection Hidden Markov Model (HMM) and the overarching Service Layer (`parkDetectionService.js`).
 
-## 🚀 How to Run the Tests
+The test suite has been completely modernized to run via Jest using a custom configuration that handles Expo/React Native and native binary mocks.
 
-The primary test suite is a headless Node.js runner that simulates real-world sensor data (GPS, Accelerometer, Pedometer, Bluetooth) and validates the HMM's state transitions.
-
-### 1. Run the HMM Regression Suite (Recommended)
-This is the fastest and most reliable way to verify the model. It runs 13+ scenarios covering standard usage, edge cases, and stability fixes.
-
-```bash
-# Run from the ParksphereMobileApp directory
-npm run test:hmm
-```
-
-### 2. Detailed Lifecycle Tracing
-Run a second-by-second analysis of the "Real-Life Odyssey" scenario to observe state transitions, confidence dips, and event triggers (Parking, Away, Returning, Spot Clearing).
-
-```bash
-# Run from the ParksphereMobileApp directory
-node utils/trace-odyssey.js
-```
-
-### 3. HMM Stress Testing (Monte Carlo)
-Run each scenario 100 times with injected "real-world chaos" (randomized speeds, coordinate jitter, timing variations, and sensor inaccuracies). A pass rate below 95% indicates the math has become too brittle.
-
-```bash
-# Run from the ParksphereMobileApp directory
-node utils/hmm-stress-test.js
-```
-
-### 4. Run with Jest (Alternative)
-The project also includes Jest-based tests for environment-specific integrations. Note: If your local environment has Jest dependency issues, use the command above.
-
-```bash
-# Run from the ParksphereMobileApp directory
-npm test
-```
+All commands below should be run from the `ParksphereMobileApp` directory.
 
 ---
 
-## 🔍 What is Being Tested?
+## 🚀 The Test Suites
 
-The suite covers 12 critical scenarios to ensure the engine is both responsive and stable:
+### 1. The Core Integration Suite
+Runs the foundational simulation scenarios to verify that the service layer correctly interprets simulated location and motion activity to derive the proper state.
 
-### 1. Robustness & Spike Resistance
-*   **Fix 1: Absolute Step Block:** Verifies that physical steps (Pedometer) always block the `DRIVING` state, even if the GPS speed is high.
-*   **Kalman Tuning:** Verifies that 1-second GPS "spikes" (e.g., jump to 60km/h and back) are ignored by the stiffened Kalman filters.
-*   **Dynamic Accuracy:** Simulates low GPS accuracy (e.g., 150m) to ensure the position filter dampens jitter correctly.
+```bash
+npm run test:service
+```
 
-### 2. Logic Gates & Stability
-*   **Hysteresis Gap:** Ensures a 15% confidence difference is required before switching states, preventing "flapping."
-*   **Tightened Gates:** Verifies that entering `IN_CAR` requires being within 5m and moving toward the car.
-*   **Proximity Reset:** Confirms that staying near the car for a sustained period resets the "IsAway" flag.
+### 2. Regression Testing
+Runs specific bug-fix scenarios (e.g., verifying that you cannot "ghost walk" or transition backward incorrectly). Used to ensure old bugs do not reappear.
 
-### 3. Advanced Analysis Tools
-*   **Detailed Lifecycle Tracing:** The `trace-odyssey.js` tool provides a second-by-second log of the "Real-Life Odyssey" scenario, ensuring that every transition (e.g., detour resilience) and event (Parking confirmed, Spot cleared) occurs at the correct physical distance.
-*   **Monte Carlo Stress Testing:** The `hmm-stress-test.js` tool calculates statistical reliability by running scenarios 100 times with random speed, coordinate, and timing jitter.
+```bash
+npm run test:service:regression
+```
 
-### 4. New Signals
-*   **Bluetooth Integration:** Confirms that an active Bluetooth connection correctly boosts the confidence of `IN_CAR` and `DRIVING` states.
+### 3. Scenario Trace Analysis
+Runs detailed lifecycle traces (like the "Real-Life Odyssey" scenario) where every transition, confidence dip, and event trigger is logged second-by-second for visual debugging.
+
+```bash
+npm run test:service:trace
+```
+
+### 4. Mathematical Stress Testing (Monte Carlo)
+Runs the simulated scenarios with randomized noise applied to the simulated variables (speed, steps, acceleration) to ensure the HMM math remains stable and doesn't become brittle under chaotic conditions.
+
+```bash
+npm run test:service:stress
+```
+
+### 5. Field Replica Integration
+Specifically mimics the exact observations and timings from real-world field tests (like the 7m approach flip and home-parking anti-spam rules) to ensure the engine behaves correctly in real-life edge cases.
+
+```bash
+npm run test:service:replica
+```
+
+### 6. 🚀 Telemetry Replay (Real-World Data)
+Parses a raw `telemetry_logX.json` flight recorder file, synthesizes the exact GPS movement using the recorded velocities, and streams the thousands of frames directly back through the AI service layer. This is the closest thing to re-driving the route in real life.
+
+```bash
+npm run test:service:telemetry
+```
+
+### 7. 🌪️ Telemetry Fuzzing (Real-World Stress)
+The ultimate robustness test. It takes the real-world telemetry replay and applies intense, randomized chaos to every frame:
+*   +/- 20% Speed variance
+*   +/- 50% GPS Accuracy jitter
+*   5% chance of OS Activity sensor dropouts
+*   1% chance of Bluetooth disconnection glitches
+
+Because the chaos is driven by `Math.random()`, **every single run of this test is completely unique.** Run this to prove the system won't fail under extreme hardware or environmental degradation.
+
+```bash
+npm run test:service:telemetry:stress
+```
 
 ---
 
 ## 🛠 Troubleshooting
 
-### "SyntaxError: Cannot use import statement outside a module"
-If you see this error when running `npm test`, it means the Jest environment is having trouble with ES6 imports. 
-**Solution:** Use `npm run test:hmm` instead, as it uses a standalone Node runner that is much more stable for model validation.
+*   **"TypeError: this._moduleMocker.clearMocksOnScope is not a function"** or **Native Binary Errors**:
+    If you try to run the standard `npm test` or `jest` directly, it will fail due to React Native and TensorFlow native binaries. **Always use the specific `test:service:...` npm scripts above**, as they use the `jest-simple.config.js` and `binaryMock.js` files to bypass these issues.
 
-### "NaN/Missing belief detected in restoration"
-This is a warning log you might see during tests. It indicates the test runner is resetting the HMM state for a fresh test case. This is expected behavior during the automated suite.
-
----
-
-## 📂 Key Files
-*   `utils/parkDetection_HMM.js`: The core logic (Math, Filters, Gates).
-*   `utils/hmm-test-runner.js`: The "Master" test execution engine.
-*   `utils/simulationScenarios.js`: The JSON definition of real-world movement scenarios.
-*   `utils/__tests__/hmm_scenarios.test.js`: The Jest-compatible wrapper for the scenarios.
+*   **Test Timeouts:**
+    The Telemetry Replay tests iterate through thousands of frames and can take 8-15 seconds to run. They are configured with a 30,000ms (30s) timeout to accommodate this on slower machines.
