@@ -109,62 +109,81 @@ describe('Telemetry Replay Integration', () => {
       
       let currentLat = 37.7749;
       let currentLon = -122.4194;
+      let lastState = 'IDLE';
 
-      for (let i = 0; i < logData.length; i++) {
-        const entry = logData[i];
+      // 🔇 Silence the noise from the service layer during the heavy loop
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      console.log = () => {}; 
+      console.warn = () => {};
 
-        let dt = 1;
-        if (prevLogTime) {
-            let timeDiff = entry.timestamp - prevLogTime;
-            if (timeDiff < 1) {
-                entry.timestamp = prevLogTime + 1; // prevent 0 dt
-                timeDiff = 1;
-            }
-            dt = timeDiff / 1000;
+      try {
+        for (let i = 0; i < logData.length; i++) {
+          const entry = logData[i];
+
+          let dt = 1;
+          if (prevLogTime) {
+              let timeDiff = entry.timestamp - prevLogTime;
+              if (timeDiff < 1) {
+                  entry.timestamp = prevLogTime + 1; // prevent 0 dt
+                  timeDiff = 1;
+              }
+              dt = timeDiff / 1000;
+          }
+          prevLogTime = entry.timestamp;
+          
+          // Keep Date.now() in sync with the simulated timeline
+          simulatedTime = entry.timestamp; 
+          
+          // Synthesize physical GPS movement using speed
+          const speedMs = entry.sensors.speed || 0;
+          const distanceMovedMeters = speedMs * dt;
+          currentLat += distanceMovedMeters / 111111; // Approx 111,111 meters per degree latitude
+
+          const mockLocation = {
+              coords: {
+                  latitude: currentLat,
+                  longitude: currentLon,
+                  speed: speedMs, // In m/s
+                  accuracy: entry.sensors.accuracy || 10
+              },
+              timestamp: entry.timestamp
+          };
+
+          // Set Activity exactly as the log implies
+          if (entry.sensors.activity) {
+            if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+            else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
+            else simulateMotionActivity('STATIONARY', 'HIGH');
+          } else {
+            const speedKmh = mockLocation.coords.speed * 3.6;
+            if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+            else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
+            else simulateMotionActivity('STATIONARY', 'HIGH');
+          }
+
+          // Update Bluetooth if recorded
+          if (entry.sensors.bluetooth !== undefined) {
+             await handleLocationUpdate({ bluetoothConnected: entry.sensors.bluetooth }, null, true);
+          }
+
+          finalStateData = await handleLocationUpdate(mockLocation);
+          
+          // 📢 Only log actual state transitions
+          if (finalStateData.state !== lastState) {
+            originalLog(`   [HMM] ${lastState} -> ${finalStateData.state} (${((entry.timestamp - logData[0].timestamp)/1000).toFixed(0)}s)`);
+            lastState = finalStateData.state;
+          }
+
+          if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
+            // Clear it so we can detect the next one
+            finalStateData.parkingNotified = false;
+          }
         }
-        prevLogTime = entry.timestamp;
-        
-        // Keep Date.now() in sync with the simulated timeline
-        simulatedTime = entry.timestamp; 
-        
-        // Synthesize physical GPS movement using speed
-        const speedMs = entry.sensors.speed || 0;
-        const distanceMovedMeters = speedMs * dt;
-        currentLat += distanceMovedMeters / 111111; // Approx 111,111 meters per degree latitude
-
-        const mockLocation = {
-            coords: {
-                latitude: currentLat,
-                longitude: currentLon,
-                speed: speedMs, // In m/s
-                accuracy: entry.sensors.accuracy || 10
-            },
-            timestamp: entry.timestamp
-        };
-
-        // Set Activity exactly as the log implies
-        if (entry.sensors.activity) {
-          if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-          else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
-          else simulateMotionActivity('STATIONARY', 'HIGH');
-        } else {
-          const speedKmh = mockLocation.coords.speed * 3.6;
-          if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-          else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
-          else simulateMotionActivity('STATIONARY', 'HIGH');
-        }
-
-        // Update Bluetooth if recorded
-        if (entry.sensors.bluetooth !== undefined) {
-           await handleLocationUpdate({ bluetoothConnected: entry.sensors.bluetooth }, null, true);
-        }
-
-        finalStateData = await handleLocationUpdate(mockLocation);
-        
-        if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
-          // Clear it so we can detect the next one
-          finalStateData.parkingNotified = false;
-        }
+      } finally {
+        // 🔊 Restore logging
+        console.log = originalLog;
+        console.warn = originalWarn;
       }
       
       // Give async promises time to resolve

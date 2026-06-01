@@ -112,68 +112,87 @@ describe('Telemetry Replay Stress Fuzzing', () => {
       let finalStateData = {};
       let currentLat = 37.7749;
       let currentLon = -122.4194;
+      let lastState = 'IDLE';
 
-      for (let i = 0; i < logData.length; i++) {
-        const entry = logData[i];
+      // 🔇 Silence the noise from the service layer during the heavy loop
+      const originalLog = console.log;
+      const originalWarn = console.warn;
+      console.log = () => {}; 
+      console.warn = () => {};
 
-        let dt = 1;
-        if (prevLogTime) {
-            let timeDiff = entry.timestamp - prevLogTime;
-            if (timeDiff < 1) {
-                entry.timestamp = prevLogTime + 1;
-                timeDiff = 1;
-            }
-            dt = timeDiff / 1000;
+      try {
+        for (let i = 0; i < logData.length; i++) {
+          const entry = logData[i];
+
+          let dt = 1;
+          if (prevLogTime) {
+              let timeDiff = entry.timestamp - prevLogTime;
+              if (timeDiff < 1) {
+                  entry.timestamp = prevLogTime + 1;
+                  timeDiff = 1;
+              }
+              dt = timeDiff / 1000;
+          }
+          prevLogTime = entry.timestamp;
+          simulatedTime = entry.timestamp; 
+          
+          // 🌪️ APPLY FUZZING (Noise)
+          const rawSpeed = entry.sensors.speed || 0;
+          const fuzzedSpeed = Math.max(0, applyNoise(rawSpeed, 0.20)); // +/- 20% speed
+          const fuzzedAccuracy = Math.max(1, applyNoise(entry.sensors.accuracy || 10, 0.50)); // +/- 50% GPS jitter
+          
+          const distanceMovedMeters = fuzzedSpeed * dt;
+          currentLat += distanceMovedMeters / 111111; 
+
+          const mockLocation = {
+              coords: {
+                  latitude: currentLat,
+                  longitude: currentLon,
+                  speed: fuzzedSpeed,
+                  accuracy: fuzzedAccuracy
+              },
+              timestamp: entry.timestamp
+          };
+
+          // 🌪️ SIMULATE SENSOR DROPOUTS
+          const isActivityDropout = Math.random() < 0.05;
+
+          if (isActivityDropout) {
+             simulateMotionActivity('UNKNOWN', 'LOW');
+          } else if (entry.sensors.activity) {
+            if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+            else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
+            else simulateMotionActivity('STATIONARY', 'HIGH');
+          } else {
+            const speedKmh = mockLocation.coords.speed * 3.6;
+            if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
+            else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
+            else simulateMotionActivity('STATIONARY', 'HIGH');
+          }
+
+          // 🌪️ BLUETOOTH DROPOUT (1% chance BT briefly disconnects while driving)
+          let btState = entry.sensors.bluetooth !== undefined ? entry.sensors.bluetooth : false;
+          if (btState && Math.random() < 0.01) {
+             btState = false; // Glitch
+          }
+          await handleLocationUpdate({ bluetoothConnected: btState }, null, true);
+
+          finalStateData = await handleLocationUpdate(mockLocation);
+          
+          // 📢 Only log actual state transitions
+          if (finalStateData.state !== lastState) {
+            originalLog(`   [HMM] ${lastState} -> ${finalStateData.state} (${((entry.timestamp - logData[0].timestamp)/1000).toFixed(0)}s)`);
+            lastState = finalStateData.state;
+          }
+
+          if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
+            finalStateData.parkingNotified = false;
+          }
         }
-        prevLogTime = entry.timestamp;
-        simulatedTime = entry.timestamp; 
-        
-        // 🌪️ APPLY FUZZING (Noise)
-        const rawSpeed = entry.sensors.speed || 0;
-        const fuzzedSpeed = Math.max(0, applyNoise(rawSpeed, 0.20)); // +/- 20% speed
-        const fuzzedAccuracy = Math.max(1, applyNoise(entry.sensors.accuracy || 10, 0.50)); // +/- 50% GPS jitter
-        
-        const distanceMovedMeters = fuzzedSpeed * dt;
-        currentLat += distanceMovedMeters / 111111; 
-
-        const mockLocation = {
-            coords: {
-                latitude: currentLat,
-                longitude: currentLon,
-                speed: fuzzedSpeed,
-                accuracy: fuzzedAccuracy
-            },
-            timestamp: entry.timestamp
-        };
-
-        // 🌪️ SIMULATE SENSOR DROPOUTS
-        const isActivityDropout = Math.random() < 0.05;
-
-        if (isActivityDropout) {
-           simulateMotionActivity('UNKNOWN', 'LOW');
-        } else if (entry.sensors.activity) {
-          if (entry.sensors.activity.automotive) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-          else if (entry.sensors.activity.walking) simulateMotionActivity('WALKING', 'HIGH');
-          else simulateMotionActivity('STATIONARY', 'HIGH');
-        } else {
-          const speedKmh = mockLocation.coords.speed * 3.6;
-          if (speedKmh > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-          else if (speedKmh > 1.5) simulateMotionActivity('WALKING', 'HIGH');
-          else simulateMotionActivity('STATIONARY', 'HIGH');
-        }
-
-        // 🌪️ BLUETOOTH DROPOUT (1% chance BT briefly disconnects while driving)
-        let btState = entry.sensors.bluetooth !== undefined ? entry.sensors.bluetooth : false;
-        if (btState && Math.random() < 0.01) {
-           btState = false; // Glitch
-        }
-        await handleLocationUpdate({ bluetoothConnected: btState }, null, true);
-
-        finalStateData = await handleLocationUpdate(mockLocation);
-        
-        if (finalStateData.state === 'WALKING' && finalStateData.parkingNotified === true) {
-          finalStateData.parkingNotified = false;
-        }
+      } finally {
+        // 🔊 Restore logging
+        console.log = originalLog;
+        console.warn = originalWarn;
       }
       
       await new Promise(resolve => setTimeout(resolve, 100));
