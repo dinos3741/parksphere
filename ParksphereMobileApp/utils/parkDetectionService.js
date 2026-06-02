@@ -448,10 +448,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
     notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
   }
-  // ✅ ROBUST CLEARING: Handle clearance if HMM signals it OR if we detect driving away
-  const shouldInstantClear = stateData.state === 'DRIVING' && stateData.parkedLocation && (prevState === 'IN_CAR' || prevState === 'STOPPED');
+  // ✅ ROBUST CLEARING: Handle clearance only when the HMM signals we have driven safely away
   
-  if (clearParkingEvent || shouldInstantClear) {
+  if (clearParkingEvent) {
     const spotIdToClear = stateData.serverSpotId;
     
     // 1. CLEAR LOCAL STATE FIRST (Ensures the app doesn't stay 'Parked' if network is slow)
