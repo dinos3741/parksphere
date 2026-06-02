@@ -69,19 +69,19 @@ export function simulateMotionActivity(type, intensity = 'HIGH') {
   if (type === 'AUTOMOTIVE') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.4 : 0.1);
     currentStepRate = 0;
-    currentActivity = { automotive: true, walking: false, stationary: false, unknown: false };
+    currentActivity = { automotive: true, walking: false, stationary: false, unknown: false, confidence: 2 };
   } else if (type === 'WALKING') {
     currentAcceleration = 1.1 + (intensity === 'HIGH' ? 0.2 : 0.05);
     currentStepRate = intensity === 'HIGH' ? 2.0 : 1.2;
-    currentActivity = { automotive: false, walking: true, stationary: false, unknown: false };
+    currentActivity = { automotive: false, walking: true, stationary: false, unknown: false, confidence: 2 };
   } else if (type === 'STATIONARY' || type === 'IDLE') {
     currentAcceleration = 1.0;
     currentStepRate = 0;
-    currentActivity = { automotive: false, walking: false, stationary: true, unknown: false };
+    currentActivity = { automotive: false, walking: false, stationary: true, unknown: false, confidence: 2 };
   } else {
     currentAcceleration = 1.0;
     currentStepRate = 0;
-    currentActivity = { automotive: false, walking: false, stationary: false, unknown: true };
+    currentActivity = { automotive: false, walking: false, stationary: false, unknown: true, confidence: 0 };
   }
 }
 
