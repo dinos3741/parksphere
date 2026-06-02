@@ -854,7 +854,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 10.0);
 
   // Trigger 'Away' logic with separate thresholds for walking vs. other vehicle
-  const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
+  // 🚀 SPEED GUARD: Only allow walking-away trigger if speed is low (< 2m/s), 
+  // preventing false triggers for non-Bluetooth drivers during departure.
+  const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && speed < 2.0 && (currentState === 'WALKING' || currentState === 'IDLE');
   const isPassengerDrivingAway = !isAway && dist > 50 && currentState === 'DRIVING' && !obs.bluetoothConnected;
 
   if (isWalkingAway || isPassengerDrivingAway) {
