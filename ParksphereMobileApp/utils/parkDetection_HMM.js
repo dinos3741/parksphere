@@ -849,14 +849,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let awayEvent = false;
 
   // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
-  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED/IDLE.
+  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED/IDLE/RETURNING.
   const hasCarPresence = obs.bluetoothConnected || 
-    (['IN_CAR', 'STOPPED', 'IDLE'].includes(currentState) && dist < 3.5) ||
-    (['IN_CAR', 'STOPPED'].includes(currentState) && dist < 8.0);
+    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 10.0);
 
-  // Trigger 'Away' if we leave the 15m radius and don't have our car with us
-  if (!isAway && dist > AWAY_THRESHOLD && !hasCarPresence) {
-    console.log(`[HMM] 📍 User left vicinity (> ${AWAY_THRESHOLD}m).`);
+  // Trigger 'Away' logic with separate thresholds for walking vs. other vehicle
+  const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
+  const isPassengerDrivingAway = !isAway && dist > 50 && currentState === 'DRIVING' && !obs.bluetoothConnected;
+
+  if (isWalkingAway || isPassengerDrivingAway) {
+    console.log(`[HMM] 📍 User left vicinity (> ${dist.toFixed(0)}m ${isPassengerDrivingAway ? 'via other vehicle' : ''})`);
     isAway = true;
     awayEvent = true;
   }
@@ -911,10 +913,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let parkedEvent = false;
 
-  // 🚀 Environment-aware thresholds
-  const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
-  const TIME_THRESH = isTest ? 5 : 10;
-  const DIST_THRESH = isTest ? 5 : 25;
+  // 🚀 Production-grade thresholds (Hardcoded for maximum reliability)
+  const TIME_THRESH = 30;
+  const DIST_THRESH = 100;
 
   const isExitEvent =
     candidate === 'WALKING' &&

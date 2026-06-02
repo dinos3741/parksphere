@@ -476,11 +476,11 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
 
-    // 2. TELL SERVER (Fire and forget, with a local retry/queue if needed later)
+    // 2. TELL SERVER (Ordered await to ensure reliable sync)
     // ✅ FIX: Cast to String to prevent TypeError if ID is an integer
     if (spotIdToClear && !String(spotIdToClear).startsWith('local-')) {
       console.log(`[ParkDetection] Attempting to free spot ${spotIdToClear} on server...`);
-      updateSpotStatus(spotIdToClear, 'free').catch(e => {
+      await updateSpotStatus(spotIdToClear, 'free').catch(e => {
         console.error('[ParkDetection] Background server sync failed:', e.message);
       });
     }

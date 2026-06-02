@@ -96,6 +96,11 @@ const executeStep = async (scenario, stepIndex, baseLocation) => {
       }
     }
 
+    // Update Bluetooth if specified
+    if (step.bluetoothConnected !== undefined) {
+      await handleLocationUpdate({ bluetoothConnected: step.bluetoothConnected }, undefined, true);
+    }
+
     await handleLocationUpdate(mockLocation);
 
     if (elapsed >= step.duration) {

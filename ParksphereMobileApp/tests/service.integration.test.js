@@ -109,12 +109,6 @@ describe('ParkDetection Service Integration', () => {
 
     console.log(`[Test] Running Scenario: ${scenario.name}`);
 
-    // 🔇 Silence the noise from the service layer during the heavy loop
-    const originalLog = console.log;
-    const originalWarn = console.warn;
-    console.log = () => {}; 
-    console.warn = () => {};
-
     try {
       for (const step of scenario.steps) {
         if (step.startDistance !== undefined) latOffset = step.startDistance * 0.000009;
@@ -123,6 +117,11 @@ describe('ParkDetection Service Integration', () => {
         if (step.speed > 10) simulateMotionActivity('AUTOMOTIVE', 'HIGH');
         else if (step.steps > 0.5) simulateMotionActivity('WALKING', 'HIGH');
         else simulateMotionActivity('STATIONARY', 'LOW');
+
+        // 🚀 NEW: Update Bluetooth if specified in step
+        if (step.bluetoothConnected !== undefined) {
+          await handleLocationUpdate({ bluetoothConnected: step.bluetoothConnected }, undefined, true);
+        }
 
         // Mock pedometer rate for this step
         const stepRateInResult = (step.steps || 0) * 8; 
@@ -149,15 +148,13 @@ describe('ParkDetection Service Integration', () => {
 
           // 📢 Only log actual state transitions
           if (finalStateData.state !== lastState) {
-            originalLog(`   [HMM] ${lastState} -> ${finalStateData.state}`);
+            console.log(`   [HMM] ${lastState} -> ${finalStateData.state}`);
             lastState = finalStateData.state;
           }
         }
       }
     } finally {
-      // 🔊 Restore logging
-      console.log = originalLog;
-      console.warn = originalWarn;
+      // 🔊 No logging restoration needed
     }
 
     // --- VALIDATION ---
