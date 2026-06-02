@@ -816,49 +816,24 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // ==============================
-  // 🚗 PARKING EVENT DETECTION
-  // ==============================
-  let parkedEvent = false;
-
-  const isExitEvent =
-    candidate === 'WALKING' &&
-    walkingConfirmed &&
-    ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
-    _tripDrivingTime >= 30 &&
-    _tripDrivingDistance >= 100; // 🚀 Production thresholds
-
-  
-  if (isExitEvent) {
-    console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
-    parkedEvent = true;
-    _tripDrivingTime = 0; 
-    _tripDrivingDistance = 0; 
-    _lastTripX = null;
-    _lastTripY = null;
-  }
-
-  // ==============================
-  // 🛑 CLEAR PARKING EVENT
-  // ==============================
-  let clearParkingEvent = false;
-
-  if (parkedLocation && currentState === 'DRIVING' && _tripDrivingTime >= 5 && dist > 25) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Sustained driving away from spot detected (>25m).`);
-    clearParkingEvent = true;
-  }
-
-  // ==============================
   // 📍 AWAY EVENT DETECTION
   // ==============================
   let awayEvent = false;
-  if (!isAway && dist > AWAY_THRESHOLD && (currentState === 'WALKING' || currentState === 'IDLE')) {
-    console.log(`[HMM] 📍 User left vicinity (> ${AWAY_THRESHOLD}m)`);
+
+  // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
+  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED.
+  const hasCarPresence = bluetoothConnected || (currentState === 'IN_CAR' && dist < 8) || (currentState === 'STOPPED' && dist < 8);
+
+  // Trigger 'Away' if we leave the 15m radius and don't have our car with us
+  if (!isAway && dist > AWAY_THRESHOLD && !hasCarPresence) {
+    console.log(`[HMM] 📍 User left vicinity (> ${AWAY_THRESHOLD}m).`);
     isAway = true;
     awayEvent = true;
   }
 
-  if (isAway && (currentState === 'IN_CAR' || (currentState === 'DRIVING' && dist < 20))) {
-    console.log('[HMM] 🏠 User back at car. Resetting isAway flag.');
+  // Reset 'Away' only when we establish presence with OUR car again
+  if (isAway && hasCarPresence) {
+    console.log('[HMM] 🏠 User back at car (Presence established). Resetting isAway flag.');
     isAway = false;
     _proximityCounter = 0;
   }
@@ -868,7 +843,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🚀 FIX: Require at least 3 samples of close proximity to reset isAway, preventing GPS bounces.
   if (isAway && dist < 8) {
     _proximityCounter++;
-    if (_proximityCounter >= 3 || currentState === 'IN_CAR') { 
+    if (_proximityCounter >= 3) { 
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway.');
       isAway = false;
       _proximityCounter = 0;
@@ -899,6 +874,42 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
         currentState = candidate;
       }
     }
+  }
+
+  // ==============================
+  // 🚗 PARKING EVENT DETECTION
+  // ==============================
+  let parkedEvent = false;
+
+  const isExitEvent =
+    candidate === 'WALKING' &&
+    walkingConfirmed &&
+    ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
+    _tripDrivingTime >= 30 &&
+    _tripDrivingDistance >= 100; // 🚀 Production thresholds
+
+  
+  if (isExitEvent) {
+    console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
+    parkedEvent = true;
+    _tripDrivingTime = 0; 
+    _tripDrivingDistance = 0; 
+    _lastTripX = null;
+    _lastTripY = null;
+    isAway = false; // 🚀 FIX: Reset for new session
+  }
+
+  // ==============================
+  // 🛑 CLEAR PARKING EVENT
+  // ==============================
+  let clearParkingEvent = false;
+
+  // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
+  // If isAway is true, it means we never established presence (walked within 8m)
+  // before starting this driving trip, so we must be in a different vehicle.
+  if (parkedLocation && currentState === 'DRIVING' && !isAway && dist > 25 && _tripDrivingTime >= 5) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (>25m).`);
+    clearParkingEvent = true;
   }
 
   return {
