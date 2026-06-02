@@ -438,6 +438,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
   if (parkedEvent && !stateData.parkingNotified) {
     const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
+    
+    // 🚀 FIX: Clear the candidate so it doesn't bleed into future events
+    stateData.stoppedCandidateLocation = null;
 
     const spotId = await declareSpot(finalParkedLoc);
 
