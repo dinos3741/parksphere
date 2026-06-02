@@ -352,7 +352,7 @@ function logSigmoid(x, midpoint, steepness) {
 // EMISSION MODEL
 // ==============================
 const RETURN_ZONE_RADIUS = 100; 
-const AWAY_THRESHOLD = 8;
+const AWAY_THRESHOLD = 15;
 
 function emissionLogProb(state, obs) {
   const { speed, stepRate, accel, dist, deltaRate, accuracy, approachAlignment, pgr, slope, pgrConsistency, activity, isPhysicallyStill, bluetoothConnected, spectralFeatures } = obs;
@@ -865,15 +865,15 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PROXIMITY RESET: If the user is near the car for a sustained time but NOT in it
   // reset isAway to close the gate for 'RETURNING' flips.
   // 🚀 FIX: Require at least 3 samples of close proximity to reset isAway, preventing GPS bounces.
-  if (isAway && dist < 10) {
+  if (isAway && dist < 8) {
     _proximityCounter++;
     if (_proximityCounter >= 3 || currentState === 'IN_CAR') { 
       console.log('[HMM] 🧘 Sustained proximity detected. Resetting isAway.');
       isAway = false;
       _proximityCounter = 0;
     }
-  } else if (isAway && dist >= 10 && dist < 25) {
-     // Still track long-term proximity for intent gating
+  } else if (isAway && dist >= 8 && dist < AWAY_THRESHOLD) {
+     // Still track long-term proximity for intent gating in the dead zone
      _proximityCounter++;
      if (_proximityCounter >= 20) {
         console.log('[HMM] 🧘 Long-term proximity detected (>100s). Resetting isAway.');
