@@ -439,7 +439,8 @@ function emissionLogProb(state, obs) {
   }
   else if (isWalkingState) {
     logp += logGaussian(speed, 2.5, 4.0) * gpsWeight;
-    if (state === 'WALKING') logp += 1.0; 
+    // 🚀 FIX: Removed the arbitrary +1.0 bonus to WALKING. Both states now start on equal 
+    // footing, allowing RETURNING to win purely based on directional intent.
   } 
   else {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
