@@ -463,6 +463,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.isAway = false;
     stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
+    stateData.soonFreeNotified = false; // 🚀 FIX: Clear soonFreeNotified so it fires again for the next parking session
     resetPGRHistory();
     
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
