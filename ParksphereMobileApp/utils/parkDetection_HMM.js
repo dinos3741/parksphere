@@ -198,6 +198,8 @@ function metersToLatLon(x, y) {
 const positionFilter = new Kalman2D();
 let lastTimestamp = null;
 let smoothedDeltaRate = 0;
+let smoothedStepRate = 0; 
+
 
 // ==============================
 // SLIDING WINDOW FOR PROGRESS
@@ -444,6 +446,13 @@ function emissionLogProb(state, obs) {
   } 
   else {
     logp += logGaussian(speed, 0, 1.5) * gpsWeight;
+
+    // 🚀 IDLE GATING: Penalize IDLE state if we are moving significantly.
+    // This prevents IDLE from "winning" during WALKING pauses or slow driving.
+    if (state === 'IDLE' && speed > 1.5) {
+       logp -= 10.0 * gpsWeight;
+    }
+
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 6) * gpsWeight;
       if (dist > 10) logp -= (15 * gpsWeight);
@@ -589,6 +598,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   _lastTripX = supplemental.lastTripX !== undefined ? supplemental.lastTripX : null;
   _lastTripY = supplemental.lastTripY !== undefined ? supplemental.lastTripY : null;
   _proximityCounter = supplemental.proximityCounter || 0;
+  smoothedStepRate = supplemental.smoothedStepRate || 0;
 
   const now = Date.now();
   let dt = 1;
@@ -665,7 +675,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   // 🛡️ THE DESK GUARD: If phone is perfectly still (magnitude ~1.0g and no steps), it's on a surface
-  const stepRate = supplemental.step_rate || 0;
+  const rawStepRate = supplemental.step_rate || 0;
+  
+  // 🚀 STEP MEMORY (EMA): Smooth out 1-2 second gaps in pedometer data
+  // Using alpha=0.4 gives ~4s of memory.
+  const stepAlpha = 0.4;
+  smoothedStepRate = stepAlpha * rawStepRate + (1 - stepAlpha) * (smoothedStepRate || 0);
+  const stepRate = smoothedStepRate;
+
   const accel = supplemental.acceleration_magnitude || 1;
   
   // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.025g) AND speed is low (< 1m/s), 
@@ -980,6 +997,7 @@ export function resetHMM() {
   positionFilter.lastTime = null;
 
   smoothedDeltaRate = 0;
+  smoothedStepRate = 0;
   lastTimestamp = null;
   progressHistory = []; 
   pgrHistory = [];      
