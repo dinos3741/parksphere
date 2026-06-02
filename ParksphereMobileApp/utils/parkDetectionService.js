@@ -774,9 +774,9 @@ export const startParkDetection = async () => {
       if (!started) {
         console.log('[ParkDetection] Starting background location updates...');
         await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-          accuracy: Location.Accuracy.Balanced, 
-          timeInterval: 5000, 
-          deferredUpdatesInterval: 5000, 
+          accuracy: Location.Accuracy.High, // 🚀 Upgraded to High for better low-speed resolution
+          timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
+          deferredUpdatesInterval: 2000,
           showsBackgroundLocationIndicator: true,
         });
         notify(`Background HMM detection started. State: ${currentState}`);
