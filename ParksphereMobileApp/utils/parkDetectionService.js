@@ -365,7 +365,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     tripDrivingDistance: stateData.tripDrivingDistance,
     lastTripX: stateData.lastTripX,
     lastTripY: stateData.lastTripY,
-    proximityCounter: stateData.proximityCounter
+    proximityCounter: stateData.proximityCounter,
+    smoothedDeltaRate: stateData.smoothedDeltaRate,
+    smoothedStepRate: stateData.smoothedStepRate
   });
 
   // 📡 Telemetry: Record snapshot for offline analysis
@@ -402,7 +404,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     tripDrivingDistance,
     lastTripX,
     lastTripY,
-    proximityCounter
+    proximityCounter,
+    smoothedDeltaRate,
+    smoothedStepRate
   } = hmmResult;
 
   if (location.forcePark) {
@@ -430,6 +434,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   stateData.lastTripX = lastTripX;
   stateData.lastTripY = lastTripY;
   stateData.proximityCounter = proximityCounter;
+  stateData.smoothedDeltaRate = smoothedDeltaRate;
+  stateData.smoothedStepRate = smoothedStepRate;
 
   if (awayEvent && !stateData.vicinityNotified) {
     stateData.vicinityNotified = true;
