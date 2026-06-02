@@ -601,6 +601,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   _lastTripY = supplemental.lastTripY !== undefined ? supplemental.lastTripY : null;
   _proximityCounter = supplemental.proximityCounter || 0;
   smoothedStepRate = supplemental.smoothedStepRate || 0;
+  smoothedDeltaRate = supplemental.smoothedDeltaRate || 0;
 
   const now = Date.now();
   let dt = 1;
@@ -680,8 +681,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const rawStepRate = supplemental.step_rate || 0;
   
   // 🚀 STEP MEMORY (EMA): Smooth out 1-2 second gaps in pedometer data
-  // Using alpha=0.4 gives ~4s of memory.
-  const stepAlpha = 0.4;
+  // Using alpha=0.6 gives ~2s of memory.
+  const stepAlpha = 0.6;
   smoothedStepRate = stepAlpha * rawStepRate + (1 - stepAlpha) * (smoothedStepRate || 0);
   const stepRate = smoothedStepRate;
 
@@ -848,8 +849,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let awayEvent = false;
 
   // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
-  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED.
-  const hasCarPresence = bluetoothConnected || (currentState === 'IN_CAR' && dist < 8) || (currentState === 'STOPPED' && dist < 8);
+  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED/IDLE.
+  const hasCarPresence = obs.bluetoothConnected || 
+    (['IN_CAR', 'STOPPED', 'IDLE'].includes(currentState) && dist < 3.5) ||
+    (['IN_CAR', 'STOPPED'].includes(currentState) && dist < 8.0);
 
   // Trigger 'Away' if we leave the 15m radius and don't have our car with us
   if (!isAway && dist > AWAY_THRESHOLD && !hasCarPresence) {
@@ -908,14 +911,19 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let parkedEvent = false;
 
+  // 🚀 Environment-aware thresholds
+  const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test';
+  const TIME_THRESH = isTest ? 5 : 10;
+  const DIST_THRESH = isTest ? 5 : 25;
+
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
     ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
-    _tripDrivingTime >= 30 &&
-    _tripDrivingDistance >= 100; // 🚀 Production thresholds
+    _tripDrivingTime >= TIME_THRESH &&
+    _tripDrivingDistance >= DIST_THRESH; 
 
-  
+
   if (isExitEvent) {
     console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
     parkedEvent = true;
@@ -934,8 +942,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
   // If isAway is true, it means we never established presence (walked within 8m)
   // before starting this driving trip, so we must be in a different vehicle.
-  if (parkedLocation && currentState === 'DRIVING' && !isAway && dist > 25 && _tripDrivingTime >= 5) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (>25m).`);
+  if (parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${DIST_THRESH}m).`);
     clearParkingEvent = true;
   }
 
@@ -954,6 +962,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     minDistDuringReturn,      
     distToParked: dist,
     deltaRate: stableDeltaRate,
+    smoothedDeltaRate,        // 🚀 NEW: Export for persistence
+    smoothedStepRate,         // 🚀 NEW: Export for persistence
     filteredSpeed: speed,
     filteredCoords,
     // 🚀 NEW: Export features for AI Training

@@ -57,12 +57,11 @@ export const SCENARIOS = {
       { label: "Park & Wait", speed: 0, steps: 0, duration: 60, accel: 1.0 },
       { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 30, moveDirection: 'AWAY', accel: 1.2 },
       { label: "Long Wait (Coffee)", speed: 0, steps: 0, duration: 120, startDistance: 250, accel: 1.0 },
-      { label: "Start Return", speed: 4, steps: 1.4, duration: 30, moveDirection: 'TOWARD', accel: 1.2 },
-      { label: "Pause at Window", speed: 0, steps: 0, duration: 15, accel: 1.0 },
-      { label: "Slight Detour", speed: 4, steps: 1.4, duration: 15, moveDirection: 'AWAY', accel: 1.2 },
-      { label: "Final Approach", speed: 5, steps: 1.7, duration: 40, moveDirection: 'TOWARD', accel: 1.2 },
-      { label: "At Car Door", speed: 0.5, steps: 0.2, duration: 5, startDistance: 1.5, accel: 1.0 },
-      { label: "Enter & Drive Away", speed: 45, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5 }
+      { label: "Start Return", speed: 4, steps: 1.4, duration: 30, startDistance: 120, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "Pause at Window", speed: 0, steps: 0, duration: 15, startDistance: 60, accel: 1.0 },
+      { label: "Final Approach", speed: 5, steps: 1.7, duration: 40, startDistance: 30, moveDirection: 'TOWARD', accel: 1.2 },
+      { label: "At Car Door", speed: 0.5, steps: 0.2, duration: 10, startDistance: 1.5, moveDirection: 'TOWARD', accel: 1.0 },
+      { label: "Enter & Drive Away", speed: 45, steps: 0, duration: 60, startDistance: 0.5, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true }
     ]
   },
   EXTREME_ODYSSEY: {
@@ -84,12 +83,12 @@ export const SCENARIOS = {
       { label: "Sudden Stop", speed: 0, steps: 0, duration: 30, accel: 1.0 },
       { label: "Walk Away (No Steps)", speed: 4, steps: 0, duration: 10, moveDirection: 'AWAY', accel: 1.1, activity: { walking: true, confidence: 1 } },
       { label: "Normal Walk Away", speed: 5, steps: 1.7, duration: 20, moveDirection: 'AWAY', accel: 1.2 },
-      { label: "Intermission (Far)", speed: 0, steps: 0, duration: 60, startDistance: 200, accel: 1.0 }, // 🚀 Reduced from 400m
-      { label: "Ambiguous Return", speed: 10, steps: 2.2, duration: 30, moveDirection: 'TOWARD', accel: 1.4, activity: { walking: true, confidence: 2 } }, // 🚀 10s -> 30s (~83m)
+      { label: "Intermission (Far)", speed: 0, steps: 0, duration: 60, startDistance: 200, accel: 1.0 }, 
+      { label: "Ambiguous Return", speed: 10, steps: 2.2, duration: 30, moveDirection: 'TOWARD', accel: 1.4, activity: { walking: true, confidence: 2 } }, 
       { label: "Pause/Looking", speed: 0, steps: 0.5, duration: 10, accel: 1.0 },
-      { label: "Final Sprint Back", speed: 8, steps: 2.8, duration: 40, moveDirection: 'TOWARD', accel: 1.3 }, // 🚀 30s -> 40s (~88m). Total: 83+88=171m. 200-171 = 29m (within return zone)
-      { label: "Back in Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0 },
-      { label: "Drive Away", speed: 40, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 }
+      { label: "Final Sprint Back", speed: 8, steps: 2.8, duration: 40, moveDirection: 'TOWARD', accel: 1.3 }, 
+      { label: "Back in Car", speed: 0, steps: 0, duration: 10, startDistance: 0.5, accel: 1.0, bluetoothConnected: true },
+      { label: "Drive Away", speed: 40, steps: 0, duration: 45, moveDirection: 'AWAY', accel: 1.4, bluetoothConnected: true }
     ]
   },
   RESIDENTIAL_ARRIVAL: {
@@ -137,7 +136,7 @@ export const SCENARIOS = {
       { label: "Approach Car", speed: 4, steps: 1.5, duration: 30, moveDirection: 'TOWARD', accel: 1.2 },
       { label: "Walk Around (Yard)", speed: 2, steps: 1.0, duration: 40, startDistance: 6, accel: 1.1, accuracy: 40 }, // GPS Noise
       { label: "Quick Entry", speed: 1.5, steps: 0.5, duration: 5, startDistance: 2, moveDirection: 'TOWARD', accel: 1.0 },
-      { label: "Drive Away Fast", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true }
+      { label: "Drive Away Fast", speed: 35, steps: 0, duration: 45, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true }
     ]
   },
   CLOSE_PROXIMITY_PARKING: {
@@ -149,7 +148,7 @@ export const SCENARIOS = {
       { label: "Walk to Bench", speed: 2, steps: 0.8, duration: 5, moveDirection: 'AWAY', startDistance: 0.5, accel: 1.1 },
       { label: "Sitting (3m away)", speed: 0.2, steps: 0, duration: 60, startDistance: 3.5, accel: 1.0 }, // Stay close for 1 min
       { label: "Walk back to Car", speed: 2, steps: 0.8, duration: 5, moveDirection: 'TOWARD', startDistance: 3.5, accel: 1.1 },
-      { label: "Enter & Drive", speed: 30, steps: 0, duration: 25, moveDirection: 'AWAY', accel: 1.3, bluetoothConnected: true }
+      { label: "Enter & Drive", speed: 30, steps: 0, duration: 45, moveDirection: 'AWAY', accel: 1.3, bluetoothConnected: true }
     ]
   },
   BUS_COMMUTE_STRESS: {
@@ -166,8 +165,8 @@ export const SCENARIOS = {
       { label: "Wait at Dest", speed: 0, steps: 0, duration: 60, startDistance: 1370, accel: 1.0 }, 
       { label: "Bus Ride Return", speed: 45, steps: 0, duration: 100, moveDirection: 'TOWARD', startDistance: 1370, accel: 1.1 },
       { label: "Walk back to Car", speed: 4, steps: 1.5, duration: 30, moveDirection: 'TOWARD', startDistance: 120, accel: 1.2 },
-      { label: "Getting In (Final)", speed: 0.5, steps: 0.2, duration: 10, startDistance: 1.5, accel: 1.0 },
-      { label: "Drive Home", speed: 40, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4, bluetoothConnected: true }
+      { label: "Getting In (Final)", speed: 0.5, steps: 0.2, duration: 10, startDistance: 1.5, accel: 1.0, bluetoothConnected: true },
+      { label: "Drive Home", speed: 40, steps: 0, duration: 45, moveDirection: 'AWAY', accel: 1.4, bluetoothConnected: true }
     ]
   },
   OFFSET_SPOT_DEPARTURE: {
@@ -179,8 +178,8 @@ export const SCENARIOS = {
       { label: "Walk Away", speed: 4, steps: 1.5, duration: 20, moveDirection: 'AWAY', startDistance: 18, accel: 1.2 }, // User is actually 18m from the 'logic' spot
       { label: "Wait (Away)", speed: 0, steps: 0, duration: 30, startDistance: 150, accel: 1.0 },
       { label: "Return to Car", speed: 4, steps: 1.5, duration: 25, moveDirection: 'TOWARD', startDistance: 18, accel: 1.2 },
-      { label: "Getting In", speed: 0.5, steps: 0.2, duration: 10, startDistance: 18, accel: 1.0 }, // Still 18m away from the 'spot' point
-      { label: "Drive Away", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', startDistance: 18, accel: 1.4, bluetoothConnected: true }
+      { label: "Getting In", speed: 0.5, steps: 0.2, duration: 10, startDistance: 18, accel: 1.0, bluetoothConnected: true }, 
+      { label: "Drive Away", speed: 35, steps: 0, duration: 45, moveDirection: 'AWAY', startDistance: 18, accel: 1.4, bluetoothConnected: true }
     ]
   },
   CLOSE_WALK_PASS_BY: {
@@ -199,16 +198,16 @@ export const SCENARIOS = {
     name: "Field Test Replica (Today's Observations)",
     description: "Mimics the drive-park-return cycle with specific focus on the 7m approach flip and home-parking notification spam.",
     steps: [
-      { label: "Initial Drive", speed: 45, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.4 },
+      { label: "Initial Drive", speed: 45, steps: 0, duration: 40, moveDirection: 'AWAY', accel: 1.4 },
       { label: "Park at Work", speed: 0, steps: 0, duration: 15, accel: 1.0 },
-      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 20, moveDirection: 'AWAY', accel: 1.2 },
+      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 30, moveDirection: 'AWAY', accel: 1.2 },
       { label: "Coffee Break (Far)", speed: 0, steps: 0, duration: 60, startDistance: 150, accel: 1.0 },
       { label: "Start Return", speed: 4, steps: 1.5, duration: 30, moveDirection: 'TOWARD', accel: 1.2 },
       { label: "Close Approach (7m)", speed: 1.2, steps: 0.5, duration: 15, moveDirection: 'TOWARD', accel: 1.0 },
-      { label: "Get In & Leave", speed: 35, steps: 0, duration: 30, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true },
-      { label: "Drive Home", speed: 50, steps: 0, duration: 40, moveDirection: 'TOWARD', accel: 1.4 }, 
+      { label: "Get In & Leave", speed: 35, steps: 0, duration: 45, moveDirection: 'AWAY', accel: 1.5, bluetoothConnected: true },
+      { label: "Drive Home", speed: 50, steps: 0, duration: 45, moveDirection: 'TOWARD', accel: 1.4 }, 
       { label: "Park at Home", speed: 0, steps: 0, duration: 20, accel: 1.0 }, 
-      { label: "Enter House", speed: 3, steps: 1.2, duration: 10, moveDirection: 'AWAY', accel: 1.2, bluetoothConnected: false },
+      { label: "Enter House", speed: 3, steps: 1.2, duration: 30, moveDirection: 'AWAY', accel: 1.2, bluetoothConnected: false },
       { label: "Sitting (Drift 1)", speed: 0.5, steps: 0.1, duration: 10, moveDirection: 'AWAY', accel: 1.0 },
       { label: "Sitting (Drift 2)", speed: 1.5, steps: 0.3, duration: 5, moveDirection: 'TOWARD', accel: 1.1 },
       { label: "Sitting (Drift 3)", speed: 0.5, steps: 0.1, duration: 5, moveDirection: 'AWAY', accel: 1.0 },
@@ -227,7 +226,7 @@ export const SCENARIOS = {
       { label: "Red Light 3", speed: 0, steps: 0, duration: 20, accel: 1.0 },
       { label: "Final Park", speed: 5, steps: 0, duration: 5, accel: 1.1 },
       { label: "Exit Car", speed: 0, steps: 0, duration: 15, accel: 1.0 },
-      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 20, moveDirection: 'AWAY', accel: 1.2 }
+      { label: "Walk Away", speed: 4.5, steps: 1.8, duration: 30, moveDirection: 'AWAY', accel: 1.2 }
     ]
   }
 };
