@@ -453,18 +453,20 @@ function emissionLogProb(state, obs) {
        logp -= 10.0 * gpsWeight;
     }
 
+    if (state === 'IN_CAR' || state === 'STOPPED') {
+      if (dist < 10) {
+        logp += 2.0 * gpsWeight; // 🚀 Leveling the field between STOPPED and IN_CAR
+        if (state === 'IN_CAR' && isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
+           logp += 20.0; 
+        }
+      }
+    }
+
     if (state === 'IN_CAR') {
       logp += logGaussian(dist, 0, 6) * gpsWeight;
       if (dist > 10) logp -= (15 * gpsWeight);
       logp += logGaussian(speed, 0.5, 2) * gpsWeight;
       if (stepRate > 1.2) logp -= 5; 
-      
-      if (dist < 10) {
-        logp += 5.0; 
-        if (isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
-           logp += 20.0; 
-        }
-      }
     }
   }
 
