@@ -735,6 +735,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   belief = updateBelief(belief, obs, context);
 
+  // 🛡️ INTENT STICKINESS: If user is locked into RETURNING, prevent total belief collapse
+  // from a single jittery frame. This ensures the state stays viable through noise.
+  if (isReturningIntentLocked && belief['RETURNING'] < 0.2) {
+    belief['RETURNING'] = 0.2;
+    const total = Object.values(belief).reduce((a, b) => a + b, 0);
+    for (const s of STATES) belief[s] /= total; // Re-normalize
+  }
+
   // ==============================
   // STABILITY GUARD: Hysteresis Threshold
   // ==============================
