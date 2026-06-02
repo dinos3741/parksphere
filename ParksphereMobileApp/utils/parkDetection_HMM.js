@@ -22,15 +22,18 @@ export const A = {
   IDLE: {
     IDLE: 0.55,      
     WALKING: 0.2, 
-    RETURNING: 0.15, // 🚀 Slightly easier to start returning from a pause
+    RETURNING: 0.15, 
     IN_CAR: 0.05,
-    DRIVING: 0.05
+    DRIVING: 0.04,
+    STOPPED: 0.01
   },
   WALKING: {
     WALKING: 0.55, 
     IDLE: 0.1,
-    DRIVING: 0.05,   
-    RETURNING: 0.3   // 🚀 Increased from 0.25 to be more responsive to intent
+    DRIVING: 0.03,   
+    RETURNING: 0.3,
+    IN_CAR: 0.01,
+    STOPPED: 0.01
   },
   DRIVING: {
     DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
@@ -253,19 +256,12 @@ export function resetPGRHistory() {
 function isTransitionAllowed(from, to, context) {
   const { hasParkedLocation, isAway, activity, speed, stepRate, isPhysicallyStill, dist, deltaRate, bluetoothConnected } = context;
 
-  // 🛡️ ESCAPE HATCH: Always allow staying in the current state UNLESS we are physically still.
-  // This prevents the system from getting stuck in movement states while on a desk/seat.
-  if (from === to) {
-    if (isPhysicallyStill && ['DRIVING', 'WALKING'].includes(from)) return false;
-    return true;
-  }
+  // 🛡️ ESCAPE HATCH: Removed. We now rely entirely on the emission probabilities 
+  // (-40 penalty for movement states) when isPhysicallyStill is true.
+
 
   // 🚶 WALKING Rules
   if (to === 'WALKING' && from !== 'WALKING') {
-    // 🛡️ PROXIMITY LOCK: If we were RETURNING and are within 10m, don't allow flipping back to WALKING.
-    // This forces the system to either stay RETURNING or enter IN_CAR/DRIVING.
-    if (from === 'RETURNING' && dist < 10) return false;
-
     const hasSteps = stepRate >= 0.05;
     const hasWalkingActivity = activity && activity.walking;
     if (!hasSteps && !hasWalkingActivity) return false;
@@ -276,35 +272,39 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'DRIVING' && from !== 'DRIVING') {
     const hasAutomotiveActivity = activity && activity.automotive && activity.confidence >= 1;
     const hasBT = context.bluetoothConnected;
+    const hasStrongCarSignal = hasBT || hasAutomotiveActivity;
 
-    // 🚀 HARD NOISE FLOOR: No driving transitions allowed under 10 km/h. Period.
-    // This protects against GPS drift and vibrating surfaces.
-    if (speed < 10) return false;
+    // 🚀 HARD NOISE FLOOR: 
+    // If we have proof of being in a car (BT/Activity), lower the floor to catch slow maneuvers (2.5 km/h).
+    // Otherwise, require 10 km/h to protect against GPS drift and vibrating surfaces.
+    const speedFloor = hasStrongCarSignal ? 2.5 : 10;
+    if (speed < speedFloor) return false;
 
     // 🛡️ DRIFT GUARD: Between 10 and 20 km/h, we REQUIRE evidence (BT or Vibrations).
     // Above 20 km/h, we trust GPS speed alone.
-    if (speed < 20 && !hasBT && !hasAutomotiveActivity) return false;
+    if (speed < 20 && !hasStrongCarSignal) return false;
 
     // 1. Restore absolute block: If taking steps, we are NOT driving. Period.
     if (stepRate > 0.35) return false; 
     
     // 2. IDLE -> DRIVING needs a clear speed signal (15km/h) or proof of vehicle
-    if (from === 'IDLE' && speed < 15 && !hasAutomotiveActivity && !hasBT) return false; 
+    if (from === 'IDLE' && speed < 15 && !hasStrongCarSignal) return false; 
     
     // WALKING -> DRIVING needs higher speed (25km/h) or proof of vehicle
-    if (from === 'WALKING' && speed < 25 && !hasAutomotiveActivity && !hasBT) return false;
+    if (from === 'WALKING' && speed < 25 && !hasStrongCarSignal) return false;
   }
 
   // 🛑 STOPPED Rules
   if (to === 'STOPPED' && from !== 'STOPPED') {
-    // Only allow entering STOPPED if we were actually DRIVING
-    if (from !== 'DRIVING') return false;
+    const hasStrongCarSignal = context.bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
+    // Allow entering STOPPED from DRIVING, OR from IDLE/IN_CAR if we have proof of vehicle
+    if (from !== 'DRIVING' && !(['IDLE', 'IN_CAR'].includes(from) && hasStrongCarSignal)) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
   if (to === 'RETURNING' && !isAway) return false;
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
-  if (to === 'RETURNING' && dist < 0.5) return false;
+  if (to === 'RETURNING' && dist < 1.0) return false;
 
   if (to === 'IN_CAR' && !hasParkedLocation) return false;
   if (to === 'IN_CAR' && from !== 'IN_CAR') {
@@ -363,13 +363,14 @@ function emissionLogProb(state, obs) {
   let gpsWeight = 1.0;
   if (accuracy > 20) gpsWeight = Math.max(0.2, 20 / accuracy);
 
-  const isStationaryState = ['IDLE', 'STOPPED', 'IN_CAR'].includes(state);
+  const isStationaryState = ['IDLE', 'IN_CAR'].includes(state);
+  const isVehicleState = ['DRIVING', 'STOPPED'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
   // 🚀 BLUETOOTH / AUTOMOTIVE SIGNAL (The "Golden" Signals)
   const hasStrongCarSignal = bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
   if (hasStrongCarSignal) {
-    if (state === 'IN_CAR' || state === 'DRIVING') {
+    if (isVehicleState || state === 'IN_CAR') {
       logp += 15.0; // 🚀 Increased boost for vehicle presence
     } else {
       logp -= 15.0; // 🚀 Increased penalty for WALKING/RETURNING while in car
@@ -388,7 +389,7 @@ function emissionLogProb(state, obs) {
       if (spectralEntropy > 0 && spectralEntropy < 0.6) logp += 5.0;
     }
 
-    if (state === 'DRIVING' || state === 'STOPPED') {
+    if (isVehicleState) {
       // 🚗 Boost if we detect engine/road vibrations in the 10-25Hz band
       logp += (vehicleEnergy * 12.0);
       // Road/Engine noise is often more chaotic (higher entropy) than walking
@@ -411,15 +412,18 @@ function emissionLogProb(state, obs) {
 
     if (!unknown) {
       // Balanced boosts (Maxes out around +10)
-      if (state === 'DRIVING' && automotive) logp += (5.0 * activityWeight);
+      if (isVehicleState && automotive) logp += (5.0 * activityWeight);
       if (isWalkingState && walking) logp += (5.0 * activityWeight);
       if (isStationaryState && stationary) logp += (4.0 * activityWeight);
+      if (state === 'STOPPED' && stationary) logp += (4.0 * activityWeight); // STOPPED can also be physically stationary
       
       // Balanced penalties (Maxes out around -16)
       if (confidence >= 1) {
-        if (state === 'DRIVING' && (walking || stationary)) logp -= (8.0 * activityWeight);
+        if (isVehicleState && walking) logp -= (8.0 * activityWeight);
+        if (state === 'DRIVING' && stationary) logp -= (8.0 * activityWeight);
         if (isWalkingState && (automotive || stationary)) logp -= (8.0 * activityWeight);
         if (isStationaryState && (automotive || walking)) logp -= (8.0 * activityWeight);
+        if (state === 'STOPPED' && walking) logp -= (8.0 * activityWeight);
       }
     }
   }
@@ -819,8 +823,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     candidate === 'WALKING' &&
     walkingConfirmed &&
     ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
-    _tripDrivingTime >= 5 &&
-    _tripDrivingDistance >= 5; // 🚀 Reduced thresholds for simulation testing
+    _tripDrivingTime >= 30 &&
+    _tripDrivingDistance >= 100; // 🚀 Production thresholds
+
   
   if (isExitEvent) {
     console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
