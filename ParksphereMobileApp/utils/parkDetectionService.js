@@ -268,8 +268,14 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
   // 🚀 If this is a Bluetooth event, just update the state variable
   if (isBluetoothUpdate) {
+    const prevState = lastBluetoothState;
     lastBluetoothState = arg1.bluetoothConnected;
     console.log(`[ParkDetection] Bluetooth state updated to: ${lastBluetoothState}`);
+    
+    // 🔔 Notify user on connection
+    if (lastBluetoothState && !prevState) {
+      notify('🚗 Connected to car Bluetooth');
+    }
     return;
   }
 
