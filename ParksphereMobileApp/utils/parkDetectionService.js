@@ -511,6 +511,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     deltaRate: hmmResult.deltaRate || 0
   };
 
+  const aiConfidence = await predictReturning(aiFeatures);
+
   // ==============================
   // 🚀 UNIFIED RETURNING CONFIDENCE (FUSION)
   // ==============================
