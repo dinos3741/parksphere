@@ -883,7 +883,7 @@ export const resetParkDetection = async () => {
       }
     });
 
-    notify('Park detection engine reset.');
+    notify('Park detection engine reset.', { clearParkedLocation: true });
   } catch (e) {
     console.error('[ParkDetection] Failed to clear persisted state:', e.message);
     notify('Error resetting park detection engine.');
