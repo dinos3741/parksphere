@@ -500,25 +500,28 @@ function emissionLogProb(state, obs) {
 
   // DIRECTION/DISTANCE (GPS)
   if (state === 'RETURNING') {
-    logp += logSigmoid(RETURN_ZONE_RADIUS - dist, 0, 0.05) * gpsWeight; 
-    
+    // 🚀 THE PROXIMITY RAMP: Increase reward linearly as we get closer (max +10 at 0m)
+    // This acts as a 'safety floor' that gets stronger as the distance to the car closes.
+    const proximityRamp = Math.max(0, 1.0 - (dist / RETURN_ZONE_RADIUS));
+    logp += (proximityRamp * 10.0) * gpsWeight;
+
     // 🚀 FIX: Use Sigmoid instead of Gaussian for deltaRate. 
     // We want to favor ANY negative delta (approaching), and the faster the better.
-    // Gaussian was penalizing "fast" approaches because they were far from the mean.
     logp += logSigmoid(-deltaRate, 0.2, 5.0) * 12.0 * gpsWeight; 
 
     const proximityWeight = Math.max(0.2, 1.0 - (dist / RETURN_ZONE_RADIUS));
 
     let directionalScore = 0;
-    if (pgr > 0) directionalScore += (pgr * 8.0); // 🚀 Boosted from 4.0
-    else directionalScore += (pgr * 12.0); // 🚀 Penalize moving away more
+    if (pgr > 0) directionalScore += (pgr * 8.0); 
+    else directionalScore += (pgr * 12.0); 
 
-    if (approachAlignment > 0) directionalScore += (approachAlignment * 5.0); // 🚀 Boosted from 3.0
+    if (approachAlignment > 0) directionalScore += (approachAlignment * 5.0); 
     else directionalScore += (approachAlignment * 8.0); 
 
     const consistentScore = directionalScore * Math.pow(pgrConsistency, 1.5);
     logp += (consistentScore * proximityWeight) * gpsWeight;
     if (slope > 0.01) logp += (slope * 50.0 * proximityWeight) * gpsWeight; 
+
     if (isReturningIntentLocked) logp += (10.0 * TEMP); 
   }
 

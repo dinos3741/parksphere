@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
+import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, resetParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
 import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
+import { useAuth } from '../context/AuthContext';
 
 const pan = new Animated.ValueXY({ x: 10, y: 400 });
 
 const DebugSimulator = ({ userLocation }) => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
+  const { logout } = useAuth();
   const zIndex = activeOverlay === 'Debug' ? 11 : 10;
   
   const [offsetLat, setOffsetLat] = useState(0);
@@ -18,7 +20,6 @@ const DebugSimulator = ({ userLocation }) => {
   const autoTriggerRef = useRef(null);
 
   useEffect(() => {
-    setIsEngineRunning(isDetectionEngineRunning());
     return () => {
       if (autoTriggerRef.current) clearTimeout(autoTriggerRef.current);
     };
@@ -58,6 +59,7 @@ const DebugSimulator = ({ userLocation }) => {
   useEffect(() => {
     const interval = setInterval(() => {
         setIsRecording(getTelemetryStatus());
+        setIsEngineRunning(isDetectionEngineRunning());
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -89,12 +91,11 @@ const DebugSimulator = ({ userLocation }) => {
       clearTimeout(autoTriggerRef.current);
       autoTriggerRef.current = null;
     }
-
     if (type === 'RESET') {
       setOffsetLat(0);
       setOffsetLon(0);
-      await resetAllAppData();
-      setIsEngineRunning(false);
+      await resetParkDetection();
+      setIsEngineRunning(isDetectionEngineRunning());
       setIsBluetoothSimulated(false);
       setGroundTruth(null);
       setManualLabel(null);
@@ -194,7 +195,7 @@ const DebugSimulator = ({ userLocation }) => {
       </View>
 
       <View style={styles.divider} />
-      <Text style={styles.headerTitle}>GROUND TRUTH (ACTUAL STATE)</Text>
+      <Text style={styles.headerTitle}>GROUND TRUTH</Text>
       
       <View style={styles.grid}>
         {['DRIVING', 'WALKING', 'STOPPED', 'RETURNING'].map(state => (
@@ -239,8 +240,8 @@ const DebugSimulator = ({ userLocation }) => {
       </View>
 
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#ef4444', marginTop: 5}]} onPress={() => simulate('RESET')}>
-          <Text style={styles.btnText}>🔥 FACTORY RESET</Text>
+        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#f59e0b', marginTop: 5}]} onPress={() => simulate('RESET')}>
+          <Text style={styles.btnText}>🧹 RESET ENGINE</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
