@@ -2,7 +2,8 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter } from 'react-native';
+import { DeviceEventEmitter, Platform } from 'react-native';
+import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
 console.log('***************************************************');
 console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
@@ -625,43 +626,39 @@ async function startSensors() {
     if (MotionActivityTracker) {
       console.log('[ParkDetection] MotionActivityTracker available. Methods:', Object.keys(MotionActivityTracker));
       
-      // Robust authorization check
       if (typeof MotionActivityTracker.getPermissionStatusAsync === 'function') {
         const authStatus = await MotionActivityTracker.getPermissionStatusAsync();
         console.log('[ParkDetection] Motion Activity Authorization status:', authStatus);
       }
       
-      console.log('[ParkDetection] Starting Motion Activity updates (via startTracking)...');
-      if (typeof MotionActivityTracker.startTracking === 'function') {
-        // This library uses addMotionStateChangeListener + startTracking
-        if (typeof MotionActivityTracker.addMotionStateChangeListener === 'function') {
-          MotionActivityTracker.addMotionStateChangeListener(async (activity) => {
-            if (activity) {
-              const state = activity.state || 'unknown';
-              const confidence = activity.confidence !== undefined ? activity.confidence : 1;
-              
-              const prevState = currentActivity.state;
-              
-              currentActivity = {
-                state: state,
-                automotive: state === 'automotive',
-                walking: state === 'walking' || state === 'running',
-                stationary: state === 'stationary',
-                unknown: state === 'unknown',
-                confidence: confidence
-              };
+      if (typeof MotionActivityTracker.addMotionStateChangeListener === 'function') {
+        MotionActivityTracker.addMotionStateChangeListener(async (activity) => {
+          if (activity) {
+            const state = activity.state || 'unknown';
+            const confidence = activity.confidence !== undefined ? activity.confidence : 1;
+            const prevState = currentActivity.state;
+            
+            currentActivity = {
+              state: state,
+              automotive: state === 'automotive',
+              walking: state === 'walking' || state === 'running',
+              stationary: state === 'stationary',
+              unknown: state === 'unknown',
+              confidence: confidence
+            };
 
-              console.log(`[ParkDetection] RECEIVED Activity: state=${state}, conf=${confidence}`);
+            console.log(`[ParkDetection] RECEIVED Activity: state=${state}, conf=${confidence}`);
 
-              // 🚀 TRIGGER VIRTUAL UPDATE ON ACTIVITY CHANGE
-              // If we change state (e.g. Still -> Walk), don't wait for GPS.
-              if (state !== prevState && isInitialized) {
-                console.log(`[ParkDetection] Activity changed from ${prevState} to ${state}.`);
-                triggerVirtualUpdate();
-              }
+            if (state !== prevState && isInitialized) {
+              console.log(`[ParkDetection] Activity changed from ${prevState} to ${state}.`);
+              triggerVirtualUpdate();
             }
-          });
-        }
+          }
+        });
+      }
+
+      if (typeof MotionActivityTracker.startTracking === 'function') {
+        console.log('[ParkDetection] Starting Motion Activity updates...');
         await MotionActivityTracker.startTracking();
       } else {
         console.warn('[ParkDetection] startTracking method NOT found on MotionActivityTracker.');
@@ -669,8 +666,23 @@ async function startSensors() {
     } else {
       console.warn('[ParkDetection] MotionActivityTracker native module is null/undefined.');
     }
-  } catch (error) {
-    console.error('[ParkDetection] CRITICAL Error starting MotionActivityTracker:', error);
+  } catch (e) {
+    console.error('[ParkDetection] CRITICAL Error starting MotionActivityTracker:', e);
+  }
+
+  // 🚀 FIX: Initial Bluetooth State Capture (Android Only)
+  if (Platform.OS === 'android' && RNBluetoothClassic) {
+    try {
+      const connectedDevices = await RNBluetoothClassic.getConnectedDevices();
+      const isCarConnected = connectedDevices.some(device => {
+        const name = (device.name || '').toLowerCase();
+        return name.includes('car') || name.includes('audio') || name.includes('hands-free');
+      });
+      lastBluetoothState = isCarConnected;
+      console.log(`[ParkDetection] Initial Bluetooth state: ${lastBluetoothState}`);
+    } catch (err) {
+      console.warn('[ParkDetection] Failed to get initial BT state:', err.message);
+    }
   }
 }
 
@@ -762,15 +774,20 @@ export const startParkDetection = async () => {
     }
 
     console.log('[ParkDetection] Initializing HMM components...');
-    const { shouldClearPersistedState } = resetHMM(); // Reset HMM state to IDLE
+    
+    // 🚀 FIX: Load persisted state immediately before starting HMM/Sensors
+    // This ensures parkedLocation is available even if handleLocationUpdate 
+    // is called by a background task before the UI can pass it in.
+    const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'startParkDetection.getItem');
+    if (saved) {
+       console.log('[ParkDetection] Found persisted state during startup. Restoring...');
+       // No-op here, as handleLocationUpdate will load it on its first run if arg2 is null.
+       // But we must NOT call resetHMM().shouldClearPersistedState which wipes it.
+    }
+
+    resetHMM(); // Reset HMM state to IDLE (but keep isAway if it matches persisted)
     await initAIEngine(); // Initialize TFJS model
     await startSensors();
-
-    // Clear persistent state on clean start to avoid immediate transitions from stale data
-    if (shouldClearPersistedState) {
-      console.log('[ParkDetection] Clearing persisted state from AsyncStorage...');
-      await withTimeout(AsyncStorage.removeItem(STORAGE_KEY), 2000, 'startParkDetection.removeItem');
-    }
     
     const { currentState } = getHMMStatus();
 
@@ -838,7 +855,8 @@ export const resetParkDetection = async () => {
     }
 
     await withTimeout(AsyncStorage.removeItem(STORAGE_KEY), 2000, 'resetParkDetection.removeItem');
-    console.log('[ParkDetection] Persisted state cleared from AsyncStorage.');
+    await withTimeout(AsyncStorage.removeItem('parkedLocation'), 2000, 'resetParkDetection.removeParkedLoc');
+    console.log('[ParkDetection] Persisted state and parkedLocation cleared from AsyncStorage.');
     
     // Reset local sensor cache as well
     currentAcceleration = 1.0;

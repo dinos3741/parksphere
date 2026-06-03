@@ -432,8 +432,12 @@ function emissionLogProb(state, obs) {
 
   // SPEED (GPS)
   if (state === 'DRIVING') {
-    logp += logSigmoid(speed, 25, 0.4) * gpsWeight;
+    // 🚀 Relaxed midpoint from 25 to 12 to handle city traffic/slow maneuvers
+    logp += logSigmoid(speed, 12, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
+
+    // Boost if we have proof of car and are moving significantly
+    if (hasStrongCarSignal && speed > 10) logp += 5.0;
 
     // Restore the wider penalty net. If we have steps and are under 25km/h, 
     // penalize driving heavily. This absorbs fast walking and GPS spikes.
@@ -945,8 +949,14 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
   // If isAway is true, it means we never established presence (walked within 8m)
   // before starting this driving trip, so we must be in a different vehicle.
-  if (parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH) {
-    console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${DIST_THRESH}m).`);
+  const isVacatingSpot = parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
+  
+  // 🚀 FALLBACK CLEAR: If we are DRIVING and have moved significantly (>50m), clear regardless of isAway.
+  // This handles cases where the app was restarted and isAway was lost, or BT failed.
+  const isFallbackVacating = parkedLocation && currentState === 'DRIVING' && dist > 50 && _tripDrivingTime > 5;
+
+  if (isVacatingSpot || isFallbackVacating) {
+    console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${dist.toFixed(0)}m).`);
     clearParkingEvent = true;
   }
 
