@@ -9,6 +9,23 @@ jest.mock('expo-sharing', () => ({
   isAvailableAsync: jest.fn().mockResolvedValue(true),
 }));
 
+jest.mock('react-native', () => ({
+  DeviceEventEmitter: {
+    emit: jest.fn(),
+    addListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+  },
+  Platform: {
+    OS: 'ios',
+    select: jest.fn(objs => objs.ios || objs.default),
+  },
+  NativeModules: {},
+}));
+
+jest.mock('react-native-bluetooth-classic', () => ({
+  getConnectedDevices: jest.fn().mockResolvedValue([]),
+  addListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+}));
+
 jest.mock('react-native-motion-activity-tracker', () => ({
   startTracking: jest.fn(),
   stopTracking: jest.fn(),
