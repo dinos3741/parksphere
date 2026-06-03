@@ -128,6 +128,10 @@ const DebugSimulator = ({ userLocation }) => {
           await sleep(500);
         }
         setOffsetLat(currentLatOff);
+        // 🚀 AUTO-STOP: Cool down to stationary after driving
+        await sleep(500);
+        simulateMotionActivity('STATIONARY', 'HIGH');
+        await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
         return;
 
       case 'WALKING':
@@ -138,6 +142,10 @@ const DebugSimulator = ({ userLocation }) => {
           await sleep(500);
         }
         setOffsetLat(currentLatOff);
+        // 🚀 AUTO-STOP: Cool down to stationary after walking
+        await sleep(500);
+        simulateMotionActivity('STATIONARY', 'HIGH');
+        await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
         return;
 
       case 'STATIONARY':

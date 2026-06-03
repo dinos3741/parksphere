@@ -101,6 +101,11 @@ const HMMOverlay = ({ isVisible }) => {
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
       <Text style={styles.statusText}>steps/sec: <Text style={styles.statusValue}>{(hmmStatus.metrics?.stepRate || 0).toFixed(2)}</Text></Text>
       <Text style={styles.statusText}>G-acc: <Text style={styles.statusValue}>{(hmmStatus.metrics?.acceleration || 1.0).toFixed(2)}</Text></Text>
+      
+      <View style={styles.surenessRow}>
+        <Text style={styles.surenessText}>RETURN SURENESS:</Text>
+        <Text style={styles.surenessValue}>{Math.round((hmmStatus.returningConfidence || 0) * 100)}%</Text>
+      </View>
     </Animated.View>
   );
 };
@@ -155,6 +160,25 @@ const styles = StyleSheet.create({
   statusValue: {
     fontWeight: 'bold',
     color: '#4ade80',
+  },
+  surenessRow: {
+    marginTop: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  surenessText: {
+    color: '#fbbf24',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  surenessValue: {
+    color: '#fbbf24',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

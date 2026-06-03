@@ -511,14 +511,29 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     deltaRate: hmmResult.deltaRate || 0
   };
 
-  const aiConfidence = await predictReturning(aiFeatures);
-  const isAIReturning = aiConfidence > 0.996;
+  // ==============================
+  // 🚀 UNIFIED RETURNING CONFIDENCE (FUSION)
+  // ==============================
+  // Combine HMM (Holistic), CNN (Pattern), and PGR Alignment (Intent) 
+  let overallReturningConfidence = 0;
 
-  if (isAIReturning && stateData.serverSpotId && !stateData.soonFreeNotified) {
-    console.log(`[ParkDetection] 🤖 AI confidence: ${(aiConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
+  if (stateData.isAway && stateData.parkedLocation && distToParked < 100) {
+    const hmmBelief = currentBelief['RETURNING'] || 0;
+    const aiConf = aiConfidence || 0;
+    const pgrNorm = Math.max(0, hmmResult.approachAlignment || 0); // 0 to 1
+
+    // Weighted Fusion: 40% HMM, 40% AI, 20% raw Alignment
+    overallReturningConfidence = (hmmBelief * 0.4) + (aiConf * 0.4) + (pgrNorm * 0.2);
+    
+    if (isNaN(overallReturningConfidence)) overallReturningConfidence = 0;
+  }
+
+  // Trigger 'Soon Free' based on Unified Confidence Agreement (>90%)
+  if (overallReturningConfidence > 0.90 && stateData.serverSpotId && !stateData.soonFreeNotified) {
+    console.log(`[ParkDetection] 🎯 UNIFIED RETURN CONFIRMED: ${(overallReturningConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
     updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
     stateData.soonFreeNotified = true;
-    notify('🤖 AI detected you are returning to your car.', { isAiTriggered: true });
+    // Removed notification - too noisy for production
   }
 
   if (stateData.state !== prevState || isFirstUpdate) {
@@ -549,6 +564,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     secondConfidence,
     belief: currentBelief,
     location: currentLoc,
+    returningConfidence: overallReturningConfidence, // 🚀 NEW: Unified Metric
     metrics: {
       speed,
       acceleration,
