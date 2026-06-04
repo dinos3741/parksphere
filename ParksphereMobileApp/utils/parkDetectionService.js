@@ -441,7 +441,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   }
 
   if (parkedEvent && !stateData.parkingNotified) {
-    const finalParkedLoc = stateData.stoppedCandidateLocation || currentLoc;
+    // 🚀 FIX: If manually forced (like from the simulator), always use the raw current location.
+    // Otherwise, use the candidate location where the car first came to a halt.
+    const finalParkedLoc = location.forcePark ? currentLoc : (stateData.stoppedCandidateLocation || currentLoc);
     
     // 🚀 FIX: Clear the candidate so it doesn't bleed into future events
     stateData.stoppedCandidateLocation = null;
