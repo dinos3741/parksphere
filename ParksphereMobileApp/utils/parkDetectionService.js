@@ -470,6 +470,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
     stateData.soonFreeNotified = false; // 🚀 FIX: Clear soonFreeNotified so it fires again for the next parking session
+    stateData.smoothedReturningConfidence = 0; // Reset smoothing history
     resetPGRHistory();
     
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
@@ -508,7 +509,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // 🚀 UNIFIED RETURNING CONFIDENCE (FUSION)
   // ==============================
   // Combine HMM (Holistic), CNN (Pattern), and PGR Alignment (Intent) 
-  let overallReturningConfidence = 0;
+  let rawReturningConfidence = 0;
 
   if (stateData.isAway && stateData.parkedLocation && distToParked < 100) {
     const hmmBelief = currentBelief['RETURNING'] || 0;
@@ -516,10 +517,22 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     const pgrNorm = Math.max(0, hmmResult.approachAlignment || 0); // 0 to 1
 
     // Weighted Fusion: 40% HMM, 40% AI, 20% raw Alignment
-    overallReturningConfidence = (hmmBelief * 0.4) + (aiConf * 0.4) + (pgrNorm * 0.2);
+    rawReturningConfidence = (hmmBelief * 0.4) + (aiConf * 0.4) + (pgrNorm * 0.2);
     
-    if (isNaN(overallReturningConfidence)) overallReturningConfidence = 0;
+    if (isNaN(rawReturningConfidence)) rawReturningConfidence = 0;
   }
+
+  // 🚀 EMA SMOOTHING
+  // Alpha = 0.2 means 20% current reading, 80% historical memory.
+  // This acts as a heavy flywheel, eliminating GPS/AI frame jitter.
+  const ALPHA = 0.2; 
+  const prevSmoothed = stateData.smoothedReturningConfidence || 0;
+  let overallReturningConfidence = (ALPHA * rawReturningConfidence) + ((1 - ALPHA) * prevSmoothed);
+  
+  // Snap to 0 if the raw confidence is completely zero to avoid a long mathematical decay tail
+  if (rawReturningConfidence === 0) overallReturningConfidence = 0;
+  
+  stateData.smoothedReturningConfidence = overallReturningConfidence;
 
   // Trigger 'Soon Free' based on Unified Confidence Agreement (>90%)
   if (overallReturningConfidence > 0.90 && stateData.serverSpotId && !stateData.soonFreeNotified) {
