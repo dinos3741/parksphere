@@ -377,16 +377,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     smoothedStepRate: stateData.smoothedStepRate
   });
 
-  // 📡 Telemetry: Record snapshot for offline analysis
-  logTelemetry({
-    speed: location.coords.speed,
-    stepRate: stepRate,
-    accel: acceleration,
-    accuracy: location.coords.accuracy,
-    bluetoothConnected: lastBluetoothState,
-    activity: currentActivity,
-    spectralFeatures: { ...currentSpectralFeatures } // 🚀 NEW
-  }, hmmResult);
+  // 📡 Telemetry snapshot moved below to include AI returning confidence
 
   let {
     state: hmmState,
@@ -537,6 +528,17 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.soonFreeNotified = true;
     // Removed notification - too noisy for production
   }
+
+  // 📡 Telemetry: Record snapshot for offline analysis, including AI confidence
+  logTelemetry({
+    speed: location.coords.speed,
+    stepRate: stepRate,
+    accel: acceleration,
+    accuracy: location.coords.accuracy,
+    bluetoothConnected: lastBluetoothState,
+    activity: currentActivity,
+    spectralFeatures: { ...currentSpectralFeatures } 
+  }, hmmResult, aiConfidence, overallReturningConfidence);
 
   if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {

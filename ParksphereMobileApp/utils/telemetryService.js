@@ -62,7 +62,7 @@ export const stopTelemetry = async () => {
 /**
  * Log a single snapshot of sensor data and HMM state.
  */
-export const logTelemetry = (obs, result) => {
+export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConfidence = 0) => {
   if (!isRecording) return;
 
   const entry = {
@@ -91,7 +91,9 @@ export const logTelemetry = (obs, result) => {
       awayEvent: result.awayEvent,
       clearParkingEvent: result.clearParkingEvent,
       isAway: result.isAway, // 🚀 NEW: Log current 'Away' status
-      distToParked: result.distToParked
+      distToParked: result.distToParked,
+      aiReturningConfidence: aiConfidence,
+      overallReturningConfidence: overallReturningConfidence
     }
   };
 
