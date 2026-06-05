@@ -770,15 +770,25 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   isProcessing = true;
 
   try {
+    if (!isInitialized) {
+      console.log('[ParkDetection] Engine woke up in background. Initializing...');
+      isInitialized = true;
+      await initAIEngine();
+      await startSensors();
+    }
+
     // 🚀 OPTIMIZATION: Fetch step rate once for the entire batch
     currentStepRate = await getRecentStepRate();
 
-    let stateData = {};
+    let stateData = null;
     try {
       const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'TaskManager.getItem');
       if (saved) stateData = JSON.parse(saved);
+      else stateData = {};
     } catch (e) {
       console.error('[ParkDetection] Failed to load state from storage in TaskManager:', e.message);
+      // 🚀 CRITICAL FIX: If storage fails to load, abort to prevent overwriting with {} and losing parkedLocation
+      return;
     }
 
     for (const loc of data.locations) {
