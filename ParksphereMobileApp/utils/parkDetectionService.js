@@ -311,6 +311,16 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
         console.error('[ParkDetection] Bluetooth Veto check failed:', e.message);
       }
     }
+    
+    // 🚀 Emit UI update immediately so the blue dot appears without waiting for next GPS ping
+    DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
+      ...getHMMStatus(),
+      metrics: {
+        ...getHMMStatus().metrics,
+        bluetoothConnected: lastBluetoothState
+      }
+    });
+    
     return;
   }
 
