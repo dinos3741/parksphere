@@ -36,16 +36,16 @@ export const A = {
     STOPPED: 0.01
   },
   DRIVING: {
-    DRIVING: 0.95,   // 🚀 High stability to prevent "snappiness"
-    STOPPED: 0.04,   // 🚀 Reduced to prevent quick-flipping
-    WALKING: 0.01   
+    DRIVING: 0.90,   // 🚀 High stability, but lower than 0.95 for snappier stops
+    STOPPED: 0.08,   // 🚀 Increased to allow faster transition to STOPPED
+    WALKING: 0.02   
   },
   STOPPED: {
     STOPPED: 0.85,   // 🚀 High stability
-    DRIVING: 0.05,   // 🚀 Reduced
-    WALKING: 0.05,   
+    DRIVING: 0.08,   // 🚀 Increased to allow faster departure
+    WALKING: 0.03,   
     IN_CAR: 0.02,   
-    IDLE: 0.03       // 🚀 Less aggressive reset
+    IDLE: 0.02       
   },
   RETURNING: {
     RETURNING: 0.65,
@@ -276,22 +276,25 @@ function isTransitionAllowed(from, to, context) {
     const hasBT = context.bluetoothConnected;
     const hasStrongCarSignal = hasBT || hasAutomotiveActivity;
 
-    // 🚀 HARD NOISE FLOOR: 
-    // If we have proof of being in a car (BT/Activity), lower the floor to catch slow maneuvers (2.5 km/h).
+    // 🚀 SNAPPY DEPARTURE: If we are already STOPPED, we know we are in the car.
+    // Treat being STOPPED the same as having a strong car signal for speed thresholds.
+    const effectiveCarSignal = hasStrongCarSignal || from === 'STOPPED';
+
+    // 🚀 HARD NOISE FLOOR:
+    // If we have proof of being in a car (BT/Activity/Stopped), lower the floor to catch slow maneuvers (2.5 km/h).
     // Otherwise, require 10 km/h to protect against GPS drift and vibrating surfaces.
-    const speedFloor = hasStrongCarSignal ? 2.5 : 10;
+    const speedFloor = effectiveCarSignal ? 2.5 : 10;
     if (speed < speedFloor) return false;
 
-    // 🛡️ DRIFT GUARD: Between 10 and 20 km/h, we REQUIRE evidence (BT or Vibrations).
-    // Above 20 km/h, we trust GPS speed alone.
-    if (speed < 20 && !hasStrongCarSignal) return false;
+    // 🛡️ DRIFT GUARD: Between 10 and 20 km/h, we REQUIRE evidence.
+    if (speed < 20 && !effectiveCarSignal) return false;
 
     // 1. Restore absolute block: If taking steps, we are NOT driving. Period.
-    if (stepRate > 0.35) return false; 
-    
+    if (stepRate > 0.35) return false;
+
     // 2. IDLE -> DRIVING needs a clear speed signal (15km/h) or proof of vehicle
-    if (from === 'IDLE' && speed < 15 && !hasStrongCarSignal) return false; 
-    
+    if (from === 'IDLE' && speed < 15 && !hasStrongCarSignal) return false;
+
     // WALKING -> DRIVING needs higher speed (25km/h) or proof of vehicle
     if (from === 'WALKING' && speed < 25 && !hasStrongCarSignal) return false;
   }
