@@ -607,8 +607,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   
   stateData.smoothedReturningConfidence = overallReturningConfidence;
 
-  // Trigger 'Soon Free' based on Unified Confidence Agreement (>90%)
-  if (overallReturningConfidence > 0.90 && stateData.serverSpotId && !stateData.soonFreeNotified) {
+  // Trigger 'Soon Free' based on Unified Confidence Agreement (>85%)
+  if (overallReturningConfidence > 0.85 && stateData.serverSpotId && !stateData.soonFreeNotified) {
     console.log(`[ParkDetection] 🎯 UNIFIED RETURN CONFIRMED: ${(overallReturningConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
     updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
     stateData.soonFreeNotified = true;
@@ -652,7 +652,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   }
 
   // 🚀 CONTINUOUS RETURNING NOTIFICATION CHECK
-  if (stateData.state === 'RETURNING' && overallReturningConfidence > 0.70 && !stateData.returningNotified) {
+  if (stateData.state === 'RETURNING' && overallReturningConfidence > 0.85 && !stateData.returningNotified) {
     notify('📍 Approaching vehicle...', { confidence: Math.round(overallReturningConfidence * 100) });
     stateData.returningNotified = true;
   }
