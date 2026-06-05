@@ -352,11 +352,18 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   stateData.lastHeading = currentHeading;
 
   if (speed < 3.0) { 
-    if (!stateData.stopStartTime) stateData.stopStartTime = now;
+    if (!stateData.stopStartTime) {
+      stateData.stopStartTime = now;
+      // 🚀 CACHE LOCATION: Record the exact coordinate where the user first slowed down.
+      // If they jump straight out of the car (Fast-Path), we use this instead of where they walked to.
+      stateData.slowCandidateLocation = currentLoc;
+    }
     stateData.stopDuration = (now - stateData.stopStartTime) / 1000; 
   } else {
     stateData.stopStartTime = null;
     stateData.stopDuration = 0;
+    // We do NOT clear slowCandidateLocation here because if they jump out and start walking quickly, 
+    // speed might spike above 3.0, but we still need the location of the stop.
   }
 
   let acceleration = currentAcceleration;
@@ -502,10 +509,12 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     if (!stateData.parkingNotified) {
       // 🚀 FIX: If manually forced (like from the simulator), always use the raw current location.
       // Otherwise, use the candidate location where the car first came to a halt.
-      const finalParkedLoc = location.forcePark ? currentLoc : (stateData.stoppedCandidateLocation || currentLoc);
+      // If we fast-pathed and skipped STOPPED, use the exact moment we dropped below 3km/h.
+      const finalParkedLoc = location.forcePark ? currentLoc : (stateData.stoppedCandidateLocation || stateData.slowCandidateLocation || currentLoc);
       
-      // 🚀 FIX: Clear the candidate so it doesn't bleed into future events
+      // 🚀 FIX: Clear the candidates so they don't bleed into future events
       stateData.stoppedCandidateLocation = null;
+      stateData.slowCandidateLocation = null;
 
       const spotId = await declareSpot(finalParkedLoc);
 
