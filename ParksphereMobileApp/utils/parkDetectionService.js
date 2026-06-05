@@ -45,6 +45,7 @@ const withTimeout = (promise, ms, name = 'unnamed') => {
 
 // Sensor data cache
 let currentAcceleration = 1.0;
+let lastAccelTimestamp = 0; // 🚀 Track stale accel data in background
 let currentStepRate = 0;
 let lastStepTimestamp = 0; // 🚀 Added to track Fast-Path steps
 let lastReportedSteps = 0; // 🚀 ADD THIS NEW VARIABLE
@@ -324,8 +325,16 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.stopDuration = 0;
   }
 
-  const acceleration = currentAcceleration;
-  
+  let acceleration = currentAcceleration;
+  let spectralFeats = { ...currentSpectralFeatures };
+
+  if (Date.now() - lastAccelTimestamp > 5000) {
+    // 🚀 BACKGROUND DEGRADATION: Accel stops firing in the background. 
+    // We must pass null so the HMM doesn't falsely assume the phone is perfectly still.
+    acceleration = null;
+    spectralFeats = null;
+  }
+
   let stepRate = 0;
   if (!location.isFromSimulator) {
     const timeSinceLastStep = Date.now() - lastStepTimestamp;
@@ -362,7 +371,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     accuracy: location.coords.accuracy,
     bluetoothConnected: lastBluetoothState, 
     // 🚀 NEW: Spectral Features for Frequency Domain Analysis
-    spectralFeatures: { ...currentSpectralFeatures },
+    spectralFeatures: spectralFeats,
     // Restore counters
     returnCounter: stateData.returnCounter,
     inCarCounter: stateData.inCarCounter,
@@ -553,7 +562,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     accuracy: location.coords.accuracy,
     bluetoothConnected: lastBluetoothState,
     activity: currentActivity,
-    spectralFeatures: { ...currentSpectralFeatures } 
+    spectralFeatures: spectralFeats 
   }, hmmResult, aiConfidence, overallReturningConfidence);
 
   if (stateData.state !== prevState || isFirstUpdate) {
@@ -626,6 +635,7 @@ async function startSensors() {
     // 1. Calculate magnitude for HMM fast-path logic
     const mag = Math.sqrt(data.x ** 2 + data.y ** 2 + data.z ** 2);
     currentAcceleration = mag;
+    lastAccelTimestamp = Date.now();
 
     // 2. 🚀 FFT SLIDING WINDOW
     spectralBuffer.push(mag);
@@ -862,8 +872,13 @@ export const startParkDetection = async () => {
         await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
           accuracy: Location.Accuracy.High, // 🚀 Upgraded to High for better low-speed resolution
           timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
+          distanceInterval: 0,              // 🚀 Force constant updates even if stationary
           deferredUpdatesInterval: 2000,
           showsBackgroundLocationIndicator: true,
+          foregroundService: {
+            notificationTitle: 'Parksphere',
+            notificationBody: 'Detecting parking activity',
+          },
         });
         notify(`Background HMM detection started. State: ${currentState}`);
         console.log('[ParkDetection] Location updates started for PARK_DETECTION_TASK.');

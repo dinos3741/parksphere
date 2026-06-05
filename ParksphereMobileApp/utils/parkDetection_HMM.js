@@ -693,12 +693,12 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   smoothedStepRate = stepAlpha * rawStepRate + (1 - stepAlpha) * (smoothedStepRate || 0);
   const stepRate = smoothedStepRate;
 
-  const accel = supplemental.acceleration_magnitude || 1;
+  const accel = supplemental.acceleration_magnitude !== null ? supplemental.acceleration_magnitude : 1.5; // Neutral fallback
   
   // 🚀 SURFACE VETO: If accelerometer is nearly perfect (±0.025g) AND speed is low (< 1m/s), 
   // then we assume it's on a stationary surface.
   // We tightened the threshold and added a speed check to prevent "stuck in IDLE" while driving.
-  const isPhysicallyStill = (Math.abs(accel - 1.0) < 0.025) && (speed < 1.0);
+  const isPhysicallyStill = supplemental.acceleration_magnitude !== null && (Math.abs(accel - 1.0) < 0.025) && (speed < 1.0);
 
   const obs = {
     speed,

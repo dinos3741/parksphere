@@ -16,7 +16,6 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
   }, [isConnected]);
 
   useEffect(() => {
-    let foregroundSubscription = null;
     let detectionSubscription = null;
 
     detectionSubscription = DeviceEventEmitter.addListener('parkDetectionUpdate', (data) => {
@@ -42,13 +41,7 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
           }
         }
 
-        foregroundSubscription = await Location.watchPositionAsync({
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 1,
-          timeInterval: 2000
-        }, async (location) => {
-          await handleLocationUpdate(location);
-        });
+        // Removed watchPositionAsync - relying exclusively on startLocationUpdatesAsync background task
       } catch (error) {
         console.error('[useParkDetectionEngine] Error in setupDetection:', error);
       }
@@ -59,9 +52,6 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     }
 
     return () => {
-      if (foregroundSubscription) {
-        foregroundSubscription.remove();
-      }
       if (detectionSubscription) {
         detectionSubscription.remove();
       }
