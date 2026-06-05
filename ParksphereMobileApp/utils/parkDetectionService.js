@@ -473,6 +473,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData._loggedParkedLoc = false;
     stateData.soonFreeNotified = false; // 🚀 FIX: Clear soonFreeNotified so it fires again for the next parking session
     stateData.smoothedReturningConfidence = 0; // Reset smoothing history
+    stateData.returningNotified = false;
     resetPGRHistory();
     
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
@@ -560,12 +561,17 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
       'STOPPED': '⏱️ Vehicle stopped...',
-      'RETURNING': '📍 Approaching vehicle...',
       'IN_CAR': '🚗 Back in car...',
       'IDLE': '💤 System Idle.'
     };
 
-    notify(messages[stateData.state] || `System State: ${stateData.state}`, { confidence: Math.round(confidence * 100) });
+    // 🚀 Gate the RETURNING notification behind the unified fusion threshold
+    if (stateData.state === 'RETURNING') {
+      // Do nothing here, we handle it continuously below
+    } else {
+      notify(messages[stateData.state] || `System State: ${stateData.state}`, { confidence: Math.round(confidence * 100) });
+      stateData.returningNotified = false; // Reset when we leave RETURNING
+    }
 
     if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
       if (!stateData.soonFreeNotified) {
@@ -573,6 +579,12 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
         stateData.soonFreeNotified = true;
       }
     }
+  }
+
+  // 🚀 CONTINUOUS RETURNING NOTIFICATION CHECK
+  if (stateData.state === 'RETURNING' && overallReturningConfidence > 0.70 && !stateData.returningNotified) {
+    notify('📍 Approaching vehicle...', { confidence: Math.round(overallReturningConfidence * 100) });
+    stateData.returningNotified = true;
   }
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
