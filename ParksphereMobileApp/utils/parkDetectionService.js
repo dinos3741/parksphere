@@ -673,7 +673,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       motionActivity: currentActivity,
       headingChange,
       stopDuration: stateData.stopDuration,
-      distToParked
+      distToParked,
+      bluetoothConnected: lastBluetoothState
     }
   });
 

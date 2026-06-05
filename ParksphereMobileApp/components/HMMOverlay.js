@@ -88,7 +88,12 @@ const HMMOverlay = ({ isVisible }) => {
       {...panResponder.panHandlers}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.statusTitle}>HMM Engine</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.statusTitle}>HMM Engine</Text>
+          {hmmStatus.metrics?.bluetoothConnected && (
+            <View style={styles.btIndicator} />
+          )}
+        </View>
         {isRecording && (
           <Animated.View style={[styles.recIndicator, { opacity: blinkAnim }]}>
             <View style={styles.recDot} />
@@ -128,6 +133,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  btIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3b82f6', // bright blue dot for BT
+    marginLeft: 4,
   },
   headerRow: {
     flexDirection: 'row',
