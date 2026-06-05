@@ -952,11 +952,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // before starting this driving trip, so we must be in a different vehicle.
   const isVacatingSpot = parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
   
-  // 🚀 FALLBACK CLEAR: If we are DRIVING and have moved significantly (>50m), clear regardless of isAway.
-  // This handles cases where the app was restarted and isAway was lost, or BT failed.
-  const isFallbackVacating = parkedLocation && currentState === 'DRIVING' && dist > 50 && _tripDrivingTime > 5;
-
-  if (isVacatingSpot || isFallbackVacating) {
+  if (isVacatingSpot) {
     console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${dist.toFixed(0)}m).`);
     clearParkingEvent = true;
   }
