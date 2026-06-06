@@ -207,6 +207,25 @@ function notify(message, extraData = {}) {
   DeviceEventEmitter.emit('parkDetectionUpdate', { message, ...extraData });
 }
 
+/**
+ * Calculates the slope of the last N confidence values using simple linear regression.
+ * A positive slope indicates increasing confidence that the user is returning.
+ */
+function calculateConfidenceSlope(history) {
+  const n = history.length;
+  if (n < 5) return 0; // Need at least 5 points for a meaningful trend
+  
+  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += history[i];
+    sumXY += i * history[i];
+    sumXX += i * i;
+  }
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  return slope;
+}
+
 let lastVirtualUpdate = 0;
 let isProcessing = false;
 
@@ -300,6 +319,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               stateData._loggedParkedLoc = false;
               stateData.soonFreeNotified = false;
               stateData.smoothedReturningConfidence = 0;
+              stateData.confidenceHistory = [];
               stateData.returningNotified = false;
               
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
@@ -513,6 +533,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
        stateData.soonFreeNotified = false;
        stateData.returningNotified = false;
        stateData.smoothedReturningConfidence = 0;
+       stateData.confidenceHistory = [];
        resetPGRHistory();
     }
 
@@ -553,6 +574,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData._loggedParkedLoc = false;
     stateData.soonFreeNotified = false; // 🚀 FIX: Clear soonFreeNotified so it fires again for the next parking session
     stateData.smoothedReturningConfidence = 0; // Reset smoothing history
+    stateData.confidenceHistory = [];
     stateData.returningNotified = false;
     resetPGRHistory();
     
@@ -617,9 +639,23 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   
   stateData.smoothedReturningConfidence = overallReturningConfidence;
 
-  // Trigger 'Soon Free' based on Unified Confidence Agreement (>85%)
-  if (overallReturningConfidence > 0.85 && stateData.serverSpotId && !stateData.soonFreeNotified) {
-    console.log(`[ParkDetection] 🎯 UNIFIED RETURN CONFIRMED: ${(overallReturningConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
+  // 🚀 REGRESSION ANALYSIS (TIMELINE TREND)
+  if (!stateData.confidenceHistory) stateData.confidenceHistory = [];
+  stateData.confidenceHistory.push(overallReturningConfidence);
+  if (stateData.confidenceHistory.length > 15) stateData.confidenceHistory.shift();
+
+  const confidenceSlope = calculateConfidenceSlope(stateData.confidenceHistory);
+  
+  // A positive slope means confidence is growing.
+  // We gate the 'Soon Free' trigger behind a positive trend or extremely high absolute confidence.
+  // Slope > 0.01 means confidence is increasing by at least 1% per update cycle.
+  const isTrendPositive = confidenceSlope > 0.01;
+  const isConfidenceExtremelyHigh = overallReturningConfidence > 0.95;
+  const isConfirmedReturning = overallReturningConfidence > 0.85 && (isTrendPositive || isConfidenceExtremelyHigh);
+
+  // Trigger 'Soon Free' based on Unified Confidence Agreement AND Positive Trend
+  if (isConfirmedReturning && stateData.serverSpotId && !stateData.soonFreeNotified) {
+    console.log(`[ParkDetection] 🎯 UNIFIED RETURN CONFIRMED: ${(overallReturningConfidence * 100).toFixed(2)}% (Slope: ${confidenceSlope.toFixed(4)}) -> Triggering Soon Free`);
     updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
     stateData.soonFreeNotified = true;
     // Removed notification - too noisy for production
@@ -662,7 +698,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   }
 
   // 🚀 CONTINUOUS RETURNING NOTIFICATION CHECK
-  if (stateData.state === 'RETURNING' && overallReturningConfidence > 0.85 && !stateData.returningNotified) {
+  if (stateData.state === 'RETURNING' && isConfirmedReturning && !stateData.returningNotified) {
     notify('📍 Approaching vehicle...', { confidence: Math.round(overallReturningConfidence * 100) });
     stateData.returningNotified = true;
   }
