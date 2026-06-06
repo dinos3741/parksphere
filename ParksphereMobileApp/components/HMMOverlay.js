@@ -90,9 +90,6 @@ const HMMOverlay = ({ isVisible }) => {
       <View style={styles.headerRow}>
         <View style={styles.titleContainer}>
           <Text style={styles.statusTitle}>HMM Engine</Text>
-          {hmmStatus.metrics?.bluetoothConnected && (
-            <View style={styles.btIndicator} />
-          )}
         </View>
         {isRecording && (
           <Animated.View style={[styles.recIndicator, { opacity: blinkAnim }]}>
@@ -104,6 +101,13 @@ const HMMOverlay = ({ isVisible }) => {
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
+      <View style={styles.btRow}>
+        <Text style={styles.statusText}>Bluetooth:</Text>
+        <View style={[
+          styles.btDot, 
+          { backgroundColor: hmmStatus.metrics?.bluetoothConnected ? '#4ade80' : '#ff4444' }
+        ]} />
+      </View>
       <Text style={styles.statusText}>steps/sec: <Text style={styles.statusValue}>{(hmmStatus.metrics?.stepRate || 0).toFixed(2)}</Text></Text>
       <Text style={styles.statusText}>G-acc: <Text style={styles.statusValue}>{(hmmStatus.metrics?.acceleration || 1.0).toFixed(2)}</Text></Text>
       
@@ -176,6 +180,19 @@ const styles = StyleSheet.create({
   statusValue: {
     fontWeight: 'bold',
     color: '#4ade80',
+  },
+  btRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  btDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   surenessRow: {
     marginTop: 6,
