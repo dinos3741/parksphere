@@ -942,10 +942,11 @@ export const startParkDetection = async () => {
       if (!started) {
         console.log('[ParkDetection] Starting background location updates...');
         await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-          accuracy: Location.Accuracy.High, // 🚀 Upgraded to High for better low-speed resolution
-          timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
-          distanceInterval: 0,              // 🚀 Force constant updates even if stationary
-          deferredUpdatesInterval: 2000,
+          accuracy: Location.Accuracy.High, 
+          timeInterval: 5000,               
+          distanceInterval: 10,             
+          pausesLocationUpdatesAutomatically: false,
+          activityType: Location.ActivityType.AutomotiveNavigation,
           showsBackgroundLocationIndicator: true,
           foregroundService: {
             notificationTitle: 'Parksphere',

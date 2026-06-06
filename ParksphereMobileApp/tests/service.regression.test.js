@@ -128,6 +128,7 @@ describe('Service Regression Suite', () => {
             accuracy: step.accuracy || 10,
             heading: 0
           },
+          isFromSimulator: true, // 🚀 BYPASS: Tells the engine to ignore Anti-Lag Guard during tests
           timestamp: simulatedTime
         };
 
