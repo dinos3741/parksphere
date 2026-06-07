@@ -594,8 +594,20 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.stoppedCandidateLocation = null;
   }
 
-  if (stateData.state === 'STOPPED' && !stateData.stoppedCandidateLocation) {
-    stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords };
+  if (stateData.state === 'STOPPED') {
+    // 🚀 GPS SETTLING: Continually update the candidate location while stopped 
+    // if the new GPS reading is more accurate (lower accuracy radius) 
+    // or if we didn't have one yet. This fixes the 10m drift from braking.
+    const currentAccuracy = location.coords.accuracy || Infinity;
+    const previousAccuracy = stateData.stoppedCandidateLocation?.accuracy || Infinity;
+    
+    if (!stateData.stoppedCandidateLocation || currentAccuracy < previousAccuracy) {
+      stateData.stoppedCandidateLocation = { 
+        ...hmmResult.filteredCoords, 
+        accuracy: currentAccuracy 
+      };
+      console.log(`[ParkDetection] 📍 GPS Settling: Updated stopped location (Accuracy: ${currentAccuracy.toFixed(1)}m)`);
+    }
   }
 
   const aiFeatures = {
@@ -616,7 +628,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // Combine HMM (Holistic), CNN (Pattern), and PGR Alignment (Intent) 
   let rawReturningConfidence = 0;
 
-  if (stateData.isAway && stateData.parkedLocation && distToParked < 100) {
+  if (stateData.isAway && stateData.parkedLocation && distToParked < 300) {
     const hmmBelief = currentBelief['RETURNING'] || 0;
     const aiConf = aiConfidence || 0;
     const pgrNorm = Math.max(0, hmmResult.approachAlignment || 0); // 0 to 1

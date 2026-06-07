@@ -36,8 +36,8 @@ export const A = {
     STOPPED: 0.01
   },
   DRIVING: {
-    DRIVING: 0.90,   // 🚀 High stability, but lower than 0.95 for snappier stops
-    STOPPED: 0.08,   // 🚀 Increased to allow faster transition to STOPPED
+    DRIVING: 0.85,   // 🚀 High stability, but lower than 0.95 for snappier stops
+    STOPPED: 0.13,   // 🚀 Increased to allow faster transition to STOPPED
     WALKING: 0.02   
   },
   STOPPED: {
@@ -438,6 +438,7 @@ function emissionLogProb(state, obs) {
     // 🚀 Relaxed midpoint from 25 to 12 to handle city traffic/slow maneuvers
     logp += logSigmoid(speed, 12, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
+    if (speed < 0.5) logp -= (20 * gpsWeight); // 🚀 NEW: Hard penalty for literally not moving
 
     // Boost if we have proof of car and are moving significantly
     if (hasStrongCarSignal && speed > 10) logp += 5.0;
@@ -859,9 +860,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let awayEvent = false;
 
   // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
-  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED/IDLE/RETURNING.
+  // We use Bluetooth, the IN_CAR state, or being within 12m while STOPPED/IDLE/RETURNING.
   const hasCarPresence = obs.bluetoothConnected || 
-    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 10.0);
+    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 12.0);
 
   // Trigger 'Away' logic with separate thresholds for walking vs. other vehicle
   const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
