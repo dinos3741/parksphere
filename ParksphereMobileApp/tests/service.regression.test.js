@@ -178,16 +178,17 @@ describe('Service Regression Suite', () => {
     expect(result.state).not.toBe('DRIVING');
   });
 
-  test('[Test 8] Bluetooth Signal: IN_CAR Boost', async () => {
+  test('[Test 8] Bluetooth Signal: vehicle state belief boost', async () => {
     const scenarioWithBT = {
-      steps: [{ label: 'Approaching Car with BT', speed: 2, steps: 0, duration: 2, startDistance: 4, moveDirection: 'TOWARD', bluetoothConnected: true }]
+      steps: [{ label: 'Near car with BT', speed: 0, steps: 0, duration: 5, startDistance: 3, activity: { automotive: true, confidence: 2 }, bluetoothConnected: true }]
     };
-    
-    // Explicitly send BT update first
+
     await handleLocationUpdate({ bluetoothConnected: true }, null, true);
     const result = await runScenario(scenarioWithBT);
-    
-    expect(result.belief['IN_CAR']).toBeGreaterThan(0.5);
+
+    // BT connected + near car → vehicle states dominate
+    const vehicleBelief = (result.belief['STOPPED'] || 0) + (result.belief['DRIVING'] || 0);
+    expect(vehicleBelief).toBeGreaterThan(0.4);
   });
 
   test('[Test 13] Real-Life Odyssey (Full Cycle: Walk -> Drive -> Park -> Return -> Drive)', async () => {

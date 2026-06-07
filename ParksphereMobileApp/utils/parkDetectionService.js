@@ -286,7 +286,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved) {
            let stateData = JSON.parse(saved);
-           if (stateData.parkedLocation && ['DRIVING', 'STOPPED', 'IN_CAR'].includes(stateData.state)) {
+           if (stateData.parkedLocation && ['DRIVING', 'STOPPED'].includes(stateData.state)) {
               console.log('[ParkDetection] 🔄 Bluetooth Veto: Connected to car while active spot exists. Clearing stale spot...');
               
               if (stateData.serverSpotId && !String(stateData.serverSpotId).startsWith('local-')) {
@@ -428,7 +428,6 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     spectralFeatures: spectralFeats,
     // Restore counters
     returnCounter: stateData.returnCounter,
-    inCarCounter: stateData.inCarCounter,
     drivingCounter: stateData.drivingCounter,
     walkingCounter: stateData.walkingCounter,
     tripDrivingTime: stateData.tripDrivingTime,
@@ -458,7 +457,6 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     minDistDuringReturn: hmmMinDistDuringReturn,
     // Get counters for persistence
     returnCounter,
-    inCarCounter,
     drivingCounter,
     walkingCounter,
     tripDrivingTime,
@@ -487,7 +485,6 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   
   // Persist counters
   stateData.returnCounter = returnCounter;
-  stateData.inCarCounter = inCarCounter;
   stateData.drivingCounter = drivingCounter;
   stateData.walkingCounter = walkingCounter;
   stateData.tripDrivingTime = tripDrivingTime;
@@ -645,7 +642,6 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
       'STOPPED': '⏱️ Vehicle stopped...',
-      'IN_CAR': '🚗 Back in car...',
       'IDLE': '💤 System Idle.'
     };
 
@@ -657,7 +653,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       stateData.returningNotified = false; // Reset when we leave RETURNING
     }
 
-    if ((stateData.state === 'RETURNING' || stateData.state === 'IN_CAR') && stateData.serverSpotId) {
+    if (stateData.state === 'RETURNING' && stateData.serverSpotId) {
       if (!stateData.soonFreeNotified) {
         updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
         stateData.soonFreeNotified = true;

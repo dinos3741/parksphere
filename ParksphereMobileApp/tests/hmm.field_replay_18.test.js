@@ -68,7 +68,6 @@ describe('HMM Field Replay — Log 18 (real-life recording)', () => {
     let drivingCounter      = 0;
     let walkingCounter      = 0;
     let returnCounter       = 0;
-    let inCarCounter        = 0;
     let proximityCounter    = 0;
     let lastDistanceToCar   = undefined;
     let lastTripX           = null;
@@ -149,7 +148,6 @@ describe('HMM Field Replay — Log 18 (real-life recording)', () => {
         drivingCounter,
         walkingCounter,
         returnCounter,
-        inCarCounter,
         proximityCounter,
         lastDistanceToCar,
         lastTripX,
@@ -167,7 +165,6 @@ describe('HMM Field Replay — Log 18 (real-life recording)', () => {
       drivingCounter          = result.drivingCounter;
       walkingCounter          = result.walkingCounter;
       returnCounter           = result.returnCounter;
-      inCarCounter            = result.inCarCounter;
       proximityCounter        = result.proximityCounter;
       lastTripX               = result.lastTripX;
       lastTripY               = result.lastTripY;
