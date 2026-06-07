@@ -438,7 +438,6 @@ function emissionLogProb(state, obs) {
     // 🚀 Relaxed midpoint from 25 to 12 to handle city traffic/slow maneuvers
     logp += logSigmoid(speed, 12, 0.4) * gpsWeight;
     if (speed < 2) logp -= (15 * gpsWeight);
-    if (speed < 0.5) logp -= (20 * gpsWeight); // 🚀 NEW: Hard penalty for literally not moving
 
     // Boost if we have proof of car and are moving significantly
     if (hasStrongCarSignal && speed > 10) logp += 5.0;
@@ -479,12 +478,11 @@ function emissionLogProb(state, obs) {
   }
 
   // STEP RATE (Sensor - THE FAST PATH)
-  const hasSteps = stepRate > 0.3 && !isPhysicallyStill; // 🛡️ Veto steps if physically still (desk guard)
-  if (hasSteps) {
-    // If we have physical steps, WALKING should win regardless of what Apple's classifier says
-    logp += isWalkingState ? 25.0 : -35.0; 
+  const stepSignal = isPhysicallyStill ? 0 : Math.min(stepRate / 1.0, 1.0); // 0.0–1.0, desk-guard preserved
+  if (stepSignal > 0) {
+    logp += isWalkingState ? (stepSignal * 25.0) : -(stepSignal * 35.0);
   } else {
-    logp += (isStationaryState) ? 2.0 : -5.0;
+    logp += isStationaryState ? 2.0 : -5.0;
   }
 
   // ACCELERATION (Sensor)
@@ -864,12 +862,11 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const hasCarPresence = obs.bluetoothConnected || 
     (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 12.0);
 
-  // Trigger 'Away' logic with separate thresholds for walking vs. other vehicle
+  // Trigger 'Away' when walking/idle user leaves the 15m vicinity without their car
   const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
-  const isPassengerDrivingAway = !isAway && dist > 50 && currentState === 'DRIVING' && !obs.bluetoothConnected;
 
-  if (isWalkingAway || isPassengerDrivingAway) {
-    console.log(`[HMM] 📍 User left vicinity (> ${dist.toFixed(0)}m ${isPassengerDrivingAway ? 'via other vehicle' : ''})`);
+  if (isWalkingAway) {
+    console.log(`[HMM] 📍 User left vicinity (> ${dist.toFixed(0)}m)`);
     isAway = true;
     awayEvent = true;
   }
@@ -954,7 +951,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
   // If isAway is true, it means we never established presence (walked within 8m)
   // before starting this driving trip, so we must be in a different vehicle.
-  const isVacatingSpot = parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
+  const isVacatingSpot = parkedLocation && (currentState === 'DRIVING' || currentState === 'STOPPED') && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
   
   if (isVacatingSpot) {
     console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${dist.toFixed(0)}m).`);
