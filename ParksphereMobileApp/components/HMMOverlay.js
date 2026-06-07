@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, DeviceEventEmitter, Animated, PanResponder } from 'react-native';
+import { StyleSheet, View, Text, DeviceEventEmitter, Animated, PanResponder, Platform } from 'react-native';
 import { useOverlay } from '../context/OverlayContext';
 import { getTelemetryStatus } from '../utils/telemetryService';
 
@@ -101,13 +101,15 @@ const HMMOverlay = ({ isVisible }) => {
       <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
-      <View style={styles.btRow}>
-        <Text style={styles.statusText}>Bluetooth:</Text>
-        <View style={[
-          styles.btDot, 
-          { backgroundColor: hmmStatus.metrics?.bluetoothConnected ? '#4ade80' : '#ff4444' }
-        ]} />
-      </View>
+      {Platform.OS === 'android' && (
+        <View style={styles.btRow}>
+          <Text style={styles.statusText}>Bluetooth:</Text>
+          <View style={[
+            styles.btDot, 
+            { backgroundColor: hmmStatus.metrics?.bluetoothConnected ? '#4ade80' : '#ff4444' }
+          ]} />
+        </View>
+      )}
       <Text style={styles.statusText}>steps/sec: <Text style={styles.statusValue}>{(hmmStatus.metrics?.stepRate || 0).toFixed(2)}</Text></Text>
       <Text style={styles.statusText}>G-acc: <Text style={styles.statusValue}>{(hmmStatus.metrics?.acceleration || 1.0).toFixed(2)}</Text></Text>
       
