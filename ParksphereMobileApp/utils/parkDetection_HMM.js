@@ -640,7 +640,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let pgrMetrics = { pgr: 0, slope: 0, consistency: 0 };
   if (parkedLocation && !isNaN(fx) && !isNaN(fy)) {
     pgrMetrics = calculatePGR(dist, fx, fy);
-    progressHistory.push({ dist, x: fx, y: fy, time: now });
+    progressHistory.push({ dist, x: fx, y: fy });
     if (progressHistory.length > PROGRESS_WINDOW_SIZE) progressHistory.shift();
   }
 
@@ -666,8 +666,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     accel,
     dist,
     deltaRate: stableDeltaRate,
-    stopDuration: supplemental.stop_duration || 0,
-    accuracy: supplemental.accuracy || 10, 
+    accuracy: supplemental.accuracy || 10,
     approachAlignment, 
     pgr: pgrMetrics.pgr, 
     slope: pgrMetrics.slope,
@@ -727,7 +726,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   const hasWalkingSignal = obs.activity && obs.activity.walking && obs.activity.confidence >= 1;
   const hasDrivingSignal = obs.activity && obs.activity.automotive && obs.activity.confidence >= 1;
-  const hasStillSignal = obs.activity && obs.activity.stationary && obs.activity.confidence >= 1;
 
   // ==============================
   // 🔒 GATED RETURN COUNTER
