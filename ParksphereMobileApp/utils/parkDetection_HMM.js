@@ -905,10 +905,11 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   if (candidate !== currentState) {
     if (candidateConf > (belief[currentState] || 0) + HYSTERESIS_GAP) {
-      if (candidate === 'RETURNING' && !returnConfirmed) {} 
-      else if (candidate === 'IN_CAR' && !inCarConfirmed) {} 
-      else if (candidate === 'DRIVING' && !drivingConfirmed) {} 
-      else if (candidate === 'WALKING' && !walkingConfirmed) {} 
+      if (candidate === 'RETURNING' && !returnConfirmed) {}
+      else if (candidate === 'IN_CAR' && !inCarConfirmed) {}
+      else if (candidate === 'DRIVING' && !drivingConfirmed) {}
+      else if (candidate === 'WALKING' && !walkingConfirmed) {}
+      else if (isReturningIntentLocked && currentState === 'RETURNING' && candidate === 'IDLE') {}
       else {
         console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
         currentState = candidate;

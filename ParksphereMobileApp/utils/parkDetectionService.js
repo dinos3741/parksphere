@@ -615,13 +615,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // 🚀 EMA SMOOTHING
   // Alpha = 0.2 means 20% current reading, 80% historical memory.
   // This acts as a heavy flywheel, eliminating GPS/AI frame jitter.
-  const ALPHA = 0.2; 
+  const ALPHA = 0.2;
   const prevSmoothed = stateData.smoothedReturningConfidence || 0;
-  let overallReturningConfidence = (ALPHA * rawReturningConfidence) + ((1 - ALPHA) * prevSmoothed);
-  
-  // Snap to 0 if the raw confidence is completely zero to avoid a long mathematical decay tail
-  if (rawReturningConfidence === 0) overallReturningConfidence = 0;
-  
+  const overallReturningConfidence = (ALPHA * rawReturningConfidence) + ((1 - ALPHA) * prevSmoothed);
+
   stateData.smoothedReturningConfidence = overallReturningConfidence;
 
   // Trigger 'Soon Free' based on Unified Confidence Agreement (>85%)
