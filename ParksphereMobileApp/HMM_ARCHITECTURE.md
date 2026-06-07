@@ -13,6 +13,7 @@ These files contain the mathematical models and state transition logic.
 *   **`utils/parkDetectionService.js`**
     *   **Purpose:** The system manager.
     *   **Logic:** Handles the "plumbing." Subscribes to hardware sensors (Accelerometer, Pedometer, Bluetooth), manages the `TaskManager` for background execution, and handles state persistence via `AsyncStorage`.
+    *   **Key Features:** Unified Returning Confidence Fusion (HMM + AI + PGR), **Regression Analysis (Trend Detection)** for robust return triggers, and sensor data normalization.
     *   **Key Functions:** `handleLocationUpdate`, `triggerVirtualUpdate`, `declareSpot`.
 
 ## 2. Execution & Integration (The "Bridge")

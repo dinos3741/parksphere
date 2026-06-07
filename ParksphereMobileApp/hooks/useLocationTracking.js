@@ -52,20 +52,10 @@ export const useLocationTracking = (acceptedSpot, arrivalConfirmed, onProximityA
   useEffect(() => {
     let isMounted = true;
 
+    // Foreground-only tracking for UI responsiveness
     const setupLocationTracking = async () => {
       if (locationPermissionGranted && acceptedSpot && !arrivalConfirmed) {
-        const hasStarted = await Location.hasStartedLocationUpdatesAsync('background-location-task');
-        if (!hasStarted) {
-            await Location.startLocationUpdatesAsync('background-location-task', {
-              accuracy: Location.Accuracy.Balanced,
-              distanceInterval: 50,
-              timeInterval: 30000,
-              foregroundService: {
-                notificationTitle: 'Parksphere',
-                notificationBody: 'Tracking location in background',
-              },
-            });
-        }
+         // Background task was removed to avoid conflict with PARK_DETECTION_TASK
       }
     };
 
@@ -73,9 +63,6 @@ export const useLocationTracking = (acceptedSpot, arrivalConfirmed, onProximityA
 
     return () => {
       isMounted = false;
-      // Note: We might NOT want to stop here if we want background persistence
-      // For now, keeping it simple as per original hook design
-      Location.stopLocationUpdatesAsync('background-location-task');
     };
   }, [locationPermissionGranted, acceptedSpot, arrivalConfirmed]);
 

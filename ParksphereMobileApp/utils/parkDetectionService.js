@@ -237,7 +237,10 @@ async function triggerVirtualUpdate() {
         isFromSimulator: stateData.lastLocation.isFromSimulator && !isActuallyStill
       };
 
-      await handleLocationUpdate(stateData, virtualLocation);
+      const updatedStateData = await handleLocationUpdate(stateData, virtualLocation);
+      if (updatedStateData) {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedStateData));
+      }
     }
   } catch (e) {
     console.error('[ParkDetection] Virtual update failed:', e.message);
@@ -572,8 +575,12 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.stoppedCandidateLocation = null;
   }
 
-  if (stateData.state === 'STOPPED' && !stateData.stoppedCandidateLocation) {
-    stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords };
+  if (stateData.state === 'STOPPED') {
+    const currentAccuracy = location.coords.accuracy ?? Infinity;
+    const savedAccuracy = stateData.stoppedCandidateLocation?.accuracy ?? Infinity;
+    if (currentAccuracy < savedAccuracy) {
+      stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords, accuracy: currentAccuracy };
+    }
   }
 
   const aiFeatures = {
@@ -608,13 +615,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // 🚀 EMA SMOOTHING
   // Alpha = 0.2 means 20% current reading, 80% historical memory.
   // This acts as a heavy flywheel, eliminating GPS/AI frame jitter.
-  const ALPHA = 0.2; 
+  const ALPHA = 0.2;
   const prevSmoothed = stateData.smoothedReturningConfidence || 0;
-  let overallReturningConfidence = (ALPHA * rawReturningConfidence) + ((1 - ALPHA) * prevSmoothed);
-  
-  // Snap to 0 if the raw confidence is completely zero to avoid a long mathematical decay tail
-  if (rawReturningConfidence === 0) overallReturningConfidence = 0;
-  
+  const overallReturningConfidence = (ALPHA * rawReturningConfidence) + ((1 - ALPHA) * prevSmoothed);
+
   stateData.smoothedReturningConfidence = overallReturningConfidence;
 
   // Trigger 'Soon Free' based on Unified Confidence Agreement (>85%)

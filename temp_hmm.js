@@ -5,7 +5,7 @@
 // ==============================
 // STATES
 // ==============================
-export const STATES = [
+const STATES = [
   'IDLE',
   'WALKING',
   'DRIVING',
@@ -18,7 +18,7 @@ export const STATES = [
 // TRANSITIONS (base probabilities)
 // ==============================
 
-export const A = {
+const A = {
   IDLE: {
     IDLE: 0.67,      
     WALKING: 0.2, 
@@ -36,8 +36,8 @@ export const A = {
     STOPPED: 0.01
   },
   DRIVING: {
-    DRIVING: 0.85,   // 🚀 High stability, but lower than 0.95 for snappier stops
-    STOPPED: 0.13,   // 🚀 Increased to allow faster transition to STOPPED
+    DRIVING: 0.90,   // 🚀 High stability, but lower than 0.95 for snappier stops
+    STOPPED: 0.08,   // 🚀 Increased to allow faster transition to STOPPED
     WALKING: 0.02   
   },
   STOPPED: {
@@ -246,7 +246,7 @@ function calculatePGR(currentDist, currentX, currentY) {
 }
 
 
-export function resetPGRHistory() {
+function resetPGRHistory() {
   progressHistory = [];
   pgrHistory = [];
   console.log('[HMM] PGR History cleared.');
@@ -478,11 +478,12 @@ function emissionLogProb(state, obs) {
   }
 
   // STEP RATE (Sensor - THE FAST PATH)
-  const stepSignal = isPhysicallyStill ? 0 : Math.min(stepRate / 1.0, 1.0); // 0.0–1.0, desk-guard preserved
-  if (stepSignal > 0) {
-    logp += isWalkingState ? (stepSignal * 25.0) : -(stepSignal * 35.0);
+  const hasSteps = stepRate > 0.3 && !isPhysicallyStill; // 🛡️ Veto steps if physically still (desk guard)
+  if (hasSteps) {
+    // If we have physical steps, WALKING should win regardless of what Apple's classifier says
+    logp += isWalkingState ? 25.0 : -35.0; 
   } else {
-    logp += isStationaryState ? 2.0 : -5.0;
+    logp += (isStationaryState) ? 2.0 : -5.0;
   }
 
   // ACCELERATION (Sensor)
@@ -584,7 +585,7 @@ function updateBelief(prevBelief, obs, context) {
 // ==============================
 // MAIN FUNCTION
 // ==============================
-export function processLocationHMM(location, parkedLocation, supplemental = {}) {
+function processLocationHMM(location, parkedLocation, supplemental = {}) {
   // Restore state with 🚀 NaN Quarantine 
   if (supplemental.previousState) currentState = supplemental.previousState;
 
@@ -858,15 +859,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let awayEvent = false;
 
   // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
-  // We use Bluetooth, the IN_CAR state, or being within 12m while STOPPED/IDLE/RETURNING.
+  // We use Bluetooth, the IN_CAR state, or being within 8m while STOPPED/IDLE/RETURNING.
   const hasCarPresence = obs.bluetoothConnected || 
-    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 12.0);
+    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 10.0);
 
-  // Trigger 'Away' when walking/idle user leaves the 15m vicinity without their car
+  // Trigger 'Away' logic with separate thresholds for walking vs. other vehicle
   const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
+  const isPassengerDrivingAway = !isAway && dist > 50 && currentState === 'DRIVING' && !obs.bluetoothConnected;
 
-  if (isWalkingAway) {
-    console.log(`[HMM] 📍 User left vicinity (> ${dist.toFixed(0)}m)`);
+  if (isWalkingAway || isPassengerDrivingAway) {
+    console.log(`[HMM] 📍 User left vicinity (> ${dist.toFixed(0)}m ${isPassengerDrivingAway ? 'via other vehicle' : ''})`);
     isAway = true;
     awayEvent = true;
   }
@@ -905,11 +907,10 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   if (candidate !== currentState) {
     if (candidateConf > (belief[currentState] || 0) + HYSTERESIS_GAP) {
-      if (candidate === 'RETURNING' && !returnConfirmed) {}
-      else if (candidate === 'IN_CAR' && !inCarConfirmed) {}
-      else if (candidate === 'DRIVING' && !drivingConfirmed) {}
-      else if (candidate === 'WALKING' && !walkingConfirmed) {}
-      else if (isReturningIntentLocked && currentState === 'RETURNING' && candidate === 'IDLE') {}
+      if (candidate === 'RETURNING' && !returnConfirmed) {} 
+      else if (candidate === 'IN_CAR' && !inCarConfirmed) {} 
+      else if (candidate === 'DRIVING' && !drivingConfirmed) {} 
+      else if (candidate === 'WALKING' && !walkingConfirmed) {} 
       else {
         console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
         currentState = candidate;
@@ -952,7 +953,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
   // If isAway is true, it means we never established presence (walked within 8m)
   // before starting this driving trip, so we must be in a different vehicle.
-  const isVacatingSpot = parkedLocation && (currentState === 'DRIVING' || currentState === 'STOPPED') && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
+  const isVacatingSpot = parkedLocation && currentState === 'DRIVING' && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
   
   if (isVacatingSpot) {
     console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${dist.toFixed(0)}m).`);
@@ -1015,7 +1016,7 @@ function getDistance(a, b) {
 // ==============================
 // HELPERS
 // ==============================
-export function resetHMM() {
+function resetHMM() {
   for (const s of STATES) belief[s] = s === 'IDLE' ? 1 : 0;
   currentState = 'IDLE';
   isAway = false; 
@@ -1052,10 +1053,11 @@ export function resetHMM() {
   };
 }
 
-export function getHMMStatus() {
+function getHMMStatus() {
   return { currentState, belief };
 }
 
-export function initMotionTracking() {
+function initMotionTracking() {
   console.log('[HMM] Motion tracking disabled');
 }
+module.exports = { processLocationHMM, resetHMM, STATES };
