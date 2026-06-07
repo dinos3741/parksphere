@@ -1,5 +1,8 @@
 import { processLocationHMM, resetHMM } from '../parkDetection_HMM';
-import { SCENARIOS } from '../simulationScenarios';
+import { SCENARIOS } from '../../tests/simulationScenarios';
+
+// Module-level simulated clock — advanced by runHeadlessScenario, mocked in describe hooks.
+let _simTime = 1600000000000;
 
 /**
  * HMM Test Harness V2
@@ -42,6 +45,7 @@ function runHeadlessScenario(scenario) {
 
     // Simulate 1-second intervals for the duration of the step
     for (let t = 0; t < step.duration; t++) {
+      _simTime += 1000; // advance mock clock by 1 second per frame
       const shift = (step.speed / 3.6) * 1 * 0.000009; // 1s intervals
       if (step.moveDirection === 'AWAY') latOffset += shift;
       else if (step.moveDirection === 'TOWARD') latOffset -= shift;
@@ -126,6 +130,17 @@ function runHeadlessScenario(scenario) {
 }
 
 describe('HMM Regression Suite', () => {
+  let dateSpy;
+
+  beforeEach(() => {
+    _simTime = 1600000000000;
+    dateSpy = jest.spyOn(global.Date, 'now').mockImplementation(() => _simTime);
+  });
+
+  afterEach(() => {
+    dateSpy.mockRestore();
+  });
+
   test('Happy Path: Drive and Park', () => {
     const result = runHeadlessScenario(SCENARIOS.HAPPY_PATH);
     expect(result.finalState).toBe('WALKING');
@@ -227,11 +242,12 @@ describe('HMM Regression Suite', () => {
   test('Tightened IN_CAR Gate: Distance > 5m Block', () => {
     const scenario = {
       steps: [
-        { label: 'Approaching but far', speed: 2, steps: 0, duration: 5, startDistance: 8, moveDirection: 'TOWARD', activity: { stationary: true, confidence: 2 } }
+        // User stands still at 8m — well outside the IN_CAR threshold (≤5m)
+        { label: 'Stationary at 8m', speed: 0, steps: 0, duration: 5, startDistance: 8, activity: { stationary: true, confidence: 2 } }
       ]
     };
     const result = runHeadlessScenario(scenario);
-    // Even if stationary and close-ish, 8m > 5m must block IN_CAR
+    // 8m is above the IN_CAR distance gate so the state must stay blocked
     expect(result.finalState).not.toBe('IN_CAR');
   });
 
