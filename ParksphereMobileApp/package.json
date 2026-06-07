@@ -12,10 +12,7 @@
     "test:service": "jest -c jest-simple.config.js tests/service.integration.test.js",
     "test:service:regression": "jest -c jest-simple.config.js tests/service.regression.test.js",
     "test:service:stress": "jest -c jest-simple.config.js tests/service.stress.test.js",
-    "test:service:trace": "jest -c jest-simple.config.js tests/service.trace.test.js",
     "test:service:replica": "jest -c jest-simple.config.js tests/service.field_replica.test.js",
-    "test:service:telemetry": "jest -c jest-simple.config.js tests/service.telemetry_replay.test.js",
-    "test:service:telemetry:stress": "jest -c jest-simple.config.js tests/service.telemetry_stress.test.js",
     "test:replay": "jest -c jest-simple.config.js tests/hmm.field_replay_18.test.js"
   },
   "dependencies": {
