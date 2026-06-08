@@ -86,8 +86,11 @@ class Kalman1D {
   update(z) {
     this.p += this.q;
     const k = this.p / (this.p + this.r);
-    this.x = this.x + k * (z - this.x);
-    this.p = (1 - k) * this.p;
+    // Asymmetric gain: respond immediately to speed drops (stopping) but stay
+    // slow on increases (resists GPS noise while parked triggering false drive-off).
+    const effectiveK = z < this.x ? Math.max(k, 0.5) : k;
+    this.x = this.x + effectiveK * (z - this.x);
+    this.p = (1 - effectiveK) * this.p;
     return this.x;
   }
 }
@@ -861,7 +864,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
       if (candidate === 'RETURNING' && !returnConfirmed) {}
       else if (candidate === 'DRIVING' && !drivingConfirmed) {}
       else if (candidate === 'WALKING' && !walkingConfirmed) {}
-      else if (isReturningIntentLocked && currentState === 'RETURNING' && candidate === 'IDLE') {}
+      else if (isReturningIntentLocked && currentState === 'RETURNING' && (candidate === 'IDLE' || candidate === 'WALKING')) {}
       else {
         console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
         currentState = candidate;

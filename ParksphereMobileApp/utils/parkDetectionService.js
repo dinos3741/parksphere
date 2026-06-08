@@ -364,19 +364,14 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   }
   stateData.lastHeading = currentHeading;
 
-  if (speed < 3.0) { 
+  if (speed < 3.0) {
     if (!stateData.stopStartTime) {
       stateData.stopStartTime = now;
-      // 🚀 CACHE LOCATION: Record the exact coordinate where the user first slowed down.
-      // If they jump straight out of the car (Fast-Path), we use this instead of where they walked to.
-      stateData.slowCandidateLocation = currentLoc;
     }
-    stateData.stopDuration = (now - stateData.stopStartTime) / 1000; 
+    stateData.stopDuration = (now - stateData.stopStartTime) / 1000;
   } else {
     stateData.stopStartTime = null;
     stateData.stopDuration = 0;
-    // We do NOT clear slowCandidateLocation here because if they jump out and start walking quickly, 
-    // speed might spike above 3.0, but we still need the location of the stop.
   }
 
   let acceleration = currentAcceleration;
@@ -500,48 +495,12 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     notify('🚶 You have left the vicinity of your car.');
   }
 
-  if (parkedEvent) {
-    if (stateData.parkedLocation && stateData.serverSpotId && !stateData.parkingNotified) {
-       // This means we had an old spot stored, but we are parking AGAIN.
-       // This happens if the app missed the departure (indoor GPS blackout).
-       console.log(`[ParkDetection] 🔄 Stale spot detected during new park event. Deleting old spot ${stateData.serverSpotId}...`);
-       if (!String(stateData.serverSpotId).startsWith('local-')) {
-         updateSpotStatus(stateData.serverSpotId, 'free').catch(e => console.error('Stale override free failed', e));
-       }
-       // Reset the flags so the new spot can cleanly take over
-       stateData.parkingNotified = false;
-       stateData.soonFreeNotified = false;
-       stateData.returningNotified = false;
-       stateData.smoothedReturningConfidence = 0;
-       resetPGRHistory();
-    }
-
-    if (!stateData.parkingNotified) {
-      // 🚀 FIX: If manually forced (like from the simulator), always use the raw current location.
-      // Otherwise, use the candidate location where the car first came to a halt.
-      // If we fast-pathed and skipped STOPPED, use the exact moment we dropped below 3km/h.
-      const finalParkedLoc = location.forcePark ? currentLoc : (stateData.stoppedCandidateLocation || stateData.slowCandidateLocation || currentLoc);
-      
-      // 🚀 FIX: Clear the candidates so they don't bleed into future events
-      stateData.stoppedCandidateLocation = null;
-      stateData.slowCandidateLocation = null;
-
-      const spotId = await declareSpot(finalParkedLoc);
-
-      // Allow parking confirmation even if server declaration fails (offline-first)
-      stateData.parkedLocation = finalParkedLoc;
-      stateData.serverSpotId = spotId || `local-${Date.now()}`;
-      stateData.parkingNotified = true;
-      stateData.isAway = false; // We just parked, we are at the car!
-
-      notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
-    }
-  }
-  // ✅ ROBUST CLEARING: Handle clearance only when the HMM signals we have driven safely away
-  
+  // ✅ CLEAR BEFORE PARK: If both events fire in the same frame (e.g. GPS lock acquired at new
+  // location while STOPPED→WALKING also transitions), the clear must run first so that stale
+  // candidate locations from the previous session are nulled before finalParkedLoc is computed.
   if (clearParkingEvent) {
     const spotIdToClear = stateData.serverSpotId;
-    
+
     // 1. CLEAR LOCAL STATE FIRST (Ensures the app doesn't stay 'Parked' if network is slow)
     stateData.parkingNotified = false;
     stateData.serverSpotId = null;
@@ -551,20 +510,52 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.isAway = false;
     stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
-    stateData.soonFreeNotified = false; // 🚀 FIX: Clear soonFreeNotified so it fires again for the next parking session
-    stateData.smoothedReturningConfidence = 0; // Reset smoothing history
+    stateData.soonFreeNotified = false;
+    stateData.smoothedReturningConfidence = 0;
     stateData.returningNotified = false;
     resetPGRHistory();
-    
+
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
 
     // 2. TELL SERVER (Ordered await to ensure reliable sync)
-    // ✅ FIX: Cast to String to prevent TypeError if ID is an integer
     if (spotIdToClear && !String(spotIdToClear).startsWith('local-')) {
       console.log(`[ParkDetection] Attempting to free spot ${spotIdToClear} on server...`);
       await updateSpotStatus(spotIdToClear, 'free').catch(e => {
         console.error('[ParkDetection] Background server sync failed:', e.message);
       });
+    }
+  }
+
+  if (parkedEvent) {
+    if (stateData.parkedLocation && stateData.serverSpotId && !stateData.parkingNotified) {
+       // This means we had an old spot stored, but we are parking AGAIN.
+       // This happens if the app missed the departure (indoor GPS blackout).
+       console.log(`[ParkDetection] 🔄 Stale spot detected during new park event. Deleting old spot ${stateData.serverSpotId}...`);
+       if (!String(stateData.serverSpotId).startsWith('local-')) {
+         updateSpotStatus(stateData.serverSpotId, 'free').catch(e => console.error('Stale override free failed', e));
+       }
+       // Reset the flags and candidates so the new spot uses the current location
+       stateData.parkingNotified = false;
+       stateData.soonFreeNotified = false;
+       stateData.returningNotified = false;
+       stateData.smoothedReturningConfidence = 0;
+       stateData.stoppedCandidateLocation = null;
+       resetPGRHistory();
+    }
+
+    if (!stateData.parkingNotified) {
+      const finalParkedLoc = location.forcePark ? currentLoc : (stateData.stoppedCandidateLocation || currentLoc);
+
+      stateData.stoppedCandidateLocation = null;
+
+      const spotId = await declareSpot(finalParkedLoc);
+
+      stateData.parkedLocation = finalParkedLoc;
+      stateData.serverSpotId = spotId || `local-${Date.now()}`;
+      stateData.parkingNotified = true;
+      stateData.isAway = false;
+
+      notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
     }
   }
 
@@ -576,7 +567,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     const currentAccuracy = location.coords.accuracy ?? Infinity;
     const savedAccuracy = stateData.stoppedCandidateLocation?.accuracy ?? Infinity;
     if (currentAccuracy < savedAccuracy) {
-      stateData.stoppedCandidateLocation = { ...hmmResult.filteredCoords, accuracy: currentAccuracy };
+      stateData.stoppedCandidateLocation = { latitude: location.coords.latitude, longitude: location.coords.longitude, accuracy: currentAccuracy };
     }
   }
 
