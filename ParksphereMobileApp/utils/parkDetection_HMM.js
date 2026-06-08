@@ -10,8 +10,7 @@ export const STATES = [
   'WALKING',
   'DRIVING',
   'STOPPED',
-  'RETURNING',
-  'IN_CAR'
+  'RETURNING'
 ];
 
 // ==============================
@@ -20,44 +19,35 @@ export const STATES = [
 
 export const A = {
   IDLE: {
-    IDLE: 0.67,      
-    WALKING: 0.2, 
-    RETURNING: 0.03, 
-    IN_CAR: 0.05,
+    IDLE: 0.72,
+    WALKING: 0.2,
+    RETURNING: 0.03,
     DRIVING: 0.04,
     STOPPED: 0.01
   },
   WALKING: {
-    WALKING: 0.55, 
+    WALKING: 0.56,
     IDLE: 0.1,
-    DRIVING: 0.03,   
+    DRIVING: 0.03,
     RETURNING: 0.3,
-    IN_CAR: 0.01,
     STOPPED: 0.01
   },
   DRIVING: {
     DRIVING: 0.85,   // 🚀 High stability, but lower than 0.95 for snappier stops
     STOPPED: 0.13,   // 🚀 Increased to allow faster transition to STOPPED
-    WALKING: 0.02   
+    WALKING: 0.02
   },
   STOPPED: {
-    STOPPED: 0.85,   // 🚀 High stability
+    STOPPED: 0.87,   // 🚀 High stability
     DRIVING: 0.08,   // 🚀 Increased to allow faster departure
-    WALKING: 0.03,   
-    IN_CAR: 0.02,   
-    IDLE: 0.02       
+    WALKING: 0.03,
+    IDLE: 0.02
   },
   RETURNING: {
     RETURNING: 0.65,
-    IN_CAR: 0.25,
-    IDLE: 0.05,       
-    WALKING: 0.05   
-  },
-  IN_CAR: {
-    IN_CAR: 0.85,
-    DRIVING: 0.1,
-    WALKING: 0.03,  
-    IDLE: 0.02      
+    STOPPED: 0.25,   // arrival at car: RETURNING → STOPPED → DRIVING
+    IDLE: 0.05,
+    WALKING: 0.05
   }
 };
 
@@ -71,7 +61,6 @@ let isReturningIntentLocked = false;
 let minDistDuringReturn = Infinity;  
 
 let _returnCounter = 0;
-let _inCarCounter = 0;
 let _drivingCounter = 0;
 let _walkingCounter = 0;
 let _tripDrivingTime = 0; 
@@ -97,8 +86,11 @@ class Kalman1D {
   update(z) {
     this.p += this.q;
     const k = this.p / (this.p + this.r);
-    this.x = this.x + k * (z - this.x);
-    this.p = (1 - k) * this.p;
+    // Asymmetric gain: respond immediately to speed drops (stopping) but stay
+    // slow on increases (resists GPS noise while parked triggering false drive-off).
+    const effectiveK = z < this.x ? Math.max(k, 0.5) : k;
+    this.x = this.x + effectiveK * (z - this.x);
+    this.p = (1 - effectiveK) * this.p;
     return this.x;
   }
 }
@@ -302,8 +294,8 @@ function isTransitionAllowed(from, to, context) {
   // 🛑 STOPPED Rules
   if (to === 'STOPPED' && from !== 'STOPPED') {
     const hasStrongCarSignal = context.bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
-    // Allow entering STOPPED from DRIVING, OR from IDLE/IN_CAR if we have proof of vehicle
-    if (from !== 'DRIVING' && !(['IDLE', 'IN_CAR'].includes(from) && hasStrongCarSignal)) return false;
+    // Allow entering STOPPED from DRIVING, or from IDLE if we have proof of vehicle
+    if (from !== 'DRIVING' && !(from === 'IDLE' && hasStrongCarSignal)) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
@@ -311,22 +303,6 @@ function isTransitionAllowed(from, to, context) {
   if (to === 'RETURNING' && !['WALKING', 'IDLE', 'RETURNING'].includes(from)) return false;
   if (to === 'RETURNING' && dist < 1.0) return false;
 
-  if (to === 'IN_CAR' && !hasParkedLocation) return false;
-  if (to === 'IN_CAR' && from !== 'IN_CAR') {
-    // 1. Hard distance limit: Relaxed from 5m to 8m to allow for GPS offset in cities.
-    if (dist > 8) return false;
-
-    // 2. Approach/Stationary check: Allow if closing the gap OR if basically there and still.
-    // This prevents the rule from blocking when you stop exactly at the door to enter.
-    const isApproaching = deltaRate <= -0.1;
-    const isStationaryAtCar = dist < 3.5 && speed < 2 && stepRate < 0.1;
-    
-    if (!isApproaching && !isStationaryAtCar) return false;
-  }
-  if (to === 'IN_CAR' && speed > 10) return false;
-  if (to === 'IN_CAR' && stepRate > 2.5) return false;
-
-  if (from === 'WALKING' && to === 'IN_CAR' && !hasParkedLocation) return false;
   if (from === 'WALKING' && to === 'RETURNING') {
     // 🛡️ Require a gentle negative delta (approaching) OR decent PGR (progress)
     // Relaxed from -0.5 to -0.1 to handle slow walking/jitter.
@@ -368,14 +344,14 @@ function emissionLogProb(state, obs) {
   let gpsWeight = 1.0;
   if (accuracy > 20) gpsWeight = Math.max(0.2, 20 / accuracy);
 
-  const isStationaryState = ['IDLE', 'IN_CAR'].includes(state);
+  const isStationaryState = state === 'IDLE';
   const isVehicleState = ['DRIVING', 'STOPPED'].includes(state);
   const isWalkingState = ['WALKING', 'RETURNING'].includes(state);
 
   // 🚀 BLUETOOTH / AUTOMOTIVE SIGNAL (The "Golden" Signals)
   const hasStrongCarSignal = bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
   if (hasStrongCarSignal) {
-    if (isVehicleState || state === 'IN_CAR') {
+    if (isVehicleState) {
       logp += 15.0; // 🚀 Increased boost for vehicle presence
     } else {
       logp -= 15.0; // 🚀 Increased penalty for WALKING/RETURNING while in car
@@ -460,20 +436,8 @@ function emissionLogProb(state, obs) {
        logp -= 10.0 * gpsWeight;
     }
 
-    if (state === 'IN_CAR' || state === 'STOPPED') {
-      if (dist < 10) {
-        logp += 2.0 * gpsWeight; // 🚀 Leveling the field between STOPPED and IN_CAR
-        if (state === 'IN_CAR' && isReturningIntentLocked && speed < 2.0 && stepRate < 1.5) {
-           logp += 20.0; 
-        }
-      }
-    }
-
-    if (state === 'IN_CAR') {
-      logp += logGaussian(dist, 0, 6) * gpsWeight;
-      if (dist > 10) logp -= (15 * gpsWeight);
-      logp += logGaussian(speed, 0.5, 2) * gpsWeight;
-      if (stepRate > 1.2) logp -= 5; 
+    if (state === 'STOPPED' && dist < 10) {
+      logp += 2.0 * gpsWeight;
     }
   }
 
@@ -494,9 +458,7 @@ function emissionLogProb(state, obs) {
     if (['DRIVING', 'WALKING', 'RETURNING'].includes(state)) {
       logp -= 40; // 🚀 Increased penalty to snap to stationary states
     } else {
-      // Balance IDLE, STOPPED, and IN_CAR when perfectly still
-      // This prevents IDLE from being a "magnet" while you are actually STOPPED or IN_CAR
-      logp += 15; // 🚀 Increased boost
+      logp += 15; // 🚀 Boost stationary states (IDLE, STOPPED) when physically still
     }
   }
 
@@ -601,7 +563,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
 
   // Restore Counters
   _returnCounter = supplemental.returnCounter || 0;
-  _inCarCounter = supplemental.inCarCounter || 0;
   _drivingCounter = supplemental.drivingCounter || 0;
   _walkingCounter = supplemental.walkingCounter || 0;
   _tripDrivingTime = supplemental.tripDrivingTime || 0;
@@ -682,7 +643,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let pgrMetrics = { pgr: 0, slope: 0, consistency: 0 };
   if (parkedLocation && !isNaN(fx) && !isNaN(fy)) {
     pgrMetrics = calculatePGR(dist, fx, fy);
-    progressHistory.push({ dist, x: fx, y: fy, time: now });
+    progressHistory.push({ dist, x: fx, y: fy });
     if (progressHistory.length > PROGRESS_WINDOW_SIZE) progressHistory.shift();
   }
 
@@ -708,8 +669,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     accel,
     dist,
     deltaRate: stableDeltaRate,
-    stopDuration: supplemental.stop_duration || 0,
-    accuracy: supplemental.accuracy || 10, 
+    accuracy: supplemental.accuracy || 10,
     approachAlignment, 
     pgr: pgrMetrics.pgr, 
     slope: pgrMetrics.slope,
@@ -769,7 +729,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   const hasWalkingSignal = obs.activity && obs.activity.walking && obs.activity.confidence >= 1;
   const hasDrivingSignal = obs.activity && obs.activity.automotive && obs.activity.confidence >= 1;
-  const hasStillSignal = obs.activity && obs.activity.stationary && obs.activity.confidence >= 1;
 
   // ==============================
   // 🔒 GATED RETURN COUNTER
@@ -780,8 +739,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   } else {
     _returnCounter = 0;
   }
-  if (candidate === 'IN_CAR') _inCarCounter++; else _inCarCounter = 0;
-  
   // Resilient Walking Counter
   if (candidate === 'WALKING' || (hasWalkingSignal && candidateConf > 0.3)) {
     _walkingCounter++;
@@ -799,7 +756,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🚀 FIX: The Phantom Trip Guard
   // Only accumulate trip time if we are actually moving in a vehicle or stopped during a trip.
   const isVehicleState = candidate === 'DRIVING' || candidate === 'STOPPED';
-  if (isVehicleState || (candidate === 'IN_CAR' && speed > 5)) {
+  if (isVehicleState) {
     _tripDrivingTime += dt; 
     
     // 🚀 NEW: Accumulate physical distance using explicit Kalman displacement
@@ -823,8 +780,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   }
 
   const returnConfirmed = _returnCounter >= 2;
-  const inCarConfirmed = _inCarCounter >= 2;
-  
+
   // Confirmation thresholds
   const drivingConfirmed = _drivingCounter >= 2 || (hasDrivingSignal && _drivingCounter >= 1 && speed > 10);
   const walkingConfirmed = _walkingCounter >= 2 || (hasWalkingSignal && _walkingCounter >= 1); 
@@ -845,8 +801,8 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
       isReturningIntentLocked = false;
       minDistDuringReturn = Infinity;
     }
-    if (currentState === 'IN_CAR' || currentState === 'DRIVING') {
-      console.log('[HMM] 🔓 Intent Lock RELEASED: Arrival/Driving confirmed.');
+    if (currentState === 'DRIVING') {
+      console.log('[HMM] 🔓 Intent Lock RELEASED: Driving confirmed.');
       isReturningIntentLocked = false;
       minDistDuringReturn = Infinity;
     }
@@ -858,9 +814,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   let awayEvent = false;
 
   // 🛡️ CAR PRESENCE: Define if we are physically with OUR car
-  // We use Bluetooth, the IN_CAR state, or being within 12m while STOPPED/IDLE/RETURNING.
-  const hasCarPresence = obs.bluetoothConnected || 
-    (['IN_CAR', 'STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 12.0);
+  // We use Bluetooth, or being within 12m while STOPPED/IDLE/RETURNING.
+  const hasCarPresence = obs.bluetoothConnected ||
+    (['STOPPED', 'IDLE', 'RETURNING'].includes(currentState) && dist < 12.0);
 
   // Trigger 'Away' when walking/idle user leaves the 15m vicinity without their car
   const isWalkingAway = !isAway && dist > AWAY_THRESHOLD && !hasCarPresence && (currentState === 'WALKING' || currentState === 'IDLE');
@@ -906,10 +862,9 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (candidate !== currentState) {
     if (candidateConf > (belief[currentState] || 0) + HYSTERESIS_GAP) {
       if (candidate === 'RETURNING' && !returnConfirmed) {}
-      else if (candidate === 'IN_CAR' && !inCarConfirmed) {}
       else if (candidate === 'DRIVING' && !drivingConfirmed) {}
       else if (candidate === 'WALKING' && !walkingConfirmed) {}
-      else if (isReturningIntentLocked && currentState === 'RETURNING' && candidate === 'IDLE') {}
+      else if (isReturningIntentLocked && currentState === 'RETURNING' && (candidate === 'IDLE' || candidate === 'WALKING')) {}
       else {
         console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
         currentState = candidate;
@@ -929,7 +884,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
-    ['STOPPED', 'DRIVING', 'IN_CAR', 'IDLE', 'WALKING'].includes(currentState) &&
+    ['STOPPED', 'DRIVING', 'IDLE', 'WALKING'].includes(currentState) &&
     _tripDrivingTime >= TIME_THRESH &&
     _tripDrivingDistance >= DIST_THRESH; 
 
@@ -985,7 +940,6 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     approachAlignment: approachAlignment,
     // Export counters for persistence
     returnCounter: _returnCounter,
-    inCarCounter: _inCarCounter,
     drivingCounter: _drivingCounter,
     walkingCounter: _walkingCounter,
     tripDrivingTime: _tripDrivingTime,
@@ -1035,7 +989,6 @@ export function resetHMM() {
   pgrHistory = [];      
 
   _returnCounter = 0;
-  _inCarCounter = 0;
   _drivingCounter = 0;
   _walkingCounter = 0;
   _tripDrivingTime = 0; 

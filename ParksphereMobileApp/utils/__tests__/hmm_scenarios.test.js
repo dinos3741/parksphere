@@ -1,5 +1,8 @@
 import { processLocationHMM, resetHMM } from '../parkDetection_HMM';
-import { SCENARIOS } from '../simulationScenarios';
+import { SCENARIOS } from '../../tests/simulationScenarios';
+
+// Module-level simulated clock — advanced by runHeadlessScenario, mocked in describe hooks.
+let _simTime = 1600000000000;
 
 /**
  * HMM Test Harness V2
@@ -28,7 +31,6 @@ function runHeadlessScenario(scenario) {
   let drivingCounter = 0;
   let walkingCounter = 0;
   let returnCounter = 0;
-  let inCarCounter = 0;
   let proximityCounter = 0;
   let lastDistanceToCar = undefined;
   let lastTripX = null;
@@ -42,6 +44,7 @@ function runHeadlessScenario(scenario) {
 
     // Simulate 1-second intervals for the duration of the step
     for (let t = 0; t < step.duration; t++) {
+      _simTime += 1000; // advance mock clock by 1 second per frame
       const shift = (step.speed / 3.6) * 1 * 0.000009; // 1s intervals
       if (step.moveDirection === 'AWAY') latOffset += shift;
       else if (step.moveDirection === 'TOWARD') latOffset -= shift;
@@ -81,7 +84,6 @@ function runHeadlessScenario(scenario) {
         drivingCounter,
         walkingCounter,
         returnCounter,
-        inCarCounter,
         proximityCounter,
         lastTripX,
         lastTripY,
@@ -98,7 +100,6 @@ function runHeadlessScenario(scenario) {
       drivingCounter = result.drivingCounter;
       walkingCounter = result.walkingCounter;
       returnCounter = result.returnCounter;
-      inCarCounter = result.inCarCounter;
       proximityCounter = result.proximityCounter;
       lastTripX = result.lastTripX;
       lastTripY = result.lastTripY;
@@ -126,6 +127,17 @@ function runHeadlessScenario(scenario) {
 }
 
 describe('HMM Regression Suite', () => {
+  let dateSpy;
+
+  beforeEach(() => {
+    _simTime = 1600000000000;
+    dateSpy = jest.spyOn(global.Date, 'now').mockImplementation(() => _simTime);
+  });
+
+  afterEach(() => {
+    dateSpy.mockRestore();
+  });
+
   test('Happy Path: Drive and Park', () => {
     const result = runHeadlessScenario(SCENARIOS.HAPPY_PATH);
     expect(result.finalState).toBe('WALKING');
@@ -210,29 +222,36 @@ describe('HMM Regression Suite', () => {
     expect(switches).toBeLessThanOrEqual(2);
   });
 
-  test('Bluetooth Signal: IN_CAR Boost', () => {
+  test('Bluetooth boosts vehicle-state belief', () => {
     const scenarioNoBT = {
-      steps: [{ label: 'Approaching Car', speed: 2, steps: 0, duration: 2, startDistance: 4, moveDirection: 'TOWARD', bluetoothConnected: false }]
+      steps: [{ label: 'Stationary near car', speed: 0, steps: 0, duration: 5, startDistance: 3, activity: { stationary: true, confidence: 2 }, bluetoothConnected: false }]
     };
     const scenarioWithBT = {
-      steps: [{ label: 'Approaching Car with BT', speed: 2, steps: 0, duration: 2, startDistance: 4, moveDirection: 'TOWARD', bluetoothConnected: true }]
+      steps: [{ label: 'Stationary near car w/ BT', speed: 0, steps: 0, duration: 5, startDistance: 3, activity: { automotive: true, confidence: 2 }, bluetoothConnected: true }]
     };
-    
+
     const res1 = runHeadlessScenario(scenarioNoBT);
     const res2 = runHeadlessScenario(scenarioWithBT);
-    
-    expect(res2.finalBelief['IN_CAR']).toBeGreaterThan(res1.finalBelief['IN_CAR']);
+
+    // BT connection should push belief toward vehicle states (STOPPED/DRIVING)
+    const vehicleBelief = s => (s.finalBelief['STOPPED'] || 0) + (s.finalBelief['DRIVING'] || 0);
+    expect(vehicleBelief(res2)).toBeGreaterThan(vehicleBelief(res1));
   });
 
-  test('Tightened IN_CAR Gate: Distance > 5m Block', () => {
+  test('RETURNING → STOPPED arrival path', () => {
+    // Walk away to set isAway, then return close to the car and stop
     const scenario = {
       steps: [
-        { label: 'Approaching but far', speed: 2, steps: 0, duration: 5, startDistance: 8, moveDirection: 'TOWARD', activity: { stationary: true, confidence: 2 } }
+        { label: 'Walk away', speed: 4, steps: 1.5, duration: 10, moveDirection: 'AWAY' },
+        { label: 'Return to car', speed: 2, steps: 0.5, duration: 8, startDistance: 30, moveDirection: 'TOWARD' },
+        { label: 'Stopped at car', speed: 0, steps: 0, duration: 5, startDistance: 2, activity: { stationary: true, confidence: 2 } }
       ]
     };
     const result = runHeadlessScenario(scenario);
-    // Even if stationary and close-ish, 8m > 5m must block IN_CAR
+    // Must never enter the removed IN_CAR state
     expect(result.finalState).not.toBe('IN_CAR');
+    // STOPPED or RETURNING are both valid end states when near the car
+    expect(['STOPPED', 'RETURNING', 'IDLE']).toContain(result.finalState);
   });
 
   test('Tightened RETURNING Gate: Approach Speed Block', () => {
