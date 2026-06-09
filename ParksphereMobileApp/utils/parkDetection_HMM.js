@@ -883,16 +883,16 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // ==============================
   let parkedEvent = false;
 
-  // 🚀 Production-grade thresholds (Hardcoded for maximum reliability)
   const TIME_THRESH = 30;
-  const DIST_THRESH = 100;
+  const TRIP_DIST_THRESH = 100; // min meters driven this trip before parking is declared
+  const CLEAR_DIST_THRESH = 50; // min meters from parked location before spot is cleared
 
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
     ['STOPPED', 'DRIVING', 'IDLE', 'WALKING'].includes(currentState) &&
     _tripDrivingTime >= TIME_THRESH &&
-    _tripDrivingDistance >= DIST_THRESH; 
+    _tripDrivingDistance >= TRIP_DIST_THRESH;
 
 
   if (isExitEvent) {
@@ -913,7 +913,7 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   // 🛡️ PASSENGER GUARD: Only clear the spot if we are DRIVING and NOT "Away".
   // If isAway is true, it means we never established presence (walked within 8m)
   // before starting this driving trip, so we must be in a different vehicle.
-  const isVacatingSpot = parkedLocation && (currentState === 'DRIVING' || currentState === 'STOPPED') && !isAway && dist > DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
+  const isVacatingSpot = parkedLocation && (currentState === 'DRIVING' || currentState === 'STOPPED') && !isAway && dist > CLEAR_DIST_THRESH && _tripDrivingTime >= TIME_THRESH;
   
   if (isVacatingSpot) {
     console.log(`[HMM] 🛑 Parking spot cleared. Driver returned and drove away (> ${dist.toFixed(0)}m).`);
