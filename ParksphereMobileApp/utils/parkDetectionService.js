@@ -184,6 +184,23 @@ async function updateSpotStatus(spotId, status) {
   }
 }
 
+async function updateSpotLocation(spotId, location) {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
+    if (!token || !spotId) return;
+
+    await withTimeout(apiRequest(`${serverUrl}/api/parkingspots/${spotId}/location`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ latitude: location.latitude, longitude: location.longitude }),
+    }), 5000, 'fetch.updateSpotLocation');
+    console.log(`[ParkDetection] Refined spot ${spotId} location to (${location.latitude.toFixed(5)}, ${location.longitude.toFixed(5)})`);
+  } catch (error) {
+    console.error(`[ParkDetection] Failed to refine spot ${spotId} location:`, error.message);
+  }
+}
+
 async function deleteSpot(spotId) {
   try {
     const token = await AsyncStorage.getItem('userToken');
@@ -513,6 +530,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.soonFreeNotified = false;
     stateData.smoothedReturningConfidence = 0;
     stateData.returningNotified = false;
+    stateData.parkRefinementExpiry = null;
     resetPGRHistory();
 
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
@@ -555,6 +573,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       stateData.parkingNotified = true;
       stateData.isAway = false;
 
+      // If GPS accuracy was poor when parking was declared, open a 90s window to refine the location.
+      const finalAccuracy = finalParkedLoc.accuracy ?? Infinity;
+      stateData.parkRefinementExpiry = finalAccuracy > 20 ? (now + 90000) : null;
+
       notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
     }
   }
@@ -566,8 +588,27 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   if (stateData.state === 'STOPPED') {
     const currentAccuracy = location.coords.accuracy ?? Infinity;
     const savedAccuracy = stateData.stoppedCandidateLocation?.accuracy ?? Infinity;
-    if (currentAccuracy < savedAccuracy) {
+    // Only accept GPS fixes with decent accuracy — a 75m fix is useless as a parked location.
+    if (currentAccuracy < savedAccuracy && currentAccuracy < 25) {
       stateData.stoppedCandidateLocation = { latitude: location.coords.latitude, longitude: location.coords.longitude, accuracy: currentAccuracy };
+    }
+  }
+
+  // POST-PARK REFINEMENT: If parking was declared with poor GPS, keep updating parkedLocation
+  // for 90 seconds whenever a significantly better fix arrives. Closes on first good fix or timeout.
+  if (stateData.parkingNotified && stateData.parkedLocation && stateData.parkRefinementExpiry) {
+    const currentAccuracy = location.coords.accuracy ?? Infinity;
+    const parkedAccuracy = stateData.parkedLocation.accuracy ?? Infinity;
+    if (now < stateData.parkRefinementExpiry && currentAccuracy < parkedAccuracy * 0.5 && currentAccuracy < 20) {
+      console.log(`[ParkDetection] Refining parked location: ${parkedAccuracy.toFixed(0)}m → ${currentAccuracy.toFixed(0)}m`);
+      stateData.parkedLocation = currentLoc;
+      stateData.parkRefinementExpiry = null;
+      notify('📍 Parking location refined.', { parkedLocation: currentLoc });
+      if (stateData.serverSpotId && !String(stateData.serverSpotId).startsWith('local-')) {
+        await updateSpotLocation(stateData.serverSpotId, currentLoc).catch(e => console.error('[ParkDetection] Refinement server update failed:', e.message));
+      }
+    } else if (now >= stateData.parkRefinementExpiry) {
+      stateData.parkRefinementExpiry = null;
     }
   }
 
