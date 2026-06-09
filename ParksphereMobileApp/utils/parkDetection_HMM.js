@@ -27,10 +27,9 @@ export const A = {
   },
   WALKING: {
     WALKING: 0.56,
-    IDLE: 0.1,
+    IDLE: 0.11,
     DRIVING: 0.03,
     RETURNING: 0.3,
-    STOPPED: 0.01
   },
   DRIVING: {
     DRIVING: 0.85,   // 🚀 High stability, but lower than 0.95 for snappier stops
@@ -294,8 +293,8 @@ function isTransitionAllowed(from, to, context) {
   // 🛑 STOPPED Rules
   if (to === 'STOPPED' && from !== 'STOPPED') {
     const hasStrongCarSignal = context.bluetoothConnected || (activity && activity.automotive && activity.confidence >= 1);
-    // Allow entering STOPPED from DRIVING, or from IDLE if we have proof of vehicle
-    if (from !== 'DRIVING' && !(from === 'IDLE' && hasStrongCarSignal)) return false;
+    // Allow entering STOPPED from DRIVING, from RETURNING (arrival at car), or from IDLE with proof of vehicle
+    if (from !== 'DRIVING' && from !== 'RETURNING' && !(from === 'IDLE' && hasStrongCarSignal)) return false;
   }
 
   if (to === 'RETURNING' && !hasParkedLocation) return false;
@@ -866,6 +865,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
       else if (candidate === 'WALKING' && !walkingConfirmed) {}
       else if (isReturningIntentLocked && currentState === 'RETURNING' && (candidate === 'IDLE' || candidate === 'WALKING')) {}
       else {
+        // RETURNING→STOPPED means the user arrived at their car.
+        // Reset isAway so the passenger guard allows clearParkingEvent when they drive off.
+        if (currentState === 'RETURNING' && candidate === 'STOPPED') {
+          console.log('[HMM] Arrived at car (RETURNING→STOPPED). Resetting isAway.');
+          isAway = false;
+          _proximityCounter = 0;
+        }
         console.log(`[HMM] Switching state: ${currentState} -> ${candidate}`);
         currentState = candidate;
       }
