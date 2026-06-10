@@ -62,7 +62,7 @@ export const stopTelemetry = async () => {
 /**
  * Log a single snapshot of sensor data and HMM state.
  */
-export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConfidence = 0) => {
+export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConfidence = 0, boundary = {}) => {
   if (!isRecording) return;
 
   const entry = {
@@ -94,6 +94,12 @@ export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConf
       distToParked: result.distToParked,
       aiReturningConfidence: aiConfidence,
       overallReturningConfidence: overallReturningConfidence
+    },
+    boundary: { // 🚀 NEW: 2D decision boundary snapshot
+      zone: boundary.zone,
+      etaSeconds: boundary.etaSeconds,
+      commitThreshold: boundary.commitThreshold,
+      softThreshold: boundary.softThreshold
     }
   };
 

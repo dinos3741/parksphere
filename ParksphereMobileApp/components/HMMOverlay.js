@@ -66,6 +66,14 @@ const HMMOverlay = ({ isVisible }) => {
 
   if (!isVisible) return null;
 
+  const getZoneColor = (zone) => {
+    switch (zone) {
+      case 'COMMIT': return '#4ade80'; // green
+      case 'SOFT': return '#fbbf24';   // amber
+      default: return '#ff4444';       // red (WAIT)
+    }
+  };
+
   const getMotionText = () => {
     const act = hmmStatus.metrics?.motionActivity;
     if (!act) return '❓ Loading...';
@@ -117,6 +125,10 @@ const HMMOverlay = ({ isVisible }) => {
         <Text style={styles.surenessText}>RETURN SURENESS:</Text>
         <Text style={styles.surenessValue}>{Math.round((hmmStatus.returningConfidence || 0) * 100)}%</Text>
       </View>
+
+      <Text style={styles.statusText}>Zone: <Text style={[styles.statusValue, { color: getZoneColor(hmmStatus.zone) }]}>{hmmStatus.zone || 'WAIT'}</Text></Text>
+      <Text style={styles.statusText}>Dist: <Text style={styles.statusValue}>{(hmmStatus.metrics?.distToParked ?? 0).toFixed(0)}m</Text></Text>
+      <Text style={styles.statusText}>ETA: <Text style={styles.statusValue}>{hmmStatus.etaSeconds != null ? `${hmmStatus.etaSeconds}s` : '—'}</Text></Text>
     </Animated.View>
   );
 };

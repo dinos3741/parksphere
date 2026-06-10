@@ -14,6 +14,7 @@ import { logTelemetry } from './telemetryService';
 import { apiRequest } from './apiService';
 import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
 import { extractSpectralFeatures } from './fftUtils'; // 🚀 NEW: Spectral Analysis
+import { returnZone, commitThreshold, softThreshold, etaSeconds, ALERT_MAX_RANGE, COMMIT_HOLD_MS } from './returnBoundary'; // 🚀 NEW: 2D decision boundary
 
 // 🚀 Dynamic Import for Native Motion Activity (prevents crash in Expo Go)
 let MotionActivityTracker = null;
@@ -318,10 +319,11 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               stateData.isAway = false; // We are definitively in our car
               stateData.vicinityNotified = false;
               stateData._loggedParkedLoc = false;
-              stateData.soonFreeNotified = false;
               stateData.smoothedReturningConfidence = 0;
-              stateData.returningNotified = false;
-              
+              stateData.softAlertSent = false;
+              stateData.commitAboveSince = null;
+              stateData.commitAlertSent = false;
+
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
               notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
               resetPGRHistory();
@@ -527,9 +529,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.isAway = false;
     stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
-    stateData.soonFreeNotified = false;
     stateData.smoothedReturningConfidence = 0;
-    stateData.returningNotified = false;
+    stateData.softAlertSent = false;
+    stateData.commitAboveSince = null;
+    stateData.commitAlertSent = false;
     stateData.parkRefinementExpiry = null;
     resetPGRHistory();
 
@@ -554,8 +557,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
        }
        // Reset the flags and candidates so the new spot uses the current location
        stateData.parkingNotified = false;
-       stateData.soonFreeNotified = false;
-       stateData.returningNotified = false;
+       stateData.softAlertSent = false;
+       stateData.commitAboveSince = null;
+       stateData.commitAlertSent = false;
        stateData.smoothedReturningConfidence = 0;
        stateData.stoppedCandidateLocation = null;
        resetPGRHistory();
@@ -630,7 +634,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // Combine HMM (Holistic), CNN (Pattern), and PGR Alignment (Intent) 
   let rawReturningConfidence = 0;
 
-  if (stateData.isAway && stateData.parkedLocation && distToParked < 100) {
+  if (stateData.isAway && stateData.parkedLocation && distToParked < ALERT_MAX_RANGE) {
     const hmmBelief = currentBelief['RETURNING'] || 0;
     const aiConf = aiConfidence || 0;
     const pgrNorm = Math.max(0, hmmResult.approachAlignment || 0); // 0 to 1
@@ -650,12 +654,42 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
   stateData.smoothedReturningConfidence = overallReturningConfidence;
 
-  // Trigger 'Soon Free' based on Unified Confidence Agreement (>85%)
-  if (overallReturningConfidence > 0.85 && stateData.serverSpotId && !stateData.soonFreeNotified) {
-    console.log(`[ParkDetection] 🎯 UNIFIED RETURN CONFIRMED: ${(overallReturningConfidence * 100).toFixed(2)}% -> Triggering Soon Free`);
-    updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
-    stateData.soonFreeNotified = true;
-    // Removed notification - too noisy for production
+  // ==============================
+  // 🚀 2D DECISION BOUNDARY (distance x confidence)
+  // ==============================
+  // Replaces the old fixed >0.85 threshold. Two downward-sloping curves classify
+  // the (probability, distance) point into WAIT / SOFT / COMMIT zones. See returnBoundary.js.
+  const zone = (stateData.isAway && stateData.parkedLocation && distToParked < ALERT_MAX_RANGE)
+    ? returnZone(overallReturningConfidence, distToParked)
+    : 'WAIT';
+  const eta = etaSeconds(distToParked);
+
+  // Phase 1 — SOFT alert ("soon free" heads-up). Cheap, fire-once, no hold time.
+  // A brief entry into the soft zone is enough; re-arms if the user detours back to WAIT.
+  if (zone === 'SOFT' || zone === 'COMMIT') {
+    if (stateData.serverSpotId && !stateData.softAlertSent) {
+      console.log(`[ParkDetection] 🟡 SOFT alert: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m -> soon_free (ETA ${eta}s)`);
+      updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
+      stateData.softAlertSent = true;
+    }
+  } else {
+    stateData.softAlertSent = false; // re-arm after a detour out of the soft zone
+  }
+
+  // Phase 2 — COMMIT alert ("vacating now"). Must stay above the commit curve for a
+  // sustained window so a brief spike-and-retreat does not fire it. Reset on any dropout.
+  if (zone === 'COMMIT') {
+    if (!stateData.commitAboveSince) stateData.commitAboveSince = now;
+    const sustainedMs = now - stateData.commitAboveSince;
+    if (sustainedMs >= COMMIT_HOLD_MS && !stateData.commitAlertSent) {
+      console.log(`[ParkDetection] 🟢 COMMIT alert: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m sustained ${(sustainedMs / 1000).toFixed(0)}s -> vacating (ETA ${eta}s)`);
+      // NOTE: server broadcast of the commit + ETA payload is the next step; local-only for now.
+      notify('🚗 Spot being vacated…', { confidence: Math.round(overallReturningConfidence * 100), etaSeconds: eta });
+      stateData.commitAlertSent = true;
+    }
+  } else {
+    stateData.commitAboveSince = null; // dropout (e.g. detour) resets the sustained timer
+    stateData.commitAlertSent = false;
   }
 
   // 📡 Telemetry: Record snapshot for offline analysis, including AI confidence
@@ -666,8 +700,13 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     accuracy: location.coords.accuracy,
     bluetoothConnected: lastBluetoothState,
     activity: currentActivity,
-    spectralFeatures: spectralFeats 
-  }, hmmResult, aiConfidence, overallReturningConfidence);
+    spectralFeatures: spectralFeats
+  }, hmmResult, aiConfidence, overallReturningConfidence, {
+    zone,
+    etaSeconds: eta,
+    commitThreshold: commitThreshold(distToParked),
+    softThreshold: softThreshold(distToParked)
+  });
 
   if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {
@@ -677,26 +716,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       'IDLE': '💤 System Idle.'
     };
 
-    // 🚀 Gate the RETURNING notification behind the unified fusion threshold
-    if (stateData.state === 'RETURNING') {
-      // Do nothing here, we handle it continuously below
-    } else {
+    // 🚀 RETURNING alerts are now driven by the 2D decision boundary above, not state changes.
+    if (stateData.state !== 'RETURNING') {
       notify(messages[stateData.state] || `System State: ${stateData.state}`, { confidence: Math.round(confidence * 100) });
-      stateData.returningNotified = false; // Reset when we leave RETURNING
     }
-
-    if (stateData.state === 'RETURNING' && stateData.serverSpotId) {
-      if (!stateData.soonFreeNotified) {
-        updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
-        stateData.soonFreeNotified = true;
-      }
-    }
-  }
-
-  // 🚀 CONTINUOUS RETURNING NOTIFICATION CHECK
-  if (stateData.state === 'RETURNING' && overallReturningConfidence > 0.85 && !stateData.returningNotified) {
-    notify('📍 Approaching vehicle...', { confidence: Math.round(overallReturningConfidence * 100) });
-    stateData.returningNotified = true;
   }
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
@@ -708,6 +731,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     belief: currentBelief,
     location: currentLoc,
     returningConfidence: overallReturningConfidence, // 🚀 NEW: Unified Metric
+    zone, // 🚀 NEW: 2D boundary zone (WAIT / SOFT / COMMIT)
+    etaSeconds: eta, // 🚀 NEW: estimated seconds until the spot frees
+    commitThreshold: commitThreshold(distToParked), // 🚀 NEW: commit curve at current distance
+    softThreshold: softThreshold(distToParked), // 🚀 NEW: soft curve at current distance
     metrics: {
       speed,
       acceleration,

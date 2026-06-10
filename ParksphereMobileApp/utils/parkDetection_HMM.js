@@ -331,7 +331,11 @@ function logSigmoid(x, midpoint, steepness) {
 // ==============================
 // EMISSION MODEL
 // ==============================
-const RETURN_ZONE_RADIUS = 100; 
+// Shapes how strongly RETURNING is rewarded vs distance (proximity ramp + directional
+// weight below). Aligned with the 200m alert range (ALERT_MAX_RANGE in returnBoundary.js)
+// so the RETURNING belief — which feeds 40% of the fused returning confidence — can develop
+// across the full range where the 2D decision boundary may alert. (Widened from 100m.)
+const RETURN_ZONE_RADIUS = 200;
 const AWAY_THRESHOLD = 15;
 
 function emissionLogProb(state, obs) {
