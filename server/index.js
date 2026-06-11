@@ -865,8 +865,8 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     if (filter) {
-      if (filter === 'available') { 
-        conditions.push("ps.status IN ('free', 'soon_free')");
+      if (filter === 'available') {
+        conditions.push("ps.status IN ('free', 'soon_free', 'committed', 'vacating')");
       } else if (filter === 'occupied') { 
         conditions.push("ps.status = 'occupied'");
       } else if (!isNaN(parseInt(filter))) { 
@@ -954,7 +954,7 @@ app.post('/api/declare-spot', authenticateToken, async (req, res) => {
     try {
       const PROXIMITY_THRESHOLD_METERS = 5;
       const candidates = await pool.query(
-        "SELECT id, user_id, latitude, longitude FROM parking_spots WHERE status IN ('free', 'soon_free')"
+        "SELECT id, user_id, latitude, longitude FROM parking_spots WHERE status IN ('free', 'soon_free', 'committed', 'vacating')"
       );
 
       for (const cand of candidates.rows) {
@@ -1022,7 +1022,7 @@ app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
   const { status } = req.body;
   const userId = req.user.userId;
 
-  if (!['occupied', 'soon_free', 'free'].includes(status)) {
+  if (!['occupied', 'soon_free', 'committed', 'vacating', 'free'].includes(status)) {
     return res.status(400).json({ message: 'Invalid status.' });
   }
 
@@ -1045,7 +1045,7 @@ app.put('/api/parkingspots/:id/status', authenticateToken, async (req, res) => {
     const userResult = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
     updatedSpot.username = userResult.rows[0].username;
 
-    if (oldStatus === 'occupied' && (status === 'soon_free' || status === 'free')) {
+    if (oldStatus === 'occupied' && ['soon_free', 'committed', 'vacating', 'free'].includes(status)) {
       // First time becoming public
       io.emit('newParkingSpot', updatedSpot);
     } else {

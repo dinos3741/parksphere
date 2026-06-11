@@ -51,6 +51,7 @@ describe('2D Decision Boundary Integration', () => {
   let detailedFrames = [];
   let commitNotifies = [];
   let statusCalls = [];
+  let deleteCalls = [];
   let apiSpy;
 
   const { DeviceEventEmitter } = require('react-native');
@@ -64,6 +65,7 @@ describe('2D Decision Boundary Integration', () => {
     detailedFrames = [];
     commitNotifies = [];
     statusCalls = [];
+    deleteCalls = [];
 
     AsyncStorage.getItem.mockImplementation(async (key) => testStorage[key] || null);
     AsyncStorage.setItem.mockImplementation(async (key, val) => { testStorage[key] = val; });
@@ -73,7 +75,7 @@ describe('2D Decision Boundary Integration', () => {
       // Only the main update path carries boundary data; the BT fast-path and reset
       // emits legitimately omit it.
       if (event === 'parkDetectionDetailedUpdate' && data.zone !== undefined) detailedFrames.push(data);
-      if (event === 'parkDetectionUpdate' && data.message && data.message.includes('vacated')) {
+      if (event === 'parkDetectionUpdate' && data.message && data.message.includes('freeing soon')) {
         commitNotifies.push(data);
       }
     });
@@ -84,6 +86,9 @@ describe('2D Decision Boundary Integration', () => {
       }
       if (url.includes('/status') && opts && opts.body) {
         statusCalls.push(JSON.parse(opts.body).status);
+      }
+      if (opts && opts.method === 'DELETE') {
+        deleteCalls.push(url);
       }
       return { ok: true, json: async () => ({}), text: async () => '{}' };
     });
@@ -171,5 +176,34 @@ describe('2D Decision Boundary Integration', () => {
     // Pass-by: approaches the car then immediately walks away — never sustains COMMIT.
     await runScenario(SCENARIOS.PASS_BY_SPOT);
     expect(commitNotifies.length).toBe(0);
+  });
+
+  test('broadcasts the lifecycle in order (soon_free -> committed -> vacating) and removes on clear', async () => {
+    await runScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
+
+    const firstIdx = (status) => statusCalls.indexOf(status);
+
+    // Yellow always precedes green, and green always precedes red — never out of order.
+    if (firstIdx('committed') !== -1) {
+      expect(firstIdx('soon_free')).not.toBe(-1);
+      expect(firstIdx('soon_free')).toBeLessThan(firstIdx('committed'));
+    }
+    if (firstIdx('vacating') !== -1) {
+      // red is only sent once the dot is already public (a soft/commit broadcast happened).
+      const publicBefore = firstIdx('soon_free') !== -1 || firstIdx('committed') !== -1;
+      expect(publicBefore).toBe(true);
+      if (firstIdx('committed') !== -1) {
+        expect(firstIdx('committed')).toBeLessThan(firstIdx('vacating'));
+      }
+    }
+
+    // 'committed' (green) must never be sent without a sustained-COMMIT confirmation (notify).
+    if (firstIdx('committed') !== -1) {
+      expect(commitNotifies.length).toBeGreaterThan(0);
+    }
+
+    // The auto-clear removes the spot (DELETE) rather than marking it 'free'.
+    expect(statusCalls).not.toContain('free');
+    expect(deleteCalls.length).toBeGreaterThan(0);
   });
 });

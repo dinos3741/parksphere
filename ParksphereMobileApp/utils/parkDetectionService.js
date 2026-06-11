@@ -2,7 +2,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { Accelerometer, Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DeviceEventEmitter, Platform } from 'react-native';
+import { DeviceEventEmitter, Platform, Alert, Linking } from 'react-native';
 import RNBluetoothClassic from 'react-native-bluetooth-classic';
 
 console.log('***************************************************');
@@ -308,9 +308,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               console.log('[ParkDetection] 🔄 Bluetooth Veto: Connected to car while active spot exists. Clearing stale spot...');
               
               if (stateData.serverSpotId && !String(stateData.serverSpotId).startsWith('local-')) {
-                updateSpotStatus(stateData.serverSpotId, 'free').catch(e => console.error('BT Veto free failed', e));
+                deleteSpot(stateData.serverSpotId).catch(e => console.error('BT Veto delete failed', e));
               }
-              
+
               stateData.parkingNotified = false;
               stateData.serverSpotId = null;
               stateData.parkedLocation = null;
@@ -323,6 +323,8 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               stateData.softAlertSent = false;
               stateData.commitAboveSince = null;
               stateData.commitAlertSent = false;
+              stateData.publicBroadcast = false;
+              stateData.vacatingSent = false;
 
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
               notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
@@ -533,15 +535,18 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.softAlertSent = false;
     stateData.commitAboveSince = null;
     stateData.commitAlertSent = false;
+    stateData.publicBroadcast = false;
+    stateData.vacatingSent = false;
     stateData.parkRefinementExpiry = null;
     resetPGRHistory();
 
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
 
-    // 2. TELL SERVER (Ordered await to ensure reliable sync)
+    // 2. TELL SERVER (Ordered await to ensure reliable sync). The owner has driven off, so the
+    // spot is gone — remove the dot for everyone (deleteSpot emits spotDeleted) rather than mark free.
     if (spotIdToClear && !String(spotIdToClear).startsWith('local-')) {
-      console.log(`[ParkDetection] Attempting to free spot ${spotIdToClear} on server...`);
-      await updateSpotStatus(spotIdToClear, 'free').catch(e => {
+      console.log(`[ParkDetection] Removing cleared spot ${spotIdToClear} on server...`);
+      await deleteSpot(spotIdToClear).catch(e => {
         console.error('[ParkDetection] Background server sync failed:', e.message);
       });
     }
@@ -553,13 +558,15 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
        // This happens if the app missed the departure (indoor GPS blackout).
        console.log(`[ParkDetection] 🔄 Stale spot detected during new park event. Deleting old spot ${stateData.serverSpotId}...`);
        if (!String(stateData.serverSpotId).startsWith('local-')) {
-         updateSpotStatus(stateData.serverSpotId, 'free').catch(e => console.error('Stale override free failed', e));
+         deleteSpot(stateData.serverSpotId).catch(e => console.error('Stale override delete failed', e));
        }
        // Reset the flags and candidates so the new spot uses the current location
        stateData.parkingNotified = false;
        stateData.softAlertSent = false;
        stateData.commitAboveSince = null;
        stateData.commitAlertSent = false;
+       stateData.publicBroadcast = false;
+       stateData.vacatingSent = false;
        stateData.smoothedReturningConfidence = 0;
        stateData.stoppedCandidateLocation = null;
        resetPGRHistory();
@@ -669,8 +676,9 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   if (zone === 'SOFT' || zone === 'COMMIT') {
     if (stateData.serverSpotId && !stateData.softAlertSent) {
       console.log(`[ParkDetection] 🟡 SOFT alert: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m -> soon_free (ETA ${eta}s)`);
-      updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {});
+      updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {}); // yellow dot
       stateData.softAlertSent = true;
+      stateData.publicBroadcast = true; // dot is now visible to the network
     }
   } else {
     stateData.softAlertSent = false; // re-arm after a detour out of the soft zone
@@ -682,10 +690,11 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     if (!stateData.commitAboveSince) stateData.commitAboveSince = now;
     const sustainedMs = now - stateData.commitAboveSince;
     if (sustainedMs >= COMMIT_HOLD_MS && !stateData.commitAlertSent) {
-      console.log(`[ParkDetection] 🟢 COMMIT alert: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m sustained ${(sustainedMs / 1000).toFixed(0)}s -> vacating (ETA ${eta}s)`);
-      // NOTE: server broadcast of the commit + ETA payload is the next step; local-only for now.
-      notify('🚗 Spot being vacated…', { confidence: Math.round(overallReturningConfidence * 100), etaSeconds: eta });
+      console.log(`[ParkDetection] 🟢 COMMIT confirmed: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m sustained ${(sustainedMs / 1000).toFixed(0)}s -> committed (ETA ${eta}s)`);
+      if (stateData.serverSpotId) updateSpotStatus(stateData.serverSpotId, 'committed').catch(e => {}); // green dot
+      notify('🚗 Spot freeing soon…', { confidence: Math.round(overallReturningConfidence * 100), etaSeconds: eta });
       stateData.commitAlertSent = true;
+      stateData.publicBroadcast = true;
     }
   } else {
     stateData.commitAboveSince = null; // dropout (e.g. detour) resets the sustained timer
@@ -720,6 +729,17 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     if (stateData.state !== 'RETURNING') {
       notify(messages[stateData.state] || `System State: ${stateData.state}`, { confidence: Math.round(confidence * 100) });
     }
+  }
+
+  // 🔴 DRIVING AWAY: the owner just started driving off in their OWN car (passenger-guarded by
+  // !isAway, the same guard clearParkingEvent uses). Turn the (already public) dot red — the spot
+  // is being vacated right now. Fires once; the dot is removed later on clearParkingEvent.
+  if (stateData.state === 'DRIVING' && prevState !== 'DRIVING' &&
+      stateData.parkedLocation && !stateData.isAway &&
+      stateData.publicBroadcast && stateData.serverSpotId && !stateData.vacatingSent) {
+    console.log(`[ParkDetection] 🔴 Driving away from spot ${stateData.serverSpotId} -> vacating`);
+    updateSpotStatus(stateData.serverSpotId, 'vacating').catch(e => {}); // red dot
+    stateData.vacatingSent = true;
   }
 
   DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
@@ -960,25 +980,39 @@ export const startParkDetection = async () => {
     }
     console.log('[ParkDetection] Foreground location permissions granted.');
 
-    // We can consider the system "initialized" for simulation and foreground tracking
-    // even before background permissions are fully resolved.
-    isInitialized = true;
-
+    // 🚨 BACKGROUND ("Always") LOCATION IS REQUIRED.
+    // Every location update — foreground AND background — is delivered by the single
+    // startLocationUpdatesAsync task below. Without "Always" permission, iOS only delivers
+    // while the app is in the foreground, so with the screen off the detector goes silent and
+    // a real drive→park is never seen. Treat a denied/undetermined upgrade as a hard failure
+    // with an actionable prompt instead of quietly running foreground-only.
     try {
       console.log('[ParkDetection] Requesting background location permissions...');
       const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
       if (bgStatus !== 'granted') {
-        notify('Background location permission denied. HMM will work only in foreground.');
-        console.warn('[ParkDetection] Background location permission denied.');
-      } else {
-        console.log('[ParkDetection] Background location permissions granted.');
+        console.warn('[ParkDetection] Background ("Always") location permission not granted:', bgStatus);
+        notify('⚠️ Background location is OFF — parking detection cannot run with the screen off.');
+        // iOS will not re-prompt after the first decision, so send the user to Settings.
+        Alert.alert(
+          'Allow location "Always"',
+          'Parksphere needs the "Always" location permission to detect parking while the app is in the background or the screen is off. With "While Using", detection stops the moment you lock your phone.\n\nOpen Settings and set Location to "Always".',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
+          ]
+        );
+        return false; // do not pretend detection is active; it won't survive backgrounding
       }
+      console.log('[ParkDetection] Background ("Always") location permissions granted.');
     } catch (bgError) {
       console.error('[ParkDetection] Error requesting background permissions:', bgError);
+      notify('⚠️ Could not verify background location permission.');
+      return false;
     }
 
     console.log('[ParkDetection] Initializing HMM components...');
-    
+    isInitialized = true; // background permission confirmed; engine is now live
+
     // 🚀 FIX: Load persisted state immediately before starting HMM/Sensors
     // This ensures parkedLocation is available even if handleLocationUpdate 
     // is called by a background task before the UI can pass it in.
@@ -1006,6 +1040,11 @@ export const startParkDetection = async () => {
           distanceInterval: 0,              // 🚀 Force constant updates even if stationary
           deferredUpdatesInterval: 2000,
           showsBackgroundLocationIndicator: true,
+          // 🚨 iOS: never let the OS pause updates when it thinks we're "unlikely to move".
+          // This is what kept the engine silent on the bus (28-min update gap with screen off).
+          pausesUpdatesAutomatically: false,
+          // Navigation-grade continuous tracking across both driving and walking legs.
+          activityType: Location.ActivityType.OtherNavigation,
           foregroundService: {
             notificationTitle: 'Parksphere',
             notificationBody: 'Detecting parking activity',

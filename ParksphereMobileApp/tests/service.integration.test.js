@@ -165,14 +165,15 @@ describe('ParkDetection Service Integration', () => {
     expect(declareCall).toBeDefined();
     console.log('   ✅ Spot declared to server.');
 
-    // 2. Numeric ID Handling (Status Update)
-    // The server returned spotId: 45. We must ensure the status update used /parkingspots/45/
-    const statusUpdateCall = apiRequest.mock.calls.find(call => 
-      call[0].includes('/api/parkingspots/45/status') && 
-      JSON.parse(call[1].body).status === 'free'
+    // 2. Numeric ID Handling (Clear -> Delete)
+    // The server returned spotId: 45. On clear the spot is removed (DELETE /parkingspots/45),
+    // so the dot disappears for everyone rather than lingering as 'free'.
+    const deleteCall = apiRequest.mock.calls.find(call =>
+      call[0].includes('/api/parkingspots/45') &&
+      call[1] && call[1].method === 'DELETE'
     );
-    expect(statusUpdateCall).toBeDefined();
-    console.log('   ✅ Spot freed successfully (Numeric ID 45 handled).');
+    expect(deleteCall).toBeDefined();
+    console.log('   ✅ Spot removed on clear (DELETE, Numeric ID 45 handled).');
 
     // 3. State Cleanup
     expect(finalStateData.serverSpotId).toBeNull();

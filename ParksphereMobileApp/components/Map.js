@@ -75,7 +75,9 @@ const Map = memo(({
 
             const getStatusColor = (status) => {
               switch (status) {
-                case 'soon_free': return 'yellow';
+                case 'soon_free': return 'yellow';  // SOFT zone: owner returning
+                case 'committed': return 'green';   // COMMIT zone: owner about to leave
+                case 'vacating': return 'red';      // owner driving away now
                 case 'free': return 'green';
                 case 'occupied':
                 default: return 'red';
@@ -85,6 +87,8 @@ const Map = memo(({
             const getStatusRgba = (status, alpha) => {
               switch (status) {
                 case 'soon_free': return `rgba(255, 255, 0, ${alpha})`;
+                case 'committed': return `rgba(0, 128, 0, ${alpha})`;
+                case 'vacating': return `rgba(255, 0, 0, ${alpha})`;
                 case 'free': return `rgba(0, 128, 0, ${alpha})`;
                 case 'occupied':
                 default: return `rgba(255, 0, 0, ${alpha})`;

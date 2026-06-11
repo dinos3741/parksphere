@@ -194,10 +194,11 @@ describe('Service Regression Suite', () => {
   test('[Test 13] Real-Life Odyssey (Full Cycle: Walk -> Drive -> Park -> Return -> Drive)', async () => {
     const result = await runScenario(SCENARIOS.REAL_LIFE_ODYSSEY);
     const declaredSpot = apiRequest.mock.calls.some(call => call[0].includes('/api/declare-spot'));
-    const freedSpot = apiRequest.mock.calls.some(call => call[0].includes('/status') && JSON.parse(call[1].body).status === 'free');
-    
+    // On clear the spot is removed (DELETE), not marked 'free'.
+    const removedSpot = apiRequest.mock.calls.some(call => call[0].includes('/api/parkingspots/') && call[1] && call[1].method === 'DELETE');
+
     expect(declaredSpot).toBe(true);
-    expect(freedSpot).toBe(true);
+    expect(removedSpot).toBe(true);
     expect(result.serverSpotId).toBeNull();
   });
 

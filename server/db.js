@@ -192,7 +192,7 @@ async function createParkingSpotsTable() {
         cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
         price INTEGER DEFAULT 0,
         comments TEXT, -- New column for comments
-        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied', 'soon_free', 'free'
+        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied', 'soon_free' (yellow), 'committed' (green), 'vacating' (red), 'free'
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
