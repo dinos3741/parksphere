@@ -669,7 +669,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   const zone = (stateData.isAway && stateData.parkedLocation && distToParked < ALERT_MAX_RANGE)
     ? returnZone(overallReturningConfidence, distToParked)
     : 'WAIT';
-  const eta = etaSeconds(distToParked);
+  const eta = etaSeconds(distToParked, location.coords.speed); // coords.speed is m/s; null when still
 
   // Phase 1 — SOFT alert ("soon free" heads-up). Cheap, fire-once, no hold time.
   // A brief entry into the soft zone is enough; re-arms if the user detours back to WAIT.

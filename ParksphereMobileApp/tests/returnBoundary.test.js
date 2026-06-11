@@ -3,9 +3,10 @@ const {
   softThreshold,
   returnZone,
   etaSeconds,
+  formatEta,
   ALERT_MAX_RANGE,
   COMMIT_HOLD_MS,
-  WALKING_SPEED,
+  ETA_MIN_SPEED,
 } = require('../utils/returnBoundary');
 
 describe('returnBoundary — 2D decision boundary', () => {
@@ -67,16 +68,41 @@ describe('returnBoundary — 2D decision boundary', () => {
   });
 
   describe('etaSeconds', () => {
-    it('estimates time-to-free from remaining distance at walking speed', () => {
-      expect(etaSeconds(120)).toBe(Math.round(120 / WALKING_SPEED)); // 100s
-      expect(etaSeconds(0)).toBe(0);
-      expect(etaSeconds(-5)).toBe(0);
+    it('estimates time-to-arrival from remaining distance and current speed', () => {
+      expect(etaSeconds(120, 1.2)).toBe(100); // 120m at 1.2 m/s
+      expect(etaSeconds(60, 2.0)).toBe(30);
+      expect(etaSeconds(0, 1.5)).toBe(0);
+    });
+
+    it('returns null (N/A) when the owner is still or barely moving', () => {
+      expect(etaSeconds(120, 0)).toBeNull();
+      expect(etaSeconds(120, null)).toBeNull();
+      expect(etaSeconds(120, undefined)).toBeNull();
+      expect(etaSeconds(120, -1)).toBeNull();           // GPS "unavailable" sentinel
+      expect(etaSeconds(120, ETA_MIN_SPEED - 0.01)).toBeNull();
+      expect(etaSeconds(120, ETA_MIN_SPEED)).not.toBeNull();
+    });
+  });
+
+  describe('formatEta', () => {
+    it('formats seconds as M:SS', () => {
+      expect(formatEta(0)).toBe('0:00');
+      expect(formatEta(5)).toBe('0:05');
+      expect(formatEta(65)).toBe('1:05');
+      expect(formatEta(125)).toBe('2:05');
+      expect(formatEta(600)).toBe('10:00');
+    });
+
+    it('shows N/A for null/undefined/non-finite', () => {
+      expect(formatEta(null)).toBe('N/A');
+      expect(formatEta(undefined)).toBe('N/A');
+      expect(formatEta(Infinity)).toBe('N/A');
     });
   });
 
   it('exposes the tuning constants', () => {
     expect(ALERT_MAX_RANGE).toBe(200);
     expect(COMMIT_HOLD_MS).toBe(25000);
-    expect(WALKING_SPEED).toBe(1.2);
+    expect(ETA_MIN_SPEED).toBe(0.5);
   });
 });

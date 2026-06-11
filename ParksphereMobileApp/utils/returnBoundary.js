@@ -25,8 +25,11 @@ export const ALERT_MAX_RANGE = 200;
 // commit alert. Filters a brief spike-and-retreat. ~3-4 GPS updates.
 export const COMMIT_HOLD_MS = 25000;
 
-// Average walking speed (m/s) used to estimate time-to-free.
-export const WALKING_SPEED = 1.2;
+// Minimum speed (m/s) required to produce an ETA. Below this the owner is effectively
+// still (stopped, distracted, waiting to cross) so time-to-arrival is unknown — we return
+// null, which the UI shows as "N/A" rather than a divide-by-~0 blow-up. 0.5 m/s ≈ 1.8 km/h,
+// below a slow walk.
+export const ETA_MIN_SPEED = 0.5;
 
 // Commit curve: P_required from 0.55 (at the car) up to 0.90 (at 200m).
 export function commitThreshold(dist) {
@@ -47,7 +50,19 @@ export function returnZone(P, dist) {
   return 'WAIT';
 }
 
-// Estimated seconds until the spot frees, based on remaining walking distance.
-export function etaSeconds(dist) {
-  return Math.round(Math.max(dist, 0) / WALKING_SPEED);
+// Estimated seconds until the owner reaches the car (and the spot frees), from the
+// remaining distance and the owner's current speed (m/s). Returns null when too slow/still
+// to estimate — there's no meaningful ETA for someone who isn't moving toward the car.
+export function etaSeconds(dist, speed) {
+  if (!speed || speed < ETA_MIN_SPEED) return null;
+  return Math.round(Math.max(dist, 0) / speed);
+}
+
+// Format an ETA (seconds, or null/undefined) as "M:SS", or "N/A" when unknown.
+export function formatEta(seconds) {
+  if (seconds == null || !isFinite(seconds)) return 'N/A';
+  const total = Math.max(0, Math.round(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }

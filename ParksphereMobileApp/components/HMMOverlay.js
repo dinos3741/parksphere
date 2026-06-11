@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, DeviceEventEmitter, Animated, PanResponder, Platform } from 'react-native';
 import { useOverlay } from '../context/OverlayContext';
 import { getTelemetryStatus } from '../utils/telemetryService';
+import { formatEta } from '../utils/returnBoundary';
 
 const HMMOverlay = ({ isVisible }) => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
@@ -128,7 +129,7 @@ const HMMOverlay = ({ isVisible }) => {
 
       <Text style={styles.statusText}>Zone: <Text style={[styles.statusValue, { color: getZoneColor(hmmStatus.zone) }]}>{hmmStatus.zone || 'WAIT'}</Text></Text>
       <Text style={styles.statusText}>Dist: <Text style={styles.statusValue}>{(hmmStatus.metrics?.distToParked ?? 0).toFixed(0)}m</Text></Text>
-      <Text style={styles.statusText}>ETA: <Text style={styles.statusValue}>{hmmStatus.etaSeconds != null ? `${hmmStatus.etaSeconds}s` : '—'}</Text></Text>
+      <Text style={styles.statusText}>ETA: <Text style={styles.statusValue}>{formatEta(hmmStatus.etaSeconds)}</Text></Text>
     </Animated.View>
   );
 };

@@ -149,8 +149,15 @@ describe('2D Decision Boundary Integration', () => {
 
     for (const f of detailedFrames) {
       const dist = f.metrics?.distToParked ?? 0;
-      // ETA is computed directly from distance — exact invariant on every frame.
-      expect(f.etaSeconds).toBe(Math.round(Math.max(dist, 0) / 1.2));
+      // ETA = distance / current speed, or null (N/A) when essentially still.
+      // metrics.speed is km/h derived from the same coords.speed used for the ETA.
+      const speedMs = (f.metrics?.speed ?? 0) / 3.6;
+      if (speedMs < 0.5) {
+        expect(f.etaSeconds).toBeNull();
+      } else {
+        expect(typeof f.etaSeconds).toBe('number');
+        expect(f.etaSeconds).toBeGreaterThanOrEqual(0);
+      }
       expect(['WAIT', 'SOFT', 'COMMIT']).toContain(f.zone);
 
       // The reported zone must be consistent with the thresholds reported alongside it.

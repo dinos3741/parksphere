@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import HMMOverlay from './HMMOverlay';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -63,7 +63,7 @@ const Map = memo(({
             >
               <View style={styles.parkedMarkerContainer}>
                 <View style={styles.parkedMarkerBubble}>
-                  <FontAwesome name="car" size={18} color="white" />
+                  <MaterialCommunityIcons name="car-side" size={16} color="white" />
                 </View>
                 <View style={styles.parkedMarkerArrow} />
               </View>
@@ -214,9 +214,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   parkedMarkerBubble: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E53935',
     borderRadius: 20,
-    padding: 8,
+    padding: 6,
     borderWidth: 2,
     borderColor: 'white',
     elevation: 5,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
   },
   parkedMarkerArrow: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E53935',
     width: 10,
     height: 10,
     transform: [{ rotate: '45deg' }],
