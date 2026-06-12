@@ -5,3 +5,36 @@ index 0000000..30d3590
 +++ b/node_modules/react-native-motion-activity-tracker/build/types/index.js
 @@ -0,0 +1 @@
 +export * from "./MotionActivityTracker.types";
+diff --git a/node_modules/react-native-motion-activity-tracker/ios/MotionActivityTrackerModule.swift b/node_modules/react-native-motion-activity-tracker/ios/MotionActivityTrackerModule.swift
+index 17362f2..aaf90f2 100644
+--- a/node_modules/react-native-motion-activity-tracker/ios/MotionActivityTrackerModule.swift
++++ b/node_modules/react-native-motion-activity-tracker/ios/MotionActivityTrackerModule.swift
+@@ -6,6 +6,15 @@ public class MotionActivityTrackerModule: Module {
+   private let motionActivityManager = CMMotionActivityManager()
+   private var hasListeners = false
+ 
++  // Dedicated serial background queue so CoreMotion delivers activity updates
++  // while the app is suspended (screen off). OperationQueue.main only runs while
++  // the JS/main run loop is active, so updates were never delivered in background.
++  private let activityQueue: OperationQueue = {
++    let q = OperationQueue()
++    q.maxConcurrentOperationCount = 1
++    return q
++  }()
++
+     public func definition() -> ModuleDefinition {
+         Name("MotionActivityTracker")
+         
+@@ -86,8 +95,10 @@ public class MotionActivityTrackerModule: Module {
+             // Use a flag to ensure the promise is resolved only once
+             var isPromiseResolved = false
+             
+-            // Start activity updates
+-            self.motionActivityManager.startActivityUpdates(to: OperationQueue.main) { activity in
++            // Start activity updates on a background queue so they keep arriving
++            // while the app is suspended (screen off). Using OperationQueue.main here
++            // meant automotive/walking/stationary were never delivered in background.
++            self.motionActivityManager.startActivityUpdates(to: self.activityQueue) { activity in
+                 guard let activity = activity else {
+                     // If no activity, resolve with a message
+                     if !isPromiseResolved {
