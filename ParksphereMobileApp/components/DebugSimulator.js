@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, resetParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
-import { startTelemetry, stopTelemetry, shareTelemetryLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
+import { startTelemetry, stopTelemetry, shareTelemetryLog, shareHeartbeatLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
 import { useAuth } from '../context/AuthContext';
@@ -199,6 +199,12 @@ const DebugSimulator = ({ userLocation }) => {
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#f59e0b' }]} onPress={clearTelemetryLog}>
           <Text style={styles.btnText}>🗑️ CLEAR</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#8b5cf6' }]} onPress={shareHeartbeatLog}>
+          <Text style={styles.btnText}>💓 EXPORT HEARTBEAT</Text>
         </TouchableOpacity>
       </View>
 

@@ -10,7 +10,7 @@ console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
 console.log('***************************************************');
 
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
-import { logTelemetry } from './telemetryService';
+import { logTelemetry, logHeartbeat, restoreTelemetryState } from './telemetryService';
 import { apiRequest } from './apiService';
 import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
 import { extractSpectralFeatures } from './fftUtils'; // 🚀 NEW: Spectral Analysis
@@ -923,6 +923,11 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
     return;
   }
 
+  // 💓 HEARTBEAT: record that the task fired, ALWAYS — even when not recording and even
+  // if we bail out below. This is the ground truth for "did iOS wake the app in background?"
+  // (independent of the telemetry recording session, which the old recorder couldn't see).
+  logHeartbeat({ n: data.locations.length, cold: !isInitialized });
+
   // 🚀 SHARED MUTEX: Prevent clobbering state if a virtual update is running
   if (isProcessing) {
     console.warn('[ParkDetection] TaskManager update skipped — processing in progress.');
@@ -934,6 +939,9 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
     if (!isInitialized) {
       console.log('[ParkDetection] Engine woke up in background. Initializing...');
       isInitialized = true;
+      // Restore the recording flag — a cold background relaunch reset it to false, which
+      // would otherwise make logTelemetry() silently drop every background entry.
+      await restoreTelemetryState();
       await initAIEngine();
       await startSensors();
     }
