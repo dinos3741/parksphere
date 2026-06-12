@@ -1038,7 +1038,12 @@ export const startParkDetection = async () => {
           accuracy: Location.Accuracy.High, // 🚀 Upgraded to High for better low-speed resolution
           timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
           distanceInterval: 0,              // 🚀 Force constant updates even if stationary
-          deferredUpdatesInterval: 2000,
+          // 🚨 NO DEFERRAL: expo-location buffers fixes in memory and only flushes them to the
+          // task once the batch spans deferredUpdatesInterval. In the background that buffer is
+          // lost whenever iOS suspends/terminates the app — which is exactly the screen-off drive
+          // blackout we saw (logs 26 & 27). With deferral off, every fix iOS delivers is processed
+          // immediately, so a brief background wakeup is captured before the app can be killed.
+          deferredUpdatesInterval: 0,
           showsBackgroundLocationIndicator: true,
           // 🚨 iOS: never let the OS pause updates when it thinks we're "unlikely to move".
           // This is what kept the engine silent on the bus (28-min update gap with screen off).
