@@ -115,7 +115,7 @@ export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConf
   if (!isRecording) return;
 
   const entry = {
-    timestamp: Date.now(),
+    timestamp: obs.timestamp || Date.now(), // 🚀 real fix time so batched replays log true times
     manualLabel: currentManualLabel, // 🚀 The "Ground Truth" for AI training
     sensors: {
       speed: obs.speed,

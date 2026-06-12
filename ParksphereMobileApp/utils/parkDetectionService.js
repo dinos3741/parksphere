@@ -252,6 +252,9 @@ async function triggerVirtualUpdate() {
       const isActuallyStill = Math.abs(currentAcceleration - 1.0) < 0.015;
       const virtualLocation = {
         ...stateData.lastLocation,
+        // Virtual updates are real-time (sensor fast-path), so stamp NOW — don't reuse the
+        // stale timestamp of the last GPS fix, or the temporal-replay clock would jump back.
+        timestamp: Date.now(),
         isFromSimulator: stateData.lastLocation.isFromSimulator && !isActuallyStill
       };
 
@@ -374,8 +377,15 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     longitude: location.coords.longitude,
   };
 
-  const now = Date.now();
-  const speed = (location.coords.speed || 0) * 3.6; 
+  // 🚀 TEMPORAL REPLAY: drive the engine clock from the GPS fix's own timestamp, not
+  // Date.now(). When iOS delivers a batch of fixes buffered during background suspension,
+  // using wall-clock time would collapse minutes of driving into milliseconds and wreck
+  // every time-based decision (stop_duration, commit-hold window, refinement window).
+  // location.timestamp is epoch-ms from CoreLocation; Date.now() is the foreground/virtual
+  // fallback where the two are equivalent. NOTE: sensor-staleness checks below intentionally
+  // keep Date.now() — they measure how fresh the live accel/step reading is in real time.
+  const now = location.timestamp || Date.now();
+  const speed = (location.coords.speed || 0) * 3.6;
   
   const currentHeading = location.coords.heading || 0;
   let headingChange = 0;
@@ -703,6 +713,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
 
   // 📡 Telemetry: Record snapshot for offline analysis, including AI confidence
   logTelemetry({
+    timestamp: now, // 🚀 real fix time (location.timestamp), so batched replays log true times
     speed: location.coords.speed,
     stepRate: stepRate,
     accel: acceleration,

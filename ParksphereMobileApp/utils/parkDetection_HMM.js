@@ -576,7 +576,13 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   smoothedStepRate = supplemental.smoothedStepRate || 0;
   smoothedDeltaRate = supplemental.smoothedDeltaRate || 0;
 
-  const now = Date.now();
+  // 🚀 TEMPORAL REPLAY: derive dt from the GPS fix's own timestamp, not Date.now().
+  // iOS suspends the app in the background and later delivers a whole batch of buffered
+  // fixes in one burst. With Date.now() every fix in the burst lands in the same instant,
+  // collapsing dt to the 0.05s floor — which freezes the Kalman physics, starves
+  // _tripDrivingTime, and explodes deltaRate. Using location.timestamp makes dt the real
+  // ~1s between fixes again; the >60s guard below still fires across batch boundaries.
+  const now = location.timestamp || Date.now();
   let dt = 1;
 
   if (lastTimestamp) {
