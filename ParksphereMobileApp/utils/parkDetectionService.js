@@ -913,6 +913,13 @@ function stopSensors() {
 }
 
 // ---------------- TASK ----------------
+// 🔒 SERIAL TASK QUEUE: When iOS resumes the app after suspension it dumps every
+// location it buffered while suspended as a BURST of separate task invocations (the
+// heartbeat showed 114 fires in one instant). The old `if (isProcessing) return` mutex
+// dropped all but the first, throwing away the entire background window. Chaining the
+// invocations processes every buffered location in order instead of losing them.
+let taskQueue = Promise.resolve();
+
 TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   if (error) {
     console.error(`[ParkDetection] Task Error: ${error.message}`);
@@ -928,13 +935,16 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   // (independent of the telemetry recording session, which the old recorder couldn't see).
   logHeartbeat({ n: data.locations.length, cold: !isInitialized });
 
-  // 🚀 SHARED MUTEX: Prevent clobbering state if a virtual update is running
-  if (isProcessing) {
-    console.warn('[ParkDetection] TaskManager update skipped — processing in progress.');
-    return;
-  }
-  isProcessing = true;
+  taskQueue = taskQueue
+    .then(() => runTaskBatch(data.locations))
+    .catch(e => console.error('[ParkDetection] Task batch error:', e.message));
+  return taskQueue;
+});
 
+async function runTaskBatch(locations) {
+  // isProcessing still gates the foreground sensor fast-path (triggerVirtualUpdate);
+  // taskQueue guarantees only one batch runs at a time, so it stays a clean flag.
+  isProcessing = true;
   try {
     if (!isInitialized) {
       console.log('[ParkDetection] Engine woke up in background. Initializing...');
@@ -960,7 +970,7 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
       return;
     }
 
-    for (const loc of data.locations) {
+    for (const loc of locations) {
       // Pass the current stateData to handleLocationUpdate for sequential processing
       stateData = await handleLocationUpdate(stateData, loc);
     }
@@ -973,7 +983,7 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   } finally {
     isProcessing = false;
   }
-});
+}
 
 export const isDetectionEngineRunning = () => isInitialized;
 
@@ -1043,7 +1053,13 @@ export const startParkDetection = async () => {
       if (!started) {
         console.log('[ParkDetection] Starting background location updates...');
         await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-          accuracy: Location.Accuracy.High, // 🚀 Upgraded to High for better low-speed resolution
+          // 🚨 BestForNavigation (= kCLLocationAccuracyBestForNavigation), not High.
+          // High maps to kCLLocationAccuracyNearestTenMeters, a power-saving tier iOS
+          // suspends aggressively when you're slow/stationary — confirmed by the heartbeat
+          // (105s screen-off gap, app suspended, locations buffered & dumped on resume).
+          // BestForNavigation is the "active navigation, keep GPS hot" tier that resists
+          // background suspension and keeps the location session (and app) alive.
+          accuracy: Location.Accuracy.BestForNavigation,
           timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
           distanceInterval: 0,              // 🚀 Force constant updates even if stationary
           // 🚨 NO DEFERRAL: expo-location buffers fixes in memory and only flushes them to the
