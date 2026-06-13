@@ -284,16 +284,16 @@ let lastBluetoothState = false;
 // 🔒 SERIAL QUEUE: Prevents concurrent handleLocationUpdate calls from clobbering state
 let updateQueue = Promise.resolve();
 
-export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false, isLastInBatch = true) {
+export async function handleLocationUpdate(arg1, arg2, isBluetoothUpdate = false) {
   return updateQueue = updateQueue.then(async () => {
-    return _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate, isLastInBatch);
+    return _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate);
   }).catch(e => {
     console.error('[ParkDetection] Queue Error:', e.message);
     return arg2 ? arg1 : {};
   });
 }
 
-async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = false, isLastInBatch = true) {
+async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = false) {
   if (!isInitialized && !isBluetoothUpdate) {
     return arg2 ? arg1 : {}; 
   }
@@ -394,12 +394,6 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   // keep Date.now() — they measure how fresh the live accel/step reading is in real time.
   const now = location.timestamp || Date.now();
   const speed = (location.coords.speed || 0) * 3.6;
-
-  // 🚀 UI GATING: When iOS dumps a batch of buffered fixes on resume, every one would otherwise
-  // fire a UI update — making the overlay/notifications fast-forward through minutes of history.
-  // Detection still runs on every fix; we only surface the UI for the LIVE fix (the last in the
-  // batch, or one whose timestamp is fresh). Stale replayed fixes are processed silently.
-  const emitUI = isLastInBatch || (Date.now() - now < 10000);
   
   const currentHeading = location.coords.heading || 0;
   let headingChange = 0;
@@ -748,9 +742,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     softThreshold: softThreshold(distToParked)
   });
 
-  // Only surface a state-change message for the live fix — not every replayed historical
-  // transition in a buffered batch (that's the fast-forward spam in the notification window).
-  if (emitUI && (stateData.state !== prevState || isFirstUpdate)) {
+  if (stateData.state !== prevState || isFirstUpdate) {
     const messages = {
       'DRIVING': '🚗 Driving detected...',
       'WALKING': '🚶 Walking detected...',
@@ -775,35 +767,30 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.vacatingSent = true;
   }
 
-  // Drive the HMM overlay only with the live fix. During a buffered batch this fires once (on
-  // the last fix) so the overlay snaps straight to the current state instead of fast-forwarding
-  // through every historical measurement.
-  if (emitUI) {
-    DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
-      state: stateData.state,
-      bestState,
-      confidence,
-      secondBestState,
-      secondConfidence,
-      belief: currentBelief,
-      location: currentLoc,
-      returningConfidence: overallReturningConfidence, // 🚀 NEW: Unified Metric
-      zone, // 🚀 NEW: 2D boundary zone (WAIT / SOFT / COMMIT)
-      etaSeconds: eta, // 🚀 NEW: estimated seconds until the spot frees
-      commitThreshold: commitThreshold(distToParked), // 🚀 NEW: commit curve at current distance
-      softThreshold: softThreshold(distToParked), // 🚀 NEW: soft curve at current distance
-      metrics: {
-        speed,
-        acceleration,
-        stepRate, // 🚀 Uses the boosted Fast-Path rate
-        motionActivity: currentActivity,
-        headingChange,
-        stopDuration: stateData.stopDuration,
-        distToParked,
-        bluetoothConnected: lastBluetoothState
-      }
-    });
-  }
+  DeviceEventEmitter.emit('parkDetectionDetailedUpdate', {
+    state: stateData.state,
+    bestState,
+    confidence,
+    secondBestState,
+    secondConfidence,
+    belief: currentBelief,
+    location: currentLoc,
+    returningConfidence: overallReturningConfidence, // 🚀 NEW: Unified Metric
+    zone, // 🚀 NEW: 2D boundary zone (WAIT / SOFT / COMMIT)
+    etaSeconds: eta, // 🚀 NEW: estimated seconds until the spot frees
+    commitThreshold: commitThreshold(distToParked), // 🚀 NEW: commit curve at current distance
+    softThreshold: softThreshold(distToParked), // 🚀 NEW: soft curve at current distance
+    metrics: {
+      speed,
+      acceleration,
+      stepRate, // 🚀 Uses the boosted Fast-Path rate
+      motionActivity: currentActivity,
+      headingChange,
+      stopDuration: stateData.stopDuration,
+      distToParked,
+      bluetoothConnected: lastBluetoothState
+    }
+  });
 
   if (!isInternal) {
     try {
@@ -1066,9 +1053,7 @@ async function runTaskBatch(locations) {
       return;
     }
 
-    for (let i = 0; i < locations.length; i++) {
-      const loc = locations[i];
-      const isLastInBatch = i === locations.length - 1;
+    for (const loc of locations) {
       // Tag this fix with the activity the coprocessor actually recorded at its timestamp,
       // so a buffered drive carries 'automotive' instead of the stale live 'unknown'.
       if (activityTimeline && loc.timestamp) {
@@ -1081,9 +1066,8 @@ async function runTaskBatch(locations) {
       if (currentActivity.unknown && (loc.coords?.speed || 0) * 3.6 > 20) {
         currentActivity = { state: 'automotive', automotive: true, walking: false, stationary: false, unknown: false, confidence: 1 };
       }
-      // Pass the current stateData to handleLocationUpdate for sequential processing. Only the
-      // last fix of the batch surfaces to the UI (see emitUI) so replays don't fast-forward.
-      stateData = await handleLocationUpdate(stateData, loc, false, isLastInBatch);
+      // Pass the current stateData to handleLocationUpdate for sequential processing
+      stateData = await handleLocationUpdate(stateData, loc);
     }
 
     try {
