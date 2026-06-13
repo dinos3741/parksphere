@@ -923,6 +923,61 @@ function stopSensors() {
   }
 }
 
+// ---------------- HISTORICAL ACTIVITY BACKFILL ----------------
+// In the background CoreMotion's LIVE activity stream is dead (the JS thread is suspended),
+// so every buffered fix would otherwise carry a stale 'unknown' activity — which starves the
+// HMM's DRIVING logic (it leans on the 'automotive' signal). The motion coprocessor, however,
+// records the real activity continuously on dedicated hardware, even while the app is asleep.
+// We query that history for the batch's time window and tag each fix with what was actually
+// happening then. getHistoricalData returns segments with epoch-SECONDS timestamps and a
+// string confidence ('low'|'medium'|'high').
+function mapHistoricalActivity(a) {
+  if (!a) return null;
+  const confidence = a.confidence === 'high' ? 2 : (a.confidence === 'medium' ? 1 : 0);
+  let state = 'unknown';
+  if (a.automotive) state = 'automotive';
+  else if (a.walking || a.running) state = 'walking';
+  else if (a.stationary) state = 'stationary';
+  return {
+    state,
+    automotive: !!a.automotive,
+    walking: !!(a.walking || a.running),
+    stationary: !!a.stationary,
+    unknown: state === 'unknown',
+    confidence
+  };
+}
+
+async function fetchActivityTimeline(locations) {
+  const fixTimes = locations.map(l => l.timestamp).filter(Boolean);
+  if (!fixTimes.length || !MotionActivityTracker || typeof MotionActivityTracker.getHistoricalData !== 'function') {
+    return null;
+  }
+  try {
+    const start = new Date(Math.min(...fixTimes) - 5000);
+    const end = new Date(Math.max(...fixTimes) + 5000);
+    const raw = await withTimeout(MotionActivityTracker.getHistoricalData(start, end), 4000, 'getHistoricalData');
+    const timeline = (raw || [])
+      .map(a => ({ t: (a.timestamp || 0) * 1000, act: mapHistoricalActivity(a) })) // epoch s -> ms
+      .filter(x => x.act)
+      .sort((x, y) => x.t - y.t);
+    console.log(`[ParkDetection] Backfilled ${timeline.length} historical activity segments for batch.`);
+    return timeline.length ? timeline : null;
+  } catch (e) {
+    console.warn('[ParkDetection] Historical activity backfill failed:', e.message);
+    return null;
+  }
+}
+
+// Resolve the activity in effect at a given fix time (latest segment that started at/before it).
+function activityAt(timeline, fixTimeMs) {
+  let resolved = null;
+  for (const seg of timeline) {
+    if (seg.t <= fixTimeMs) resolved = seg.act; else break;
+  }
+  return resolved;
+}
+
 // ---------------- TASK ----------------
 // 🔒 SERIAL TASK QUEUE: When iOS resumes the app after suspension it dumps every
 // location it buffered while suspended as a BURST of separate task invocations (the
@@ -970,6 +1025,9 @@ async function runTaskBatch(locations) {
     // 🚀 OPTIMIZATION: Fetch step rate once for the entire batch
     currentStepRate = await getRecentStepRate();
 
+    // 🚀 Backfill the real motion activity the coprocessor recorded across this batch window.
+    const activityTimeline = await fetchActivityTimeline(locations);
+
     let stateData = null;
     try {
       const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'TaskManager.getItem');
@@ -982,6 +1040,18 @@ async function runTaskBatch(locations) {
     }
 
     for (const loc of locations) {
+      // Tag this fix with the activity the coprocessor actually recorded at its timestamp,
+      // so a buffered drive carries 'automotive' instead of the stale live 'unknown'.
+      if (activityTimeline && loc.timestamp) {
+        const resolved = activityAt(activityTimeline, loc.timestamp);
+        if (resolved) currentActivity = resolved;
+      }
+      // 🚀 SPEED SAFETY NET: if history is missing/unknown but GPS shows a clearly vehicular
+      // speed (>20 km/h is impossible on foot), synthesize a medium-confidence automotive
+      // signal so the DRIVING path engages even when activity history is unavailable.
+      if (currentActivity.unknown && (loc.coords?.speed || 0) * 3.6 > 20) {
+        currentActivity = { state: 'automotive', automotive: true, walking: false, stationary: false, unknown: false, confidence: 1 };
+      }
       // Pass the current stateData to handleLocationUpdate for sequential processing
       stateData = await handleLocationUpdate(stateData, loc);
     }
