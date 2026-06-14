@@ -26,9 +26,39 @@ try {
 }
 
 export const PARK_DETECTION_TASK = 'PARK_DETECTION_TASK';
+export const PARK_GEOFENCE_TASK = 'PARK_GEOFENCE_TASK';
 
 // ---------------- CONSTANTS ----------------
 const STORAGE_KEY = 'PARK_STATE';
+const MODE_KEY = 'DETECTION_MODE'; // 'ACTIVE' (continuous updates) | 'PARKED_AWAY' (geofence only)
+
+// Return geofence radius around the parked car. Outside the 200m ALERT_MAX_RANGE so iOS wakes
+// the suspended app on the user's approach BEFORE they reach the alert zone — lead time for the
+// returning logic. MODE-SWITCHING RULE: geofencing and continuous location updates do NOT coexist
+// in expo-location (running both silently kills the continuous stream). So we run exactly ONE at a
+// time: continuous while active, geofence-only while parked & away. Never both.
+const GEOFENCE_RADIUS = 300;
+
+// Shared continuous-updates config — used by start AND the mode-switch back to ACTIVE.
+// A function (not a const) so the Location.* enums are read at call time, not module load.
+const continuousLocationOptions = () => ({
+  // BestForNavigation (= kCLLocationAccuracyBestForNavigation): the "keep GPS hot" tier that
+  // resists background suspension. (High = NearestTenMeters, which iOS suspends aggressively.)
+  accuracy: Location.Accuracy.BestForNavigation,
+  timeInterval: 2000,
+  distanceInterval: 0,
+  // No deferral: expo-location buffers fixes and loses them when iOS suspends the app. Off = each
+  // delivered fix is processed immediately.
+  deferredUpdatesInterval: 0,
+  showsBackgroundLocationIndicator: true,
+  // Never let iOS auto-pause updates when it thinks we're "unlikely to move".
+  pausesUpdatesAutomatically: false,
+  activityType: Location.ActivityType.OtherNavigation,
+  foregroundService: {
+    notificationTitle: 'Parksphere',
+    notificationBody: 'Detecting parking activity',
+  },
+});
 let isInitialized = false;
 
 // 🚀 TIMEOUT WRAPPER
@@ -329,8 +359,10 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               stateData.commitAlertSent = false;
               stateData.publicBroadcast = false;
               stateData.vacatingSent = false;
+              stateData.awayArmed = false;
 
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
+              await enterActiveMode(); // back in the car — disarm geofence, resume continuous
               notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
               resetPGRHistory();
            }
@@ -540,6 +572,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.stoppedCandidateLocation = null;
     stateData.lastDistanceToCar = null;
     stateData.isAway = false;
+    stateData.awayArmed = false; // geofence one-shot guard reset for the next park
     stateData.vicinityNotified = false;
     stateData._loggedParkedLoc = false;
     stateData.smoothedReturningConfidence = 0;
@@ -594,6 +627,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       stateData.serverSpotId = spotId || `local-${Date.now()}`;
       stateData.parkingNotified = true;
       stateData.isAway = false;
+      stateData.awayArmed = false; // fresh park: allow the away→geofence switch to arm once
 
       // If GPS accuracy was poor when parking was declared, open a 90s window to refine the location.
       const finalAccuracy = finalParkedLoc.accuracy ?? Infinity;
@@ -1066,10 +1100,130 @@ async function runTaskBatch(locations) {
     // 💾 Flush telemetry + heartbeat ONCE for the whole batch, awaited so the write lands
     // before iOS can re-suspend the app. (Per-entry writes used to back up and lose data.)
     await flushTelemetry();
+
+    // 🛡️ MODE RECONCILE: once the user has left the parked car, switch ONCE from continuous
+    // updates to a low-power geofence-only watch for their return (the two can't run together).
+    // awayArmed is the one-shot guard: without it this would re-fire during the return approach
+    // (user is still "away" but getting closer) and bounce us straight back to geofence mode,
+    // killing the return tracking. Reset on park/clear. (Geofence ENTER handler does the reverse
+    // switch back to ACTIVE.)
+    if (stateData && stateData.isAway && stateData.parkedLocation && !stateData.awayArmed) {
+      await enterParkedAwayMode(stateData.parkedLocation);
+      stateData.awayArmed = true;
+      try {
+        await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'TaskManager.armSave');
+      } catch (e) { /* non-fatal */ }
+    }
   } finally {
     isProcessing = false;
   }
 }
+
+// ---------------- DETECTION MODE (continuous ↔ geofence) ----------------
+async function getMode() {
+  try { return (await AsyncStorage.getItem(MODE_KEY)) || 'ACTIVE'; } catch (e) { return 'ACTIVE'; }
+}
+async function setMode(mode) {
+  try { await AsyncStorage.setItem(MODE_KEY, mode); } catch (e) { /* non-fatal */ }
+}
+
+async function startContinuousUpdates() {
+  const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK).catch(() => false);
+  if (!started) {
+    await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, continuousLocationOptions());
+    console.log('[ParkDetection] ▶️ Continuous location updates started.');
+  }
+}
+async function stopContinuousUpdates() {
+  const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK).catch(() => false);
+  if (started) {
+    await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK).catch(() => {});
+    console.log('[ParkDetection] ⏹️ Continuous location updates stopped.');
+  }
+}
+async function armGeofence(loc) {
+  const has = await Location.hasStartedGeofencingAsync(PARK_GEOFENCE_TASK).catch(() => false);
+  if (has) await Location.stopGeofencingAsync(PARK_GEOFENCE_TASK).catch(() => {});
+  await Location.startGeofencingAsync(PARK_GEOFENCE_TASK, [{
+    identifier: 'parked-car',
+    latitude: loc.latitude,
+    longitude: loc.longitude,
+    radius: GEOFENCE_RADIUS,
+    notifyOnEnter: true,
+    notifyOnExit: false,
+  }]);
+}
+async function disarmGeofence() {
+  const has = await Location.hasStartedGeofencingAsync(PARK_GEOFENCE_TASK).catch(() => false);
+  if (has) await Location.stopGeofencingAsync(PARK_GEOFENCE_TASK).catch(() => {});
+}
+
+// Switch to low-power geofence watch while the car sits parked and the user is away.
+// Stops continuous updates FIRST (they conflict), then arms the geofence. If anything fails,
+// fall back to ACTIVE/continuous so the engine can never get stuck with no location service.
+async function enterParkedAwayMode(loc) {
+  if (!loc || loc.latitude == null || loc.longitude == null) return;
+  if ((await getMode()) === 'PARKED_AWAY') return; // already switched
+  try {
+    await setMode('PARKED_AWAY');
+    await stopContinuousUpdates();
+    await armGeofence(loc);
+    console.log(`[ParkDetection] → PARKED_AWAY (geofence ${GEOFENCE_RADIUS}m armed, continuous off)`);
+  } catch (e) {
+    console.error('[ParkDetection] enterParkedAwayMode failed, falling back to ACTIVE:', e.message);
+    await setMode('ACTIVE');
+    await startContinuousUpdates().catch(() => {});
+  }
+}
+
+// Switch back to continuous tracking (user returned / spot cleared). Disarms the geofence first.
+async function enterActiveMode() {
+  try {
+    await setMode('ACTIVE');
+    await disarmGeofence();
+    await startContinuousUpdates();
+    console.log('[ParkDetection] → ACTIVE (continuous on, geofence disarmed)');
+  } catch (e) {
+    console.error('[ParkDetection] enterActiveMode failed:', e.message);
+  }
+}
+
+// ---------------- RETURN GEOFENCE TASK ----------------
+// iOS monitors the region on the low-power coprocessor and wakes/relaunches the app when the user
+// crosses back in. On ENTER we switch back to continuous tracking so the existing 2D-boundary
+// returning logic runs over the approach and fires the soft/commit alerts in near-real-time.
+TaskManager.defineTask(PARK_GEOFENCE_TASK, async ({ data, error }) => {
+  if (error) {
+    console.error(`[ParkDetection] Geofence Task Error: ${error.message}`);
+    return;
+  }
+  const { eventType, region } = data || {};
+  const isEnter = eventType === Location.GeofencingEventType.Enter;
+  logHeartbeat({ geofence: isEnter ? 'ENTER' : 'EXIT', region: region?.identifier });
+  console.log(`[ParkDetection] 📍 Geofence ${isEnter ? 'ENTER' : 'EXIT'} (${region?.identifier})`);
+  if (!isEnter) return;
+
+  try {
+    if (!isInitialized) {
+      isInitialized = true;
+      await restoreTelemetryState();
+      await initAIEngine();
+      await startSensors();
+    }
+    await enterActiveMode(); // stop geofence, resume continuous tracking for the approach
+    notify('🚶 Returning to your car…');
+
+    // Process one immediate fix so the returning logic engages right away.
+    const loc = await withTimeout(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
+      8000, 'geofence.getCurrentPosition'
+    ).catch(() => null);
+    if (loc) await handleLocationUpdate(loc);
+    await flushTelemetry();
+  } catch (e) {
+    console.error('[ParkDetection] Geofence enter handling failed:', e.message);
+  }
+});
 
 export const isDetectionEngineRunning = () => isInitialized;
 
@@ -1134,48 +1288,30 @@ export const startParkDetection = async () => {
     const { currentState } = getHMMStatus();
 
     try {
-      console.log('[ParkDetection] Checking if background task is already running...');
-      const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
-      if (!started) {
-        console.log('[ParkDetection] Starting background location updates...');
-        await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, {
-          // 🚨 BestForNavigation (= kCLLocationAccuracyBestForNavigation), not High.
-          // High maps to kCLLocationAccuracyNearestTenMeters, a power-saving tier iOS
-          // suspends aggressively when you're slow/stationary — confirmed by the heartbeat
-          // (105s screen-off gap, app suspended, locations buffered & dumped on resume).
-          // BestForNavigation is the "active navigation, keep GPS hot" tier that resists
-          // background suspension and keeps the location session (and app) alive.
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 2000,               // 🚀 Reduced to 2s to align with FFT 2.56s window
-          distanceInterval: 0,              // 🚀 Force constant updates even if stationary
-          // 🚨 NO DEFERRAL: expo-location buffers fixes in memory and only flushes them to the
-          // task once the batch spans deferredUpdatesInterval. In the background that buffer is
-          // lost whenever iOS suspends/terminates the app — which is exactly the screen-off drive
-          // blackout we saw (logs 26 & 27). With deferral off, every fix iOS delivers is processed
-          // immediately, so a brief background wakeup is captured before the app can be killed.
-          deferredUpdatesInterval: 0,
-          showsBackgroundLocationIndicator: true,
-          // 🚨 iOS: never let the OS pause updates when it thinks we're "unlikely to move".
-          // This is what kept the engine silent on the bus (28-min update gap with screen off).
-          pausesUpdatesAutomatically: false,
-          // Navigation-grade continuous tracking across both driving and walking legs.
-          activityType: Location.ActivityType.OtherNavigation,
-          foregroundService: {
-            notificationTitle: 'Parksphere',
-            notificationBody: 'Detecting parking activity',
-          },
-        });
-        notify(`Background HMM detection started. State: ${currentState}`);
-        console.log('[ParkDetection] Location updates started for PARK_DETECTION_TASK.');
-        return true;
+      // Respect the persisted detection mode. If we were parked & away when last alive, resume the
+      // low-power geofence watch — NOT continuous updates (they conflict). Otherwise track
+      // continuously. iOS persists both location task and geofence across launches, so we
+      // explicitly reconcile to exactly one active service here.
+      const mode = await getMode();
+      const savedState = saved ? JSON.parse(saved) : {};
+      if (mode === 'PARKED_AWAY' && savedState.parkedLocation) {
+        await stopContinuousUpdates();
+        await armGeofence(savedState.parkedLocation);
+        notify('🅿️ Parked — watching for your return.');
+        console.log('[ParkDetection] Resumed PARKED_AWAY geofence watch on startup.');
       } else {
-        console.log('[ParkDetection] PARK_DETECTION_TASK is already running.');
-        notify(`Detection engine active. State: ${currentState}`);
-        return true; // Return true as it is effectively running
+        await setMode('ACTIVE');
+        await disarmGeofence();
+        await startContinuousUpdates();
+        notify(`Background HMM detection started. State: ${currentState}`);
       }
+      return true;
     } catch (taskError) {
       console.error('[ParkDetection] Error starting background task:', taskError);
-      notify('Foreground-only detection active (background task failed).');
+      // Safety fallback: never leave the engine with no location service running.
+      await setMode('ACTIVE');
+      await startContinuousUpdates().catch(() => {});
+      notify('Detection active (fallback mode).');
       return true;
     }
   } catch (error) {
@@ -1189,12 +1325,10 @@ export const stopParkDetection = async () => {
     console.log('[ParkDetection] Stopping park detection...');
     isInitialized = false;
     stopSensors();
-    const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK);
-    if (started) {
-      await Location.stopLocationUpdatesAsync(PARK_DETECTION_TASK);
-      notify('Background HMM detection stopped.');
-      console.log('[ParkDetection] Location updates stopped for PARK_DETECTION_TASK.');
-    }
+    await disarmGeofence();
+    await stopContinuousUpdates();
+    await setMode('ACTIVE'); // next start begins clean in continuous mode
+    notify('Background HMM detection stopped.');
   } catch (error) {
     console.error('[ParkDetection] Error in stopParkDetection:', error);
   }
@@ -1220,6 +1354,9 @@ export const resetParkDetection = async () => {
     await withTimeout(AsyncStorage.removeItem(STORAGE_KEY), 2000, 'resetParkDetection.removeItem');
     await withTimeout(AsyncStorage.removeItem('parkedLocation'), 2000, 'resetParkDetection.removeParkedLoc');
     console.log('[ParkDetection] Persisted state and parkedLocation cleared from AsyncStorage.');
+
+    // Spot is gone — leave the geofence behind and return to continuous ACTIVE tracking.
+    await enterActiveMode();
     
     // Reset local sensor cache as well
     currentAcceleration = 1.0;

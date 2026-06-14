@@ -27,6 +27,11 @@ jest.mock('expo-location', () => ({
   hasStartedLocationUpdatesAsync: jest.fn().mockResolvedValue(false),
   startLocationUpdatesAsync: jest.fn(),
   stopLocationUpdatesAsync: jest.fn(),
+  hasStartedGeofencingAsync: jest.fn().mockResolvedValue(false),
+  startGeofencingAsync: jest.fn(),
+  stopGeofencingAsync: jest.fn(),
+  getCurrentPositionAsync: jest.fn().mockResolvedValue(null),
+  GeofencingEventType: { Enter: 1, Exit: 2 },
   Accuracy: { Balanced: 3 }
 }));
 
