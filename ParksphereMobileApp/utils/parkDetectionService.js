@@ -32,12 +32,15 @@ export const PARK_GEOFENCE_TASK = 'PARK_GEOFENCE_TASK';
 const STORAGE_KEY = 'PARK_STATE';
 const MODE_KEY = 'DETECTION_MODE'; // 'ACTIVE' (continuous updates) | 'PARKED_AWAY' (geofence only)
 
-// Return geofence radius around the parked car. Outside the 200m ALERT_MAX_RANGE so iOS wakes
-// the suspended app on the user's approach BEFORE they reach the alert zone — lead time for the
-// returning logic. MODE-SWITCHING RULE: geofencing and continuous location updates do NOT coexist
-// in expo-location (running both silently kills the continuous stream). So we run exactly ONE at a
-// time: continuous while active, geofence-only while parked & away. Never both.
-const GEOFENCE_RADIUS = 300;
+// Return geofence radius around the parked car. 150m is near iOS's reliable region-monitoring
+// floor (~100–150m) while still being small enough that most real destinations sit OUTSIDE it —
+// so leaving fires EXIT and returning fires ENTER. It's within the 200m ALERT_MAX_RANGE, so the
+// app wakes already inside the alert zone and the returning alert can fire promptly on approach.
+// (Destinations closer than the radius get no returning alert, but the drive-off still clears the
+// spot via the EXIT handler — see the geofence task.) Tune from real tests.
+// MODE-SWITCHING RULE: geofencing and continuous location updates do NOT coexist in expo-location
+// (running both silently kills the continuous stream). Run exactly ONE at a time.
+const GEOFENCE_RADIUS = 150;
 
 // Shared continuous-updates config — used by start AND the mode-switch back to ACTIVE.
 // A function (not a const) so the Location.* enums are read at call time, not module load.
@@ -1150,7 +1153,7 @@ async function armGeofence(loc) {
     longitude: loc.longitude,
     radius: GEOFENCE_RADIUS,
     notifyOnEnter: true,
-    notifyOnExit: false,
+    notifyOnExit: true, // also wake on EXIT so a drive-off from within the radius isn't missed
   }]);
 }
 async function disarmGeofence() {
@@ -1201,7 +1204,6 @@ TaskManager.defineTask(PARK_GEOFENCE_TASK, async ({ data, error }) => {
   const isEnter = eventType === Location.GeofencingEventType.Enter;
   logHeartbeat({ geofence: isEnter ? 'ENTER' : 'EXIT', region: region?.identifier });
   console.log(`[ParkDetection] 📍 Geofence ${isEnter ? 'ENTER' : 'EXIT'} (${region?.identifier})`);
-  if (!isEnter) return;
 
   try {
     if (!isInitialized) {
@@ -1210,18 +1212,37 @@ TaskManager.defineTask(PARK_GEOFENCE_TASK, async ({ data, error }) => {
       await initAIEngine();
       await startSensors();
     }
-    await enterActiveMode(); // stop geofence, resume continuous tracking for the approach
-    notify('🚶 Returning to your car…');
 
-    // Process one immediate fix so the returning logic engages right away.
     const loc = await withTimeout(
       Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation }),
       8000, 'geofence.getCurrentPosition'
     ).catch(() => null);
-    if (loc) await handleLocationUpdate(loc);
+
+    if (isEnter) {
+      // User crossed back into the car's vicinity → resume continuous tracking so the existing
+      // 2D-boundary returning logic runs over the approach and fires the soft/commit alerts.
+      await enterActiveMode();
+      notify('🚶 Returning to your car…');
+      if (loc) await handleLocationUpdate(loc);
+    } else {
+      // EXIT — two cases, told apart by speed:
+      //  • Driving off (fast): the user returned but stayed within the radius the whole time
+      //    (nearby destination), so no ENTER fired. Resume continuous so the drive is detected
+      //    and the spot is cleared — otherwise we'd stay suspended forever and never clear it.
+      //  • Walking away (slow): the user is leaving; stay in the low-power geofence watch and
+      //    wait for the return ENTER.
+      const speedKmh = (loc?.coords?.speed || 0) * 3.6;
+      if (speedKmh > 10) {
+        console.log(`[ParkDetection] Geofence EXIT @ ${speedKmh.toFixed(0)} km/h → driving off, resume continuous`);
+        await enterActiveMode();
+        if (loc) await handleLocationUpdate(loc);
+      } else {
+        console.log(`[ParkDetection] Geofence EXIT @ ${speedKmh.toFixed(0)} km/h → walking away, stay armed`);
+      }
+    }
     await flushTelemetry();
   } catch (e) {
-    console.error('[ParkDetection] Geofence enter handling failed:', e.message);
+    console.error('[ParkDetection] Geofence event handling failed:', e.message);
   }
 });
 
