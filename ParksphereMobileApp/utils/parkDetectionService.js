@@ -653,8 +653,16 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
   if (stateData.state === 'STOPPED') {
     const currentAccuracy = location.coords.accuracy ?? Infinity;
     const savedAccuracy = stateData.stoppedCandidateLocation?.accuracy ?? Infinity;
+    // 🚨 SPEED GUARD: only anchor the park candidate at a genuinely-stopped fix. The state
+    // machine can briefly read STOPPED while still moving (a noisy-GPS misclassification), and
+    // without this guard the candidate gets set to a MID-DRIVE position — which is how a spot
+    // ended up hundreds of metres from where the car actually parked. A real parked car reports
+    // ~0 km/h, so reject any fix above ~5 km/h. (coords.speed is m/s; -1 = "unknown" → treat as
+    // stopped, which is fine for a stationary car.)
+    const rawSpeedKmh = (location.coords.speed ?? -1) * 3.6;
+    const isStoppedSpeed = rawSpeedKmh < 5; // includes the -1 "unknown" sentinel
     // Only accept GPS fixes with decent accuracy — a 75m fix is useless as a parked location.
-    if (currentAccuracy < savedAccuracy && currentAccuracy < 25) {
+    if (isStoppedSpeed && currentAccuracy < savedAccuracy && currentAccuracy < 25) {
       stateData.stoppedCandidateLocation = { latitude: location.coords.latitude, longitude: location.coords.longitude, accuracy: currentAccuracy };
     }
   }

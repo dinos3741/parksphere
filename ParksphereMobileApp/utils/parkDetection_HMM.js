@@ -85,9 +85,14 @@ class Kalman1D {
   update(z) {
     this.p += this.q;
     const k = this.p / (this.p + this.r);
-    // Asymmetric gain: respond immediately to speed drops (stopping) but stay
-    // slow on increases (resists GPS noise while parked triggering false drive-off).
-    const effectiveK = z < this.x ? Math.max(k, 0.5) : k;
+    // Asymmetric gain: respond immediately to speed drops (stopping) but stay slow on increases
+    // (resists GPS noise while parked triggering false drive-off). The fast-drop is GATED to
+    // near-stopping speeds (z < 10 km/h): during high-speed driving with noisy GPS, dips would
+    // otherwise be followed fast while rises were ignored, ratcheting the estimate toward zero and
+    // making real driving look STOPPED — which anchored a parked spot mid-drive. Above 10 km/h we
+    // keep the normal slow gain so jitter can't drag the estimate down.
+    const fastDrop = z < this.x && z < 10;
+    const effectiveK = fastDrop ? Math.max(k, 0.5) : k;
     this.x = this.x + effectiveK * (z - this.x);
     this.p = (1 - effectiveK) * this.p;
     return this.x;
