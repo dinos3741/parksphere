@@ -29,7 +29,23 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
 
     const setupDetection = async () => {
       try {
-        if (currentUser && currentUser.auto_detect) {
+        // 🚀 SERVER-INDEPENDENT START: the user profile (which carries auto_detect) is fetched
+        // from the server, so it's null whenever the server is unreachable — driving away from
+        // the local/mock server, a brief production outage, or a cold relaunch before the fetch
+        // returns. The login token, however, is restored from storage with no server. So: prefer
+        // the live profile and cache its auto_detect; otherwise fall back to the cached value
+        // (default ON if never cached) so detection still starts. Login is the only one-time
+        // server need; after that the engine starts standalone.
+        let autoDetect;
+        if (currentUser) {
+          autoDetect = !!currentUser.auto_detect;
+          await AsyncStorage.setItem('AUTO_DETECT', autoDetect ? 'true' : 'false');
+        } else {
+          const cached = await AsyncStorage.getItem('AUTO_DETECT');
+          autoDetect = cached === null ? true : cached === 'true';
+        }
+
+        if (autoDetect) {
           await startParkDetection();
         }
 
