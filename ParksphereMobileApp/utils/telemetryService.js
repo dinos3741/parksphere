@@ -13,18 +13,20 @@ let currentManualLabel = null;
 let rawAccelBuffer = []; // 🚀 High-frequency buffer (X, Y, Z, timestamp)
 const MAX_RAW_BUFFER = 512; // Store ~10 seconds at 50Hz
 
-// 🚀 BACKGROUND-SAFE PERSISTENCE
-// iOS terminates+relaunches the app to deliver background location. That wipes all
-// module state (isRecording → false, currentSession → []). The old recorder held
-// everything in RAM and only wrote on manual Stop, so background activity was never
-// captured — empty logs looked like "location failed" when the task may have been
-// running fine. We now (a) restore the recording flag on relaunch and (b) flush every
-// entry to disk immediately, serialized through a queue so concurrent logs don't clobber.
-let logWriteQueue = Promise.resolve();
-let sessionHydrated = false; // have we loaded the existing file into currentSession this process?
-
-let hbWriteQueue = Promise.resolve();
-let hbHydrated = false;
+// 🚀 BACKGROUND-SAFE, BURST-SAFE PERSISTENCE
+// iOS terminates+relaunches the app to deliver background location (wiping module state),
+// AND it delivers buffered fixes in big bursts (hundreds–thousands at once on a wakeup). The
+// previous recorder rewrote the WHOLE log file on EVERY entry — O(n²) — so during a burst the
+// write queue couldn't drain before iOS re-suspended the app, and the later records were lost
+// (a real drive's home leg vanished from the log this way). Now: logTelemetry/logHeartbeat only
+// PUSH to an in-memory buffer (no I/O); the engine calls flushTelemetry() once per batch,
+// awaited so it lands before suspension. Each flush hydrates the file once (so relaunches append
+// instead of overwrite) and writes each file exactly ONCE — no per-entry rewrites.
+let pending = [];           // telemetry entries buffered since the last flush
+let pendingHeartbeat = [];  // heartbeat records buffered since the last flush
+let flushQueue = Promise.resolve();
+let sessionHydrated = false; // have we loaded the existing telemetry file this process?
+let hbHydrated = false;      // have we loaded the existing heartbeat file this process?
 let heartbeat = [];
 const MAX_HEARTBEAT = 5000;
 
@@ -68,6 +70,7 @@ export const restoreTelemetryState = async () => {
 export const startTelemetry = async () => {
   isRecording = true;
   currentSession = [];
+  pending = [];
   sessionHydrated = true; // brand-new session; nothing on disk to append to
   rawAccelBuffer = [];
   try {
@@ -89,7 +92,7 @@ export const stopTelemetry = async () => {
     await AsyncStorage.setItem(REC_FLAG_KEY, 'false');
   } catch (e) { /* non-fatal */ }
 
-  await logWriteQueue; // ensure the last queued write has landed
+  await flushTelemetry(); // write out anything still buffered in memory
 
   let count = 0;
   try {
@@ -152,51 +155,66 @@ export const logTelemetry = (obs, result, aiConfidence = 0, overallReturningConf
     }
   };
 
-  logWriteQueue = logWriteQueue
-    .then(() => persistEntry(entry))
-    .catch(e => console.error('[Telemetry] persist failed:', e.message));
+  // Buffer in memory only — no disk I/O here. flushTelemetry() (called once per batch by the
+  // engine) writes it out. This is what keeps big background bursts from backing up.
+  pending.push(entry);
 };
-
-async function persistEntry(entry) {
-  // On a fresh process (e.g. background relaunch) load the existing file once so we
-  // append to the session on disk instead of overwriting it with a single entry.
-  if (!sessionHydrated) {
-    try {
-      const existing = await FileSystem.readAsStringAsync(LOG_FILE);
-      currentSession = existing ? JSON.parse(existing) : [];
-    } catch (e) {
-      currentSession = [];
-    }
-    sessionHydrated = true;
-  }
-  currentSession.push(entry);
-  await FileSystem.writeAsStringAsync(LOG_FILE, JSON.stringify(currentSession));
-}
 
 /**
  * Always-on heartbeat: records that the background task fired, independent of whether
  * a recording session is active. This is the definitive signal for "is iOS actually
- * waking the app in the background?" — it writes even when isRecording is false.
+ * waking the app in the background?" — it's buffered even when isRecording is false.
  */
 export const logHeartbeat = (info = {}) => {
-  hbWriteQueue = hbWriteQueue
-    .then(() => persistHeartbeat({ t: Date.now(), ...info }))
-    .catch(e => console.error('[Telemetry] heartbeat failed:', e.message));
+  pendingHeartbeat.push({ t: Date.now(), ...info });
 };
 
-async function persistHeartbeat(record) {
-  if (!hbHydrated) {
-    try {
-      const existing = await FileSystem.readAsStringAsync(HEARTBEAT_FILE);
-      heartbeat = existing ? JSON.parse(existing) : [];
-    } catch (e) {
-      heartbeat = [];
+/**
+ * Flush buffered telemetry + heartbeat to disk. The engine calls this once per task batch and
+ * awaits it, so the write completes before iOS can re-suspend the app. Each file is hydrated
+ * once per process (so background relaunches append instead of overwrite) and written exactly
+ * once per flush — no per-entry rewrites, so large bursts can't lose data.
+ */
+export const flushTelemetry = async () => {
+  flushQueue = flushQueue
+    .then(doFlush)
+    .catch(e => console.error('[Telemetry] flush failed:', e.message));
+  return flushQueue;
+};
+
+async function doFlush() {
+  if (pending.length) {
+    if (!sessionHydrated) {
+      try {
+        const existing = await FileSystem.readAsStringAsync(LOG_FILE);
+        currentSession = existing ? JSON.parse(existing) : [];
+      } catch (e) {
+        currentSession = [];
+      }
+      sessionHydrated = true;
     }
-    hbHydrated = true;
+    const batch = pending;
+    pending = [];
+    currentSession.push(...batch);
+    await FileSystem.writeAsStringAsync(LOG_FILE, JSON.stringify(currentSession));
   }
-  heartbeat.push(record);
-  if (heartbeat.length > MAX_HEARTBEAT) heartbeat = heartbeat.slice(-MAX_HEARTBEAT);
-  await FileSystem.writeAsStringAsync(HEARTBEAT_FILE, JSON.stringify(heartbeat));
+
+  if (pendingHeartbeat.length) {
+    if (!hbHydrated) {
+      try {
+        const existing = await FileSystem.readAsStringAsync(HEARTBEAT_FILE);
+        heartbeat = existing ? JSON.parse(existing) : [];
+      } catch (e) {
+        heartbeat = [];
+      }
+      hbHydrated = true;
+    }
+    const batch = pendingHeartbeat;
+    pendingHeartbeat = [];
+    heartbeat.push(...batch);
+    if (heartbeat.length > MAX_HEARTBEAT) heartbeat = heartbeat.slice(-MAX_HEARTBEAT);
+    await FileSystem.writeAsStringAsync(HEARTBEAT_FILE, JSON.stringify(heartbeat));
+  }
 }
 
 async function shareFile(file, emptyMsg) {
@@ -245,6 +263,8 @@ export const clearTelemetryLog = async () => {
     await FileSystem.deleteAsync(HEARTBEAT_FILE, { idempotent: true });
     currentSession = [];
     heartbeat = [];
+    pending = [];
+    pendingHeartbeat = [];
     sessionHydrated = false;
     hbHydrated = false;
     console.log('[Telemetry] Log files cleared.');

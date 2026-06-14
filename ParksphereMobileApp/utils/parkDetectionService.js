@@ -10,7 +10,7 @@ console.log('🚀 [ParkDetection] ENGINE FILE LOADED - LOGS ACTIVE');
 console.log('***************************************************');
 
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
-import { logTelemetry, logHeartbeat, restoreTelemetryState } from './telemetryService';
+import { logTelemetry, logHeartbeat, flushTelemetry, restoreTelemetryState } from './telemetryService';
 import { apiRequest } from './apiService';
 import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
 import { extractSpectralFeatures } from './fftUtils'; // 🚀 NEW: Spectral Analysis
@@ -262,6 +262,7 @@ async function triggerVirtualUpdate() {
       if (updatedStateData) {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedStateData));
       }
+      await flushTelemetry(); // foreground fast-path logs telemetry too; persist it
     }
   } catch (e) {
     console.error('[ParkDetection] Virtual update failed:', e.message);
@@ -1061,6 +1062,10 @@ async function runTaskBatch(locations) {
     } catch (e) {
       console.error('[ParkDetection] Failed to save state to storage in TaskManager:', e.message);
     }
+
+    // 💾 Flush telemetry + heartbeat ONCE for the whole batch, awaited so the write lands
+    // before iOS can re-suspend the app. (Per-entry writes used to back up and lose data.)
+    await flushTelemetry();
   } finally {
     isProcessing = false;
   }
