@@ -905,6 +905,12 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   const isExitEvent =
     candidate === 'WALKING' &&
     walkingConfirmed &&
+    !hasDrivingSignal && // 🚨 HARDWARE VETO: never declare a park while the motion coprocessor
+                         // still reports 'automotive'. walkingConfirmed can be satisfied by the
+                         // WALKING *state* alone (e.g. a noisy-GPS speed misclassification), which
+                         // once anchored a spot mid-drive. The coprocessor's activity (real per-fix
+                         // via the historical backfill) is the reliable evidence of actually being
+                         // out of the car — gate on it, not just the inferred state.
     ['STOPPED', 'DRIVING', 'IDLE', 'WALKING'].includes(currentState) &&
     _tripDrivingTime >= TIME_THRESH &&
     _tripDrivingDistance >= TRIP_DIST_THRESH;
