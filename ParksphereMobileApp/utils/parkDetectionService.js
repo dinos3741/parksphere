@@ -11,6 +11,7 @@ console.log('***************************************************');
 
 import { initMotionTracking, processLocationHMM, resetHMM, getHMMStatus, resetPGRHistory } from './parkDetection_HMM';
 import { logTelemetry, logHeartbeat, flushTelemetry, restoreTelemetryState } from './telemetryService';
+import { initNotifications, notifyUser } from './notificationService';
 import { apiRequest } from './apiService';
 import { initAIEngine, predictReturning, resetAIBuffer } from './aiEngine';
 import { extractSpectralFeatures } from './fftUtils'; // 🚀 NEW: Spectral Analysis
@@ -367,6 +368,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
               await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData));
               await enterActiveMode(); // back in the car — disarm geofence, resume continuous
               notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
+              notifyUser('🏁 Spot cleared', 'Back in your car — the spot is free.');
               resetPGRHistory();
            }
         }
@@ -585,9 +587,12 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     stateData.publicBroadcast = false;
     stateData.vacatingSent = false;
     stateData.parkRefinementExpiry = null;
+    stateData.awayArmed = false;
     resetPGRHistory();
+    await enterActiveMode(); // spot gone — ensure geofence is down and continuous tracking is on
 
     notify('🏁 Spot cleared. Ready for next parking.', { clearParkedLocation: true });
+    notifyUser('🏁 Spot cleared', 'You drove off — the spot is now free.');
 
     // 2. TELL SERVER (Ordered await to ensure reliable sync). The owner has driven off, so the
     // spot is gone — remove the dot for everyone (deleteSpot emits spotDeleted) rather than mark free.
@@ -637,6 +642,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       stateData.parkRefinementExpiry = finalAccuracy > 20 ? (now + 90000) : null;
 
       notify('🅿️ Parking confirmed!', { parkedLocation: finalParkedLoc });
+      notifyUser('🅿️ Parking confirmed', 'Your spot has been registered.');
     }
   }
 
@@ -725,6 +731,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
     if (stateData.serverSpotId && !stateData.softAlertSent) {
       console.log(`[ParkDetection] 🟡 SOFT alert: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m -> soon_free (ETA ${eta}s)`);
       updateSpotStatus(stateData.serverSpotId, 'soon_free').catch(e => {}); // yellow dot
+      notifyUser('🟡 Spot freeing soon', `You're heading back (${distToParked.toFixed(0)}m away).`);
       stateData.softAlertSent = true;
       stateData.publicBroadcast = true; // dot is now visible to the network
     }
@@ -741,6 +748,7 @@ async function _handleLocationUpdateInternal(arg1, arg2, isBluetoothUpdate = fal
       console.log(`[ParkDetection] 🟢 COMMIT confirmed: P=${(overallReturningConfidence * 100).toFixed(0)}% @ ${distToParked.toFixed(0)}m sustained ${(sustainedMs / 1000).toFixed(0)}s -> committed (ETA ${eta}s)`);
       if (stateData.serverSpotId) updateSpotStatus(stateData.serverSpotId, 'committed').catch(e => {}); // green dot
       notify('🚗 Spot freeing soon…', { confidence: Math.round(overallReturningConfidence * 100), etaSeconds: eta });
+      notifyUser('🟢 Spot vacating now', eta != null ? `Arriving in ~${eta}s.` : 'Owner is returning to the car.');
       stateData.commitAlertSent = true;
       stateData.publicBroadcast = true;
     }
@@ -1223,6 +1231,7 @@ TaskManager.defineTask(PARK_GEOFENCE_TASK, async ({ data, error }) => {
       // 2D-boundary returning logic runs over the approach and fires the soft/commit alerts.
       await enterActiveMode();
       notify('🚶 Returning to your car…');
+      notifyUser('🚶 Returning to your car', 'Tracking your approach…');
       if (loc) await handleLocationUpdate(loc);
     } else {
       // EXIT — two cases, told apart by speed:
@@ -1305,6 +1314,7 @@ export const startParkDetection = async () => {
     resetHMM(); // Reset HMM state to IDLE (but keep isAway if it matches persisted)
     await initAIEngine(); // Initialize TFJS model
     await startSensors();
+    await initNotifications(); // ask for lock-screen notification permission (local only)
     
     const { currentState } = getHMMStatus();
 
