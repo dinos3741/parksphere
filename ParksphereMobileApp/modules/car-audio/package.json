@@ -1,0 +1,7 @@
+{
+  "name": "car-audio",
+  "version": "1.0.0",
+  "description": "Detect connection to the car via the iOS audio route (Bluetooth HFP/A2DP / CarPlay)",
+  "main": "index.js",
+  "private": true
+}
