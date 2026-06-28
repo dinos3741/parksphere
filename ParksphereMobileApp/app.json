@@ -29,7 +29,8 @@
         "UIBackgroundModes": [
           "location",
           "fetch",
-          "bluetooth-central"
+          "bluetooth-central",
+          "audio"
         ]
       }
     },
