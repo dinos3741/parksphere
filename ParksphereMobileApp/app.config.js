@@ -1,7 +1,7 @@
 // Dynamic Expo config: stamps each build with its git identity so the running app can always
-// report exactly which commit it was built from (see utils/buildInfo.js + AboutScreen footer +
-// the build line written into the RNBG log at startup). app.json remains the base config — this
-// only augments `extra`. Evaluated at bundle/build time, so the stamp reflects the real build.
+// report exactly which commit it was built from (see utils/buildInfo.js + AboutScreen footer).
+// app.json remains the base config — this only augments `extra`. Evaluated at bundle/build time,
+// so the stamp reflects the real build.
 const { execSync } = require('child_process');
 
 function git(args, fallback) {
@@ -26,9 +26,6 @@ function localStamp(d) {
 
 module.exports = ({ config }) => ({
   ...config,
-  // Re-create ios/.xcode.env.updates on every prebuild so Debug builds keep embedding the JS
-  // bundle (offline-capable) — prebuild deletes the committed file otherwise. See the plugin.
-  plugins: [...(config.plugins || []), './plugins/withForceBundleIosDebug'],
   extra: {
     ...(config.extra || {}),
     build: {
