@@ -1,46 +1,76 @@
 // MILESTONE 1 — Bluetooth-background-wake validation probe.
 //
-// The new event-based architecture hinges on one assumption: iOS delivers the car's
-// Bluetooth connect/disconnect (AVAudioSession route change) to our app *while it is
-// backgrounded/suspended*. This probe fires a local notification on every CarAudio
-// connection change so we can field-test it: park the car with the screen off and see
-// whether "🔴 Car disconnected" arrives without opening the app.
+// Mirrors feat/rnbg-v2's iOS BT detection: an event listener (catches route changes, e.g.
+// headphones / active audio) PLUS a 10s poll of isCarConnected() (catches an idle car HFP, which
+// changes no audio route and therefore fires NO route-change event). The poll is the part that
+// actually detects the car — the earlier probe had only the listener, so the car was never seen.
 //
-// It is intentionally standalone (no HMM, no location) so the test isolates exactly the
-// BT-wake question. Remove once Milestone 1 is validated.
-import { useEffect } from 'react';
+// Fires a local notification on every connect→disconnect transition (with device name, so you can
+// tell the car from headphones). Standalone — no HMM, no location — to isolate the BT-wake test.
+//
+// NOTE: the poll is setInterval-based, so it only runs while JS is alive (foreground / briefly
+// awake). This proves the car is *detectable*; whether the event wakes a *suspended* app is the
+// separate linchpin we still need to confirm.
+import { useEffect, useRef } from 'react';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 
 let CarAudio = null;
 try {
   CarAudio = require('../modules/car-audio');
 } catch (e) {
-  console.warn('[CarProbe] CarAudio native module unavailable (needs a dev/release rebuild):', e.message);
+  console.warn('[CarProbe] CarAudio native module unavailable (needs a rebuild):', e.message);
 }
 
 export function useCarConnectionProbe() {
+  const prevConnected = useRef(null); // null = baseline not yet established
+
   useEffect(() => {
     if (!CarAudio) return;
-    let sub;
+    let sub = null;
+    let interval = null;
+    let cancelled = false;
+
+    // Notify only on an actual change. First reading just sets the baseline (no notification).
+    const report = async (source, ev) => {
+      const connected = !!ev?.connected;
+      const name = ev?.deviceName || 'audio device';
+      if (prevConnected.current === null) {
+        prevConnected.current = connected;
+        console.log(`[CarProbe] baseline (${source}): ${connected ? 'connected ' + name : 'disconnected'}`);
+        return;
+      }
+      if (connected === prevConnected.current) return;
+      prevConnected.current = connected;
+      const ts = new Date().toLocaleTimeString();
+      console.log(`[CarProbe] ${ts} (${source}) → ${connected ? 'CONNECTED ' + name : 'DISCONNECTED'}`);
+      if (connected) await notifyUser('🔵 BT connected', `${name} @ ${ts}`);
+      else await notifyUser('🔴 BT disconnected', `parked? @ ${ts}`);
+    };
+
     (async () => {
       await initNotifications();
-      // Log the starting state so we know the listener attached.
+      // Listener first, so OnStartObserving latches sticky state before the initial poll.
       try {
-        const start = await CarAudio.isCarConnected();
-        console.log('[CarProbe] initial car-connected:', JSON.stringify(start));
+        sub = CarAudio.addCarConnectionListener((e) => { if (!cancelled) report('event', e); });
       } catch (e) {
-        console.warn('[CarProbe] isCarConnected failed:', e.message);
+        console.warn('[CarProbe] addListener failed:', e.message);
       }
-      sub = CarAudio.addCarConnectionListener(async (ev) => {
-        const ts = new Date().toLocaleTimeString();
-        console.log(`[CarProbe] ${ts} onCarConnectionChange:`, JSON.stringify(ev));
-        if (ev?.connected) {
-          await notifyUser('🔵 Car connected', `${ev.deviceName || 'car audio'} @ ${ts}`);
-        } else {
-          await notifyUser('🔴 Car disconnected', `Parked? @ ${ts}`);
+      const poll = async () => {
+        try {
+          const r = await CarAudio.isCarConnected();
+          if (!cancelled) report('poll', r);
+        } catch (e) {
+          console.warn('[CarProbe] poll failed:', e.message);
         }
-      });
+      };
+      await poll(); // initial read
+      interval = setInterval(poll, 10000); // safety-net poll for idle-HFP cars
     })();
-    return () => { try { sub?.remove(); } catch {} };
+
+    return () => {
+      cancelled = true;
+      try { sub?.remove(); } catch {}
+      if (interval) clearInterval(interval);
+    };
   }, []);
 }
