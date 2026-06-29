@@ -1,0 +1,7 @@
+{
+  "name": "visit-monitor",
+  "version": "1.0.0",
+  "description": "iOS CLVisit monitoring — native arrival/departure (parked/left) detection that wakes a suspended app",
+  "main": "index.js",
+  "private": true
+}

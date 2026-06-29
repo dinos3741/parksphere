@@ -19,7 +19,8 @@ import { startParkDetection, stopParkDetection, resetParkDetection, handleLocati
 import { useLocationTracking } from './hooks/useLocationTracking';
 import { useSocketConnection } from './hooks/useSocketConnection';
 import { useParkDetectionEngine } from './hooks/useParkDetectionEngine';
-import { useCarConnectionProbe } from './hooks/useCarConnectionProbe'; // MILESTONE 1: BT-wake validation
+import { useCarConnectionProbe } from './hooks/useCarConnectionProbe'; // MILESTONE 1: BT-wake validation (settled: BT disconnect won't wake suspended app)
+import { useVisitProbe } from './hooks/useVisitProbe'; // MILESTONE 1b: CLVisit wake validation
 
 import AboutScreen from './components/AboutScreen';
 import RootNavigator from './components/RootNavigator';
@@ -93,7 +94,8 @@ function AppContent() {
   // MILESTONE 1: old continuous-location HMM engine disabled so it can't keep the app alive in the
   // background — otherwise the BT-suspend test gives a false pass. We're replacing this engine.
   // useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
-  useCarConnectionProbe(); // notify on every BT connect/disconnect to test background wake
+  // useCarConnectionProbe(); // BT-trigger ruled out (disconnect doesn't wake a suspended app) — off so it doesn't add notification noise to the CLVisit test
+  useVisitProbe(); // MILESTONE 1b: does CLVisit wake the suspended app on park/depart?
 
   console.log(`[App.js] isLoading: ${isLoading}, fontLoaded: ${fontLoaded}`);
 
