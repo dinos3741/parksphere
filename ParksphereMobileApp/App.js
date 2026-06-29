@@ -90,8 +90,10 @@ function AppContent() {
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
-  useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
-  useCarConnectionProbe(); // MILESTONE 1: notify on every BT connect/disconnect to test background wake
+  // MILESTONE 1: old continuous-location HMM engine disabled so it can't keep the app alive in the
+  // background — otherwise the BT-suspend test gives a false pass. We're replacing this engine.
+  // useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
+  useCarConnectionProbe(); // notify on every BT connect/disconnect to test background wake
 
   console.log(`[App.js] isLoading: ${isLoading}, fontLoaded: ${fontLoaded}`);
 
