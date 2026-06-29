@@ -13,6 +13,7 @@
 // separate linchpin we still need to confirm.
 import { useEffect, useRef } from 'react';
 import { initNotifications, notifyUser } from '../utils/notificationService';
+import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 
 let CarAudio = null;
 try {
@@ -51,14 +52,27 @@ export function useCarConnectionProbe() {
       await initNotifications();
       // Listener first, so OnStartObserving latches sticky state before the initial poll.
       try {
-        sub = CarAudio.addCarConnectionListener((e) => { if (!cancelled) report('event', e); });
+        sub = CarAudio.addCarConnectionListener(async (e) => {
+          if (cancelled) return;
+          // If this fires while the poll-cadence shows a suspension gap, it's proof iOS woke the
+          // suspended app for the BT event — the whole linchpin.
+          logHeartbeat({ src: 'probe.event', connected: !!e?.connected });
+          await flushTelemetry();
+          report('event', e);
+        });
       } catch (e) {
         console.warn('[CarProbe] addListener failed:', e.message);
       }
       const poll = async () => {
         try {
           const r = await CarAudio.isCarConnected();
-          if (!cancelled) report('poll', r);
+          if (cancelled) return;
+          // Heartbeat every poll → the on-disk record shows a 10s cadence while the app is awake
+          // and a GAP once iOS suspends it. Proves the app was actually suspended at disconnect
+          // time, so a "no 🔴" result is unambiguous. Flushed immediately so it survives suspension.
+          logHeartbeat({ src: 'probe.poll', connected: !!r?.connected });
+          await flushTelemetry();
+          report('poll', r);
         } catch (e) {
           console.warn('[CarProbe] poll failed:', e.message);
         }
