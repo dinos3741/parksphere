@@ -44,6 +44,10 @@ export function useCarConnectionProbe() {
       prevConnected.current = connected;
       const ts = new Date().toLocaleTimeString();
       console.log(`[CarProbe] ${ts} (${source}) → ${connected ? 'CONNECTED ' + name : 'DISCONNECTED'}`);
+      // Log the notify ATTEMPT to disk so the heartbeat proves whether a 🔴/🔵 was actually fired
+      // (vs. silently deduped) and whether it happened inside a suspension gap (= background wake).
+      logHeartbeat({ src: 'probe.notify', kind: connected ? 'connect' : 'disconnect', via: source });
+      await flushTelemetry();
       if (connected) await notifyUser('🔵 BT connected', `${name} @ ${ts}`);
       else await notifyUser('🔴 BT disconnected', `parked? @ ${ts}`);
     };
