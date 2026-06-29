@@ -20,7 +20,7 @@ import { useLocationTracking } from './hooks/useLocationTracking';
 import { useSocketConnection } from './hooks/useSocketConnection';
 import { useParkDetectionEngine } from './hooks/useParkDetectionEngine';
 import { useCarConnectionProbe } from './hooks/useCarConnectionProbe'; // MILESTONE 1: BT-wake validation (settled: BT disconnect won't wake suspended app)
-import { useVisitProbe } from './hooks/useVisitProbe'; // MILESTONE 1b: CLVisit wake validation
+import { useReturnDetection } from './hooks/useReturnDetection'; // event-based lifecycle: CLVisit park + geofence return/drive-off
 
 import AboutScreen from './components/AboutScreen';
 import RootNavigator from './components/RootNavigator';
@@ -95,7 +95,7 @@ function AppContent() {
   // background — otherwise the BT-suspend test gives a false pass. We're replacing this engine.
   // useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
   // useCarConnectionProbe(); // BT-trigger ruled out (disconnect doesn't wake a suspended app) — off so it doesn't add notification noise to the CLVisit test
-  useVisitProbe(); // MILESTONE 1b: does CLVisit wake the suspended app on park/depart?
+  useReturnDetection(); // park (CLVisit) → arm geofence → return (enter) / drive-off (exit)
 
   console.log(`[App.js] isLoading: ${isLoading}, fontLoaded: ${fontLoaded}`);
 
