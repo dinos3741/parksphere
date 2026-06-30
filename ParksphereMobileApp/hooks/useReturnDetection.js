@@ -20,7 +20,7 @@ import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
-const GEOFENCE_RADIUS = 150; // metres (≈ iOS reliable floor)
+const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
 const OLD_PARK_TASK = 'PARK_DETECTION_TASK'; // legacy continuous-location task to deregister
 
 // A previous build called Location.startLocationUpdatesAsync(PARK_DETECTION_TASK), which registers
