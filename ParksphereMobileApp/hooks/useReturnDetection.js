@@ -13,12 +13,30 @@
 //    for far-walk parking an EXIT can also be "walked away to a destination" — distinguishing the
 //    two needs a speed check on exit (a refinement, not in this build).
 import { useEffect } from 'react';
+import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 150; // metres (≈ iOS reliable floor)
+const OLD_PARK_TASK = 'PARK_DETECTION_TASK'; // legacy continuous-location task to deregister
+
+// A previous build called Location.startLocationUpdatesAsync(PARK_DETECTION_TASK), which registers
+// a continuous-location task with iOS that PERSISTS across launches. It keeps location active in the
+// background (invalidating the CLVisit/geofence suspension test + draining battery) even though the
+// engine code is now disabled. Deregister it once on startup.
+async function killLegacyLocationTask() {
+  try {
+    const running = await Location.hasStartedLocationUpdatesAsync(OLD_PARK_TASK);
+    if (running) {
+      await Location.stopLocationUpdatesAsync(OLD_PARK_TASK);
+      console.log('[Return] deregistered lingering legacy location task');
+    }
+  } catch (e) {
+    console.warn('[Return] legacy task cleanup skipped:', e.message);
+  }
+}
 
 let VM = null;
 try {
@@ -39,6 +57,7 @@ export function useReturnDetection() {
 
     (async () => {
       await initNotifications();
+      await killLegacyLocationTask(); // stop the old continuous-location task so the app can suspend
 
       // Re-arm the geofence from a stored spot on launch (covers a fresh process after relaunch).
       try {
