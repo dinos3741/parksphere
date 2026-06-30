@@ -14,6 +14,7 @@
 //    two needs a speed check on exit (a refinement, not in this build).
 import { useEffect } from 'react';
 import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
@@ -27,15 +28,12 @@ const OLD_PARK_TASK = 'PARK_DETECTION_TASK'; // legacy continuous-location task 
 // background (invalidating the CLVisit/geofence suspension test + draining battery) even though the
 // engine code is now disabled. Deregister it once on startup.
 async function killLegacyLocationTask() {
-  try {
-    const running = await Location.hasStartedLocationUpdatesAsync(OLD_PARK_TASK);
-    if (running) {
-      await Location.stopLocationUpdatesAsync(OLD_PARK_TASK);
-      console.log('[Return] deregistered lingering legacy location task');
-    }
-  } catch (e) {
-    console.warn('[Return] legacy task cleanup skipped:', e.message);
-  }
+  // Unconditional: hasStartedLocationUpdatesAsync reports false for a task registered by a PREVIOUS
+  // install while iOS still delivers to it, so a gate skips the cleanup. Each call is independently
+  // guarded so one failing doesn't block the others.
+  try { await Location.stopLocationUpdatesAsync(OLD_PARK_TASK); } catch (_) {}
+  try { await TaskManager.unregisterTaskAsync(OLD_PARK_TASK); } catch (_) {}
+  console.log('[Return] legacy location task cleanup attempted');
 }
 
 let VM = null;
