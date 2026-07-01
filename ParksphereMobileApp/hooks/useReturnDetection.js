@@ -14,6 +14,7 @@
 // KNOWN LIMITS (test build):
 //  • CLVisit arrival is delayed (minutes) and coarse — the geofence centers on an approximate spot.
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -86,6 +87,8 @@ export function useReturnDetection() {
     if (!VM) return;
     let visitSub = null;
     let geoSub = null;
+    let locSub = null;
+    let appStateSub = null;
     let alive = null;
     let cancelled = false;
 
@@ -147,6 +150,31 @@ export function useReturnDetection() {
       await VM.startVisitMonitoring();
       console.log('[Return] monitoring started');
 
+      // ── Location stream (Phase 1: verify streaming; seed of the Phase 3 mode controller) ──────
+      // The HMM will consume these fixes (Phase 2). For now, log each one so a build can prove the
+      // VisitMonitor stream works foreground AND after a background geofence wake. Buffered — the
+      // 2-min ping (or a background event's flush) writes them, so we don't thrash the disk per fix.
+      let locCount = 0;
+      locSub = VM.addLocationListener((loc) => {
+        if (cancelled) return;
+        locCount += 1;
+        logHeartbeat({ src: 'loc', n: locCount, lat: loc?.latitude, lon: loc?.longitude, spd: loc?.speed });
+        console.log('[Return] loc:', JSON.stringify(loc));
+      });
+
+      // Mode controller (minimal): stream ON in the foreground so the HMM can run like today's
+      // foreground path; OFF when backgrounded so the app suspends and native visit/region events
+      // fire. The bounded return-window start (on geofence ENTER) comes in Phase 4.
+      const applyMode = async (state) => {
+        if (cancelled) return;
+        try {
+          if (state === 'active') await VM.startLocationUpdates();
+          else await VM.stopLocationUpdates();
+        } catch (e) { console.warn('[Return] mode switch failed:', e?.message); }
+      };
+      appStateSub = AppState.addEventListener('change', applyMode);
+      await applyMode(AppState.currentState); // apply current state on mount
+
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };
       await ping();
@@ -157,8 +185,12 @@ export function useReturnDetection() {
       cancelled = true;
       try { visitSub?.remove(); } catch {}
       try { geoSub?.remove(); } catch {}
+      try { locSub?.remove(); } catch {}
+      try { appStateSub?.remove(); } catch {}
+      try { VM.stopLocationUpdates(); } catch {}
       if (alive) clearInterval(alive);
-      // Not stopping monitoring — iOS should keep delivering visits/geofence in the background.
+      // Not stopping visit/region monitoring — iOS should keep delivering visits/geofence in the
+      // background. Only the location stream is torn down (it's foreground/return-window scoped).
     };
   }, []);
 }

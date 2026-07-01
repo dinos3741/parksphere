@@ -33,4 +33,19 @@ export function addGeofenceListener(listener) {
   return VisitMonitor.addListener('onGeofence', listener);
 }
 
+// ── On-demand location stream (feeds the HMM) ────────────────────────────────
+// Streams fixes from the SAME CLLocationManager that does visits + regions, so the app never runs a
+// second location owner. The JS mode controller turns this on for the foreground and for the bounded
+// return window after a geofence ENTER, and off otherwise so the app can suspend.
+export function startLocationUpdates() {
+  return VisitMonitor.startLocationUpdates();
+}
+export function stopLocationUpdates() {
+  return VisitMonitor.stopLocationUpdates();
+}
+// listener({ latitude, longitude, accuracy, altitude, speed, course, timestamp }); speed is m/s (-1 unknown)
+export function addLocationListener(listener) {
+  return VisitMonitor.addListener('onLocation', listener);
+}
+
 export default VisitMonitor;

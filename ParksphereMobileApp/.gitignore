@@ -9,9 +9,11 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native
-android/
-ios/
+# Native — anchored (leading slash) so they only ignore the Expo-generated project at the app root,
+# NOT the hand-written native module source under modules/*/ios (e.g. visit-monitor), which must be
+# tracked or it's lost on a clean checkout.
+/android/
+/ios/
 .kotlin/
 *.orig.*
 *.jks
