@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 import parkingBackground from '../assets/images/parking_background.png'; // Import the image
 import { BUILD_LABEL } from '../utils/buildInfo';
 
 const AboutScreen = ({ onClose }) => {
+  const [copied, setCopied] = useState(false);
+
+  const copyBuild = async () => {
+    await Clipboard.setStringAsync(BUILD_LABEL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500); // brief "Copied!" confirmation
+  };
+
   return (
     <View style={styles.container}>
       <TouchableOpacity style={styles.backButton} onPress={onClose}>
@@ -33,7 +42,9 @@ const AboutScreen = ({ onClose }) => {
       </ScrollView>
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
-        <Text style={styles.buildText}>{BUILD_LABEL}</Text>
+        <TouchableOpacity onPress={copyBuild} activeOpacity={0.6}>
+          <Text style={styles.buildText}>{copied ? '✓ Copied!' : BUILD_LABEL}</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
