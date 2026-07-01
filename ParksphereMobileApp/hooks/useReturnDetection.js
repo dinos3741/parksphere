@@ -89,6 +89,7 @@ export function useReturnDetection() {
     let geoSub = null;
     let locSub = null;
     let appStateSub = null;
+    let modeTimer = null;
     let alive = null;
     let cancelled = false;
 
@@ -165,14 +166,25 @@ export function useReturnDetection() {
       // Mode controller (minimal): stream ON in the foreground so the HMM can run like today's
       // foreground path; OFF when backgrounded so the app suspends and native visit/region events
       // fire. The bounded return-window start (on geofence ENTER) comes in Phase 4.
+      let lastOn = null; // dedupe: only act (and log) when the desired stream state actually changes
       const applyMode = async (state) => {
         if (cancelled) return;
+        const on = state === 'active';
+        if (on === lastOn) return;
+        lastOn = on;
+        console.log(`[Return] mode: AppState=${state} → stream ${on ? 'ON' : 'OFF'}`);
         try {
-          if (state === 'active') await VM.startLocationUpdates();
+          if (on) await VM.startLocationUpdates();
           else await VM.stopLocationUpdates();
-        } catch (e) { console.warn('[Return] mode switch failed:', e?.message); }
+        } catch (e) { lastOn = null; console.warn('[Return] mode switch failed:', e?.message); }
       };
       appStateSub = AppState.addEventListener('change', applyMode);
+      // Self-heal: on iOS Debug builds the resume 'change'→'active' event is sometimes dropped by the
+      // just-woken JS thread, leaving the stream stuck OFF. Re-assert from AppState.currentState on a
+      // short timer (JS is suspended in the background, so this only ticks in the foreground) so the
+      // stream reliably returns without depending on catching every event.
+      modeTimer = setInterval(() => applyMode(AppState.currentState), 4000);
+      console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
       await applyMode(AppState.currentState); // apply current state on mount
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
@@ -188,6 +200,7 @@ export function useReturnDetection() {
       try { locSub?.remove(); } catch {}
       try { appStateSub?.remove(); } catch {}
       try { VM.stopLocationUpdates(); } catch {}
+      if (modeTimer) clearInterval(modeTimer);
       if (alive) clearInterval(alive);
       // Not stopping visit/region monitoring — iOS should keep delivering visits/geofence in the
       // background. Only the location stream is torn down (it's foreground/return-window scoped).

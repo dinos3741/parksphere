@@ -12,6 +12,7 @@ import { apiRequest } from './utils/apiService';
 import LeavingModal from './components/LeavingModal';
 import HMMOverlay from './components/HMMOverlay';
 import DebugSimulator from './components/DebugSimulator';
+import StreamMonitor from './components/StreamMonitor';
 import Login from './components/Login';
 import Register from './components/Register';
 import { startParkDetection, stopParkDetection, resetParkDetection, handleLocationUpdate } from './utils/parkDetectionService';
@@ -159,6 +160,7 @@ function AppLayout({
   return (
     <>
       <StatusBar style="auto" />
+      {__DEV__ && <StreamMonitor />}
       {isLoggedIn && currentUser ? (
         <RootNavigator
           navigationRef={navigationRef}
