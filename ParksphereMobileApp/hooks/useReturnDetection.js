@@ -7,11 +7,12 @@
 // All native "monitoring" services — they coexist and wake a suspended/terminated app. Each step
 // fires a notification + a heartbeat so a field test is fully traceable.
 //
+// A geofence EXIT is ambiguous — driving off (spot free) vs. walking out to a far destination (spot
+// still taken). On exit we sample speed for a few seconds: >= DRIVE_OFF_SPEED_KMH ⇒ drove off (clear
+// the spot); walking speed ⇒ keep the spot + geofence so the return alert still fires when you head back.
+//
 // KNOWN LIMITS (test build):
 //  • CLVisit arrival is delayed (minutes) and coarse — the geofence centers on an approximate spot.
-//  • A geofence EXIT means "drove off" at the gym (you stay inside the radius until you drive), but
-//    for far-walk parking an EXIT can also be "walked away to a destination" — distinguishing the
-//    two needs a speed check on exit (a refinement, not in this build).
 import { useEffect } from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -22,6 +23,43 @@ import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
 const OLD_PARK_TASK = 'PARK_DETECTION_TASK'; // legacy continuous-location task to deregister
+
+// Geofence EXIT is ambiguous: driving off (spot is now free) vs. walking out to a far destination
+// (spot is still taken). Walking tops out ~5-7 km/h; a car crossing a 200m radius is well above that.
+// 10 km/h cleanly separates the two.
+const DRIVE_OFF_SPEED_KMH = 10;
+const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short — sample briefly
+
+// Sample location for a few seconds on a geofence exit and return the max speed seen (km/h), or null
+// if no valid speed fix arrives (coords.speed is -1/unknown until GPS establishes velocity). Exits
+// early the moment a clear driving speed is seen so a real drive-off is handled fast.
+async function readExitSpeedKmh() {
+  return new Promise((resolve) => {
+    let sub = null;
+    let best = null;
+    let settled = false;
+    const finish = (val) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { sub?.remove(); } catch (_) {}
+      resolve(val);
+    };
+    const timer = setTimeout(() => finish(best), EXIT_SPEED_WINDOW_MS);
+    Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, timeInterval: 1000, distanceInterval: 0 },
+      (loc) => {
+        const s = loc?.coords?.speed;
+        if (typeof s === 'number' && s >= 0) {
+          const kmh = s * 3.6;
+          if (best === null || kmh > best) best = kmh;
+          if (kmh >= DRIVE_OFF_SPEED_KMH) finish(kmh); // unmistakably driving — decide now
+        }
+      }
+    ).then((s) => { if (settled) { try { s.remove(); } catch (_) {} } else { sub = s; } })
+     .catch(() => finish(best));
+  });
+}
 
 // A previous build called Location.startLocationUpdatesAsync(PARK_DETECTION_TASK), which registers
 // a continuous-location task with iOS that PERSISTS across launches. It keeps location active in the
@@ -90,9 +128,19 @@ export function useReturnDetection() {
         if (g?.type === 'enter') {
           await notifyUser('🟢 Returning', `you're near your car @ ${ts}`);
         } else if (g?.type === 'exit') {
-          await notifyUser('🏁 Spot free', `drove off @ ${ts}`);
-          await AsyncStorage.removeItem(SPOT_KEY);
-          await VM.clearGeofence();
+          // Distinguish driving off (spot free) from walking away to a destination (spot still taken).
+          const speedKmh = await readExitSpeedKmh();
+          const drivingOff = speedKmh === null ? true : speedKmh >= DRIVE_OFF_SPEED_KMH;
+          const speedStr = speedKmh === null ? 'unknown' : `${Math.round(speedKmh)} km/h`;
+          await log({ src: 'geofence', type: 'exit', speedKmh, drivingOff });
+          if (drivingOff) {
+            await notifyUser('🏁 Spot free', `drove off (${speedStr}) @ ${ts}`);
+            await AsyncStorage.removeItem(SPOT_KEY);
+            await VM.clearGeofence();
+          } else {
+            // Walked out of the radius — keep the spot + geofence so the return alert still fires.
+            console.log(`[Return] exit at walking speed (${speedStr}) — keeping spot`);
+          }
         }
       });
 
