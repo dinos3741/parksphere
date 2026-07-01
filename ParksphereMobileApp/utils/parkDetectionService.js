@@ -1022,6 +1022,16 @@ function activityAt(timeline, fixTimeMs) {
 // invocations processes every buffered location in order instead of losing them.
 let taskQueue = Promise.resolve();
 
+// RETIRED: the legacy continuous-location engine is replaced by the event-based path (native
+// CLVisit park + geofence return + VisitMonitor's on-demand stream feeding the HMM). This task
+// still exists in iOS's registry from past installs/taps and PERSISTS across launches, so iOS keeps
+// delivering buffered batches that would resurrect the old engine (wake sensors + churn the HMM) and
+// spin up a SECOND CLLocationManager — the two-owner conflict we're eliminating. Bail immediately:
+// log a heartbeat so we can still SEE the stray task fire (and confirm killLegacyLocationTask has
+// unregistered it over relaunches), but never run the batch. When the HMM is reactivated it will be
+// driven by VisitMonitor.onLocation, not by this task.
+const LEGACY_LOCATION_TASK_RETIRED = true;
+
 TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
   if (error) {
     console.error(`[ParkDetection] Task Error: ${error.message}`);
@@ -1032,10 +1042,14 @@ TaskManager.defineTask(PARK_DETECTION_TASK, async ({ data, error }) => {
     return;
   }
 
-  // 💓 HEARTBEAT: record that the task fired, ALWAYS — even when not recording and even
-  // if we bail out below. This is the ground truth for "did iOS wake the app in background?"
-  // (independent of the telemetry recording session, which the old recorder couldn't see).
-  logHeartbeat({ n: data.locations.length, cold: !isInitialized });
+  // 💓 HEARTBEAT: record that the task fired, ALWAYS — the ground truth for "did iOS deliver to the
+  // legacy task?" (i.e. is a stray persisted registration still alive?).
+  logHeartbeat({ n: data.locations.length, cold: !isInitialized, legacyRetired: LEGACY_LOCATION_TASK_RETIRED });
+
+  if (LEGACY_LOCATION_TASK_RETIRED) {
+    console.log(`[ParkDetection] Legacy PARK_DETECTION_TASK fired (${data.locations.length} loc) — RETIRED, ignoring.`);
+    return; // do NOT wake the engine or start sensors
+  }
 
   taskQueue = taskQueue
     .then(() => runTaskBatch(data.locations))
@@ -1108,6 +1122,14 @@ async function runTaskBatch(locations) {
 
 // ---------------- CONTINUOUS LOCATION UPDATES ----------------
 async function startContinuousUpdates() {
+  // RETIRED: never (re)register the persistent continuous-location task — it's the second
+  // CoreLocation owner + the thing that persists across launches and resurrects this engine. The
+  // debug "START ENGINE" button routes here; make it a no-op so a stray tap can't recreate the
+  // problem. Location for the HMM comes from VisitMonitor's on-demand stream now.
+  if (LEGACY_LOCATION_TASK_RETIRED) {
+    console.log('[ParkDetection] startContinuousUpdates suppressed (legacy task retired).');
+    return;
+  }
   const started = await Location.hasStartedLocationUpdatesAsync(PARK_DETECTION_TASK).catch(() => false);
   if (!started) {
     await Location.startLocationUpdatesAsync(PARK_DETECTION_TASK, continuousLocationOptions());
