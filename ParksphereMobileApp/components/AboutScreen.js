@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
 import parkingBackground from '../assets/images/parking_background.png'; // Import the image
+import { BUILD_LABEL } from '../utils/buildInfo';
 
 const AboutScreen = ({ onClose }) => {
   return (
@@ -32,6 +33,7 @@ const AboutScreen = ({ onClose }) => {
       </ScrollView>
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
+        <Text style={styles.buildText}>{BUILD_LABEL}</Text>
       </View>
     </View>
   );
@@ -118,6 +120,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     color: 'blue',
+  },
+  buildText: {
+    textAlign: 'center',
+    fontSize: 10,
+    color: '#dfe6f5',
+    marginTop: 2,
   },
 });
 
