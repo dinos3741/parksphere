@@ -1162,6 +1162,37 @@ export async function feedLocationFix(loc) {
   }
 }
 
+// Seed the HMM's parked spot from an EXTERNAL source (CLVisit, in the background, where the HMM
+// itself can't run). Keeps the two "parked spot" notions unified: whoever detects the park — the
+// HMM in the foreground or CLVisit in the background — the HMM ends up knowing where the car is, so
+// its returning/drive-off logic works once the app comes forward. Chained on updateQueue so it never
+// races a concurrent handleLocationUpdate load→save. Pass null to clear.
+export async function seedParkedSpot(location) {
+  return updateQueue = updateQueue.then(async () => {
+    try {
+      const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'seedParkedSpot.getItem');
+      const stateData = saved ? JSON.parse(saved) : {};
+      if (location) {
+        stateData.parkedLocation = {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracy: location.accuracy ?? null,
+        };
+        stateData.parkingNotified = true;         // treat as an active, already-declared spot
+        if (stateData.isAway === undefined) stateData.isAway = false;
+      } else {
+        stateData.parkedLocation = null;
+        stateData.parkingNotified = false;
+        stateData.isAway = false;
+      }
+      await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'seedParkedSpot.setItem');
+      console.log(`[ParkDetection] HMM parkedLocation ${location ? 'seeded from external spot' : 'cleared'}.`);
+    } catch (e) {
+      console.error('[ParkDetection] seedParkedSpot failed:', e.message);
+    }
+  }).catch(() => {});
+}
+
 // ---------------- CONTINUOUS LOCATION UPDATES ----------------
 async function startContinuousUpdates() {
   // RETIRED: never (re)register the persistent continuous-location task — it's the second

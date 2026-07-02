@@ -14,12 +14,13 @@
 // KNOWN LIMITS (test build):
 //  • CLVisit arrival is delayed (minutes) and coarse — the geofence centers on an approximate spot.
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, DeviceEventEmitter } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
+import { seedParkedSpot } from '../utils/parkDetectionService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
@@ -88,10 +89,27 @@ export function useReturnDetection() {
     let visitSub = null;
     let geoSub = null;
     let locSub = null;
+    let hmmSpotSub = null;
     let appStateSub = null;
     let modeTimer = null;
     let alive = null;
     let cancelled = false;
+
+    // One shared "parked spot" for both detectors. Whoever declares the park — the HMM in the
+    // foreground, CLVisit in the background — arms the same geofence and persists the same spot, so
+    // return/drive-off works regardless of who set it.
+    const armSpot = async (spot, source) => {
+      await AsyncStorage.setItem(SPOT_KEY, JSON.stringify(spot));
+      await VM.armGeofence(spot.latitude, spot.longitude, GEOFENCE_RADIUS);
+      await log({ src: 'armSpot', source, lat: spot.latitude, lon: spot.longitude });
+      console.log(`[Return] spot armed by ${source}:`, JSON.stringify(spot));
+    };
+    const clearSpot = async (source) => {
+      await AsyncStorage.removeItem(SPOT_KEY);
+      await VM.clearGeofence();
+      await log({ src: 'clearSpot', source });
+      console.log(`[Return] spot cleared by ${source}`);
+    };
 
     const log = async (info) => { logHeartbeat(info); await flushTelemetry(); };
 
@@ -109,18 +127,44 @@ export function useReturnDetection() {
         }
       } catch (_) {}
 
-      // CLVisit → park
+      // CLVisit → park (BACKGROUND only). In the foreground the HMM is the authority and sets the
+      // spot via its park event (below), so ignore CLVisit arrivals while active — this stops CLVisit
+      // from arming a geofence at every foreground dwell. In the background the HMM can't run, so
+      // CLVisit is the park source; it also seeds the HMM's parkedLocation so returning works if the
+      // app later comes forward.
       visitSub = VM.addVisitListener(async (v) => {
         if (cancelled) return;
         const ts = new Date().toLocaleTimeString();
-        await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude });
+        await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude, app: AppState.currentState });
         console.log('[Return] visit:', JSON.stringify(v));
         if (v?.type === 'arrival') {
-          const spot = { latitude: v.latitude, longitude: v.longitude };
-          await AsyncStorage.setItem(SPOT_KEY, JSON.stringify(spot));
-          await VM.armGeofence(spot.latitude, spot.longitude, GEOFENCE_RADIUS);
+          if (AppState.currentState === 'active') {
+            console.log('[Return] foreground CLVisit arrival ignored — HMM is the park authority.');
+            return;
+          }
+          const spot = { latitude: v.latitude, longitude: v.longitude, accuracy: v.accuracy };
+          await armSpot(spot, 'clvisit');
+          await seedParkedSpot(spot); // hand the car location to the HMM for later returning
           await notifyUser('🅿️ Parked', `spot saved + geofence armed @ ${ts}`);
         }
+      });
+
+      // HMM → park / drive-off (FOREGROUND). The reactivated HMM declares parks via parkDetectionUpdate
+      // ({parkedLocation}) and drive-offs via ({clearParkedLocation}); mirror those onto the shared
+      // spot + geofence so the HMM is the foreground park source (a real drove→stopped→walked, not
+      // every dwell).
+      hmmSpotSub = DeviceEventEmitter.addListener('parkDetectionUpdate', async (data) => {
+        if (cancelled) return;
+        try {
+          if (data?.parkedLocation) {
+            await armSpot(
+              { latitude: data.parkedLocation.latitude, longitude: data.parkedLocation.longitude, accuracy: data.parkedLocation.accuracy },
+              'hmm'
+            );
+          } else if (data?.clearParkedLocation) {
+            await clearSpot('hmm');
+          }
+        } catch (e) { console.warn('[Return] HMM spot sync failed:', e?.message); }
       });
 
       // Geofence → return / drive-off
@@ -198,6 +242,7 @@ export function useReturnDetection() {
       try { visitSub?.remove(); } catch {}
       try { geoSub?.remove(); } catch {}
       try { locSub?.remove(); } catch {}
+      try { hmmSpotSub?.remove(); } catch {}
       try { appStateSub?.remove(); } catch {}
       try { VM.stopLocationUpdates(); } catch {}
       if (modeTimer) clearInterval(modeTimer);
