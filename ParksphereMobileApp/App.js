@@ -92,11 +92,12 @@ function AppContent() {
 
   const socket = useSocketConnection(serverUrl, userId, currentUsername, isLoggedIn, token);
 
-  // MILESTONE 1: old continuous-location HMM engine disabled so it can't keep the app alive in the
-  // background — otherwise the BT-suspend test gives a false pass. We're replacing this engine.
-  // useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
-  // useCarConnectionProbe(); // BT-trigger ruled out (disconnect doesn't wake a suspended app) — off so it doesn't add notification noise to the CLVisit test
-  useReturnDetection(); // park (CLVisit) → arm geofence → return (enter) / drive-off (exit)
+  // HMM engine, reactivated (Phase 2): driven by VisitMonitor's location stream instead of the retired
+  // continuous-location task. The stream is turned ON/OFF by useReturnDetection's mode controller
+  // (foreground only for now), so the engine runs like the old foreground path without keeping the app
+  // awake in the background.
+  useParkDetectionEngine(currentUser, isLoggedIn, addNotification, setParkedLocation);
+  useReturnDetection(); // park (CLVisit) → arm geofence → return (enter) / drive-off (exit) + stream mode control
 
   console.log(`[App.js] isLoading: ${isLoading}, fontLoaded: ${fontLoaded}`);
 

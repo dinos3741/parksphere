@@ -1120,6 +1120,48 @@ async function runTaskBatch(locations) {
   }
 }
 
+// Feed a single LIVE location fix into the HMM. This is the streaming counterpart of runTaskBatch
+// (which drained buffered background batches from the now-retired PARK_DETECTION_TASK). Fixes arrive
+// one at a time from VisitMonitor's on-demand stream (see hooks/useParkDetectionEngine + the
+// visitMonitorAdapter), with a current timestamp — so there's no suspension gap to backfill; the live
+// currentActivity (kept fresh by the motion-activity listener started in startSensors) plus the
+// speed safety net is enough. Mirrors runTaskBatch's per-fix work: step rate, activity synth,
+// load → handleLocationUpdate → save, telemetry flush; guarded by isProcessing so it never overlaps
+// the sensor fast-path (triggerVirtualUpdate).
+export async function feedLocationFix(loc) {
+  if (!isInitialized || isProcessing) return; // engine not started, or a batch/virtual update is mid-flight
+  isProcessing = true;
+  try {
+    currentStepRate = await getRecentStepRate();
+
+    // Speed safety net (same as runTaskBatch): a clearly vehicular GPS speed with unknown activity
+    // synthesizes a medium-confidence automotive signal so DRIVING engages without activity history.
+    if (currentActivity.unknown && (loc.coords?.speed || 0) * 3.6 > 20) {
+      currentActivity = { state: 'automotive', automotive: true, walking: false, stationary: false, unknown: false, confidence: 1 };
+    }
+
+    let stateData;
+    try {
+      const saved = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), 2000, 'feedLocationFix.getItem');
+      stateData = saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.error('[ParkDetection] feedLocationFix: state load failed:', e.message);
+      return; // don't process against {} and risk wiping parkedLocation
+    }
+
+    stateData = await handleLocationUpdate(stateData, loc);
+
+    try {
+      await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(stateData)), 2000, 'feedLocationFix.setItem');
+    } catch (e) {
+      console.error('[ParkDetection] feedLocationFix: state save failed:', e.message);
+    }
+    await flushTelemetry();
+  } finally {
+    isProcessing = false;
+  }
+}
+
 // ---------------- CONTINUOUS LOCATION UPDATES ----------------
 async function startContinuousUpdates() {
   // RETIRED: never (re)register the persistent continuous-location task — it's the second
