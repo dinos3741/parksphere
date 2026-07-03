@@ -125,6 +125,7 @@ export function useReturnDetection() {
     const clearSpot = async (source) => {
       await AsyncStorage.removeItem(SPOT_KEY);
       await VM.clearGeofence();
+      await seedParkedSpot(null); // keep the HMM's PARK_STATE in sync so no stale spot resurfaces
       await log({ src: 'clearSpot', source });
       console.log(`[Return] spot cleared by ${source}`);
     };
@@ -213,8 +214,7 @@ export function useReturnDetection() {
           await log({ src: 'geofence', type: 'exit', speedKmh, drivingOff });
           if (drivingOff) {
             await notifyUser('🏁 Spot free', `drove off (${speedStr}) @ ${ts}`);
-            await AsyncStorage.removeItem(SPOT_KEY);
-            await VM.clearGeofence();
+            await clearSpot('geofence-driveoff'); // clears SPOT_KEY + geofence + HMM PARK_STATE together
           } else {
             // Walked out of the radius — keep the spot + geofence so the return alert still fires.
             console.log(`[Return] exit at walking speed (${speedStr}) — keeping spot`);
