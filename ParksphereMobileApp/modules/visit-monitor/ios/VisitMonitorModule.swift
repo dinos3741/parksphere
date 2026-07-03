@@ -19,7 +19,7 @@ public class VisitMonitorModule: Module {
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
 
-    Events("onVisit", "onGeofence", "onLocation")
+    Events("onVisit", "onGeofence", "onLocation", "onLocationPaused", "onLocationResumed")
 
     AsyncFunction("start") {
       DispatchQueue.main.async {
@@ -85,6 +85,41 @@ public class VisitMonitorModule: Module {
         self.manager?.stopUpdatingLocation()
       }
     }
+
+    // ── Drive-capture mode: iOS-managed auto-pausing location (the Google-Maps park trick) ────────
+    // Runs full location while driving and lets iOS AUTOMATICALLY PAUSE it once you've been stationary
+    // (parked). The pause fires didPauseLocationUpdates → onLocationPaused: the last fix before it is
+    // the real parking spot. Pair with significant-location-change monitoring (below) so a new drive
+    // wakes the app and this can be restarted. activityType=.automotiveNavigation tells iOS this is a
+    // driving session so its auto-pause heuristics fit parking.
+    AsyncFunction("startDriveLocationUpdates") {
+      DispatchQueue.main.async {
+        self.ensureManager()
+        guard let m = self.manager else { return }
+        m.desiredAccuracy = kCLLocationAccuracyBest
+        m.distanceFilter = kCLDistanceFilterNone // full resolution during the drive → precise stop
+        m.pausesLocationUpdatesAutomatically = true // let iOS pause at the park (= the spot)
+        m.activityType = .automotiveNavigation
+        m.showsBackgroundLocationIndicator = true
+        m.startUpdatingLocation()
+      }
+    }
+
+    // Significant-location-change monitoring: a low-power service that WAKES a suspended/terminated
+    // app after ~500m of movement (i.e. a new drive starting), so drive-capture can be restarted
+    // after iOS auto-paused it at the previous park. Coarse locations arrive via onLocation.
+    AsyncFunction("startSignificantChangeMonitoring") {
+      DispatchQueue.main.async {
+        self.ensureManager()
+        self.manager?.startMonitoringSignificantLocationChanges()
+      }
+    }
+
+    AsyncFunction("stopSignificantChangeMonitoring") {
+      DispatchQueue.main.async {
+        self.manager?.stopMonitoringSignificantLocationChanges()
+      }
+    }
   }
 
   private func ensureManager() {
@@ -93,7 +128,9 @@ public class VisitMonitorModule: Module {
     let proxy = LocationDelegate(
       onVisit: { [weak self] payload in self?.sendEvent("onVisit", payload) },
       onGeofence: { [weak self] payload in self?.sendEvent("onGeofence", payload) },
-      onLocation: { [weak self] payload in self?.sendEvent("onLocation", payload) }
+      onLocation: { [weak self] payload in self?.sendEvent("onLocation", payload) },
+      onLocationPaused: { [weak self] in self?.sendEvent("onLocationPaused", [:]) },
+      onLocationResumed: { [weak self] in self?.sendEvent("onLocationResumed", [:]) }
     )
     m.delegate = proxy
     m.allowsBackgroundLocationUpdates = true
@@ -108,15 +145,21 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   private let onVisit: ([String: Any]) -> Void
   private let onGeofence: ([String: Any]) -> Void
   private let onLocation: ([String: Any]) -> Void
+  private let onLocationPaused: () -> Void
+  private let onLocationResumed: () -> Void
 
   init(
     onVisit: @escaping ([String: Any]) -> Void,
     onGeofence: @escaping ([String: Any]) -> Void,
-    onLocation: @escaping ([String: Any]) -> Void
+    onLocation: @escaping ([String: Any]) -> Void,
+    onLocationPaused: @escaping () -> Void,
+    onLocationResumed: @escaping () -> Void
   ) {
     self.onVisit = onVisit
     self.onGeofence = onGeofence
     self.onLocation = onLocation
+    self.onLocationPaused = onLocationPaused
+    self.onLocationResumed = onLocationResumed
     super.init()
   }
 
@@ -155,5 +198,17 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
         "timestamp": loc.timestamp.timeIntervalSince1970 * 1000.0
       ])
     }
+  }
+
+  // iOS auto-paused location because the device has been stationary (parked). This is the park signal
+  // in drive-capture mode — the JS side treats the last fix before this as the parking spot.
+  func locationManagerDidPauseLocationUpdates(_ manager: CLLocationManager) {
+    onLocationPaused()
+  }
+
+  // iOS resumed after a pause (movement detected). Informational; a new drive is usually (re)started
+  // from significant-location-change wakes rather than relying on this.
+  func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
+    onLocationResumed()
   }
 }

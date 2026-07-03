@@ -48,4 +48,25 @@ export function addLocationListener(listener) {
   return VisitMonitor.addListener('onLocation', listener);
 }
 
+// ── Drive-capture (precise background parking spot) ──────────────────────────
+// Auto-pausing .automotiveNavigation location: iOS runs it while driving and pauses it at the park,
+// firing onLocationPaused. Pair with significant-change monitoring so a new drive wakes the app.
+export function startDriveLocationUpdates() {
+  return VisitMonitor.startDriveLocationUpdates();
+}
+export function startSignificantChangeMonitoring() {
+  return VisitMonitor.startSignificantChangeMonitoring();
+}
+export function stopSignificantChangeMonitoring() {
+  return VisitMonitor.stopSignificantChangeMonitoring();
+}
+// listener() — iOS auto-paused location (device parked). The last onLocation before this = the spot.
+export function addLocationPausedListener(listener) {
+  return VisitMonitor.addListener('onLocationPaused', listener);
+}
+// listener() — iOS resumed location after a pause (movement).
+export function addLocationResumedListener(listener) {
+  return VisitMonitor.addListener('onLocationResumed', listener);
+}
+
 export default VisitMonitor;
