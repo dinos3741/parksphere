@@ -90,15 +90,33 @@ export function useReturnDetection() {
     let geoSub = null;
     let locSub = null;
     let hmmSpotSub = null;
+    let pausedSub = null;
+    let resumedSub = null;
     let appStateSub = null;
     let modeTimer = null;
     let alive = null;
     let cancelled = false;
 
+    // ── Drive-capture state (precise background park via iOS auto-pause) ──────────────────────────
+    // On a drive we run VisitMonitor's auto-pausing .automotiveNavigation location; iOS pauses it at
+    // the park and the last fix before the pause is the real spot. driveSessionSawDriving gates it so
+    // a departure-on-foot can't produce a false park at a walking destination.
+    let driveCaptureActive = false;
+    let lastDriveFix = null;
+    let driveSessionSawDriving = false;
+    let driveSpotSetThisTrip = false; // dedupe: once drive-capture set a precise spot, ignore coarse CLVisit
+    let driveTimer = null; // safety: force-end drive-capture if iOS never auto-pauses
+    const DRIVE_CAPTURE_MAX_MS = 60 * 60 * 1000; // 60 min hard cap
+    // Defined in the mode-controller block below (needs applyMode); handlers close over this let and
+    // call it after the effect body has run, so the real implementation is in place by then.
+    let startDriveCapture = async () => {};
+
     // One shared "parked spot" for both detectors. Whoever declares the park — the HMM in the
     // foreground, CLVisit in the background — arms the same geofence and persists the same spot, so
     // return/drive-off works regardless of who set it.
     const armSpot = async (spot, source) => {
+      driveCaptureActive = false; // a spot exists now → the drive is over
+      if (driveTimer) { clearTimeout(driveTimer); driveTimer = null; }
       await AsyncStorage.setItem(SPOT_KEY, JSON.stringify(spot));
       await VM.armGeofence(spot.latitude, spot.longitude, GEOFENCE_RADIUS);
       await log({ src: 'armSpot', source, lat: spot.latitude, lon: spot.longitude });
@@ -137,15 +155,27 @@ export function useReturnDetection() {
         const ts = new Date().toLocaleTimeString();
         await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude, app: AppState.currentState });
         console.log('[Return] visit:', JSON.stringify(v));
+        if (v?.type === 'departure') {
+          // Leaving a place → a drive is likely starting. Kick off drive-capture so iOS's auto-pause
+          // catches the actual parking spot (precise), instead of relying on the coarse arrival dwell.
+          await startDriveCapture();
+          return;
+        }
         if (v?.type === 'arrival') {
           if (AppState.currentState === 'active') {
             console.log('[Return] foreground CLVisit arrival ignored — HMM is the park authority.');
             return;
           }
+          if (driveSpotSetThisTrip) {
+            console.log('[Return] CLVisit arrival ignored — drive-capture already set the precise spot.');
+            return;
+          }
+          // Fallback park source: drive-capture didn't pin the spot (e.g. iOS never auto-paused). Use
+          // CLVisit's coarse dwell location so we still register something.
           const spot = { latitude: v.latitude, longitude: v.longitude, accuracy: v.accuracy };
           await armSpot(spot, 'clvisit');
           await seedParkedSpot(spot); // hand the car location to the HMM for later returning
-          await notifyUser('🅿️ Parked', `spot saved + geofence armed @ ${ts}`);
+          await notifyUser('🅿️ Parked', `spot saved (approx) + geofence armed @ ${ts}`);
         }
       });
 
@@ -193,7 +223,10 @@ export function useReturnDetection() {
       });
 
       await VM.startVisitMonitoring();
-      console.log('[Return] monitoring started');
+      // SLC: low-power background wake on ~500m movement so a new drive can (re)start drive-capture
+      // after iOS auto-paused location at the previous park. Guarded — absent on an un-rebuilt binary.
+      try { await VM.startSignificantChangeMonitoring(); } catch (e) { console.warn('[Return] SLC start failed (rebuild?):', e?.message); }
+      console.log('[Return] monitoring started (visits + SLC)');
 
       // ── Location stream (Phase 1: verify streaming; seed of the Phase 3 mode controller) ──────
       // The HMM will consume these fixes (Phase 2). For now, log each one so a build can prove the
@@ -203,33 +236,92 @@ export function useReturnDetection() {
       locSub = VM.addLocationListener((loc) => {
         if (cancelled) return;
         locCount += 1;
-        logHeartbeat({ src: 'loc', n: locCount, lat: loc?.latitude, lon: loc?.longitude, spd: loc?.speed });
+        // A background fix while we're neither foreground nor already capturing means SLC woke us for
+        // a new drive (~500m of movement) — start drive-capture so iOS catches the upcoming park. This
+        // is the timely trigger; CLVisit departure (delayed minutes) is only a backup.
+        if (!driveCaptureActive && AppState.currentState !== 'active') {
+          startDriveCapture();
+        }
+        // During a drive-capture session, remember the latest fix (the auto-pause spot candidate) and
+        // note if we ever saw real driving speed — so a walk can't masquerade as a park.
+        if (driveCaptureActive && loc) {
+          lastDriveFix = loc;
+          if ((loc.speed || 0) * 3.6 > 15) driveSessionSawDriving = true;
+        }
+        logHeartbeat({ src: 'loc', n: locCount, lat: loc?.latitude, lon: loc?.longitude, spd: loc?.speed, drive: driveCaptureActive });
         console.log('[Return] loc:', JSON.stringify(loc));
       });
 
-      // Mode controller (minimal): stream ON in the foreground so the HMM can run like today's
-      // foreground path; OFF when backgrounded so the app suspends and native visit/region events
-      // fire. The bounded return-window start (on geofence ENTER) comes in Phase 4.
-      let lastOn = null; // dedupe: only act (and log) when the desired stream state actually changes
-      const applyMode = async (state) => {
+      // iOS auto-paused location (device parked) → the last drive fix is the parking spot. Gate on
+      // driveSessionSawDriving so a departure-on-foot that pauses at a walking destination doesn't
+      // register a phantom park.
+      pausedSub = VM.addLocationPausedListener(async () => {
         if (cancelled) return;
-        const on = state === 'active';
-        if (on === lastOn) return;
-        lastOn = on;
-        console.log(`[Return] mode: AppState=${state} → stream ${on ? 'ON' : 'OFF'}`);
+        const capturing = driveCaptureActive;
+        const drove = driveSessionSawDriving;
+        await log({ src: 'locationPaused', capturing, drove, hasFix: !!lastDriveFix });
+        console.log(`[Return] iOS auto-paused (parked). capturing=${capturing} drove=${drove}`);
+        driveCaptureActive = false;
+        await applyMode(); // drive-capture over → release location (off if backgrounded)
+        if (!capturing || !drove || !lastDriveFix) {
+          console.log('[Return] pause ignored (not a real drive/no fix) — CLVisit fallback stands.');
+          return;
+        }
+        const spot = { latitude: lastDriveFix.latitude, longitude: lastDriveFix.longitude, accuracy: lastDriveFix.accuracy };
+        await armSpot(spot, 'drive');
+        await seedParkedSpot(spot);
+        driveSpotSetThisTrip = true;
+        await notifyUser('🅿️ Parked', `spot captured @ ${new Date().toLocaleTimeString()}`);
+      });
+      resumedSub = VM.addLocationResumedListener(async () => {
+        if (cancelled) return;
+        await log({ src: 'locationResumed' });
+        console.log('[Return] iOS resumed location (movement).');
+      });
+
+      // Mode controller — one CLLocationManager, three location modes:
+      //   • foreground (AppState active)      → 'stream' (continuous, no pause) so the HMM runs live.
+      //   • background + drive-capturing      → 'drive'  (auto-pausing .automotiveNavigation) to catch the park.
+      //   • otherwise                         → 'off'    so the app suspends; SLC/visit/geofence wake it.
+      let lastMode = null; // dedupe: only act (and log) when the desired mode actually changes
+      const applyMode = async () => {
+        if (cancelled) return;
+        const active = AppState.currentState === 'active';
+        const mode = active ? 'stream' : (driveCaptureActive ? 'drive' : 'off');
+        if (mode === lastMode) return;
+        lastMode = mode;
+        console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
         try {
-          if (on) await VM.startLocationUpdates();
+          if (mode === 'stream') await VM.startLocationUpdates();
+          else if (mode === 'drive') await VM.startDriveLocationUpdates();
           else await VM.stopLocationUpdates();
-        } catch (e) { lastOn = null; console.warn('[Return] mode switch failed:', e?.message); }
+        } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
       };
-      appStateSub = AppState.addEventListener('change', applyMode);
+      startDriveCapture = async () => {
+        if (driveCaptureActive) return;
+        driveCaptureActive = true;
+        lastDriveFix = null;
+        driveSessionSawDriving = false;
+        driveSpotSetThisTrip = false;
+        if (driveTimer) clearTimeout(driveTimer);
+        driveTimer = setTimeout(async () => {
+          if (!driveCaptureActive) return;
+          console.log('[Return] drive-capture hit max duration — ending (iOS never auto-paused).');
+          driveCaptureActive = false;
+          await log({ src: 'driveCapture', action: 'timeout' });
+          await applyMode();
+        }, DRIVE_CAPTURE_MAX_MS);
+        await log({ src: 'driveCapture', action: 'start', app: AppState.currentState });
+        console.log('[Return] drive-capture started');
+        await applyMode(); // → 'drive' if backgrounded
+      };
+      appStateSub = AppState.addEventListener('change', () => applyMode());
       // Self-heal: on iOS Debug builds the resume 'change'→'active' event is sometimes dropped by the
-      // just-woken JS thread, leaving the stream stuck OFF. Re-assert from AppState.currentState on a
-      // short timer (JS is suspended in the background, so this only ticks in the foreground) so the
-      // stream reliably returns without depending on catching every event.
-      modeTimer = setInterval(() => applyMode(AppState.currentState), 4000);
+      // just-woken JS thread. Re-assert the mode on a short timer (JS is suspended in the background,
+      // so this only ticks in the foreground) so the stream reliably returns on foreground.
+      modeTimer = setInterval(() => applyMode(), 4000);
       console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
-      await applyMode(AppState.currentState); // apply current state on mount
+      await applyMode(); // apply current state on mount
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };
@@ -243,9 +335,13 @@ export function useReturnDetection() {
       try { geoSub?.remove(); } catch {}
       try { locSub?.remove(); } catch {}
       try { hmmSpotSub?.remove(); } catch {}
+      try { pausedSub?.remove(); } catch {}
+      try { resumedSub?.remove(); } catch {}
       try { appStateSub?.remove(); } catch {}
       try { VM.stopLocationUpdates(); } catch {}
+      try { VM.stopSignificantChangeMonitoring(); } catch {}
       if (modeTimer) clearInterval(modeTimer);
+      if (driveTimer) clearTimeout(driveTimer);
       if (alive) clearInterval(alive);
       // Not stopping visit/region monitoring — iOS should keep delivering visits/geofence in the
       // background. Only the location stream is torn down (it's foreground/return-window scoped).
