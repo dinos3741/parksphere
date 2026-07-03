@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
-import { DeviceEventEmitter } from 'react-native';
+import { DeviceEventEmitter, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { startParkDetection, stopParkDetection, handleLocationUpdate, feedLocationFix } from '../utils/parkDetectionService';
 import { visitMonitorToLocation } from '../utils/visitMonitorAdapter';
 import { useBluetoothMonitoring } from './useBluetoothMonitoring';
+
+const PARK_STATE_KEY = 'PARK_STATE';
 
 // VisitMonitor is the single CoreLocation owner and the HMM's location source. Its on-demand stream
 // is turned ON/OFF by the mode controller in useReturnDetection (foreground only, for now); here we
@@ -24,6 +26,25 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     // ⚡ Inject Bluetooth state into the HMM engine on change
     handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
   }, [isConnected]);
+
+  // Surface the current parked spot to the map on foreground. A spot declared in the BACKGROUND by
+  // CLVisit writes PARK_STATE (via seedParkedSpot) but never touches the map's LocationContext store,
+  // and a warm resume doesn't remount the setup effect — so without this the CLVisit spot stays
+  // invisible until a relaunch. On every 'active', mirror PARK_STATE.parkedLocation onto the map.
+  useEffect(() => {
+    const syncSpotToMap = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(PARK_STATE_KEY);
+        const parked = saved ? JSON.parse(saved).parkedLocation : null;
+        if (parked && setParkedLocation) setParkedLocation(parked);
+      } catch (_) {}
+    };
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') syncSpotToMap();
+    });
+    syncSpotToMap(); // also run once on mount
+    return () => { try { sub?.remove(); } catch (_) {} };
+  }, [setParkedLocation]);
 
   useEffect(() => {
     let detectionSubscription = null;
