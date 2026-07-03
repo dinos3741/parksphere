@@ -601,10 +601,18 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
     // 🚀 FIX: The Locker Room Time-Warp Guard
     if (dt > 60) {
       console.log('[HMM] ⚠️ Deep sleep detected (>60s). Resetting Kalman Physics to prevent NaN jump.');
-      positionFilter.x = [0, 0, 0, 0]; 
+      positionFilter.x = [0, 0, 0, 0];
       positionFilter.P = mathIdentity(4, 1000);
       positionFilter.lastTime = null; // Forces filter to snap perfectly to new GPS ping
-      dt = 1; 
+      dt = 1;
+      // 🅿️ PHANTOM-PARK GUARD (ported from rnbg-v2 b91ffaf): trip accumulators earned before the
+      // gap are stale — carrying them across lets the post-gap fix satisfy the park condition and
+      // fire a phantom park (e.g. overnight, when the app resumes 4h after driving home). Zero them
+      // so a real drive must be re-observed AFTER the gap before a park can be declared.
+      _tripDrivingTime = 0;
+      _tripDrivingDistance = 0;
+      _lastTripX = null;
+      _lastTripY = null;
     } else {
       dt = Math.min(dt, 5); // Cap at 5s to prevent minor physics spikes
     }
