@@ -19,7 +19,7 @@ public class VisitMonitorModule: Module {
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
 
-    Events("onVisit", "onGeofence", "onLocation", "onLocationPaused", "onLocationResumed")
+    Events("onVisit", "onGeofence", "onLocationBatch", "onLocationPaused", "onLocationResumed")
 
     AsyncFunction("start") {
       DispatchQueue.main.async {
@@ -130,7 +130,7 @@ public class VisitMonitorModule: Module {
     let proxy = LocationDelegate(
       onVisit: { [weak self] payload in self?.sendEvent("onVisit", payload) },
       onGeofence: { [weak self] payload in self?.sendEvent("onGeofence", payload) },
-      onLocation: { [weak self] payload in self?.sendEvent("onLocation", payload) },
+      onLocationBatch: { [weak self] payload in self?.sendEvent("onLocationBatch", payload) },
       onLocationPaused: { [weak self] in self?.sendEvent("onLocationPaused", [:]) },
       onLocationResumed: { [weak self] in self?.sendEvent("onLocationResumed", [:]) }
     )
@@ -146,20 +146,20 @@ public class VisitMonitorModule: Module {
 private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   private let onVisit: ([String: Any]) -> Void
   private let onGeofence: ([String: Any]) -> Void
-  private let onLocation: ([String: Any]) -> Void
+  private let onLocationBatch: ([String: Any]) -> Void
   private let onLocationPaused: () -> Void
   private let onLocationResumed: () -> Void
 
   init(
     onVisit: @escaping ([String: Any]) -> Void,
     onGeofence: @escaping ([String: Any]) -> Void,
-    onLocation: @escaping ([String: Any]) -> Void,
+    onLocationBatch: @escaping ([String: Any]) -> Void,
     onLocationPaused: @escaping () -> Void,
     onLocationResumed: @escaping () -> Void
   ) {
     self.onVisit = onVisit
     self.onGeofence = onGeofence
-    self.onLocation = onLocation
+    self.onLocationBatch = onLocationBatch
     self.onLocationPaused = onLocationPaused
     self.onLocationResumed = onLocationResumed
     super.init()
@@ -185,12 +185,14 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
     onGeofence(["type": "exit", "id": region.identifier])
   }
 
-  // Continuous location stream (only while startLocationUpdates is active). iOS may deliver a batch;
-  // forward each fix. speed is m/s (-1 = unknown), matching expo-location's coords.speed semantics so
-  // the JS adapter maps cleanly onto the HMM's location shape.
+  // Location delivery. CRITICAL: when the app was SUSPENDED during a drive (iOS won't keep it alive —
+  // proven), iOS BUFFERS the fixes and delivers them here as an ARRAY (a ~6-min batch) on the next
+  // wake. Forward the WHOLE array as one batch so JS can process it through the proven pipeline
+  // (temporal replay from each fix's timestamp + historical activity backfill). speed is m/s
+  // (-1 = unknown), matching expo-location's coords.speed so the adapter maps cleanly.
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    for loc in locations {
-      onLocation([
+    let fixes: [[String: Any]] = locations.map { loc in
+      [
         "latitude": loc.coordinate.latitude,
         "longitude": loc.coordinate.longitude,
         "accuracy": loc.horizontalAccuracy,
@@ -198,8 +200,9 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
         "speed": loc.speed,
         "course": loc.course,
         "timestamp": loc.timestamp.timeIntervalSince1970 * 1000.0
-      ])
+      ]
     }
+    onLocationBatch(["locations": fixes])
   }
 
   // iOS auto-paused location because the device has been stationary (parked). This is the park signal

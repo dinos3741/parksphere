@@ -233,23 +233,24 @@ export function useReturnDetection() {
       // VisitMonitor stream works foreground AND after a background geofence wake. Buffered — the
       // 2-min ping (or a background event's flush) writes them, so we don't thrash the disk per fix.
       let locCount = 0;
-      locSub = VM.addLocationListener((loc) => {
+      locSub = VM.addLocationBatchListener((batch) => {
         if (cancelled) return;
-        locCount += 1;
-        // A background fix while we're neither foreground nor already capturing means SLC woke us for
-        // a new drive (~500m of movement) — start drive-capture so iOS catches the upcoming park. This
-        // is the timely trigger; CLVisit departure (delayed minutes) is only a backup.
+        const fixes = batch?.locations || [];
+        if (!fixes.length) return;
+        locCount += fixes.length;
+        // A background batch while we're neither foreground nor already capturing means SLC woke us
+        // for a new drive (~500m of movement) — start drive-capture so location keeps flowing through
+        // the park. Timely trigger; CLVisit departure (delayed minutes) is only a backup.
         if (!driveCaptureActive && AppState.currentState !== 'active') {
           startDriveCapture();
         }
-        // During a drive-capture session, remember the latest fix (the auto-pause spot candidate) and
-        // note if we ever saw real driving speed — so a walk can't masquerade as a park.
-        if (driveCaptureActive && loc) {
-          lastDriveFix = loc;
-          if ((loc.speed || 0) * 3.6 > 15) driveSessionSawDriving = true;
+        const last = fixes[fixes.length - 1];
+        if (driveCaptureActive) {
+          lastDriveFix = last;
+          if (fixes.some((f) => (f.speed || 0) * 3.6 > 15)) driveSessionSawDriving = true;
         }
-        logHeartbeat({ src: 'loc', n: locCount, lat: loc?.latitude, lon: loc?.longitude, spd: loc?.speed, drive: driveCaptureActive });
-        console.log('[Return] loc:', JSON.stringify(loc));
+        logHeartbeat({ src: 'loc', n: locCount, batch: fixes.length, lat: last?.latitude, lon: last?.longitude, spd: last?.speed, drive: driveCaptureActive });
+        console.log(`[Return] loc batch (${fixes.length}):`, JSON.stringify(last));
       });
 
       // iOS auto-paused location (device parked) → the last drive fix is the parking spot. Gate on

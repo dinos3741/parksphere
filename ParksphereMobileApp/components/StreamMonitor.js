@@ -17,8 +17,10 @@ export default function StreamMonitor() {
 
   useEffect(() => {
     if (!VM) return;
-    const locSub = VM.addLocationListener(() => {
-      setCount((c) => c + 1);
+    const locSub = VM.addLocationBatchListener((batch) => {
+      const n = batch?.locations?.length || 0;
+      if (!n) return;
+      setCount((c) => c + n);
       setLast(new Date().toLocaleTimeString());
     });
     const asSub = AppState.addEventListener('change', (s) => setAppState(s));

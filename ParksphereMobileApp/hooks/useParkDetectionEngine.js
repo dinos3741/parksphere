@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { DeviceEventEmitter, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-import { startParkDetection, stopParkDetection, handleLocationUpdate, feedLocationFix } from '../utils/parkDetectionService';
+import { startParkDetection, stopParkDetection, handleLocationUpdate, feedLocationBatch } from '../utils/parkDetectionService';
 import { visitMonitorToLocation } from '../utils/visitMonitorAdapter';
 import { useBluetoothMonitoring } from './useBluetoothMonitoring';
 
@@ -59,13 +59,15 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
       }
     });
 
-    // Drive the HMM from VisitMonitor's location stream (replaces the retired PARK_DETECTION_TASK).
-    // feedLocationFix guards on isInitialized + isProcessing, so a fix arriving before the engine
-    // finishes starting is safely ignored.
+    // Drive the HMM from VisitMonitor's location batches (replaces the retired PARK_DETECTION_TASK).
+    // A batch = the buffered fixes iOS delivers when it wakes the app after suspending it during a
+    // drive (or a single foreground fix). feedLocationBatch runs the proven pipeline (temporal replay
+    // + historical activity backfill) and cold-inits the engine if this is a fresh background wake.
     if (VM) {
-      locationSub = VM.addLocationListener((fix) => {
-        feedLocationFix(visitMonitorToLocation(fix)).catch((e) =>
-          console.warn('[useParkDetectionEngine] feedLocationFix failed:', e?.message)
+      locationSub = VM.addLocationBatchListener((batch) => {
+        const locations = (batch?.locations || []).map(visitMonitorToLocation);
+        feedLocationBatch(locations).catch((e) =>
+          console.warn('[useParkDetectionEngine] feedLocationBatch failed:', e?.message)
         );
       });
     }

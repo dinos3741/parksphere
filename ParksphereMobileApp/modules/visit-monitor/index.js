@@ -43,9 +43,11 @@ export function startLocationUpdates() {
 export function stopLocationUpdates() {
   return VisitMonitor.stopLocationUpdates();
 }
-// listener({ latitude, longitude, accuracy, altitude, speed, course, timestamp }); speed is m/s (-1 unknown)
-export function addLocationListener(listener) {
-  return VisitMonitor.addListener('onLocation', listener);
+// listener({ locations: [{ latitude, longitude, accuracy, altitude, speed, course, timestamp }, ...] })
+// iOS delivers buffered fixes as a BATCH (array) when it wakes the app after suspending it during a
+// drive; foreground fixes arrive as batches of 1. speed is m/s (-1 unknown).
+export function addLocationBatchListener(listener) {
+  return VisitMonitor.addListener('onLocationBatch', listener);
 }
 
 // ── Drive-capture (precise background parking spot) ──────────────────────────
