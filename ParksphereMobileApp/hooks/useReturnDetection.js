@@ -32,6 +32,18 @@ const OLD_PARK_TASK = 'PARK_DETECTION_TASK'; // legacy continuous-location task 
 const DRIVE_OFF_SPEED_KMH = 10;
 const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short — sample briefly
 
+// #2 A/B toggle — set false to disable drive-capture entirely and run the pure CLVisit + geofence
+// path (the old proven background behavior). Used to isolate whether continuous drive-capture location
+// is what's suppressing iOS's visit/geofence background wakeups. SLC stays on (low-power wake helper).
+const DRIVE_CAPTURE_ENABLED = true;
+
+// #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
+// background park the app slept through — delivered only now, on foreground, in a buffer flush — NOT a
+// live foreground dwell. Honor it as a fallback park instead of dropping it.
+const STALE_ARRIVAL_MS = 90 * 1000;   // arrival older than this ⇒ buffered/background, not a live dwell
+const RETRO_FALLBACK_DELAY_MS = 5000; // defer the coarse fallback so a dense-buffer HMM park can win first
+const HMM_DEDUP_MS = 15000;           // if the HMM parked this recently, it wins (precise) — skip fallback
+
 // Sample location for a few seconds on a geofence exit and return the max speed seen (km/h), or null
 // if no valid speed fix arrives (coords.speed is -1/unknown until GPS establishes velocity). Exits
 // early the moment a clear driving speed is seen so a real drive-off is handled fast.
@@ -106,6 +118,7 @@ export function useReturnDetection() {
     let driveSessionSawDriving = false;
     let driveSpotSetThisTrip = false; // dedupe: once drive-capture set a precise spot, ignore coarse CLVisit
     let driveTimer = null; // safety: force-end drive-capture if iOS never auto-pauses
+    let lastHmmParkAt = 0; // when the HMM last declared a park — so a coarse retroactive fallback yields to it
     const DRIVE_CAPTURE_MAX_MS = 60 * 60 * 1000; // 60 min hard cap
     // Defined in the mode-controller block below (needs applyMode); handlers close over this let and
     // call it after the effect body has run, so the real implementation is in place by then.
@@ -154,7 +167,10 @@ export function useReturnDetection() {
       visitSub = VM.addVisitListener(async (v) => {
         if (cancelled) return;
         const ts = new Date().toLocaleTimeString();
-        await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude, app: AppState.currentState });
+        // Log the REAL arrival/departure times (from CLVisit) + delivery time, so a buffered/late event
+        // (arrival far in the past, delivered now) is distinguishable from a live one — without this we
+        // can't tell "iOS woke us late" from "iOS never woke us" (everything just reads the flush time).
+        await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude, app: AppState.currentState, arrival: v?.arrival, departure: v?.departure });
         console.log('[Return] visit:', JSON.stringify(v));
         if (v?.type === 'departure') {
           // Leaving a place → a drive is likely starting. Kick off drive-capture so iOS's auto-pause
@@ -163,17 +179,39 @@ export function useReturnDetection() {
           return;
         }
         if (v?.type === 'arrival') {
-          if (AppState.currentState === 'active') {
-            console.log('[Return] foreground CLVisit arrival ignored — HMM is the park authority.');
-            return;
-          }
+          const spot = { latitude: v.latitude, longitude: v.longitude, accuracy: v.accuracy };
+          const arrivalAgeMs = v?.arrival ? Date.now() - v.arrival : null;
+          const buffered = arrivalAgeMs !== null && arrivalAgeMs > STALE_ARRIVAL_MS;
+
           if (driveSpotSetThisTrip) {
             console.log('[Return] CLVisit arrival ignored — drive-capture already set the precise spot.');
             return;
           }
-          // Fallback park source: drive-capture didn't pin the spot (e.g. iOS never auto-paused). Use
+          if (AppState.currentState === 'active' && !buffered) {
+            // A live foreground dwell — the HMM is the park authority here, so ignore CLVisit.
+            console.log('[Return] foreground live CLVisit arrival ignored — HMM is the park authority.');
+            return;
+          }
+          if (AppState.currentState === 'active' && buffered) {
+            // #3 Retroactive park: this arrival actually happened in the BACKGROUND (arrivalDate is old)
+            // and is only surfacing now, on foreground, in a buffer flush — a park the app slept through.
+            // Defer briefly so a dense-buffer HMM park from the same flush can win (precise); if none
+            // lands, arm the coarse CLVisit spot so the user recovers their car instead of getting nothing.
+            console.log(`[Return] buffered CLVisit arrival (age ${Math.round(arrivalAgeMs / 1000)}s) — deferring retroactive fallback`);
+            setTimeout(async () => {
+              if (cancelled || driveSpotSetThisTrip) return;
+              if (Date.now() - lastHmmParkAt < HMM_DEDUP_MS) {
+                console.log('[Return] retroactive fallback skipped — HMM already parked from this flush.');
+                return;
+              }
+              await armSpot(spot, 'clvisit-retro');
+              await seedParkedSpot(spot);
+              await notifyUser('🅿️ Parked (recovered)', `saved a background park we slept through @ ${ts}`);
+            }, RETRO_FALLBACK_DELAY_MS);
+            return;
+          }
+          // Background arrival — drive-capture didn't pin the spot (e.g. iOS never auto-paused). Use
           // CLVisit's coarse dwell location so we still register something.
-          const spot = { latitude: v.latitude, longitude: v.longitude, accuracy: v.accuracy };
           await armSpot(spot, 'clvisit');
           await seedParkedSpot(spot); // hand the car location to the HMM for later returning
           await notifyUser('🅿️ Parked', `spot saved (approx) + geofence armed @ ${ts}`);
@@ -188,6 +226,7 @@ export function useReturnDetection() {
         if (cancelled) return;
         try {
           if (data?.parkedLocation) {
+            lastHmmParkAt = Date.now(); // mark the HMM park so a coarse retroactive CLVisit fallback yields to it
             await armSpot(
               { latitude: data.parkedLocation.latitude, longitude: data.parkedLocation.longitude, accuracy: data.parkedLocation.accuracy },
               'hmm'
@@ -299,6 +338,7 @@ export function useReturnDetection() {
         } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
       };
       startDriveCapture = async () => {
+        if (!DRIVE_CAPTURE_ENABLED) return; // #2 A/B: pure CLVisit + geofence when disabled
         if (driveCaptureActive) return;
         driveCaptureActive = true;
         lastDriveFix = null;
