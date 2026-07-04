@@ -86,19 +86,21 @@ public class VisitMonitorModule: Module {
       }
     }
 
-    // ── Drive-capture mode: iOS-managed auto-pausing location (the Google-Maps park trick) ────────
-    // Runs full location while driving and lets iOS AUTOMATICALLY PAUSE it once you've been stationary
-    // (parked). The pause fires didPauseLocationUpdates → onLocationPaused: the last fix before it is
-    // the real parking spot. Pair with significant-location-change monitoring (below) so a new drive
-    // wakes the app and this can be restarted. activityType=.automotiveNavigation tells iOS this is a
-    // driving session so its auto-pause heuristics fit parking.
+    // ── Drive-capture mode: CONTINUOUS location that keeps the app alive through the drive ────────
+    // NOTE: we deliberately do NOT use pausesLocationUpdatesAutomatically. Field test 2026-07-04
+    // showed that from an SLC-triggered start iOS auto-pauses within ~8s (you're momentarily slow at
+    // the start) and SUSPENDS the app for the whole trip — nothing ran in the background. Instead we
+    // run continuous location (allowsBackgroundLocationUpdates keeps the app alive the whole drive) so
+    // the HMM — fed every fix, with its motion sensors live while the app is awake — detects the real
+    // drove→stopped→walked park. JS stops these updates once a spot is declared, so it's bounded to
+    // the drive. This is the RNBG-style approach that previously worked.
     AsyncFunction("startDriveLocationUpdates") {
       DispatchQueue.main.async {
         self.ensureManager()
         guard let m = self.manager else { return }
         m.desiredAccuracy = kCLLocationAccuracyBest
         m.distanceFilter = kCLDistanceFilterNone // full resolution during the drive → precise stop
-        m.pausesLocationUpdatesAutomatically = true // let iOS pause at the park (= the spot)
+        m.pausesLocationUpdatesAutomatically = false // DON'T let iOS pause — it kills the session + app
         m.activityType = .automotiveNavigation
         m.showsBackgroundLocationIndicator = true
         m.startUpdatingLocation()
