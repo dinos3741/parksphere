@@ -15,6 +15,15 @@ public class VisitMonitorModule: Module {
   private var manager: CLLocationManager?
   private var delegateProxy: LocationDelegate?
   private static let regionId = "parkedSpot"
+  // ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
+  // A small region re-armed around the CURRENT location on every crossing. Each crossing wakes a
+  // suspended app in the background, so we get a periodic movement-triggered wake WITHOUT running
+  // continuous location (which — proven 2026-07-05 A/B — makes iOS suspend-and-buffer the whole ride).
+  // Separate id from the parked-spot region so they never collide.
+  private static let rollingId = "rollingFence"
+  private var rollingRadius: Double = 150
+  private var rollingActive = false
+  private var rollingArmPending = false
 
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
@@ -122,6 +131,74 @@ public class VisitMonitorModule: Module {
         self.manager?.stopMonitoringSignificantLocationChanges()
       }
     }
+
+    // ── Rolling geofence: periodic bg wakes on movement (Build C) ────────────────
+    AsyncFunction("startRollingFence") { (radius: Double) in
+      DispatchQueue.main.async {
+        self.ensureManager()
+        guard let m = self.manager else { return }
+        self.rollingRadius = radius
+        self.rollingActive = true
+        if let loc = m.location {
+          self.armRolling(m, at: loc.coordinate)
+        } else {
+          // No cached fix yet — grab one one-shot and arm on arrival (didUpdateLocations).
+          self.rollingArmPending = true
+          m.requestLocation()
+        }
+      }
+    }
+
+    AsyncFunction("stopRollingFence") {
+      DispatchQueue.main.async {
+        self.rollingActive = false
+        self.rollingArmPending = false
+        guard let m = self.manager else { return }
+        for r in m.monitoredRegions where r.identifier == VisitMonitorModule.rollingId {
+          m.stopMonitoring(for: r)
+        }
+      }
+    }
+  }
+
+  // Re-arm the rolling region centered on `center`, replacing any existing one.
+  private func armRolling(_ m: CLLocationManager, at center: CLLocationCoordinate2D) {
+    for r in m.monitoredRegions where r.identifier == VisitMonitorModule.rollingId {
+      m.stopMonitoring(for: r)
+    }
+    let region = CLCircularRegion(center: center, radius: rollingRadius, identifier: VisitMonitorModule.rollingId)
+    region.notifyOnEntry = true
+    region.notifyOnExit = true
+    m.startMonitoring(for: region)
+  }
+
+  // Called by the delegate when the rolling region is crossed (a background wake). Re-arm at the new
+  // location and forward the fix so the HMM sees the path — reusing the existing batch pipeline.
+  fileprivate func handleRollingCross(_ m: CLLocationManager) {
+    guard rollingActive else { return }
+    guard let loc = m.location else {
+      // No cached fix on this wake — request one and re-arm when it lands, so the chain can't stall.
+      rollingArmPending = true
+      m.requestLocation()
+      return
+    }
+    armRolling(m, at: loc.coordinate)
+    sendEvent("onLocationBatch", ["locations": [[
+      "latitude": loc.coordinate.latitude,
+      "longitude": loc.coordinate.longitude,
+      "accuracy": loc.horizontalAccuracy,
+      "altitude": loc.altitude,
+      "speed": loc.speed,
+      "course": loc.course,
+      "timestamp": loc.timestamp.timeIntervalSince1970 * 1000.0
+    ]]])
+  }
+
+  // Called by the delegate on every location delivery — used only to complete a pending initial arm.
+  fileprivate func handleLocationsForRolling(_ locations: [CLLocation]) {
+    guard rollingArmPending, rollingActive, let m = self.manager, let loc = locations.last else { return }
+    rollingArmPending = false
+    armRolling(m, at: loc.coordinate)
   }
 
   private func ensureManager() {
@@ -132,7 +209,9 @@ public class VisitMonitorModule: Module {
       onGeofence: { [weak self] payload in self?.sendEvent("onGeofence", payload) },
       onLocationBatch: { [weak self] payload in self?.sendEvent("onLocationBatch", payload) },
       onLocationPaused: { [weak self] in self?.sendEvent("onLocationPaused", [:]) },
-      onLocationResumed: { [weak self] in self?.sendEvent("onLocationResumed", [:]) }
+      onLocationResumed: { [weak self] in self?.sendEvent("onLocationResumed", [:]) },
+      onRollingCross: { [weak self] m in self?.handleRollingCross(m) },
+      onLocationsRaw: { [weak self] locs in self?.handleLocationsForRolling(locs) }
     )
     m.delegate = proxy
     m.allowsBackgroundLocationUpdates = true
@@ -149,19 +228,26 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   private let onLocationBatch: ([String: Any]) -> Void
   private let onLocationPaused: () -> Void
   private let onLocationResumed: () -> Void
+  private let onRollingCross: (CLLocationManager) -> Void
+  private let onLocationsRaw: ([CLLocation]) -> Void
+  private static let rollingId = "rollingFence" // must match VisitMonitorModule.rollingId
 
   init(
     onVisit: @escaping ([String: Any]) -> Void,
     onGeofence: @escaping ([String: Any]) -> Void,
     onLocationBatch: @escaping ([String: Any]) -> Void,
     onLocationPaused: @escaping () -> Void,
-    onLocationResumed: @escaping () -> Void
+    onLocationResumed: @escaping () -> Void,
+    onRollingCross: @escaping (CLLocationManager) -> Void,
+    onLocationsRaw: @escaping ([CLLocation]) -> Void
   ) {
     self.onVisit = onVisit
     self.onGeofence = onGeofence
     self.onLocationBatch = onLocationBatch
     self.onLocationPaused = onLocationPaused
     self.onLocationResumed = onLocationResumed
+    self.onRollingCross = onRollingCross
+    self.onLocationsRaw = onLocationsRaw
     super.init()
   }
 
@@ -178,11 +264,22 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   }
 
   func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-    onGeofence(["type": "enter", "id": region.identifier])
+    emitRegion("enter", region, manager)
   }
 
   func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-    onGeofence(["type": "exit", "id": region.identifier])
+    emitRegion("exit", region, manager)
+  }
+
+  private func emitRegion(_ type: String, _ region: CLRegion, _ manager: CLLocationManager) {
+    var payload: [String: Any] = ["type": type, "id": region.identifier]
+    // For the rolling fence, attach the crossing location so the heartbeat can plot each wake.
+    if region.identifier == LocationDelegate.rollingId, let c = manager.location?.coordinate {
+      payload["lat"] = c.latitude
+      payload["lon"] = c.longitude
+    }
+    onGeofence(payload)
+    if region.identifier == LocationDelegate.rollingId { onRollingCross(manager) }
   }
 
   // Location delivery. CRITICAL: when the app was SUSPENDED during a drive (iOS won't keep it alive —
@@ -203,7 +300,11 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
       ]
     }
     onLocationBatch(["locations": fixes])
+    onLocationsRaw(locations) // completes a pending rolling-fence initial arm
   }
+
+  // requestLocation() surfaces failures here; ignore so a transient error doesn't crash the delegate.
+  func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 
   // iOS auto-paused location because the device has been stationary (parked). This is the park signal
   // in drive-capture mode — the JS side treats the last fix before this as the parking spot.

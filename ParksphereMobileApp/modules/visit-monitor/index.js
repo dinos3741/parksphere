@@ -71,4 +71,17 @@ export function addLocationResumedListener(listener) {
   return VisitMonitor.addListener('onLocationResumed', listener);
 }
 
+// ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
+// A small region re-armed around the current location on every crossing. Each crossing wakes a
+// suspended app in the background (a periodic movement-triggered wake) WITHOUT continuous location —
+// which the 2026-07-05 A/B proved makes iOS suspend-and-buffer the whole ride. Crossings arrive via
+// addGeofenceListener with id 'rollingFence'; the fix at each crossing also arrives via
+// addLocationBatchListener so the HMM sees the path. Re-arming is native (survives JS misses).
+export function startRollingFence(radius = 150) {
+  return VisitMonitor.startRollingFence(radius);
+}
+export function stopRollingFence() {
+  return VisitMonitor.stopRollingFence();
+}
+
 export default VisitMonitor;

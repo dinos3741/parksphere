@@ -35,7 +35,9 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 // #2 A/B toggle — set false to disable drive-capture entirely and run the pure CLVisit + geofence
 // path (the old proven background behavior). Used to isolate whether continuous drive-capture location
 // is what's suppressing iOS's visit/geofence background wakeups. SLC stays on (low-power wake helper).
-const DRIVE_CAPTURE_ENABLED = true;
+const DRIVE_CAPTURE_ENABLED = false; // BUILD C (2026-07-05): drive-capture OFF — isolate the rolling fence's wakes
+const ROLLING_FENCE_ENABLED = true;  // BUILD C: re-arm a ~150m geofence around the current spot on each cross
+const ROLLING_FENCE_RADIUS = 150;    // metres — small enough for frequent movement wakes, ≥ iOS ~100m floor
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
 // background park the app slept through — delivered only now, on foreground, in a buffer flush — NOT a
@@ -136,6 +138,7 @@ export function useReturnDetection() {
       await VM.armGeofence(spot.latitude, spot.longitude, GEOFENCE_RADIUS);
       await log({ src: 'armSpot', source, lat: spot.latitude, lon: spot.longitude });
       console.log(`[Return] spot armed by ${source}:`, JSON.stringify(spot));
+      await stopRolling(); // trip's over — the parked-spot geofence takes over from the rolling one
     };
     const clearSpot = async (source) => {
       await AsyncStorage.removeItem(SPOT_KEY);
@@ -146,6 +149,20 @@ export function useReturnDetection() {
     };
 
     const log = async (info) => { logHeartbeat(info); await flushTelemetry(); };
+
+    // ── Rolling geofence (Build C) — start on trip departure, stop once a spot is armed ──────────────
+    let rollingActive = false;
+    const startRolling = async () => {
+      if (!ROLLING_FENCE_ENABLED || rollingActive || !VM?.startRollingFence) return;
+      rollingActive = true;
+      try { await VM.startRollingFence(ROLLING_FENCE_RADIUS); await log({ src: 'roll', type: 'start' }); }
+      catch (e) { rollingActive = false; console.warn('[Return] startRollingFence failed (rebuild?):', e?.message); }
+    };
+    const stopRolling = async () => {
+      if (!rollingActive || !VM?.stopRollingFence) return;
+      rollingActive = false;
+      try { await VM.stopRollingFence(); await log({ src: 'roll', type: 'stop' }); } catch (_) {}
+    };
 
     // Did the user actually travel to this dwell (car or bike), or just walk-and-dwell? A CLVisit
     // arrival alone can't tell — walking around the city and stopping at places logs arrivals too, and
@@ -197,6 +214,7 @@ export function useReturnDetection() {
           // catches the actual parking spot (precise), instead of relying on the coarse arrival dwell.
           lastDepartureTs = v?.departure || Date.now();
           await startDriveCapture();
+          await startRolling(); // Build C: begin periodic movement wakes for the trip
           return;
         }
         if (v?.type === 'arrival') {
@@ -273,6 +291,12 @@ export function useReturnDetection() {
       geoSub = VM.addGeofenceListener(async (g) => {
         if (cancelled) return;
         const ts = new Date().toLocaleTimeString();
+        // Rolling-fence crossings are a Build C wake probe — re-armed + fed to the HMM natively. Just
+        // record the wake (with its live/buffered app tag) and DON'T run parked-spot return/drive-off.
+        if (g?.id === 'rollingFence') {
+          await log({ src: 'roll', type: g?.type, lat: g?.lat, lon: g?.lon, app: AppState.currentState });
+          return;
+        }
         await log({ src: 'geofence', type: g?.type });
         console.log('[Return] geofence:', JSON.stringify(g));
         if (g?.type === 'enter') {
