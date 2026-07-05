@@ -31,6 +31,11 @@ public class VisitMonitorModule: Module {
   // object (its dealloc auto-invalidates the session). Stored as Any? so it compiles on the 16.4
   // deployment target; all use is guarded by #available(iOS 17.0, *).
   private var bgSession: Any?
+  // ── Modern live updates (Build D-v2, iOS 17+) ────────────────────────────────
+  // CLBackgroundActivitySession only grants sustained background delivery to the MODERN
+  // CLLocationUpdate.liveUpdates async API — not the legacy startUpdatingLocation delegate (Build D
+  // buffered anyway). This Task consumes liveUpdates and forwards each fix through the same batch path.
+  private var liveTask: Task<Void, Never>?
 
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
@@ -186,6 +191,50 @@ public class VisitMonitorModule: Module {
         self.bgSession = nil
       }
     }
+
+    // ── Modern live-updates drive capture (Build D-v2) ───────────────────────────
+    // Consume CLLocationUpdate.liveUpdates in a Task; paired with a held CLBackgroundActivitySession
+    // this is the sanctioned way to keep receiving location in the background. Each fix is forwarded
+    // as a 1-element onLocationBatch so the existing HMM pipeline is unchanged.
+    AsyncFunction("startDriveLiveUpdates") {
+      DispatchQueue.main.async {
+        guard self.liveTask == nil else { return }
+        if #available(iOS 17.0, *) {
+          self.ensureManager() // make sure Always auth has been requested
+          self.liveTask = Task { [weak self] in
+            do {
+              for try await update in CLLocationUpdate.liveUpdates() {
+                if Task.isCancelled { break }
+                guard let self = self, let loc = update.location else { continue }
+                self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
+              }
+            } catch {
+              // liveUpdates threw (e.g. authorization) — leave the task to end; JS falls back on foreground.
+            }
+          }
+        }
+      }
+    }
+
+    AsyncFunction("stopDriveLiveUpdates") {
+      DispatchQueue.main.async {
+        self.liveTask?.cancel()
+        self.liveTask = nil
+      }
+    }
+  }
+
+  // Encode a CLLocation into the JS fix shape (matches the delegate's onLocationBatch payload).
+  fileprivate func fixDict(_ loc: CLLocation) -> [String: Any] {
+    return [
+      "latitude": loc.coordinate.latitude,
+      "longitude": loc.coordinate.longitude,
+      "accuracy": loc.horizontalAccuracy,
+      "altitude": loc.altitude,
+      "speed": loc.speed,
+      "course": loc.course,
+      "timestamp": loc.timestamp.timeIntervalSince1970 * 1000.0
+    ]
   }
 
   // Re-arm the rolling region centered on `center`, replacing any existing one.
@@ -210,15 +259,7 @@ public class VisitMonitorModule: Module {
       return
     }
     armRolling(m, at: loc.coordinate)
-    sendEvent("onLocationBatch", ["locations": [[
-      "latitude": loc.coordinate.latitude,
-      "longitude": loc.coordinate.longitude,
-      "accuracy": loc.horizontalAccuracy,
-      "altitude": loc.altitude,
-      "speed": loc.speed,
-      "course": loc.course,
-      "timestamp": loc.timestamp.timeIntervalSince1970 * 1000.0
-    ]]])
+    sendEvent("onLocationBatch", ["locations": [fixDict(loc)]])
   }
 
   // Called by the delegate on every location delivery — used only to complete a pending initial arm.

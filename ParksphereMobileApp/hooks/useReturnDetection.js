@@ -39,8 +39,9 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 //   Build B = drive-capture only (buried, buffered).  Build C = rolling fence only (dense live wakes
 //   then iOS-throttled).  Build D = drive-capture + CLBackgroundActivitySession to keep the app ALIVE
 //   through the drive (iOS 17+). Flip these to select a build; only one experiment at a time.
-const DRIVE_CAPTURE_ENABLED = true;      // BUILD D: continuous drive-capture location during the trip
-const BACKGROUND_SESSION_ENABLED = true; // BUILD D: hold a CLBackgroundActivitySession so it isn't suspended
+const DRIVE_CAPTURE_ENABLED = true;      // BUILD D/D-v2: capture location during the trip
+const BACKGROUND_SESSION_ENABLED = true; // BUILD D/D-v2: hold a CLBackgroundActivitySession so it isn't suspended
+const USE_LIVE_UPDATES = true;           // BUILD D-v2: deliver via CLLocationUpdate.liveUpdates (the API the session keeps alive) instead of legacy startUpdatingLocation
 const ROLLING_FENCE_ENABLED = false;     // BUILD C only — off for the Build D isolation test
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
@@ -401,9 +402,15 @@ export function useReturnDetection() {
         lastMode = mode;
         console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
         try {
-          if (mode === 'stream') await VM.startLocationUpdates();
-          else if (mode === 'drive') await VM.startDriveLocationUpdates();
-          else await VM.stopLocationUpdates();
+          if (mode === 'drive') {
+            // Build D-v2: modern liveUpdates (kept alive by the session) vs legacy startUpdatingLocation.
+            if (USE_LIVE_UPDATES && VM.startDriveLiveUpdates) await VM.startDriveLiveUpdates();
+            else await VM.startDriveLocationUpdates();
+          } else {
+            if (VM.stopDriveLiveUpdates) await VM.stopDriveLiveUpdates(); // end the live task when leaving drive
+            if (mode === 'stream') await VM.startLocationUpdates();
+            else await VM.stopLocationUpdates();
+          }
         } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
         // Build D: hold a CLBackgroundActivitySession for the duration of a background drive so iOS
         // keeps the app alive receiving fixes instead of suspending-and-buffering (Build B failure).

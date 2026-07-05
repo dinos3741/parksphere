@@ -95,4 +95,15 @@ export function stopBackgroundSession() {
   return VisitMonitor.stopBackgroundSession();
 }
 
+// ── Modern live-updates drive capture (Build D-v2, iOS 17+) ──────────────────
+// CLLocationUpdate.liveUpdates delivery — the API a CLBackgroundActivitySession actually keeps alive
+// in the background (the legacy startUpdatingLocation in Build D buffered anyway). Fixes arrive via
+// addLocationBatchListener as 1-element batches, so the HMM pipeline is unchanged. No-op below iOS 17.
+export function startDriveLiveUpdates() {
+  return VisitMonitor.startDriveLiveUpdates();
+}
+export function stopDriveLiveUpdates() {
+  return VisitMonitor.stopDriveLiveUpdates();
+}
+
 export default VisitMonitor;
