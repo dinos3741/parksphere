@@ -204,6 +204,14 @@ export function useReturnDetection() {
                 console.log('[Return] retroactive fallback skipped — HMM already parked from this flush.');
                 return;
               }
+              // Only recover a park if this session actually saw a drive. A CLVisit arrival is just a
+              // dwell — walking around the city and stopping at places (café, shop) logs arrivals too,
+              // and those buffered dwells were arming phantom parks on foreground (seen 2026-07-05). The
+              // deferral above lets any real drive fixes from the same flush set driveSessionSawDriving first.
+              if (!driveSessionSawDriving) {
+                console.log('[Return] retroactive fallback skipped — no drive seen this session (walking dwell).');
+                return;
+              }
               await armSpot(spot, 'clvisit-retro');
               await seedParkedSpot(spot);
               await notifyUser('🅿️ Parked (recovered)', `saved a background park we slept through @ ${ts}`);
@@ -211,7 +219,12 @@ export function useReturnDetection() {
             return;
           }
           // Background arrival — drive-capture didn't pin the spot (e.g. iOS never auto-paused). Use
-          // CLVisit's coarse dwell location so we still register something.
+          // CLVisit's coarse dwell location so we still register something — but only if a drive
+          // actually happened this session; a pure walking dwell must not arm a spot (2026-07-05).
+          if (!driveSessionSawDriving) {
+            console.log('[Return] background CLVisit arrival ignored — no drive seen this session (walking dwell).');
+            return;
+          }
           await armSpot(spot, 'clvisit');
           await seedParkedSpot(spot); // hand the car location to the HMM for later returning
           await notifyUser('🅿️ Parked', `spot saved (approx) + geofence armed @ ${ts}`);
@@ -247,8 +260,11 @@ export function useReturnDetection() {
           await notifyUser('🟢 Returning', `you're near your car @ ${ts}`);
         } else if (g?.type === 'exit') {
           // Distinguish driving off (spot free) from walking away to a destination (spot still taken).
+          // Unknown speed (null) must NOT clear the spot — a missing reading on an exit-while-walking
+          // would otherwise free the spot from under you (seen 2026-07-05). Default to KEEP; a genuinely
+          // stale spot self-heals on the next CLVisit arrival.
           const speedKmh = await readExitSpeedKmh();
-          const drivingOff = speedKmh === null ? true : speedKmh >= DRIVE_OFF_SPEED_KMH;
+          const drivingOff = speedKmh === null ? false : speedKmh >= DRIVE_OFF_SPEED_KMH;
           const speedStr = speedKmh === null ? 'unknown' : `${Math.round(speedKmh)} km/h`;
           await log({ src: 'geofence', type: 'exit', speedKmh, drivingOff });
           if (drivingOff) {
