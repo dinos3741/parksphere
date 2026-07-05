@@ -1005,6 +1005,49 @@ async function fetchActivityTimeline(locations) {
   }
 }
 
+// How did the user travel during [sinceMs, untilMs]? Gates CLVisit-based background parks so a real
+// trip (car or bike) arms a spot but walking-and-dwelling does not. The motion coprocessor records
+// activity 24/7 in hardware, so this answers correctly on a wake even if the app was suspended the
+// whole trip — no location stream needed (works with drive-capture OFF, i.e. Build A). Returns the
+// per-class time breakdown so the heartbeat can show what the coprocessor actually reported (useful
+// while we learn how it labels cycling).
+export async function queryTravelMode(sinceMs, untilMs) {
+  if (!MotionActivityTracker || typeof MotionActivityTracker.getHistoricalData !== 'function') {
+    return { available: false };
+  }
+  if (!(untilMs > sinceMs)) return { available: false, reason: 'bad-window' };
+  try {
+    const raw = await withTimeout(
+      MotionActivityTracker.getHistoricalData(new Date(sinceMs - 5000), new Date(untilMs + 5000)),
+      4000, 'getHistoricalData'
+    );
+    const segs = (raw || [])
+      .map(a => ({
+        t: (a.timestamp || 0) * 1000, // epoch s -> ms
+        vehicle: !!(a.automotive || a.cycling), // a bike ride counts as a trip for testing
+        walking: !!(a.walking || a.running),
+        stationary: !!a.stationary,
+      }))
+      .sort((x, y) => x.t - y.t);
+    let vehicleMs = 0, walkingMs = 0, stationaryMs = 0;
+    for (let i = 0; i < segs.length; i++) {
+      const start = Math.max(segs[i].t, sinceMs);
+      const end = i + 1 < segs.length ? segs[i + 1].t : untilMs;
+      const dur = end - start;
+      if (dur <= 0) continue;
+      if (segs[i].vehicle) vehicleMs += dur;
+      else if (segs[i].walking) walkingMs += dur;
+      else if (segs[i].stationary) stationaryMs += dur;
+    }
+    // A trip = at least a minute of vehicle/cycling, and more of it than walking. Walking-only
+    // dwells (the phantom-park source) have vehicleMs ~0 and fail both.
+    const isVehicleTrip = vehicleMs >= 60000 && vehicleMs > walkingMs;
+    return { available: true, isVehicleTrip, vehicleMs, walkingMs, stationaryMs, segments: segs.length };
+  } catch (e) {
+    return { available: false, error: e.message };
+  }
+}
+
 // Resolve the activity in effect at a given fix time (latest segment that started at/before it).
 function activityAt(timeline, fixTimeMs) {
   let resolved = null;

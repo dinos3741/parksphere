@@ -20,7 +20,7 @@ import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
-import { seedParkedSpot } from '../utils/parkDetectionService';
+import { seedParkedSpot, queryTravelMode } from '../utils/parkDetectionService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
@@ -43,6 +43,7 @@ const DRIVE_CAPTURE_ENABLED = true;
 const STALE_ARRIVAL_MS = 90 * 1000;   // arrival older than this ⇒ buffered/background, not a live dwell
 const RETRO_FALLBACK_DELAY_MS = 5000; // defer the coarse fallback so a dense-buffer HMM park can win first
 const HMM_DEDUP_MS = 15000;           // if the HMM parked this recently, it wins (precise) — skip fallback
+const TRAVEL_LOOKBACK_MS = 25 * 60 * 1000; // how far back to ask the coprocessor "was this a real trip?"
 
 // Sample location for a few seconds on a geofence exit and return the max speed seen (km/h), or null
 // if no valid speed fix arrives (coords.speed is -1/unknown until GPS establishes velocity). Exits
@@ -116,6 +117,7 @@ export function useReturnDetection() {
     let driveCaptureActive = false;
     let lastDriveFix = null;
     let driveSessionSawDriving = false;
+    let lastDepartureTs = 0; // last CLVisit departure time — start of the travel window we ask the coprocessor about
     let driveSpotSetThisTrip = false; // dedupe: once drive-capture set a precise spot, ignore coarse CLVisit
     let driveTimer = null; // safety: force-end drive-capture if iOS never auto-pauses
     let lastHmmParkAt = 0; // when the HMM last declared a park — so a coarse retroactive fallback yields to it
@@ -145,6 +147,23 @@ export function useReturnDetection() {
 
     const log = async (info) => { logHeartbeat(info); await flushTelemetry(); };
 
+    // Did the user actually travel to this dwell (car or bike), or just walk-and-dwell? A CLVisit
+    // arrival alone can't tell — walking around the city and stopping at places logs arrivals too, and
+    // those were arming phantom parks (2026-07-05). Ask the motion coprocessor how the travel window
+    // was spent; it records automotive/cycling/walking 24/7 in hardware, so this works even in the
+    // background with no location stream (Build A, drive-capture OFF). Falls back to the drive-capture
+    // flag only if the coprocessor is unavailable. Logs the breakdown so the heartbeat shows what it saw.
+    const droveToHere = async (arrivalMs) => {
+      const until = arrivalMs || Date.now();
+      const since = (lastDepartureTs && lastDepartureTs < until && until - lastDepartureTs < TRAVEL_LOOKBACK_MS)
+        ? lastDepartureTs
+        : until - TRAVEL_LOOKBACK_MS;
+      const travel = await queryTravelMode(since, until);
+      await log({ src: 'travelMode', ...travel, sinceMs: since, untilMs: until });
+      if (!travel.available) return driveSessionSawDriving; // coprocessor unavailable → old drive-capture flag
+      return travel.isVehicleTrip;
+    };
+
     (async () => {
       await initNotifications();
       await killLegacyLocationTask(); // stop the old continuous-location task so the app can suspend
@@ -173,8 +192,10 @@ export function useReturnDetection() {
         await log({ src: 'visit', type: v?.type, lat: v?.latitude, lon: v?.longitude, app: AppState.currentState, arrival: v?.arrival, departure: v?.departure });
         console.log('[Return] visit:', JSON.stringify(v));
         if (v?.type === 'departure') {
-          // Leaving a place → a drive is likely starting. Kick off drive-capture so iOS's auto-pause
+          // Leaving a place → a drive is likely starting. Remember when, so the next arrival can ask the
+          // coprocessor how the in-between window was travelled. Kick off drive-capture so iOS's auto-pause
           // catches the actual parking spot (precise), instead of relying on the coarse arrival dwell.
+          lastDepartureTs = v?.departure || Date.now();
           await startDriveCapture();
           return;
         }
@@ -204,12 +225,10 @@ export function useReturnDetection() {
                 console.log('[Return] retroactive fallback skipped — HMM already parked from this flush.');
                 return;
               }
-              // Only recover a park if this session actually saw a drive. A CLVisit arrival is just a
-              // dwell — walking around the city and stopping at places (café, shop) logs arrivals too,
-              // and those buffered dwells were arming phantom parks on foreground (seen 2026-07-05). The
-              // deferral above lets any real drive fixes from the same flush set driveSessionSawDriving first.
-              if (!driveSessionSawDriving) {
-                console.log('[Return] retroactive fallback skipped — no drive seen this session (walking dwell).');
+              // Only recover a park if the coprocessor shows a real trip (car/bike) into this dwell — a
+              // pure walking dwell (café, shop) must not resurrect a phantom park on foreground flush.
+              if (!(await droveToHere(v.arrival))) {
+                console.log('[Return] retroactive fallback skipped — coprocessor shows no vehicle trip (walking dwell).');
                 return;
               }
               await armSpot(spot, 'clvisit-retro');
@@ -218,11 +237,11 @@ export function useReturnDetection() {
             }, RETRO_FALLBACK_DELAY_MS);
             return;
           }
-          // Background arrival — drive-capture didn't pin the spot (e.g. iOS never auto-paused). Use
-          // CLVisit's coarse dwell location so we still register something — but only if a drive
-          // actually happened this session; a pure walking dwell must not arm a spot (2026-07-05).
-          if (!driveSessionSawDriving) {
-            console.log('[Return] background CLVisit arrival ignored — no drive seen this session (walking dwell).');
+          // Background arrival — drive-capture didn't pin the spot (e.g. iOS never auto-paused, or Build A
+          // has it off). Use CLVisit's coarse dwell location so we still register something — but only if
+          // the coprocessor shows a real trip (car/bike) into this dwell; a walking dwell must not arm.
+          if (!(await droveToHere(v.arrival))) {
+            console.log('[Return] background CLVisit arrival ignored — coprocessor shows no vehicle trip (walking dwell).');
             return;
           }
           await armSpot(spot, 'clvisit');
