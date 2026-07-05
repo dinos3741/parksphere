@@ -35,9 +35,14 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 // #2 A/B toggle — set false to disable drive-capture entirely and run the pure CLVisit + geofence
 // path (the old proven background behavior). Used to isolate whether continuous drive-capture location
 // is what's suppressing iOS's visit/geofence background wakeups. SLC stays on (low-power wake helper).
-const DRIVE_CAPTURE_ENABLED = false; // BUILD C (2026-07-05): drive-capture OFF — isolate the rolling fence's wakes
-const ROLLING_FENCE_ENABLED = true;  // BUILD C: re-arm a ~150m geofence around the current spot on each cross
-const ROLLING_FENCE_RADIUS = 400;    // metres — bumped from 200 (2026-07-05): 200m gave 10 dense LIVE wakes then iOS throttled after ~7min. Fewer wakes/km may dodge the rate limit and sustain coverage the whole drive.
+// ── Build toggles (2026-07-05 A/B/C/D background-wake investigation) ──────────────────────────────
+//   Build B = drive-capture only (buried, buffered).  Build C = rolling fence only (dense live wakes
+//   then iOS-throttled).  Build D = drive-capture + CLBackgroundActivitySession to keep the app ALIVE
+//   through the drive (iOS 17+). Flip these to select a build; only one experiment at a time.
+const DRIVE_CAPTURE_ENABLED = true;      // BUILD D: continuous drive-capture location during the trip
+const BACKGROUND_SESSION_ENABLED = true; // BUILD D: hold a CLBackgroundActivitySession so it isn't suspended
+const ROLLING_FENCE_ENABLED = false;     // BUILD C only — off for the Build D isolation test
+const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
 // background park the app slept through — delivered only now, on foreground, in a buffer flush — NOT a
@@ -139,6 +144,10 @@ export function useReturnDetection() {
       await log({ src: 'armSpot', source, lat: spot.latitude, lon: spot.longitude });
       console.log(`[Return] spot armed by ${source}:`, JSON.stringify(spot));
       await stopRolling(); // trip's over — the parked-spot geofence takes over from the rolling one
+      // Build D: release the background session on park (applyMode isn't re-run from here).
+      if (BACKGROUND_SESSION_ENABLED && VM?.stopBackgroundSession) {
+        try { await VM.stopBackgroundSession(); await log({ src: 'bgSession', action: 'stop', mode: 'armed' }); } catch (_) {}
+      }
     };
     const clearSpot = async (source) => {
       await AsyncStorage.removeItem(SPOT_KEY);
@@ -396,6 +405,15 @@ export function useReturnDetection() {
           else if (mode === 'drive') await VM.startDriveLocationUpdates();
           else await VM.stopLocationUpdates();
         } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
+        // Build D: hold a CLBackgroundActivitySession for the duration of a background drive so iOS
+        // keeps the app alive receiving fixes instead of suspending-and-buffering (Build B failure).
+        // Bound to 'drive' mode — released the moment we leave it (park, foreground, or suspend).
+        if (BACKGROUND_SESSION_ENABLED && VM?.startBackgroundSession) {
+          try {
+            if (mode === 'drive') { await VM.startBackgroundSession(); await log({ src: 'bgSession', action: 'start' }); }
+            else { await VM.stopBackgroundSession(); await log({ src: 'bgSession', action: 'stop', mode }); }
+          } catch (e) { console.warn('[Return] bgSession toggle failed (rebuild?):', e?.message); }
+        }
       };
       startDriveCapture = async () => {
         if (!DRIVE_CAPTURE_ENABLED) return; // #2 A/B: pure CLVisit + geofence when disabled

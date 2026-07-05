@@ -84,4 +84,15 @@ export function stopRollingFence() {
   return VisitMonitor.stopRollingFence();
 }
 
+// ── Background activity session (Build D, iOS 17+) ───────────────────────────
+// Hold a CLBackgroundActivitySession so continuous drive-capture location keeps the app ALIVE in the
+// background instead of iOS suspending-and-buffering the whole ride (proven Build B). Sanctioned
+// iOS 17+ API; no-op below iOS 17. Start when drive-capture begins, stop when the trip ends.
+export function startBackgroundSession() {
+  return VisitMonitor.startBackgroundSession();
+}
+export function stopBackgroundSession() {
+  return VisitMonitor.stopBackgroundSession();
+}
+
 export default VisitMonitor;

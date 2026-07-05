@@ -24,6 +24,13 @@ public class VisitMonitorModule: Module {
   private var rollingRadius: Double = 150
   private var rollingActive = false
   private var rollingArmPending = false
+  // ── Background activity session (Build D, iOS 17+) ────────────────────────────
+  // The 2026-07-05 A/B proved continuous drive-capture location gets suspended-and-buffered (Build B)
+  // and that region wakes get throttled (Build C). CLBackgroundActivitySession is the sanctioned
+  // iOS 17+ way to keep the app ALIVE receiving location in the background — as long as we HOLD the
+  // object (its dealloc auto-invalidates the session). Stored as Any? so it compiles on the 16.4
+  // deployment target; all use is guarded by #available(iOS 17.0, *).
+  private var bgSession: Any?
 
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
@@ -157,6 +164,26 @@ public class VisitMonitorModule: Module {
         for r in m.monitoredRegions where r.identifier == VisitMonitorModule.rollingId {
           m.stopMonitoring(for: r)
         }
+      }
+    }
+
+    // ── Background activity session (Build D) ────────────────────────────────────
+    // Hold a CLBackgroundActivitySession (iOS 17+) so continuous location keeps the app alive in the
+    // background instead of being suspended-and-buffered. No-op below iOS 17.
+    AsyncFunction("startBackgroundSession") {
+      DispatchQueue.main.async {
+        if #available(iOS 17.0, *) {
+          if self.bgSession == nil { self.bgSession = CLBackgroundActivitySession() }
+        }
+      }
+    }
+
+    AsyncFunction("stopBackgroundSession") {
+      DispatchQueue.main.async {
+        if #available(iOS 17.0, *) {
+          (self.bgSession as? CLBackgroundActivitySession)?.invalidate()
+        }
+        self.bgSession = nil
       }
     }
   }
