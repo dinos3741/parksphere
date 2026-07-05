@@ -37,7 +37,7 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 // is what's suppressing iOS's visit/geofence background wakeups. SLC stays on (low-power wake helper).
 const DRIVE_CAPTURE_ENABLED = false; // BUILD C (2026-07-05): drive-capture OFF — isolate the rolling fence's wakes
 const ROLLING_FENCE_ENABLED = true;  // BUILD C: re-arm a ~150m geofence around the current spot on each cross
-const ROLLING_FENCE_RADIUS = 150;    // metres — small enough for frequent movement wakes, ≥ iOS ~100m floor
+const ROLLING_FENCE_RADIUS = 200;    // metres — finer than SLC's ~500m, but big enough to detect reliably at car speed when suspended (iOS monitors regions via coarse cell/wifi while suspended)
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
 // background park the app slept through — delivered only now, on foreground, in a buffer flush — NOT a
@@ -341,6 +341,7 @@ export function useReturnDetection() {
         // the park. Timely trigger; CLVisit departure (delayed minutes) is only a backup.
         if (!driveCaptureActive && AppState.currentState !== 'active') {
           startDriveCapture();
+          startRolling(); // Build C: also (re)start the rolling fence on any bg movement wake, not just CLVisit departure
         }
         const last = fixes[fixes.length - 1];
         if (driveCaptureActive) {
