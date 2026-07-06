@@ -38,11 +38,16 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 // ── Build toggles (2026-07-05 A/B/C/D background-wake investigation) ──────────────────────────────
 //   Build B = drive-capture only (buried, buffered).  Build C = rolling fence only (dense live wakes
 //   then iOS-throttled).  Build D = drive-capture + CLBackgroundActivitySession to keep the app ALIVE
-//   through the drive (iOS 17+). Flip these to select a build; only one experiment at a time.
-const DRIVE_CAPTURE_ENABLED = true;      // BUILD D/D-v2: capture location during the trip
-const BACKGROUND_SESSION_ENABLED = true; // BUILD D/D-v2: hold a CLBackgroundActivitySession so it isn't suspended
-const USE_LIVE_UPDATES = true;           // BUILD D-v2: deliver via CLLocationUpdate.liveUpdates (the API the session keeps alive) instead of legacy startUpdatingLocation
-const ROLLING_FENCE_ENABLED = false;     // BUILD C only — off for the Build D isolation test
+//   through the drive (iOS 17+) — ALL FAILED (app suspended, ride buffered into one foreground flush).
+//   ⭐ OPTION 1 (2026-07-06): stop fighting iOS. Build A base (drive-capture OFF) wakes reliably in the
+//   background (verified ~6 live wakes/ride, app:background); each wake grabs a fresh one-shot fix to
+//   build a trip trail, and the spot is anchored on the fix nearest the coprocessor's vehicle-stop time
+//   — NOT the CLVisit dwell (which is the destination, wrong when you park then walk). See the memory
+//   note "DIRECTION 2026-07-06". Flip these to re-run an old experiment; only one at a time.
+const DRIVE_CAPTURE_ENABLED = false;     // OPTION 1: no continuous drive-capture — it suppresses the bg wakes (A/B proven)
+const BACKGROUND_SESSION_ENABLED = false;// (Build D) off — session didn't keep the app alive
+const USE_LIVE_UPDATES = false;          // (Build D-v2) off — liveUpdates buffered too
+const ROLLING_FENCE_ENABLED = false;     // (Build C) off — iOS throttles rapid region re-arming
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
@@ -52,6 +57,12 @@ const STALE_ARRIVAL_MS = 90 * 1000;   // arrival older than this ⇒ buffered/ba
 const RETRO_FALLBACK_DELAY_MS = 5000; // defer the coarse fallback so a dense-buffer HMM park can win first
 const HMM_DEDUP_MS = 15000;           // if the HMM parked this recently, it wins (precise) — skip fallback
 const TRAVEL_LOOKBACK_MS = 25 * 60 * 1000; // how far back to ask the coprocessor "was this a real trip?"
+
+// ── Option 1: background-wake fix trail + vehicle-stop anchoring ────────────────────────────────────
+const ONE_SHOT_THROTTLE_MS = 20 * 1000;      // grab at most one fresh fix per background wake burst
+const TRIP_FIX_MAX = 300;                    // cap the in-memory trip trail
+const TRIP_FIX_MAX_AGE_MS = 45 * 60 * 1000;  // prune trail fixes older than this
+const CAR_SPOT_WINDOW_PAD_MS = 90 * 1000;    // tolerance around the vehicle-stop time when choosing the fix
 
 // Sample location for a few seconds on a geofence exit and return the max speed seen (km/h), or null
 // if no valid speed fix arrives (coords.speed is -1/unknown until GPS establishes velocity). Exits
@@ -134,6 +145,47 @@ export function useReturnDetection() {
     // call it after the effect body has run, so the real implementation is in place by then.
     let startDriveCapture = async () => {};
 
+    // ── Option 1: trip fix trail + one-shot densifier ────────────────────────────────────────────
+    // Build A wakes the app ~every few minutes in the background but each wake carries a coarse/cached
+    // fix. We keep a rolling trail of all wake fixes (+ a fresh best-accuracy one-shot per wake) so that
+    // when a park is confirmed we can anchor the spot on the fix nearest the vehicle-stop time (below),
+    // rather than the CLVisit dwell (= destination, wrong when you park then walk to it).
+    let tripFixes = []; // { lat, lon, acc, t }
+    let lastOneShotAt = 0;
+    const pushTripFix = (f) => {
+      if (!f || typeof f.latitude !== 'number') return;
+      const t = f.timestamp || Date.now();
+      tripFixes.push({ lat: f.latitude, lon: f.longitude, acc: f.accuracy, t });
+      const cutoff = Date.now() - TRIP_FIX_MAX_AGE_MS;
+      while (tripFixes.length && tripFixes[0].t < cutoff) tripFixes.shift();
+      if (tripFixes.length > TRIP_FIX_MAX) tripFixes.splice(0, tripFixes.length - TRIP_FIX_MAX);
+    };
+    // Request a fresh best-accuracy fix on a background wake (throttled). No-op in the foreground (the
+    // live stream is already running) or on an un-rebuilt binary. The result returns via onLocationBatch.
+    const maybeOneShot = () => {
+      if (AppState.currentState === 'active' || !VM?.requestOneShotLocation) return;
+      const now = Date.now();
+      if (now - lastOneShotAt <= ONE_SHOT_THROTTLE_MS) return;
+      lastOneShotAt = now;
+      VM.requestOneShotLocation().catch(() => {});
+    };
+    // Pick the parked-car location: the trail fix closest in time to when vehicle motion stopped
+    // (from the coprocessor). Falls back to the CLVisit dwell if we have no vehicle-stop time or no
+    // trail fix in the travel window. Returns { spot, source } so the heartbeat records which won.
+    const pickCarSpot = (vehicleEndMs, since, until, fallback) => {
+      if (!vehicleEndMs || !tripFixes.length) return { spot: fallback, source: 'clvisit' };
+      const lo = (since || 0) - CAR_SPOT_WINDOW_PAD_MS;
+      const hi = (until || Date.now()) + CAR_SPOT_WINDOW_PAD_MS;
+      let best = null, bestD = Infinity;
+      for (const f of tripFixes) {
+        if (f.t < lo || f.t > hi) continue;
+        const d = Math.abs(f.t - vehicleEndMs);
+        if (d < bestD) { bestD = d; best = f; }
+      }
+      if (!best) return { spot: fallback, source: 'clvisit' };
+      return { spot: { latitude: best.lat, longitude: best.lon, accuracy: best.acc }, source: 'vehicle-stop' };
+    };
+
     // One shared "parked spot" for both detectors. Whoever declares the park — the HMM in the
     // foreground, CLVisit in the background — arms the same geofence and persists the same spot, so
     // return/drive-off works regardless of who set it.
@@ -180,6 +232,8 @@ export function useReturnDetection() {
     // was spent; it records automotive/cycling/walking 24/7 in hardware, so this works even in the
     // background with no location stream (Build A, drive-capture OFF). Falls back to the drive-capture
     // flag only if the coprocessor is unavailable. Logs the breakdown so the heartbeat shows what it saw.
+    // Returns { isTrip, vehicleEndMs, since, until }. isTrip gates arming a park at all (a walking
+    // dwell must not); vehicleEndMs + the window let pickCarSpot anchor on the real car location.
     const droveToHere = async (arrivalMs) => {
       const until = arrivalMs || Date.now();
       const since = (lastDepartureTs && lastDepartureTs < until && until - lastDepartureTs < TRAVEL_LOOKBACK_MS)
@@ -187,8 +241,8 @@ export function useReturnDetection() {
         : until - TRAVEL_LOOKBACK_MS;
       const travel = await queryTravelMode(since, until);
       await log({ src: 'travelMode', ...travel, sinceMs: since, untilMs: until });
-      if (!travel.available) return driveSessionSawDriving; // coprocessor unavailable → old drive-capture flag
-      return travel.isVehicleTrip;
+      const isTrip = travel.available ? travel.isVehicleTrip : driveSessionSawDriving; // fallback: old flag
+      return { isTrip, vehicleEndMs: travel.lastVehicleEndMs || null, since, until };
     };
 
     (async () => {
@@ -212,6 +266,7 @@ export function useReturnDetection() {
       // app later comes forward.
       visitSub = VM.addVisitListener(async (v) => {
         if (cancelled) return;
+        maybeOneShot(); // Option 1: a visit is a background wake — grab a fresh fix for the trail
         const ts = new Date().toLocaleTimeString();
         // Log the REAL arrival/departure times (from CLVisit) + delivery time, so a buffered/late event
         // (arrival far in the past, delivered now) is distinguishable from a live one — without this we
@@ -255,26 +310,31 @@ export function useReturnDetection() {
               }
               // Only recover a park if the coprocessor shows a real trip (car/bike) into this dwell — a
               // pure walking dwell (café, shop) must not resurrect a phantom park on foreground flush.
-              if (!(await droveToHere(v.arrival))) {
+              const travel = await droveToHere(v.arrival);
+              if (!travel.isTrip) {
                 console.log('[Return] retroactive fallback skipped — coprocessor shows no vehicle trip (walking dwell).');
                 return;
               }
-              await armSpot(spot, 'clvisit-retro');
-              await seedParkedSpot(spot);
+              // Anchor on the vehicle-stop fix (the car), not the CLVisit dwell (the destination).
+              const { spot: carSpot, source } = pickCarSpot(travel.vehicleEndMs, travel.since, travel.until, spot);
+              await armSpot(carSpot, source === 'vehicle-stop' ? 'vehicle-stop-retro' : 'clvisit-retro');
+              await seedParkedSpot(carSpot);
               await notifyUser('🅿️ Parked (recovered)', `saved a background park we slept through @ ${ts}`);
             }, RETRO_FALLBACK_DELAY_MS);
             return;
           }
-          // Background arrival — drive-capture didn't pin the spot (e.g. iOS never auto-paused, or Build A
-          // has it off). Use CLVisit's coarse dwell location so we still register something — but only if
-          // the coprocessor shows a real trip (car/bike) into this dwell; a walking dwell must not arm.
-          if (!(await droveToHere(v.arrival))) {
+          // Background arrival — the park signal in Option 1 (drive-capture is off). Confirm a real trip
+          // (car/bike) into this dwell first — a walking dwell must not arm. Then anchor the spot on the
+          // vehicle-stop fix from the trip trail (the car), falling back to CLVisit's coarse dwell.
+          const travel = await droveToHere(v.arrival);
+          if (!travel.isTrip) {
             console.log('[Return] background CLVisit arrival ignored — coprocessor shows no vehicle trip (walking dwell).');
             return;
           }
-          await armSpot(spot, 'clvisit');
-          await seedParkedSpot(spot); // hand the car location to the HMM for later returning
-          await notifyUser('🅿️ Parked', `spot saved (approx) + geofence armed @ ${ts}`);
+          const { spot: carSpot, source } = pickCarSpot(travel.vehicleEndMs, travel.since, travel.until, spot);
+          await armSpot(carSpot, source);
+          await seedParkedSpot(carSpot); // hand the car location to the HMM for later returning
+          await notifyUser('🅿️ Parked', `spot saved + geofence armed @ ${ts}`);
         }
       });
 
@@ -300,6 +360,7 @@ export function useReturnDetection() {
       // Geofence → return / drive-off
       geoSub = VM.addGeofenceListener(async (g) => {
         if (cancelled) return;
+        maybeOneShot(); // Option 1: a geofence crossing is a background wake — grab a fresh fix
         const ts = new Date().toLocaleTimeString();
         // Rolling-fence crossings are a Build C wake probe — re-armed + fed to the HMM natively. Just
         // record the wake (with its live/buffered app tag) and DON'T run parked-spot return/drive-off.
@@ -346,10 +407,12 @@ export function useReturnDetection() {
         const fixes = batch?.locations || [];
         if (!fixes.length) return;
         locCount += fixes.length;
+        for (const f of fixes) pushTripFix(f); // Option 1: build the trip trail for car-spot anchoring
         // A background batch while we're neither foreground nor already capturing means SLC woke us
         // for a new drive (~500m of movement) — start drive-capture so location keeps flowing through
         // the park. Timely trigger; CLVisit departure (delayed minutes) is only a backup.
         if (!driveCaptureActive && AppState.currentState !== 'active') {
+          maybeOneShot();  // Option 1: grab a fresh best-accuracy fix on this bg wake (throttled)
           startDriveCapture();
           startRolling(); // Build C: also (re)start the rolling fence on any bg movement wake, not just CLVisit departure
         }

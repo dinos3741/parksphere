@@ -1030,19 +1030,22 @@ export async function queryTravelMode(sinceMs, untilMs) {
       }))
       .sort((x, y) => x.t - y.t);
     let vehicleMs = 0, walkingMs = 0, stationaryMs = 0;
+    // When did vehicle motion last stop? The end of the last vehicle segment ≈ where the car parked.
+    // Option 1 anchors the spot on the location fix nearest this instant (not the CLVisit dwell).
+    let lastVehicleEndMs = null;
     for (let i = 0; i < segs.length; i++) {
       const start = Math.max(segs[i].t, sinceMs);
       const end = i + 1 < segs.length ? segs[i + 1].t : untilMs;
       const dur = end - start;
       if (dur <= 0) continue;
-      if (segs[i].vehicle) vehicleMs += dur;
+      if (segs[i].vehicle) { vehicleMs += dur; lastVehicleEndMs = Math.min(end, untilMs); }
       else if (segs[i].walking) walkingMs += dur;
       else if (segs[i].stationary) stationaryMs += dur;
     }
     // A trip = at least a minute of vehicle/cycling, and more of it than walking. Walking-only
     // dwells (the phantom-park source) have vehicleMs ~0 and fail both.
     const isVehicleTrip = vehicleMs >= 60000 && vehicleMs > walkingMs;
-    return { available: true, isVehicleTrip, vehicleMs, walkingMs, stationaryMs, segments: segs.length };
+    return { available: true, isVehicleTrip, vehicleMs, walkingMs, stationaryMs, segments: segs.length, lastVehicleEndMs };
   } catch (e) {
     return { available: false, error: e.message };
   }

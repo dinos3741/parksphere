@@ -107,6 +107,20 @@ public class VisitMonitorModule: Module {
       }
     }
 
+    // ── One-shot fresh fix (Option 1) ─────────────────────────────────────────
+    // A single best-accuracy fix on demand, from the SAME manager. The result arrives via
+    // didUpdateLocations → onLocationBatch (1-element), so JS handles it through the existing path.
+    // Used to densify the sparse background-wake trail (SLC fixes are coarse/cached) so the parked
+    // spot can be anchored on the vehicle-stop fix rather than the coarse CLVisit dwell.
+    AsyncFunction("requestOneShotLocation") {
+      DispatchQueue.main.async {
+        self.ensureManager()
+        guard let m = self.manager else { return }
+        m.desiredAccuracy = kCLLocationAccuracyBest
+        m.requestLocation()
+      }
+    }
+
     // ── Drive-capture mode: CONTINUOUS location that keeps the app alive through the drive ────────
     // NOTE: we deliberately do NOT use pausesLocationUpdatesAutomatically. Field test 2026-07-04
     // showed that from an SLC-triggered start iOS auto-pauses within ~8s (you're momentarily slow at

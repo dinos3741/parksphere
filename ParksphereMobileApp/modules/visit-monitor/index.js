@@ -43,6 +43,14 @@ export function startLocationUpdates() {
 export function stopLocationUpdates() {
   return VisitMonitor.stopLocationUpdates();
 }
+
+// ── One-shot fresh fix (Option 1) ────────────────────────────────────────────
+// A single best-accuracy fix on demand, delivered via addLocationBatchListener (1-element batch).
+// Densifies the sparse background-wake trail so the parked spot can be anchored on the vehicle-stop
+// fix instead of the coarse CLVisit dwell.
+export function requestOneShotLocation() {
+  return VisitMonitor.requestOneShotLocation();
+}
 // listener({ locations: [{ latitude, longitude, accuracy, altitude, speed, course, timestamp }, ...] })
 // iOS delivers buffered fixes as a BATCH (array) when it wakes the app after suspending it during a
 // drive; foreground fixes arrive as batches of 1. speed is m/s (-1 unknown).
