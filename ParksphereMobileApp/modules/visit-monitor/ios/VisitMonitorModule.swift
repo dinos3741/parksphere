@@ -37,6 +37,21 @@ public class VisitMonitorModule: Module {
   // buffered anyway). This Task consumes liveUpdates and forwards each fix through the same batch path.
   private var liveTask: Task<Void, Never>?
 
+  // ── Native heartbeat (Build E premise test, 2026-07-07) ──────────────────────
+  // Prior "app suspended during the drive" verdicts came from watching the JS heartbeat go silent —
+  // but iOS suspends the React Native JS THREAD, not necessarily the native location process. This
+  // logs — from Swift, on the liveUpdates Task, independent of JS — the NATIVE wall-clock time each
+  // fix is processed alongside the fix's own GPS timestamp. If native runs live during the drive, the
+  // `t` values are spread out and `t ≈ gps`; if native is frozen too, they cluster at foreground-resume
+  // with a huge `t - gps` delta. Written to a JSON-lines file in Documents; JS merges it on foreground.
+  private let nativeLogQueue = DispatchQueue(label: "com.parksphere.nativelog")
+  private var lastNativeLogAt: TimeInterval = 0
+  private static let nativeLogThrottleSec: TimeInterval = 3.0
+  private var nativeLogURL: URL? {
+    FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("native_heartbeat.jsonl")
+  }
+
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
 
@@ -220,6 +235,7 @@ public class VisitMonitorModule: Module {
               for try await update in CLLocationUpdate.liveUpdates() {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
+                self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
                 self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
               }
             } catch {
@@ -234,6 +250,49 @@ public class VisitMonitorModule: Module {
       DispatchQueue.main.async {
         self.liveTask?.cancel()
         self.liveTask = nil
+      }
+    }
+
+    // ── Native heartbeat readback (Build E premise test) ─────────────────────────
+    // JS calls this on foreground to pull the native-captured heartbeat lines and merge them into the
+    // telemetry heartbeat, then clears them. Returns the raw JSON-lines file contents ("" if none).
+    AsyncFunction("readNativeLog") { () -> String in
+      guard let url = self.nativeLogURL,
+            let s = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+      return s
+    }
+
+    AsyncFunction("clearNativeLog") {
+      if let url = self.nativeLogURL { try? FileManager.default.removeItem(at: url) }
+    }
+  }
+
+  // Append a native-heartbeat line (throttled) recording that native code ran at wall-clock `now`
+  // to process a fix whose GPS time is `gpsMs`. Runs on the liveUpdates Task, off the JS thread.
+  fileprivate func logNativeFix(_ loc: CLLocation, tag: String) {
+    let nowSec = Date().timeIntervalSince1970
+    if nowSec - lastNativeLogAt < VisitMonitorModule.nativeLogThrottleSec { return }
+    lastNativeLogAt = nowSec
+    let entry: [String: Any] = [
+      "t": nowSec * 1000.0,                                   // native wall-clock when processed
+      "gps": loc.timestamp.timeIntervalSince1970 * 1000.0,    // the fix's own GPS timestamp
+      "lat": loc.coordinate.latitude,
+      "lon": loc.coordinate.longitude,
+      "spd": loc.speed,
+      "tag": tag
+    ]
+    nativeLogQueue.async { [weak self] in
+      guard let self = self, let url = self.nativeLogURL,
+            let data = try? JSONSerialization.data(withJSONObject: entry),
+            var line = String(data: data, encoding: .utf8) else { return }
+      line += "\n"
+      guard let bytes = line.data(using: .utf8) else { return }
+      if let handle = try? FileHandle(forWritingTo: url) {
+        defer { try? handle.close() }
+        handle.seekToEndOfFile()
+        handle.write(bytes)
+      } else {
+        try? bytes.write(to: url) // file doesn't exist yet → create it
       }
     }
   }

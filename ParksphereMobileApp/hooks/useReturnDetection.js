@@ -44,9 +44,15 @@ const EXIT_SPEED_WINDOW_MS = 7000; // background region-event execution is short
 //   build a trip trail, and the spot is anchored on the fix nearest the coprocessor's vehicle-stop time
 //   — NOT the CLVisit dwell (which is the destination, wrong when you park then walk). See the memory
 //   note "DIRECTION 2026-07-06". Flip these to re-run an old experiment; only one at a time.
-const DRIVE_CAPTURE_ENABLED = false;     // OPTION 1: no continuous drive-capture — it suppresses the bg wakes (A/B proven)
-const BACKGROUND_SESSION_ENABLED = false;// (Build D) off — session didn't keep the app alive
-const USE_LIVE_UPDATES = false;          // (Build D-v2) off — liveUpdates buffered too
+// ⭐ BUILD E-PROBE (2026-07-07): re-run the D-v2 config (drive-capture + session + liveUpdates) but
+// now with a NATIVE heartbeat in the Swift liveUpdates loop. Goal: prove whether NATIVE code runs
+// LIVE during the drive while the JS thread is suspended (research 2026-07-07 says it should — iOS
+// freezes the RN JS thread, not the native location process). If native ticks live → build native
+// park-detection + local notification (real Build E). Read src:'nativeHb' entries in the heartbeat:
+// spread `t` with small `t-gps` = native alive; clustered `t` at foreground with huge delta = frozen.
+const DRIVE_CAPTURE_ENABLED = true;      // BUILD E-PROBE: continuous drive-capture (kept-alive candidate)
+const BACKGROUND_SESSION_ENABLED = true; // BUILD E-PROBE: hold CLBackgroundActivitySession (iOS 17+)
+const USE_LIVE_UPDATES = true;           // BUILD E-PROBE: deliver via CLLocationUpdate.liveUpdates (the API the session sustains)
 const ROLLING_FENCE_ENABLED = false;     // (Build C) off — iOS throttles rapid region re-arming
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
@@ -232,6 +238,29 @@ export function useReturnDetection() {
       if (!rollingActive || !VM?.stopRollingFence) return;
       rollingActive = false;
       try { await VM.stopRollingFence(); await log({ src: 'roll', type: 'stop' }); } catch (_) {}
+    };
+
+    // ── Native heartbeat merge (Build E premise test) ────────────────────────────────────────────
+    // Pull the native-captured heartbeat lines (written by the Swift liveUpdates loop, off the JS
+    // thread) and fold them into the telemetry heartbeat, preserving each line's NATIVE timestamp `t`
+    // and its GPS time `gps`. `dtMs = t - gps`: ~0 across the drive ⇒ native ran LIVE while JS slept;
+    // a huge delta clustered at foreground ⇒ native was frozen too. Runs on every foreground.
+    const mergeNativeLog = async () => {
+      if (!VM?.readNativeLog) return;
+      try {
+        const raw = await VM.readNativeLog();
+        const lines = (raw || '').split('\n').filter(Boolean);
+        if (!lines.length) return;
+        for (const ln of lines) {
+          try {
+            const e = JSON.parse(ln);
+            logHeartbeat({ src: 'nativeHb', t: e.t, gps: e.gps, lat: e.lat, lon: e.lon, spd: e.spd, tag: e.tag, dtMs: Math.round((e.t || 0) - (e.gps || 0)), mergedAt: Date.now() });
+          } catch (_) {}
+        }
+        await flushTelemetry();
+        await VM.clearNativeLog();
+        console.log(`[Return] merged ${lines.length} native heartbeat lines`);
+      } catch (e) { console.warn('[Return] mergeNativeLog failed (rebuild?):', e?.message); }
     };
 
     // Did the user actually travel to this dwell (car or bike), or just walk-and-dwell? A CLVisit
@@ -512,13 +541,17 @@ export function useReturnDetection() {
         console.log('[Return] drive-capture started');
         await applyMode(); // → 'drive' if backgrounded
       };
-      appStateSub = AppState.addEventListener('change', () => applyMode());
+      appStateSub = AppState.addEventListener('change', (s) => {
+        applyMode();
+        if (s === 'active') mergeNativeLog(); // fold in native-captured fixes on foreground
+      });
       // Self-heal: on iOS Debug builds the resume 'change'→'active' event is sometimes dropped by the
       // just-woken JS thread. Re-assert the mode on a short timer (JS is suspended in the background,
       // so this only ticks in the foreground) so the stream reliably returns on foreground.
       modeTimer = setInterval(() => applyMode(), 4000);
       console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
       await applyMode(); // apply current state on mount
+      await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };

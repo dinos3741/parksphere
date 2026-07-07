@@ -114,4 +114,15 @@ export function stopDriveLiveUpdates() {
   return VisitMonitor.stopDriveLiveUpdates();
 }
 
+// ── Native heartbeat readback (Build E premise test) ─────────────────────────
+// The liveUpdates Task logs, from native Swift (off the JS thread), the wall-clock time each fix is
+// processed + its GPS timestamp — to prove whether native runs LIVE during a drive while the RN JS
+// thread is suspended. JS pulls these lines on foreground and merges them into the telemetry heartbeat.
+export function readNativeLog() {
+  return VisitMonitor.readNativeLog();
+}
+export function clearNativeLog() {
+  return VisitMonitor.clearNativeLog();
+}
+
 export default VisitMonitor;
