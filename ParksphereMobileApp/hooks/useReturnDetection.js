@@ -63,6 +63,12 @@ const ONE_SHOT_THROTTLE_MS = 20 * 1000;      // grab at most one fresh fix per b
 const TRIP_FIX_MAX = 300;                    // cap the in-memory trip trail
 const TRIP_FIX_MAX_AGE_MS = 45 * 60 * 1000;  // prune trail fixes older than this
 const CAR_SPOT_WINDOW_PAD_MS = 90 * 1000;    // tolerance around the vehicle-stop time when choosing the fix
+// Field test 2026-07-07 (ground truth): at Build A wake cadence the car-stop moment falls in a wake
+// gap, so the nearest trail fix is usually a STALE driving fix (413m off) or the walk-destination desk
+// — both WORSE than the plain CLVisit dwell (114m). Only trust a trail fix if it lands within this
+// tight gate of the coprocessor's vehicle-stop instant (i.e. a wake genuinely coincided with the park);
+// otherwise fall back to the dwell so we are NEVER worse than plain CLVisit. See the memory note.
+const STOP_TIME_GATE_MS = 60 * 1000;
 
 // Sample location for a few seconds on a geofence exit and return the max speed seen (km/h), or null
 // if no valid speed fix arrives (coords.speed is -1/unknown until GPS establishes velocity). Exits
@@ -182,7 +188,9 @@ export function useReturnDetection() {
         const d = Math.abs(f.t - vehicleEndMs);
         if (d < bestD) { bestD = d; best = f; }
       }
-      if (!best) return { spot: fallback, source: 'clvisit' };
+      // Only override the dwell if a fix genuinely coincided with the stop; a distant fix is a stale
+      // driving waypoint or the walk destination — both worse than the dwell (proven 2026-07-07).
+      if (!best || bestD > STOP_TIME_GATE_MS) return { spot: fallback, source: 'clvisit' };
       return { spot: { latitude: best.lat, longitude: best.lon, accuracy: best.acc }, source: 'vehicle-stop' };
     };
 
