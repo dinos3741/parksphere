@@ -54,6 +54,11 @@ const DRIVE_CAPTURE_ENABLED = true;      // BUILD E-PROBE: continuous drive-capt
 const BACKGROUND_SESSION_ENABLED = true; // BUILD E-PROBE: hold CLBackgroundActivitySession (iOS 17+)
 const USE_LIVE_UPDATES = true;           // BUILD E-PROBE: deliver via CLLocationUpdate.liveUpdates (the API the session sustains)
 const ROLLING_FENCE_ENABLED = false;     // (Build C) off — iOS throttles rapid region re-arming
+// House test (2026-07-08): when true, backgrounding the app schedules a native notification ~15s out,
+// so a lock-screen "🔧 Native alive (scheduled)" confirms native→notification delivery with no drive.
+// Set false once confirmed (it would nag on every background otherwise).
+const NATIVE_NOTIF_HOUSE_TEST = true;
+const HOUSE_TEST_DELAY_SEC = 15;
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
@@ -544,6 +549,10 @@ export function useReturnDetection() {
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
         if (s === 'active') mergeNativeLog(); // fold in native-captured fixes on foreground
+        // House test: on backgrounding, schedule a native notification so it lands while suspended.
+        if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
+          VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
+        }
       });
       // Self-heal: on iOS Debug builds the resume 'change'→'active' event is sometimes dropped by the
       // just-woken JS thread. Re-assert the mode on a short timer (JS is suspended in the background,

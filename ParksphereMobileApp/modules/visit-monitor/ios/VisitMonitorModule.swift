@@ -243,7 +243,7 @@ public class VisitMonitorModule: Module {
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
                 // Build E confirmation: the first time we see clear driving speed, fire a native local
                 // notification. If it surfaces on the lock screen mid-drive, native can alert live in bg.
-                if !self.firedDriveNotif && loc.speed * 3.6 > 15 {
+                if !self.firedDriveNotif && loc.speed * 3.6 > 6 { // brisk walk+ so an outdoor walk can also test it
                   self.firedDriveNotif = true
                   self.postLocalNotification(title: "🔧 Native alive", body: "Detected driving in the background (native Swift).")
                   self.logNativeFix(loc, tag: "notif", force: true) // mark WHEN it fired (native time) in the heartbeat
@@ -282,20 +282,36 @@ public class VisitMonitorModule: Module {
     AsyncFunction("sendLocalNotification") { (title: String, body: String) in
       self.postLocalNotification(title: title, body: body)
     }
+
+    // House test: schedule a native notification `afterSeconds` in the future. Call it, background the
+    // app (or lock the phone), and it lands on the lock screen — confirms native → notification delivery
+    // with no drive/GPS. JS wires this to fire on app-background when the house-test flag is on.
+    AsyncFunction("scheduleTestNotification") { (afterSeconds: Double) in
+      self.postLocalNotification(
+        title: "🔧 Native alive (scheduled)",
+        body: "Fired from native \(Int(afterSeconds))s after backgrounding.",
+        afterSeconds: max(1, afterSeconds)
+      )
+    }
   }
 
   // Post a local notification straight from native code. UNUserNotificationCenter delivers even when
   // the RN JS thread is suspended, so a native-detected park can alert the user LIVE in the background
   // — no server, no APNs, no foreground. Shares the app's notification authorization (granted by the JS
   // expo-notifications init); requests it defensively in case it wasn't.
-  fileprivate func postLocalNotification(title: String, body: String) {
+  fileprivate func postLocalNotification(title: String, body: String, afterSeconds: Double = 0) {
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert, .sound]) { _, _ in
       let content = UNMutableNotificationContent()
       content.title = title
       content.body = body
       content.sound = .default
-      let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+      // trigger nil = fire immediately; a time-interval trigger fires N seconds later even if the app
+      // has since been backgrounded/suspended — the house test (background the app, notification lands).
+      let trigger: UNNotificationTrigger? = afterSeconds > 0
+        ? UNTimeIntervalNotificationTrigger(timeInterval: afterSeconds, repeats: false)
+        : nil
+      let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
       center.add(req, withCompletionHandler: nil)
     }
   }

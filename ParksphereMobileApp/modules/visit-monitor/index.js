@@ -131,4 +131,10 @@ export function sendLocalNotification(title, body) {
   return VisitMonitor.sendLocalNotification(title, body);
 }
 
+// House test: schedule a native notification `afterSeconds` in the future so it lands while the app is
+// backgrounded — confirms native → lock-screen delivery with no drive/GPS needed.
+export function scheduleTestNotification(afterSeconds) {
+  return VisitMonitor.scheduleTestNotification(afterSeconds);
+}
+
 export default VisitMonitor;
