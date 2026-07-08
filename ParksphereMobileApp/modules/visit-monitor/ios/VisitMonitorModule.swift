@@ -48,10 +48,6 @@ public class VisitMonitorModule: Module {
   private let nativeLogQueue = DispatchQueue(label: "com.parksphere.nativelog")
   private var lastNativeLogAt: TimeInterval = 0
   private static let nativeLogThrottleSec: TimeInterval = 3.0
-  // Build E confirmation: fire ONE local notification from native the first time the liveUpdates loop
-  // sees driving speed in a session — proving native can ALERT (not just compute) live in the background.
-  private var firedDriveNotif = false
-
   // ── Lean native park-detector (Build E, 2026-07-08) ──────────────────────────
   // Runs in the liveUpdates loop (proven to execute LIVE in the background while JS sleeps). Declares a
   // park from the fix stream — no HMM — using: saw driving, then stayed within a small radius, slow, for
@@ -255,7 +251,6 @@ public class VisitMonitorModule: Module {
         guard self.liveTask == nil else { return }
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
-          self.firedDriveNotif = false // fresh session → allow one confirmation notification
           // NB: do NOT reset the park/return state here — the session can restart mid-watch (bg↔fg) and
           // we must preserve a declared park. JS calls resetParkDetection() on drive-off/new trip.
           self.liveTask = Task { [weak self] in
@@ -266,13 +261,6 @@ public class VisitMonitorModule: Module {
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
                 // Phase: no car spot yet → look for a park; car spot known → watch for the walk back.
                 if self.carLocation == nil { self.detectPark(loc) } else { self.detectReturn(loc) }
-                // Build E confirmation: the first time we see clear driving speed, fire a native local
-                // notification. If it surfaces on the lock screen mid-drive, native can alert live in bg.
-                if !self.firedDriveNotif && loc.speed * 3.6 > 6 { // brisk walk+ so an outdoor walk can also test it
-                  self.firedDriveNotif = true
-                  self.postLocalNotification(title: "🔧 Native alive", body: "Detected driving in the background (native Swift).")
-                  self.logNativeFix(loc, tag: "notif", force: true) // mark WHEN it fired (native time) in the heartbeat
-                }
                 self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
               }
             } catch {
