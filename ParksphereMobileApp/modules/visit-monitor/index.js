@@ -137,4 +137,15 @@ export function scheduleTestNotification(afterSeconds) {
   return VisitMonitor.scheduleTestNotification(afterSeconds);
 }
 
+// ── Native park-detector readback (Build E) ──────────────────────────────────
+// The native park-detector (in the liveUpdates loop) declares the park LIVE in the background — fires a
+// local notification + arms the returning geofence + persists the spot here. JS reads it on foreground
+// to reconcile SPOT_KEY / the map. Returns the JSON string ("" if the native layer hasn't parked).
+export function readNativePark() {
+  return VisitMonitor.readNativePark();
+}
+export function clearNativePark() {
+  return VisitMonitor.clearNativePark();
+}
+
 export default VisitMonitor;

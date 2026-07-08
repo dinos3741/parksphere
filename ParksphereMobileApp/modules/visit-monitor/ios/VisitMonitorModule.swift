@@ -51,6 +51,24 @@ public class VisitMonitorModule: Module {
   // Build E confirmation: fire ONE local notification from native the first time the liveUpdates loop
   // sees driving speed in a session — proving native can ALERT (not just compute) live in the background.
   private var firedDriveNotif = false
+
+  // ── Lean native park-detector (Build E, 2026-07-08) ──────────────────────────
+  // Runs in the liveUpdates loop (proven to execute LIVE in the background while JS sleeps). Declares a
+  // park from the fix stream — no HMM — using: saw driving, then stayed within a small radius, slow, for
+  // a sustained window (distance-based so a `speed==-1` unknown reading doesn't stall it). A traffic
+  // light fails the test (the car drives away → speed climbs → candidate resets). On a confirmed park it
+  // fires a LOCAL notification, arms the returning geofence, and persists the spot for JS to reconcile.
+  private var parkDriveSeen = false            // saw automotive-range speed this session
+  private var parkStopFix: CLLocation?         // candidate rest location
+  private var parkStopSince: TimeInterval = 0  // when the candidate rest began
+  private var parkDeclared = false             // already declared this session
+  private static let parkDriveSpeedMS = 4.0    // ~14.4 km/h — clearly driving
+  private static let parkStopRadiusM = 40.0    // GPS noise + parking maneuver
+  private static let parkStopConfirmSec = 120.0 // sustained stillness to beat a long traffic light
+  private var nativeParkURL: URL? {
+    FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("native_park.json")
+  }
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_heartbeat.jsonl")
@@ -77,20 +95,7 @@ public class VisitMonitorModule: Module {
 
     // Arm (or replace) the geofence around the parked spot.
     AsyncFunction("armGeofence") { (latitude: Double, longitude: Double, radius: Double) in
-      DispatchQueue.main.async {
-        self.ensureManager()
-        guard let m = self.manager else { return }
-        // Remove any existing parked-spot region first.
-        for r in m.monitoredRegions where r.identifier == VisitMonitorModule.regionId {
-          m.stopMonitoring(for: r)
-        }
-        let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        // iOS clamps radius to the device maximum; ~150 m is a safe, reliable region size.
-        let region = CLCircularRegion(center: center, radius: radius, identifier: VisitMonitorModule.regionId)
-        region.notifyOnEntry = true
-        region.notifyOnExit = true
-        m.startMonitoring(for: region)
-      }
+      self.armParkedRegion(latitude, longitude, radius)
     }
 
     AsyncFunction("clearGeofence") {
@@ -235,12 +240,14 @@ public class VisitMonitorModule: Module {
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
           self.firedDriveNotif = false // fresh session → allow one confirmation notification
+          self.parkDriveSeen = false; self.parkStopFix = nil; self.parkDeclared = false // reset park detector
           self.liveTask = Task { [weak self] in
             do {
               for try await update in CLLocationUpdate.liveUpdates() {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
+                self.detectPark(loc) // lean native park-detector — declares the park live in the bg
                 // Build E confirmation: the first time we see clear driving speed, fire a native local
                 // notification. If it surfaces on the lock screen mid-drive, native can alert live in bg.
                 if !self.firedDriveNotif && loc.speed * 3.6 > 6 { // brisk walk+ so an outdoor walk can also test it
@@ -283,6 +290,18 @@ public class VisitMonitorModule: Module {
       self.postLocalNotification(title: title, body: body)
     }
 
+    // Native park readback: JS reads the spot the native detector declared in the background and
+    // reconciles it (arm SPOT_KEY / update the map) on foreground. Returns the JSON string ("" if none).
+    AsyncFunction("readNativePark") { () -> String in
+      guard let url = self.nativeParkURL,
+            let s = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+      return s
+    }
+
+    AsyncFunction("clearNativePark") {
+      if let url = self.nativeParkURL { try? FileManager.default.removeItem(at: url) }
+    }
+
     // House test: schedule a native notification `afterSeconds` in the future. Call it, background the
     // app (or lock the phone), and it lands on the lock screen — confirms native → notification delivery
     // with no drive/GPS. JS wires this to fire on app-background when the house-test flag is on.
@@ -313,6 +332,70 @@ public class VisitMonitorModule: Module {
         : nil
       let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
       center.add(req, withCompletionHandler: nil)
+    }
+  }
+
+  // Arm (or replace) the parked-spot region. Callable from the JS AsyncFunction and from the native
+  // park-detector. Region ops must run on the main queue.
+  fileprivate func armParkedRegion(_ latitude: Double, _ longitude: Double, _ radius: Double) {
+    DispatchQueue.main.async {
+      self.ensureManager()
+      guard let m = self.manager else { return }
+      for r in m.monitoredRegions where r.identifier == VisitMonitorModule.regionId {
+        m.stopMonitoring(for: r)
+      }
+      let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+      let region = CLCircularRegion(center: center, radius: radius, identifier: VisitMonitorModule.regionId)
+      region.notifyOnEntry = true
+      region.notifyOnExit = true
+      m.startMonitoring(for: region)
+    }
+  }
+
+  // Feed one fix to the native park state machine (called from the liveUpdates loop). See the state
+  // declarations above for the logic. On a confirmed park it declares once per session.
+  fileprivate func detectPark(_ loc: CLLocation) {
+    if parkDeclared { return }
+    let sp = loc.speed // m/s, -1 = unknown
+    if sp >= VisitMonitorModule.parkDriveSpeedMS {
+      parkDriveSeen = true          // clearly driving → (re)start the "still looking for a stop" state
+      parkStopFix = nil
+      return
+    }
+    guard parkDriveSeen else { return } // never drove → not a park (ignore walking dwells)
+    let now = Date().timeIntervalSince1970
+    if let cand = parkStopFix {
+      if loc.distance(from: cand) <= VisitMonitorModule.parkStopRadiusM {
+        // Still resting near the candidate. Confirmed once we've held it long enough.
+        if now - parkStopSince >= VisitMonitorModule.parkStopConfirmSec {
+          parkDeclared = true
+          declarePark(at: cand)
+        }
+      } else {
+        // Moved off the candidate (a light that turned green, or crept forward) → reset the candidate.
+        parkStopFix = loc
+        parkStopSince = now
+      }
+    } else {
+      // First slow fix after driving → open a candidate rest point here.
+      parkStopFix = loc
+      parkStopSince = now
+    }
+  }
+
+  // A park is confirmed: alert the user, arm the returning geofence, and persist the spot for JS — all
+  // native, so it works with the JS thread suspended. JS reconciles native_park.json on next foreground.
+  private func declarePark(at loc: CLLocation) {
+    let lat = loc.coordinate.latitude
+    let lon = loc.coordinate.longitude
+    postLocalNotification(title: "🅿️ Parked", body: "Saved your car's spot (native).")
+    armParkedRegion(lat, lon, 200) // returning geofence — ENTER fires even if JS never wakes
+    logNativeFix(loc, tag: "park", force: true)
+    let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0]
+    nativeLogQueue.async { [weak self] in
+      guard let self = self, let url = self.nativeParkURL,
+            let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
+      try? data.write(to: url)
     }
   }
 

@@ -57,7 +57,7 @@ const ROLLING_FENCE_ENABLED = false;     // (Build C) off — iOS throttles rapi
 // House test (2026-07-08): when true, backgrounding the app schedules a native notification ~15s out,
 // so a lock-screen "🔧 Native alive (scheduled)" confirms native→notification delivery with no drive.
 // Set false once confirmed (it would nag on every background otherwise).
-const NATIVE_NOTIF_HOUSE_TEST = true;
+const NATIVE_NOTIF_HOUSE_TEST = false; // confirmed 2026-07-08 (native → lock-screen delivery works)
 const HOUSE_TEST_DELAY_SEC = 15;
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
@@ -123,6 +123,14 @@ async function killLegacyLocationTask() {
   try { await Location.stopLocationUpdatesAsync(OLD_PARK_TASK); } catch (_) {}
   try { await TaskManager.unregisterTaskAsync(OLD_PARK_TASK); } catch (_) {}
   console.log('[Return] legacy location task cleanup attempted');
+}
+
+// Great-circle distance in metres between two lat/lon points (dedup + geofence checks).
+function metersBetween(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 let VM = null;
@@ -266,6 +274,34 @@ export function useReturnDetection() {
         await VM.clearNativeLog();
         console.log(`[Return] merged ${lines.length} native heartbeat lines`);
       } catch (e) { console.warn('[Return] mergeNativeLog failed (rebuild?):', e?.message); }
+    };
+
+    // ── Native park reconciliation (Build E) ─────────────────────────────────────────────────────
+    // The native park-detector declared a park (fired the notification + armed the geofence natively)
+    // while the JS thread was suspended. On foreground, adopt that spot into the shared JS stores
+    // (SPOT_KEY + HMM seed + map) so the UI matches — deduped against a spot we already hold nearby.
+    const mergeNativePark = async () => {
+      if (!VM?.readNativePark) return;
+      try {
+        const raw = await VM.readNativePark();
+        if (!raw) return;
+        const p = JSON.parse(raw);
+        if (typeof p?.lat !== 'number' || typeof p?.lon !== 'number') return;
+        const spot = { latitude: p.lat, longitude: p.lon, accuracy: p.acc };
+        const existing = await AsyncStorage.getItem(SPOT_KEY);
+        if (existing) {
+          const s = JSON.parse(existing);
+          if (metersBetween(s.latitude, s.longitude, spot.latitude, spot.longitude) < 60) {
+            await VM.clearNativePark(); // already have this spot — just clear the native handoff
+            return;
+          }
+        }
+        await armSpot(spot, 'native-park');
+        await seedParkedSpot(spot);
+        await log({ src: 'nativePark', lat: spot.latitude, lon: spot.longitude, t: p.t });
+        await VM.clearNativePark();
+        console.log('[Return] adopted native park spot:', JSON.stringify(spot));
+      } catch (e) { console.warn('[Return] mergeNativePark failed (rebuild?):', e?.message); }
     };
 
     // Did the user actually travel to this dwell (car or bike), or just walk-and-dwell? A CLVisit
@@ -548,7 +584,7 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') mergeNativeLog(); // fold in native-captured fixes on foreground
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); } // fold in native fixes + adopt any native park
         // House test: on backgrounding, schedule a native notification so it lands while suspended.
         if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
           VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
@@ -561,6 +597,7 @@ export function useReturnDetection() {
       console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
       await applyMode(); // apply current state on mount
       await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
+      await mergeNativePark(); // adopt a park the native detector declared before this launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };
