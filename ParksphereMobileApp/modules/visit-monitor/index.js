@@ -148,4 +148,15 @@ export function clearNativePark() {
   return VisitMonitor.clearNativePark();
 }
 
+// ── Native return-watcher control (Build E) ──────────────────────────────────
+// setCarLocation: hand native the car spot so it watches the fix stream for the walk back (distance-
+// based — catches close-parking returns a geofence can't). resetParkDetection: on drive-off/new trip,
+// drop the spot + re-arm park detection. Both are safe no-ops on an un-rebuilt binary.
+export function setCarLocation(latitude, longitude) {
+  return VisitMonitor.setCarLocation(latitude, longitude);
+}
+export function resetParkDetection() {
+  return VisitMonitor.resetParkDetection();
+}
+
 export default VisitMonitor;

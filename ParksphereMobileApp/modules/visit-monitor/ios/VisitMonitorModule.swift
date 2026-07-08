@@ -69,6 +69,22 @@ public class VisitMonitorModule: Module {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_park.json")
   }
+
+  // ── Lean native RETURN-detector (Build E, 2026-07-08) ────────────────────────
+  // Once a park is declared (or JS hands us the car spot), we keep the live session armed while parked
+  // and watch the fix stream for the owner walking back — distance-to-car, no geofence crossing needed,
+  // so it works for CLOSE urban parking (park 70m from your destination) where a geofence can't (you
+  // never leave a 200m ring). The geofence stays only as a robust backup wake. Fires ONE local
+  // notification when: the owner got AWAY from the car, then sustains an APPROACH back toward it.
+  private var carLocation: CLLocation?         // known car spot → phase = watch-for-return (nil = look-for-park)
+  private var returningNotified = false        // fire once per park
+  private var returnMaxDist: Double = 0         // farthest the owner got from the car (the "away" evidence)
+  private var returnApproachRun = 0             // consecutive fixes getting meaningfully closer
+  private var returnPrevDist: Double = -1
+  private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return (works at 70m parking)
+  private static let returnApproachDropM = 3.0   // a fix this much closer than the last = approaching
+  private static let returnRetreatM = 5.0        // a fix this much farther = moving away → reset the run
+  private static let returnApproachNeeded = 3    // sustained approach fixes before firing
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_heartbeat.jsonl")
@@ -240,14 +256,16 @@ public class VisitMonitorModule: Module {
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
           self.firedDriveNotif = false // fresh session → allow one confirmation notification
-          self.parkDriveSeen = false; self.parkStopFix = nil; self.parkDeclared = false // reset park detector
+          // NB: do NOT reset the park/return state here — the session can restart mid-watch (bg↔fg) and
+          // we must preserve a declared park. JS calls resetParkDetection() on drive-off/new trip.
           self.liveTask = Task { [weak self] in
             do {
               for try await update in CLLocationUpdate.liveUpdates() {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
-                self.detectPark(loc) // lean native park-detector — declares the park live in the bg
+                // Phase: no car spot yet → look for a park; car spot known → watch for the walk back.
+                if self.carLocation == nil { self.detectPark(loc) } else { self.detectReturn(loc) }
                 // Build E confirmation: the first time we see clear driving speed, fire a native local
                 // notification. If it surfaces on the lock screen mid-drive, native can alert live in bg.
                 if !self.firedDriveNotif && loc.speed * 3.6 > 6 { // brisk walk+ so an outdoor walk can also test it
@@ -300,6 +318,21 @@ public class VisitMonitorModule: Module {
 
     AsyncFunction("clearNativePark") {
       if let url = self.nativeParkURL { try? FileManager.default.removeItem(at: url) }
+    }
+
+    // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
+    // launch) so native watches for the return even when JS didn't declare the park itself.
+    AsyncFunction("setCarLocation") { (latitude: Double, longitude: Double) in
+      self.beginReturnWatch(at: CLLocation(latitude: latitude, longitude: longitude))
+    }
+
+    // JS calls this on drive-off / spot clear (a new trip): drop the car spot + re-arm park detection.
+    AsyncFunction("resetParkDetection") {
+      self.carLocation = nil
+      self.returningNotified = false
+      self.parkDriveSeen = false
+      self.parkStopFix = nil
+      self.parkDeclared = false
     }
 
     // House test: schedule a native notification `afterSeconds` in the future. Call it, background the
@@ -389,13 +422,43 @@ public class VisitMonitorModule: Module {
     let lat = loc.coordinate.latitude
     let lon = loc.coordinate.longitude
     postLocalNotification(title: "🅿️ Parked", body: "Saved your car's spot (native).")
-    armParkedRegion(lat, lon, 200) // returning geofence — ENTER fires even if JS never wakes
+    armParkedRegion(lat, lon, 200) // returning geofence — backup wake; ENTER fires even if JS never wakes
     logNativeFix(loc, tag: "park", force: true)
+    beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
     let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0]
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
             let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
       try? data.write(to: url)
+    }
+  }
+
+  // Enter the watch-for-return phase around a known car location (from a native park OR a JS handoff).
+  fileprivate func beginReturnWatch(at loc: CLLocation) {
+    carLocation = loc
+    returningNotified = false
+    returnMaxDist = 0
+    returnApproachRun = 0
+    returnPrevDist = -1
+  }
+
+  // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
+  // the owner, having gone AWAY from the car, sustains an APPROACH back toward it — distance-based, so
+  // it works for close parking a geofence can't catch.
+  fileprivate func detectReturn(_ loc: CLLocation) {
+    guard let car = carLocation, !returningNotified else { return }
+    let dist = loc.distance(from: car)
+    if dist > returnMaxDist { returnMaxDist = dist }
+    if returnPrevDist >= 0 {
+      if dist < returnPrevDist - VisitMonitorModule.returnApproachDropM { returnApproachRun += 1 }
+      else if dist > returnPrevDist + VisitMonitorModule.returnRetreatM { returnApproachRun = 0 }
+    }
+    returnPrevDist = dist
+    let isAway = returnMaxDist > VisitMonitorModule.returnAwayThresholdM
+    if isAway && returnApproachRun >= VisitMonitorModule.returnApproachNeeded {
+      returningNotified = true
+      postLocalNotification(title: "🟢 Returning to your car", body: "You're heading back (~\(Int(dist))m away).")
+      logNativeFix(loc, tag: "return", force: true)
     }
   }
 

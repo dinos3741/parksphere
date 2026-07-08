@@ -165,6 +165,7 @@ export function useReturnDetection() {
     let driveSpotSetThisTrip = false; // dedupe: once drive-capture set a precise spot, ignore coarse CLVisit
     let driveTimer = null; // safety: force-end drive-capture if iOS never auto-pauses
     let lastHmmParkAt = 0; // when the HMM last declared a park — so a coarse retroactive fallback yields to it
+    let hasArmedSpot = false; // a car is parked & not yet cleared → keep the native session armed to watch for the return
     const DRIVE_CAPTURE_MAX_MS = 60 * 60 * 1000; // 60 min hard cap
     // Defined in the mode-controller block below (needs applyMode); handlers close over this let and
     // call it after the effect body has run, so the real implementation is in place by then.
@@ -224,15 +225,18 @@ export function useReturnDetection() {
       await log({ src: 'armSpot', source, lat: spot.latitude, lon: spot.longitude });
       console.log(`[Return] spot armed by ${source}:`, JSON.stringify(spot));
       await stopRolling(); // trip's over — the parked-spot geofence takes over from the rolling one
-      // Build D: release the background session on park (applyMode isn't re-run from here).
-      if (BACKGROUND_SESSION_ENABLED && VM?.stopBackgroundSession) {
-        try { await VM.stopBackgroundSession(); await log({ src: 'bgSession', action: 'stop', mode: 'armed' }); } catch (_) {}
-      }
+      // Build E: hand native the car spot and KEEP the live session armed while parked, so native
+      // watches the fix stream for the walk back (distance-based — works for close urban parking a
+      // geofence can't catch). The mode controller keeps 'drive' mode while hasArmedSpot.
+      hasArmedSpot = true;
+      if (VM?.setCarLocation) { try { await VM.setCarLocation(spot.latitude, spot.longitude); } catch (_) {} }
     };
     const clearSpot = async (source) => {
       await AsyncStorage.removeItem(SPOT_KEY);
       await VM.clearGeofence();
       await seedParkedSpot(null); // keep the HMM's PARK_STATE in sync so no stale spot resurfaces
+      hasArmedSpot = false; // trip over → let the session release; re-arm native park detection
+      if (VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
       await log({ src: 'clearSpot', source });
       console.log(`[Return] spot cleared by ${source}`);
     };
@@ -538,7 +542,9 @@ export function useReturnDetection() {
       const applyMode = async () => {
         if (cancelled) return;
         const active = AppState.currentState === 'active';
-        const mode = active ? 'stream' : (driveCaptureActive ? 'drive' : 'off');
+        // Background 'drive' mode holds liveUpdates + the background session. Keep it while a car is
+        // parked (hasArmedSpot) so native watches for the return, not only while actively drive-capturing.
+        const mode = active ? 'stream' : ((driveCaptureActive || hasArmedSpot) ? 'drive' : 'off');
         if (mode === lastMode) return;
         lastMode = mode;
         console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
