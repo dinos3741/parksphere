@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import CoreLocation
+import UserNotifications
 
 // Native CoreLocation monitor for the event-based parking lifecycle. Uses only "monitoring"
 // services (visits + region monitoring), which coexist and survive app suspension/termination —
@@ -47,6 +48,9 @@ public class VisitMonitorModule: Module {
   private let nativeLogQueue = DispatchQueue(label: "com.parksphere.nativelog")
   private var lastNativeLogAt: TimeInterval = 0
   private static let nativeLogThrottleSec: TimeInterval = 3.0
+  // Build E confirmation: fire ONE local notification from native the first time the liveUpdates loop
+  // sees driving speed in a session — proving native can ALERT (not just compute) live in the background.
+  private var firedDriveNotif = false
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_heartbeat.jsonl")
@@ -230,12 +234,20 @@ public class VisitMonitorModule: Module {
         guard self.liveTask == nil else { return }
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
+          self.firedDriveNotif = false // fresh session → allow one confirmation notification
           self.liveTask = Task { [weak self] in
             do {
               for try await update in CLLocationUpdate.liveUpdates() {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
+                // Build E confirmation: the first time we see clear driving speed, fire a native local
+                // notification. If it surfaces on the lock screen mid-drive, native can alert live in bg.
+                if !self.firedDriveNotif && loc.speed * 3.6 > 15 {
+                  self.firedDriveNotif = true
+                  self.postLocalNotification(title: "🔧 Native alive", body: "Detected driving in the background (native Swift).")
+                  self.logNativeFix(loc, tag: "notif", force: true) // mark WHEN it fired (native time) in the heartbeat
+                }
                 self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
               }
             } catch {
@@ -265,13 +277,34 @@ public class VisitMonitorModule: Module {
     AsyncFunction("clearNativeLog") {
       if let url = self.nativeLogURL { try? FileManager.default.removeItem(at: url) }
     }
+
+    // Post a local notification from native on demand (manual confirmation / future native park alert).
+    AsyncFunction("sendLocalNotification") { (title: String, body: String) in
+      self.postLocalNotification(title: title, body: body)
+    }
+  }
+
+  // Post a local notification straight from native code. UNUserNotificationCenter delivers even when
+  // the RN JS thread is suspended, so a native-detected park can alert the user LIVE in the background
+  // — no server, no APNs, no foreground. Shares the app's notification authorization (granted by the JS
+  // expo-notifications init); requests it defensively in case it wasn't.
+  fileprivate func postLocalNotification(title: String, body: String) {
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+      let content = UNMutableNotificationContent()
+      content.title = title
+      content.body = body
+      content.sound = .default
+      let req = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+      center.add(req, withCompletionHandler: nil)
+    }
   }
 
   // Append a native-heartbeat line (throttled) recording that native code ran at wall-clock `now`
   // to process a fix whose GPS time is `gpsMs`. Runs on the liveUpdates Task, off the JS thread.
-  fileprivate func logNativeFix(_ loc: CLLocation, tag: String) {
+  fileprivate func logNativeFix(_ loc: CLLocation, tag: String, force: Bool = false) {
     let nowSec = Date().timeIntervalSince1970
-    if nowSec - lastNativeLogAt < VisitMonitorModule.nativeLogThrottleSec { return }
+    if !force && nowSec - lastNativeLogAt < VisitMonitorModule.nativeLogThrottleSec { return }
     lastNativeLogAt = nowSec
     let entry: [String: Any] = [
       "t": nowSec * 1000.0,                                   // native wall-clock when processed

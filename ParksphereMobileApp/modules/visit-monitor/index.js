@@ -125,4 +125,10 @@ export function clearNativeLog() {
   return VisitMonitor.clearNativeLog();
 }
 
+// Post a local notification straight from native (UNUserNotificationCenter) — delivers even while the
+// JS thread is suspended. Confirmation of live background alerting; foundation of the native park alert.
+export function sendLocalNotification(title, body) {
+  return VisitMonitor.sendLocalNotification(title, body);
+}
+
 export default VisitMonitor;
