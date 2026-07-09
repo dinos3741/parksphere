@@ -62,6 +62,7 @@ public class VisitMonitorModule: Module {
   private static let parkDriveSpeedMS = 4.0    // ~14.4 km/h — clearly driving
   private static let parkStopRadiusM = 40.0    // GPS noise + parking maneuver
   private static let parkStopConfirmSec = 120.0 // sustained stillness to beat a long traffic light
+  private static let parkRearmDistM = 150.0     // drove >this from the car at speed ⇒ new trip ⇒ re-arm park detection
   private var nativeParkURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_park.json")
@@ -273,8 +274,17 @@ public class VisitMonitorModule: Module {
                 guard let self = self, let loc = update.location else { continue }
                 self.lastLiveFix = loc // freshest fix for the BT-disconnect park (manager.location is stale under liveUpdates)
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
-                // Phase: no car spot yet → look for a park; car spot known → watch for the walk back.
-                if self.carLocation == nil { self.detectPark(loc) } else { self.detectReturn(loc) }
+                // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
+                // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
+                if self.carLocation == nil {
+                  self.detectPark(loc)
+                } else if self.isDriveAwayFromCar(loc) {
+                  self.logNativeFix(loc, tag: "rearm", force: true)
+                  self.rearmParkDetection()
+                  self.detectPark(loc)
+                } else {
+                  self.detectReturn(loc)
+                }
                 self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
               }
             } catch {
@@ -330,11 +340,7 @@ public class VisitMonitorModule: Module {
 
     // JS calls this on drive-off / spot clear (a new trip): drop the car spot + re-arm park detection.
     AsyncFunction("resetParkDetection") {
-      self.carLocation = nil
-      self.returningNotified = false
-      self.parkDriveSeen = false
-      self.parkStopFix = nil
-      self.parkDeclared = false
+      self.rearmParkDetection()
       self.carBtTripSeen = (self.firstCarPort() != nil) // re-seed: still in the car ⇒ still a trip
     }
 
@@ -486,6 +492,23 @@ public class VisitMonitorModule: Module {
     let s = AVAudioSession.sharedInstance()
     return s.currentRoute.outputs.contains { VisitMonitorModule.isCarPort($0.portType) } ||
            s.currentRoute.inputs.contains { VisitMonitorModule.isCarPort($0.portType) }
+  }
+
+  // Re-arm park detection natively (a new trip started). Used when the owner drives away from the
+  // parked car, so multi-trip days work WITHOUT JS (suspended between trips). carBtTripSeen is left as
+  // is (still in the car ⇒ still a trip); the JS resetParkDetection re-seeds it from the live route.
+  private func rearmParkDetection() {
+    carLocation = nil
+    returningNotified = false
+    parkDriveSeen = false
+    parkStopFix = nil
+    parkDeclared = false
+  }
+
+  // Owner is driving clearly away from the parked car ⇒ a new trip → time to re-arm park detection.
+  private func isDriveAwayFromCar(_ loc: CLLocation) -> Bool {
+    guard let car = carLocation else { return false }
+    return loc.speed >= VisitMonitorModule.parkDriveSpeedMS && loc.distance(from: car) > VisitMonitorModule.parkRearmDistM
   }
 
   // Enter the watch-for-return phase around a known car location (from a native park OR a JS handoff).
