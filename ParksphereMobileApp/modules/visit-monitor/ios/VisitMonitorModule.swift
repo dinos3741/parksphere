@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import CoreLocation
 import UserNotifications
+import AVFoundation
 
 // Native CoreLocation monitor for the event-based parking lifecycle. Uses only "monitoring"
 // services (visits + region monitoring), which coexist and survive app suspension/termination —
@@ -81,6 +82,18 @@ public class VisitMonitorModule: Module {
   private static let returnApproachDropM = 3.0   // a fix this much closer than the last = approaching
   private static let returnRetreatM = 5.0        // a fix this much farther = moving away → reset the run
   private static let returnApproachNeeded = 3    // sustained approach fixes before firing
+
+  // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
+  // Mirrors CarAudioModule's route detection but runs IN VisitMonitor so it works in the background
+  // (CarAudio's onCarConnectionChange goes to JS, which is suspended). When the car audio disconnects
+  // (engine off) after we've driven, declare the park INSTANTLY at the last fix — Apple's parked-car
+  // trick — instead of waiting out the 120s stop heuristic. The stop-detector stays as the fallback for
+  // cars that don't connect BT. BT can't WAKE a suspended app, but our live session keeps native alive
+  // through the drive so we catch the disconnect. Detects .bluetoothHFP / .carAudio (excludes A2DP
+  // headphones). Session config mirrors CarAudio (mic usage is declared); idempotent if both run.
+  private var carBtObserver: NSObjectProtocol?
+  private var carBtTripSeen = false        // a car connected during this trip (confidence/logging)
+  private var lastLiveFix: CLLocation?     // most recent liveUpdates fix — the BT-park location source
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_heartbeat.jsonl")
@@ -258,6 +271,7 @@ public class VisitMonitorModule: Module {
               for try await update in CLLocationUpdate.liveUpdates() {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
+                self.lastLiveFix = loc // freshest fix for the BT-disconnect park (manager.location is stale under liveUpdates)
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
                 // Phase: no car spot yet → look for a park; car spot known → watch for the walk back.
                 if self.carLocation == nil { self.detectPark(loc) } else { self.detectReturn(loc) }
@@ -321,6 +335,7 @@ public class VisitMonitorModule: Module {
       self.parkDriveSeen = false
       self.parkStopFix = nil
       self.parkDeclared = false
+      self.carBtTripSeen = (self.firstCarPort() != nil) // re-seed: still in the car ⇒ still a trip
     }
 
     // House test: schedule a native notification `afterSeconds` in the future. Call it, background the
@@ -406,19 +421,71 @@ public class VisitMonitorModule: Module {
 
   // A park is confirmed: alert the user, arm the returning geofence, and persist the spot for JS — all
   // native, so it works with the JS thread suspended. JS reconciles native_park.json on next foreground.
-  private func declarePark(at loc: CLLocation) {
+  private func declarePark(at loc: CLLocation, source: String = "stop") {
     let lat = loc.coordinate.latitude
     let lon = loc.coordinate.longitude
     postLocalNotification(title: "🅿️ Parked", body: "Saved your car's spot (native).")
     armParkedRegion(lat, lon, 200) // returning geofence — backup wake; ENTER fires even if JS never wakes
-    logNativeFix(loc, tag: "park", force: true)
+    logNativeFix(loc, tag: "park-\(source)", force: true) // source = stop | bt (heartbeat diagnostics)
     beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
-    let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0]
+    let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source]
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
             let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
       try? data.write(to: url)
     }
+  }
+
+  // ── Native BT car-audio detection (mirrors CarAudioModule; runs in the bg where JS can't) ────────
+  // Configure the shared session so car ports surface (setCategory doesn't prompt/require the audio bg
+  // mode — we only READ the route), seed the current state, and observe route changes. Registered once.
+  private func setupCarBtObserver() {
+    if carBtObserver != nil { return }
+    try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.allowBluetooth, .mixWithOthers, .defaultToSpeaker])
+    carBtTripSeen = (firstCarPort() != nil)
+    carBtObserver = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+    ) { [weak self] note in self?.handleCarRouteChange(note) }
+  }
+
+  private func handleCarRouteChange(_ note: Notification) {
+    guard let info = note.userInfo,
+          let reasonV = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonV) else { return }
+    switch reason {
+    case .newDeviceAvailable:
+      guard firstCarPort() != nil else { return }         // car connected → a car trip is underway
+      carBtTripSeen = true
+      if let loc = lastLiveFix { logNativeFix(loc, tag: "btConnect", force: true) }
+    case .oldDeviceUnavailable:
+      // Car audio dropped (engine off). If we drove and haven't parked yet, declare the park NOW at the
+      // last fix — the fast path. Requires parkDriveSeen so sitting in the car + turning it off (no
+      // drive) can't false-park. Falls back to the 120s stop-detector if there's no fix or we didn't drive.
+      guard let prev = info[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription,
+            (prev.outputs + prev.inputs).contains(where: { VisitMonitorModule.isCarPort($0.portType) }),
+            !routeHasCar() else { return }
+      if parkDriveSeen && carLocation == nil, let loc = lastLiveFix {
+        declarePark(at: loc, source: "bt")
+      } else if let loc = lastLiveFix {
+        logNativeFix(loc, tag: "btDisconnect", force: true)
+      }
+    default: break
+    }
+  }
+
+  private static func isCarPort(_ port: AVAudioSession.Port) -> Bool {
+    return port == .bluetoothHFP || port == .carAudio // excludes .bluetoothA2DP (headphones)
+  }
+  private func firstCarPort() -> AVAudioSessionPortDescription? {
+    let s = AVAudioSession.sharedInstance()
+    if let o = s.currentRoute.outputs.first(where: { VisitMonitorModule.isCarPort($0.portType) }) { return o }
+    if let i = s.currentRoute.inputs.first(where: { VisitMonitorModule.isCarPort($0.portType) }) { return i }
+    return s.availableInputs?.first { VisitMonitorModule.isCarPort($0.portType) }
+  }
+  private func routeHasCar() -> Bool {
+    let s = AVAudioSession.sharedInstance()
+    return s.currentRoute.outputs.contains { VisitMonitorModule.isCarPort($0.portType) } ||
+           s.currentRoute.inputs.contains { VisitMonitorModule.isCarPort($0.portType) }
   }
 
   // Enter the watch-for-return phase around a known car location (from a native park OR a JS handoff).
@@ -541,6 +608,7 @@ public class VisitMonitorModule: Module {
     m.allowsBackgroundLocationUpdates = true
     self.delegateProxy = proxy
     self.manager = m
+    self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
   }
 }
 
