@@ -280,6 +280,20 @@ export function useReturnDetection() {
       } catch (e) { console.warn('[Return] mergeNativeLog failed (rebuild?):', e?.message); }
     };
 
+    // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
+    // Pull the authoritative state native maintained in the background and log it (validation for now;
+    // R3 wires it into the UI). Confirms native's classification (driving/stopped/parked/returning).
+    const readNativeState = async () => {
+      if (!VM?.readNativeState) return;
+      try {
+        const raw = await VM.readNativeState();
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
+        console.log('[Return] native current-state:', raw);
+      } catch (e) { console.warn('[Return] readNativeState failed (rebuild?):', e?.message); }
+    };
+
     // ── Native park reconciliation (Build E) ─────────────────────────────────────────────────────
     // The native park-detector declared a park (fired the notification + armed the geofence natively)
     // while the JS thread was suspended. On foreground, adopt that spot into the shared JS stores
@@ -593,7 +607,7 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') { mergeNativeLog(); mergeNativePark(); } // fold in native fixes + adopt any native park
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); } // fold in native fixes + adopt park + read state
         // House test: on backgrounding, schedule a native notification so it lands while suspended.
         if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
           VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
@@ -607,6 +621,7 @@ export function useReturnDetection() {
       await applyMode(); // apply current state on mount
       await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
       await mergeNativePark(); // adopt a park the native detector declared before this launch
+      await readNativeState(); // R1: log native's authoritative current-state on launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };

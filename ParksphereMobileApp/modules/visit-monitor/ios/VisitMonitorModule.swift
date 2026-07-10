@@ -2,6 +2,7 @@ import ExpoModulesCore
 import CoreLocation
 import UserNotifications
 import AVFoundation
+import CoreMotion
 
 // Native CoreLocation monitor for the event-based parking lifecycle. Uses only "monitoring"
 // services (visits + region monitoring), which coexist and survive app suspension/termination —
@@ -97,6 +98,21 @@ public class VisitMonitorModule: Module {
   private var carBtTripSeen = false        // a car connected during this trip (confidence/logging)
   private var lastBtPollAt: TimeInterval = 0
   private var lastLiveFix: CLLocation?     // most recent liveUpdates fix — the BT-park location source
+
+  // ── Native current-state (R1, 2026-07-11) ────────────────────────────────────
+  // ONE authoritative state native maintains + persists, so the foreground shows the TRUE state
+  // instantly (in sync) instead of re-deriving it (stale flash). Activity from CMMotionActivity (the
+  // coprocessor; native is alive under the session so it can stream live in bg), fused with speed + the
+  // park/return lifecycle (carLocation/parkDriveSeen/returningNotified). Persisted to native_state.json;
+  // JS adopts it on foreground (R3). Coarse now; R2 adds the graded returning confidence.
+  private let activityManager = CMMotionActivityManager()
+  private var currentActivity = "unknown"    // automotive|cycling|walking|running|stationary|unknown
+  private var currentState = "idle"          // idle|driving|stopped|walking|parked|returning
+  private var currentStateSince: TimeInterval = 0
+  private var nativeStateURL: URL? {
+    FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("native_state.json")
+  }
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_heartbeat.jsonl")
@@ -294,6 +310,7 @@ public class VisitMonitorModule: Module {
                 } else {
                   self.detectReturn(loc)
                 }
+                self.recomputeState() // R1: keep the authoritative current-state fresh per fix
                 self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
               }
             } catch {
@@ -339,6 +356,14 @@ public class VisitMonitorModule: Module {
 
     AsyncFunction("clearNativePark") {
       if let url = self.nativeParkURL { try? FileManager.default.removeItem(at: url) }
+    }
+
+    // R1: the authoritative current-state {state, activity, since, t}. JS reads it on foreground to show
+    // the true state instantly (in sync with the background), then refines it live (R3).
+    AsyncFunction("readNativeState") { () -> String in
+      guard let url = self.nativeStateURL,
+            let s = try? String(contentsOf: url, encoding: .utf8) else { return "" }
+      return s
     }
 
     // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
@@ -448,6 +473,7 @@ public class VisitMonitorModule: Module {
     armParkedRegion(lat, lon, 200) // returning geofence — backup wake; ENTER fires even if JS never wakes
     logNativeFix(loc, tag: "park-\(source)", force: true) // source = stop | bt (heartbeat diagnostics)
     beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
+    recomputeState() // → parked, immediately
     let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source]
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
@@ -504,6 +530,62 @@ public class VisitMonitorModule: Module {
     }
   }
 
+  // ── Native current-state (R1) ────────────────────────────────────────────────
+  // Stream motion activity from the coprocessor (live while native is alive). Each change re-derives
+  // the authoritative current-state. If unavailable, state falls back to speed + lifecycle only.
+  private func startActivityUpdatesIfAvailable() {
+    guard CMMotionActivityManager.isActivityAvailable() else { return }
+    activityManager.startActivityUpdates(to: .main) { [weak self] activity in
+      guard let self = self, let a = activity else { return }
+      let label: String
+      if a.automotive { label = "automotive" }
+      else if a.cycling { label = "cycling" }
+      else if a.running { label = "running" }
+      else if a.walking { label = "walking" }
+      else if a.stationary { label = "stationary" }
+      else { label = "unknown" }
+      if label != self.currentActivity { self.currentActivity = label; self.recomputeState() }
+    }
+  }
+
+  // Derive the single authoritative state from the park/return lifecycle + motion activity + speed.
+  // Persists + logs only on a real change. Called from the fix loop, the activity handler, and every
+  // lifecycle transition (park/return/rearm), so native_state.json always holds the true current state.
+  fileprivate func recomputeState() {
+    let spdKmh = (lastLiveFix?.speed ?? -1) * 3.6
+    let newState: String
+    if carLocation != nil {
+      newState = returningNotified ? "returning" : "parked"        // parked lifecycle owns the state
+    } else if currentActivity == "automotive" || currentActivity == "cycling" || spdKmh > 12 {
+      newState = "driving"
+    } else if currentActivity == "walking" || currentActivity == "running" {
+      newState = "walking"
+    } else if parkDriveSeen && (currentActivity == "stationary" || (spdKmh >= 0 && spdKmh < 4)) {
+      newState = "stopped"                                          // drove, now still (maybe about to park)
+    } else {
+      newState = "idle"
+    }
+    if newState == currentState { return }
+    currentState = newState
+    currentStateSince = Date().timeIntervalSince1970
+    persistState()
+    if let loc = lastLiveFix { logNativeFix(loc, tag: "state:\(newState)", force: true) }
+  }
+
+  private func persistState() {
+    let entry: [String: Any] = [
+      "state": currentState,
+      "activity": currentActivity,
+      "since": currentStateSince * 1000.0,
+      "t": Date().timeIntervalSince1970 * 1000.0
+    ]
+    nativeLogQueue.async { [weak self] in
+      guard let self = self, let url = self.nativeStateURL,
+            let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
+      try? data.write(to: url)
+    }
+  }
+
   private static func isCarPort(_ port: AVAudioSession.Port) -> Bool {
     return port == .bluetoothHFP || port == .carAudio // excludes .bluetoothA2DP (headphones)
   }
@@ -528,6 +610,7 @@ public class VisitMonitorModule: Module {
     parkDriveSeen = false
     parkStopFix = nil
     parkDeclared = false
+    recomputeState() // → driving/idle, the new trip
   }
 
   // Owner is driving clearly away from the parked car ⇒ a new trip → time to re-arm park detection.
@@ -562,6 +645,7 @@ public class VisitMonitorModule: Module {
       returningNotified = true
       postLocalNotification(title: "🟢 Returning to your car", body: "You're heading back (~\(Int(dist))m away).")
       logNativeFix(loc, tag: "return", force: true)
+      recomputeState() // → returning, immediately
     }
   }
 
@@ -657,6 +741,7 @@ public class VisitMonitorModule: Module {
     self.delegateProxy = proxy
     self.manager = m
     self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
+    self.startActivityUpdatesIfAvailable() // R1: motion activity → authoritative current-state
   }
 }
 

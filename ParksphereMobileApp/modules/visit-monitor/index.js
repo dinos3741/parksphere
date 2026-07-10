@@ -148,6 +148,13 @@ export function clearNativePark() {
   return VisitMonitor.clearNativePark();
 }
 
+// ── Native current-state (R1) ────────────────────────────────────────────────
+// The authoritative {state, activity, since, t} native maintains in the background. JS reads it on
+// foreground to display the TRUE current state instantly (in sync), instead of re-deriving it.
+export function readNativeState() {
+  return VisitMonitor.readNativeState();
+}
+
 // ── Native return-watcher control (Build E) ──────────────────────────────────
 // setCarLocation: hand native the car spot so it watches the fix stream for the walk back (distance-
 // based — catches close-parking returns a geofence can't). resetParkDetection: on drive-off/new trip,
