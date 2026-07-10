@@ -343,8 +343,13 @@ public class VisitMonitorModule: Module {
 
     // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
     // launch) so native watches for the return even when JS didn't declare the park itself.
+    // DEDUPE: if we're already watching this same spot, DON'T re-arm — beginReturnWatch resets
+    // returningNotified, so re-arming on a foreground reconciliation of the SAME spot re-fires an
+    // already-delivered return (the 2026-07-09 double-return). Only (re)arm for a genuinely new location.
     AsyncFunction("setCarLocation") { (latitude: Double, longitude: Double) in
-      self.beginReturnWatch(at: CLLocation(latitude: latitude, longitude: longitude))
+      let loc = CLLocation(latitude: latitude, longitude: longitude)
+      if let car = self.carLocation, car.distance(from: loc) < VisitMonitorModule.parkStopRadiusM { return }
+      self.beginReturnWatch(at: loc)
     }
 
     // JS calls this on drive-off / spot clear (a new trip): drop the car spot + re-arm park detection.
