@@ -292,6 +292,9 @@ export function useReturnDetection() {
         const p = JSON.parse(raw);
         if (typeof p?.lat !== 'number' || typeof p?.lon !== 'number') return;
         const spot = { latitude: p.lat, longitude: p.lon, accuracy: p.acc };
+        // The native spot is authoritative on foreground — mirror it to the map immediately (whether or
+        // not we re-arm below), so the map shows the real last state, not the churn-then-clear.
+        DeviceEventEmitter.emit('nativeSpotAdopted', spot);
         const existing = await AsyncStorage.getItem(SPOT_KEY);
         if (existing) {
           const s = JSON.parse(existing);

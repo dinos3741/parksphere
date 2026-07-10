@@ -7,6 +7,12 @@ import { visitMonitorToLocation } from '../utils/visitMonitorAdapter';
 import { useBluetoothMonitoring } from './useBluetoothMonitoring';
 
 const PARK_STATE_KEY = 'PARK_STATE';
+// Native now owns ALL background detection (park-bt/park-stop/return/rearm in VisitMonitor). When the
+// app foregrounds after a background drive, iOS flushes the whole buffered fix history at once; feeding
+// that to the HMM re-derives the trip and CHURNS the map (arm/clear/arm…, often ending cleared) and
+// fast-forwards notifications — all redundant. A LIVE foreground fix is a few seconds old; a buffered
+// flush is minutes/hours old. Skip any batch whose newest fix is older than this.
+const BATCH_STALE_MS = 45 * 1000;
 
 // VisitMonitor is the single CoreLocation owner and the HMM's location source. Its on-demand stream
 // is turned ON/OFF by the mode controller in useReturnDetection (foreground only, for now); here we
@@ -42,8 +48,13 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') syncSpotToMap();
     });
+    // When useReturnDetection adopts the authoritative native park on foreground, mirror it to the map
+    // immediately (don't wait for the next 'active' sync, and it's the last state after the churn fix).
+    const nativeSub = DeviceEventEmitter.addListener('nativeSpotAdopted', (spot) => {
+      if (spot && setParkedLocation) setParkedLocation(spot);
+    });
     syncSpotToMap(); // also run once on mount
-    return () => { try { sub?.remove(); } catch (_) {} };
+    return () => { try { sub?.remove(); } catch (_) {} try { nativeSub?.remove(); } catch (_) {} };
   }, [setParkedLocation]);
 
   useEffect(() => {
@@ -65,8 +76,16 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     // + historical activity backfill) and cold-inits the engine if this is a fresh background wake.
     if (VM) {
       locationSub = VM.addLocationBatchListener((batch) => {
-        const locations = (batch?.locations || []).map(visitMonitorToLocation);
-        feedLocationBatch(locations).catch((e) =>
+        const raw = batch?.locations || [];
+        if (!raw.length) return;
+        // Skip a stale buffered flush (the background drive iOS delivers all at once on foreground) —
+        // native already detected everything live; replaying it just churns the map + notifications.
+        const newestTs = raw[raw.length - 1]?.timestamp || 0;
+        if (Date.now() - newestTs > BATCH_STALE_MS) {
+          console.log(`[useParkDetectionEngine] skipped stale buffered batch (${raw.length} fixes; native owns bg detection)`);
+          return;
+        }
+        feedLocationBatch(raw.map(visitMonitorToLocation)).catch((e) =>
           console.warn('[useParkDetectionEngine] feedLocationBatch failed:', e?.message)
         );
       });
