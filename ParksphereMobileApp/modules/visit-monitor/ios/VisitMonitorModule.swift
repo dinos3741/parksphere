@@ -93,7 +93,9 @@ public class VisitMonitorModule: Module {
   // through the drive so we catch the disconnect. Detects .bluetoothHFP / .carAudio (excludes A2DP
   // headphones). Session config mirrors CarAudio (mic usage is declared); idempotent if both run.
   private var carBtObserver: NSObjectProtocol?
+  private var carBtConnected = false       // current car-audio route state (edge-detected)
   private var carBtTripSeen = false        // a car connected during this trip (confidence/logging)
+  private var lastBtPollAt: TimeInterval = 0
   private var lastLiveFix: CLLocation?     // most recent liveUpdates fix — the BT-park location source
   private var nativeLogURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
@@ -273,6 +275,13 @@ public class VisitMonitorModule: Module {
                 if Task.isCancelled { break }
                 guard let self = self, let loc = update.location else { continue }
                 self.lastLiveFix = loc // freshest fix for the BT-disconnect park (manager.location is stale under liveUpdates)
+                // Poll the BT state (reason-agnostic disconnect catcher), throttled; on main to avoid a
+                // race with the route-change observer that also drives the edge detector.
+                let btNow = Date().timeIntervalSince1970
+                if btNow - self.lastBtPollAt > 3.0 {
+                  self.lastBtPollAt = btNow
+                  DispatchQueue.main.async { self.refreshCarBt(reason: "poll") }
+                }
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
                 // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
                 // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
@@ -448,7 +457,8 @@ public class VisitMonitorModule: Module {
   private func setupCarBtObserver() {
     if carBtObserver != nil { return }
     try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.allowBluetooth, .mixWithOthers, .defaultToSpeaker])
-    carBtTripSeen = (firstCarPort() != nil)
+    carBtConnected = (firstCarPort() != nil)
+    carBtTripSeen = carBtConnected
     carBtObserver = NotificationCenter.default.addObserver(
       forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
     ) { [weak self] note in self?.handleCarRouteChange(note) }
@@ -456,26 +466,36 @@ public class VisitMonitorModule: Module {
 
   private func handleCarRouteChange(_ note: Notification) {
     guard let info = note.userInfo,
-          let reasonV = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
-          let reason = AVAudioSession.RouteChangeReason(rawValue: reasonV) else { return }
-    switch reason {
-    case .newDeviceAvailable:
-      guard firstCarPort() != nil else { return }         // car connected → a car trip is underway
+          let reasonV = info[AVAudioSessionRouteChangeReasonKey] as? UInt else { return }
+    // Diagnostic: log every route change that touches a car port (prev or now), so the next field test
+    // reveals the car's real disconnect behavior — the reason code + whether a car port lingered.
+    // Field 2026-07-09 saw 3 connects, 0 disconnects: the disconnect happened (it reconnected) but the
+    // old .oldDeviceUnavailable + !routeHasCar() path missed it (likely a lingering HFP input / odd reason).
+    let prev = info[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription
+    let carPrev = prev.map { ($0.outputs + $0.inputs).contains { VisitMonitorModule.isCarPort($0.portType) } } ?? false
+    let carNow = routeHasCar()
+    if (carPrev || carNow), let loc = lastLiveFix {
+      logNativeFix(loc, tag: "btRoute:r\(reasonV):p\(carPrev ? 1 : 0):n\(carNow ? 1 : 0)", force: true)
+    }
+    refreshCarBt(reason: "r\(reasonV)")
+  }
+
+  // Reason-agnostic BT edge detector. `connected` = a car port in the route (firstCarPort). Called from
+  // the route-change observer AND polled in the liveUpdates loop, so a disconnect is caught however the
+  // route ends up. On a disconnect after driving (parkDriveSeen, not yet parked) → the fast-path park;
+  // the parkDriveSeen gate stops a sit-in-car-and-turn-off false park. Idempotent (acts only on change).
+  private func refreshCarBt(reason: String) {
+    let now = (firstCarPort() != nil)
+    if now == carBtConnected { return }
+    carBtConnected = now
+    guard let loc = lastLiveFix else { return }
+    if now {
       carBtTripSeen = true
-      if let loc = lastLiveFix { logNativeFix(loc, tag: "btConnect", force: true) }
-    case .oldDeviceUnavailable:
-      // Car audio dropped (engine off). If we drove and haven't parked yet, declare the park NOW at the
-      // last fix — the fast path. Requires parkDriveSeen so sitting in the car + turning it off (no
-      // drive) can't false-park. Falls back to the 120s stop-detector if there's no fix or we didn't drive.
-      guard let prev = info[AVAudioSessionRouteChangePreviousRouteKey] as? AVAudioSessionRouteDescription,
-            (prev.outputs + prev.inputs).contains(where: { VisitMonitorModule.isCarPort($0.portType) }),
-            !routeHasCar() else { return }
-      if parkDriveSeen && carLocation == nil, let loc = lastLiveFix {
-        declarePark(at: loc, source: "bt")
-      } else if let loc = lastLiveFix {
-        logNativeFix(loc, tag: "btDisconnect", force: true)
-      }
-    default: break
+      logNativeFix(loc, tag: "btConnect:\(reason)", force: true)
+    } else if parkDriveSeen && carLocation == nil {
+      declarePark(at: loc, source: "bt")
+    } else {
+      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true)
     }
   }
 
