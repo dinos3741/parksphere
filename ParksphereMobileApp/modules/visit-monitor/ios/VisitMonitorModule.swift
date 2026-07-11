@@ -49,7 +49,10 @@ public class VisitMonitorModule: Module {
   // with a huge `t - gps` delta. Written to a JSON-lines file in Documents; JS merges it on foreground.
   private let nativeLogQueue = DispatchQueue(label: "com.parksphere.nativelog")
   private var lastNativeLogAt: TimeInterval = 0
-  private static let nativeLogThrottleSec: TimeInterval = 3.0
+  private static let nativeLogThrottleSec: TimeInterval = 30.0 // was 3s (Build-E liveness proof); 30s keeps
+  // the 5000-cap heartbeat from evicting the meaningful tagged events (park/return/state/rearm) on a
+  // multi-hour trip — 2026-07-11's 4.5h trip lost its whole first half to 2394 'live' entries. Forced
+  // tag logs (park/return/state/rearm/bt) bypass this throttle, so nothing important is lost.
   // ── Lean native park-detector (Build E, 2026-07-08) ──────────────────────────
   // Runs in the liveUpdates loop (proven to execute LIVE in the background while JS sleeps). Declares a
   // park from the fix stream — no HMM — using: saw driving, then stayed within a small radius, slow, for

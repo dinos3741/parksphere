@@ -64,6 +64,10 @@ const HOUSE_TEST_DELAY_SEC = 15;
 // are redundant and, on foreground, replay stale duplicate "🅿️ Parked (recovered)" notifications for
 // parks native already caught (seen 2026-07-11: 2 spurious recovered on the gym trip). Suppress them.
 const NATIVE_OWNS_PARK = true;
+// Native R2 owns returning detection (graded SOFT/COMMIT). The legacy JS geofence-ENTER "🟢 Returning"
+// is redundant and replays a spurious returning on foreground when buffered — suppress it (the geofence
+// stays armed as a wake backup). Analog of NATIVE_OWNS_PARK.
+const NATIVE_OWNS_RETURN = true;
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
@@ -479,7 +483,11 @@ export function useReturnDetection() {
         await log({ src: 'geofence', type: g?.type });
         console.log('[Return] geofence:', JSON.stringify(g));
         if (g?.type === 'enter') {
-          await notifyUser('🟢 Returning', `you're near your car @ ${ts}`);
+          // Native R2 owns returning now (graded SOFT/COMMIT via distance-to-car). This legacy
+          // geofence-ENTER notification is redundant and, buffered, replays a spurious "Returning" on
+          // foreground (seen 2026-07-11 after parking home an hour). Keep the geofence as a wake backup
+          // but don't fire the JS alert. See NATIVE_OWNS_PARK for the parking analog.
+          if (!NATIVE_OWNS_RETURN) await notifyUser('🟢 Returning', `you're near your car @ ${ts}`);
         } else if (g?.type === 'exit') {
           // Distinguish driving off (spot free) from walking away to a destination (spot still taken).
           // Unknown speed (null) must NOT clear the spot — a missing reading on an exit-while-walking
