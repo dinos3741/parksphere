@@ -59,6 +59,11 @@ const ROLLING_FENCE_ENABLED = false;     // (Build C) off — iOS throttles rapi
 // Set false once confirmed (it would nag on every background otherwise).
 const NATIVE_NOTIF_HOUSE_TEST = false; // confirmed 2026-07-08 (native → lock-screen delivery works)
 const HOUSE_TEST_DELAY_SEC = 15;
+// Native now OWNS background park detection (park-bt/park-stop in VisitMonitor) and JS adopts it via
+// mergeNativePark. The legacy JS CLVisit arrival park paths (coarse 'clvisit' + buffered 'clvisit-retro')
+// are redundant and, on foreground, replay stale duplicate "🅿️ Parked (recovered)" notifications for
+// parks native already caught (seen 2026-07-11: 2 spurious recovered on the gym trip). Suppress them.
+const NATIVE_OWNS_PARK = true;
 const ROLLING_FENCE_RADIUS = 400;        // metres (Build C) — finer than SLC's ~500m, coarse enough to dodge the throttle
 
 // #3 Retroactive park thresholds. A CLVisit arrival whose arrivalDate is well in the past is a
@@ -382,6 +387,10 @@ export function useReturnDetection() {
           return;
         }
         if (v?.type === 'arrival') {
+          // Native owns background parks now (park-bt/park-stop) and JS adopts them via mergeNativePark,
+          // so the JS CLVisit park paths below are redundant — and on foreground they replay stale
+          // duplicate "Parked (recovered)" notifications. Skip them (keep the visit log above for diagnostics).
+          if (NATIVE_OWNS_PARK) return;
           const spot = { latitude: v.latitude, longitude: v.longitude, accuracy: v.accuracy };
           const arrivalAgeMs = v?.arrival ? Date.now() - v.arrival : null;
           const buffered = arrivalAgeMs !== null && arrivalAgeMs > STALE_ARRIVAL_MS;
