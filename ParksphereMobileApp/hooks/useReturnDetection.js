@@ -298,6 +298,9 @@ export function useReturnDetection() {
         const raw = await VM.readNativeState();
         if (!raw) return;
         const s = JSON.parse(raw);
+        // R3: seed the UI with native's authoritative state so the overlay shows the TRUE state instantly
+        // on foreground (no INITIALIZING/stale flash), then the live HMM refines it.
+        DeviceEventEmitter.emit('nativeCurrentState', s);
         await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
         console.log('[Return] native current-state:', raw);
       } catch (e) { console.warn('[Return] readNativeState failed (rebuild?):', e?.message); }

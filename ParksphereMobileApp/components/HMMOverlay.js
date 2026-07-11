@@ -15,6 +15,10 @@ const HMMOverlay = ({ isVisible }) => {
     metrics: {}
   });
 
+  // R3: native's authoritative current-state (persisted in the background), read on foreground. Shown
+  // until the live HMM produces a real (non-INITIALIZING) state, so foreground is in sync instantly.
+  const [nativeState, setNativeState] = useState(null);
+
   const [isRecording, setIsRecording] = useState(false);
   const blinkAnim = useRef(new Animated.Value(1)).current;
 
@@ -62,10 +66,20 @@ const HMMOverlay = ({ isVisible }) => {
     const subscription = DeviceEventEmitter.addListener('parkDetectionDetailedUpdate', (data) => {
       setHmmStatus(data);
     });
-    return () => subscription.remove();
+    // R3: seed from native's authoritative state on foreground (in sync, no stale flash).
+    const nativeSub = DeviceEventEmitter.addListener('nativeCurrentState', (s) => {
+      if (s?.state) setNativeState(String(s.state).toUpperCase());
+    });
+    return () => { subscription.remove(); nativeSub.remove(); };
   }, []);
 
   if (!isVisible) return null;
+
+  // Show the live HMM state once it's real; until then (foreground resume / cold HMM) show native's
+  // authoritative state so the user always sees the TRUE current state, in sync with the background.
+  const displayState = (hmmStatus.state && hmmStatus.state !== 'INITIALIZING')
+    ? hmmStatus.state
+    : (nativeState || hmmStatus.state);
 
   const getZoneColor = (zone) => {
     switch (zone) {
@@ -107,7 +121,7 @@ const HMMOverlay = ({ isVisible }) => {
           </Animated.View>
         )}
       </View>
-      <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{hmmStatus.state}</Text></Text>
+      <Text style={styles.statusText}>State: <Text style={styles.statusValue}>{displayState}</Text></Text>
       <Text style={styles.statusText}>Conf: <Text style={styles.statusValue}>{Math.round(hmmStatus.confidence * 100)}%</Text></Text>
       <Text style={styles.statusText}>Sensor: <Text style={styles.statusValue}>{getMotionText()}</Text></Text>
       {Platform.OS === 'android' && (
