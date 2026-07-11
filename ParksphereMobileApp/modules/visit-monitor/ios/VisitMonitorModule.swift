@@ -75,15 +75,25 @@ public class VisitMonitorModule: Module {
   // so it works for CLOSE urban parking (park 70m from your destination) where a geofence can't (you
   // never leave a 200m ring). The geofence stays only as a robust backup wake. Fires ONE local
   // notification when: the owner got AWAY from the car, then sustains an APPROACH back toward it.
-  private var carLocation: CLLocation?         // known car spot → phase = watch-for-return (nil = look-for-park)
-  private var returningNotified = false        // fire once per park
-  private var returnMaxDist: Double = 0         // farthest the owner got from the car (the "away" evidence)
-  private var returnApproachRun = 0             // consecutive fixes getting meaningfully closer
-  private var returnPrevDist: Double = -1
-  private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return (works at 70m parking)
-  private static let returnApproachDropM = 3.0   // a fix this much closer than the last = approaching
-  private static let returnRetreatM = 5.0        // a fix this much farther = moving away → reset the run
-  private static let returnApproachNeeded = 3    // sustained approach fixes before firing
+  private var carLocation: CLLocation?          // known car spot → phase = watch-for-return (nil = look-for-park)
+  private var returningNotified = false         // returning signalled (SOFT or COMMIT) — used by state + reset
+  private var returnMaxDist: Double = 0          // farthest the owner got from the car (the "away" gate)
+  // R2 graded returning: EMA-smoothed GEOMETRY confidence (heading-toward-car alignment, sustained) +
+  // distance-weighted returnBoundary (ported from returnBoundary.js). SOFT = "freeing soon", COMMIT
+  // (sustained) = "vacating now" + ETA. Confidence updates ONLY on real movement (>returnMinMoveM) so
+  // stationary GPS jitter near the car can't fire it (the 2026-07-11 premature return at 40m). Replaces
+  // the lean "3 sustained-approach fixes" trigger. No ML (geometry-first per the 2026-07-11 revision).
+  private var returnPrevFix: CLLocation?
+  private var returnSmoothedConf: Double = 0
+  private var returnSoftFired = false
+  private var returnCommitFired = false
+  private var returnCommitSince: TimeInterval = 0
+  private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return
+  private static let returnMinMoveM = 5.0        // ignore sub-5m jitter when updating the confidence
+  private static let returnEmaAlpha = 0.30       // confidence smoothing (matches the JS ALPHA)
+  private static let returnCommitHoldSec = 8.0   // sustained COMMIT-level confidence before "vacating now"
+  private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
+  private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
 
   // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
   // Mirrors CarAudioModule's route detection but runs IN VisitMonitor so it works in the background
@@ -624,29 +634,84 @@ public class VisitMonitorModule: Module {
     carLocation = loc
     returningNotified = false
     returnMaxDist = 0
-    returnApproachRun = 0
-    returnPrevDist = -1
+    returnPrevFix = nil
+    returnSmoothedConf = 0
+    returnSoftFired = false
+    returnCommitFired = false
+    returnCommitSince = 0
   }
 
   // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
   // the owner, having gone AWAY from the car, sustains an APPROACH back toward it — distance-based, so
   // it works for close parking a geofence can't catch.
   fileprivate func detectReturn(_ loc: CLLocation) {
-    guard let car = carLocation, !returningNotified else { return }
+    guard let car = carLocation, !returnCommitFired else { return }
     let dist = loc.distance(from: car)
     if dist > returnMaxDist { returnMaxDist = dist }
-    if returnPrevDist >= 0 {
-      if dist < returnPrevDist - VisitMonitorModule.returnApproachDropM { returnApproachRun += 1 }
-      else if dist > returnPrevDist + VisitMonitorModule.returnRetreatM { returnApproachRun = 0 }
+    // Update the confidence only on REAL movement — a stationary jitter near the car must not build
+    // confidence (that fired the premature return at 40m). approachAlignment ∈ [-1,1] = how much the
+    // movement heads toward the car; EMA-smooth it so a single aligned twitch can't trip the boundary.
+    if let prev = returnPrevFix {
+      if prev.distance(from: loc) >= VisitMonitorModule.returnMinMoveM {
+        let inst = max(0, approachAlignment(prev: prev, cur: loc, car: car))
+        returnSmoothedConf = VisitMonitorModule.returnEmaAlpha * inst
+          + (1 - VisitMonitorModule.returnEmaAlpha) * returnSmoothedConf
+        returnPrevFix = loc
+      }
+    } else {
+      returnPrevFix = loc
     }
-    returnPrevDist = dist
-    let isAway = returnMaxDist > VisitMonitorModule.returnAwayThresholdM
-    if isAway && returnApproachRun >= VisitMonitorModule.returnApproachNeeded {
+    guard returnMaxDist > VisitMonitorModule.returnAwayThresholdM else { return } // must have left the car
+    let P = returnSmoothedConf
+    // COMMIT — sustained above the (distance-weighted) commit curve → "vacating now" + ETA.
+    if P > VisitMonitorModule.commitThreshold(dist) {
+      if returnCommitSince == 0 { returnCommitSince = Date().timeIntervalSince1970 }
+      if Date().timeIntervalSince1970 - returnCommitSince >= VisitMonitorModule.returnCommitHoldSec {
+        returnCommitFired = true
+        returningNotified = true
+        let eta = VisitMonitorModule.etaSeconds(dist, loc.speed)
+        postLocalNotification(title: "🟢 Spot vacating now", body: eta != nil ? "Arriving in ~\(eta!)s." : "You're heading back to the car.")
+        logNativeFix(loc, tag: "return-commit", force: true)
+        recomputeState()
+        return
+      }
+    } else {
+      returnCommitSince = 0 // dropped below the commit curve → restart the hold
+    }
+    // SOFT — above the soft curve → "freeing soon" (once). Cheap heads-up; COMMIT is the confirmed one.
+    if !returnSoftFired && P > VisitMonitorModule.softThreshold(dist) {
+      returnSoftFired = true
       returningNotified = true
-      postLocalNotification(title: "🟢 Returning to your car", body: "You're heading back (~\(Int(dist))m away).")
-      logNativeFix(loc, tag: "return", force: true)
-      recomputeState() // → returning, immediately
+      postLocalNotification(title: "🟡 Spot freeing soon", body: "You're heading back (~\(Int(dist))m).")
+      logNativeFix(loc, tag: "return-soft", force: true)
+      recomputeState()
     }
+  }
+
+  // Movement-vs-car-direction cosine ∈ [-1,1] (equirectangular; mirrors the JS HMM approachAlignment).
+  private func approachAlignment(prev: CLLocation, cur: CLLocation, car: CLLocation) -> Double {
+    let kx = cos(cur.coordinate.latitude * .pi / 180)
+    let vx = (cur.coordinate.longitude - prev.coordinate.longitude) * kx
+    let vy = (cur.coordinate.latitude - prev.coordinate.latitude)
+    let dx = (car.coordinate.longitude - cur.coordinate.longitude) * kx
+    let dy = (car.coordinate.latitude - cur.coordinate.latitude)
+    let magV = (vx * vx + vy * vy).squareRoot()
+    let magD = (dx * dx + dy * dy).squareRoot()
+    if magV == 0 || magD == 0 { return 0 }
+    return (vx * dx + vy * dy) / (magV * magD)
+  }
+
+  // returnBoundary (ported from returnBoundary.js) — distance-weighted zone curves + ETA. Far from the
+  // car needs HIGH confidence; close needs modest. This is what stops a twitch at 40m from firing.
+  private static func softThreshold(_ dist: Double) -> Double {
+    let d = min(max(dist, 0), returnAlertMaxRange); return 0.40 + 0.32 * (d / returnAlertMaxRange)
+  }
+  private static func commitThreshold(_ dist: Double) -> Double {
+    let d = min(max(dist, 0), returnAlertMaxRange); return 0.55 + 0.35 * (d / returnAlertMaxRange)
+  }
+  private static func etaSeconds(_ dist: Double, _ speed: Double) -> Int? {
+    if speed < returnEtaMinSpeed { return nil }
+    return Int((max(dist, 0) / speed).rounded())
   }
 
   // Append a native-heartbeat line (throttled) recording that native code ran at wall-clock `now`
