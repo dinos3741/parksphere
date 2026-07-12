@@ -98,6 +98,10 @@ public class VisitMonitorModule: Module {
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
   private static let returnReArmDistM = 40.0     // walked this far from the car AFTER a return ⇒ re-arm for the next one
+  // R4: log the returning confidence TRAJECTORY (dist/conf/thresholds/zone) periodically while in the
+  // watch phase, so the heartbeat shows WHY it fired or didn't → precise threshold tuning.
+  private var lastReturnLogAt: TimeInterval = 0
+  private static let returnLogThrottleSec: TimeInterval = 10.0
 
   // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
   // Mirrors CarAudioModule's route detection but runs IN VisitMonitor so it works in the background
@@ -679,6 +683,17 @@ public class VisitMonitorModule: Module {
     }
     guard returnMaxDist > VisitMonitorModule.returnAwayThresholdM else { return } // must have left the car
     let P = returnSmoothedConf
+    // R4: log the confidence trajectory (throttled) so a field test shows the curve vs the thresholds.
+    let soft = VisitMonitorModule.softThreshold(dist), commit = VisitMonitorModule.commitThreshold(dist)
+    let now = Date().timeIntervalSince1970
+    if now - lastReturnLogAt > VisitMonitorModule.returnLogThrottleSec {
+      lastReturnLogAt = now
+      let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
+      logNativeFix(loc, tag: "return-traj", force: true, extra: [
+        "dist": Int(dist), "conf": (P * 100).rounded() / 100,
+        "soft": (soft * 100).rounded() / 100, "commit": (commit * 100).rounded() / 100, "zone": zone
+      ])
+    }
     // COMMIT — sustained above the (distance-weighted) commit curve → "vacating now" + ETA.
     if P > VisitMonitorModule.commitThreshold(dist) {
       if returnCommitSince == 0 { returnCommitSince = Date().timeIntervalSince1970 }
@@ -732,11 +747,11 @@ public class VisitMonitorModule: Module {
 
   // Append a native-heartbeat line (throttled) recording that native code ran at wall-clock `now`
   // to process a fix whose GPS time is `gpsMs`. Runs on the liveUpdates Task, off the JS thread.
-  fileprivate func logNativeFix(_ loc: CLLocation, tag: String, force: Bool = false) {
+  fileprivate func logNativeFix(_ loc: CLLocation, tag: String, force: Bool = false, extra: [String: Any] = [:]) {
     let nowSec = Date().timeIntervalSince1970
     if !force && nowSec - lastNativeLogAt < VisitMonitorModule.nativeLogThrottleSec { return }
     lastNativeLogAt = nowSec
-    let entry: [String: Any] = [
+    var entry: [String: Any] = [
       "t": nowSec * 1000.0,                                   // native wall-clock when processed
       "gps": loc.timestamp.timeIntervalSince1970 * 1000.0,    // the fix's own GPS timestamp
       "lat": loc.coordinate.latitude,
@@ -744,6 +759,7 @@ public class VisitMonitorModule: Module {
       "spd": loc.speed,
       "tag": tag
     ]
+    for (k, v) in extra { entry[k] = v } // R4: trajectory fields (dist/conf/thresholds/zone)
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeLogURL,
             let data = try? JSONSerialization.data(withJSONObject: entry),
