@@ -64,6 +64,7 @@ public class VisitMonitorModule: Module {
   private var parkStopSince: TimeInterval = 0  // when the candidate rest began
   private var parkDeclared = false             // already declared this session
   private static let parkDriveSpeedMS = 4.0    // ~14.4 km/h — clearly driving
+  private static let parkBtMaxSpeedMS = 3.0    // BT-disconnect park only if slow/stopped (reject a mid-drive BT glitch)
   private static let parkStopRadiusM = 40.0    // GPS noise + parking maneuver
   private static let parkStopConfirmSec = 120.0 // sustained stillness to beat a long traffic light
   private static let parkRearmDistM = 150.0     // drove >this from the car at speed ⇒ new trip ⇒ re-arm park detection
@@ -91,6 +92,7 @@ public class VisitMonitorModule: Module {
   private var returnSoftFired = false
   private var returnCommitFired = false
   private var returnCommitSince: TimeInterval = 0
+  private var returnReachedCar = false          // owner actually reached the car after firing — gate for re-arm
   private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return
   private static let returnMinMoveM = 5.0        // ignore sub-5m jitter when updating the confidence
   private static let returnEmaAlpha = 0.30       // confidence smoothing (matches the JS ALPHA)
@@ -98,6 +100,7 @@ public class VisitMonitorModule: Module {
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
   private static let returnReArmDistM = 40.0     // walked this far from the car AFTER a return ⇒ re-arm for the next one
+  private static let returnReachedDistM = 20.0   // must get THIS close (completed the return) before a re-arm is allowed — stops the hover-at-40m flap
   // R4: log the returning confidence TRAJECTORY (dist/conf/thresholds/zone) periodically while in the
   // watch phase, so the heartbeat shows WHY it fired or didn't → precise threshold tuning.
   private var lastReturnLogAt: TimeInterval = 0
@@ -541,10 +544,13 @@ public class VisitMonitorModule: Module {
     if now {
       carBtTripSeen = true
       logNativeFix(loc, tag: "btConnect:\(reason)", force: true)
-    } else if parkDriveSeen && carLocation == nil {
+    } else if parkDriveSeen && carLocation == nil && loc.speed < VisitMonitorModule.parkBtMaxSpeedMS {
+      // A real park is STATIONARY when BT drops (engine off). A transient BT dropout while DRIVING
+      // (2026-07-13: false park-bt @58km/h) must NOT declare a park — gate on low speed. speed==-1
+      // (unknown, common when stopped) is < the threshold so it still allows a genuine park.
       declarePark(at: loc, source: "bt")
     } else {
-      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true)
+      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true, extra: ["spd": loc.speed])
     }
   }
 
@@ -647,6 +653,7 @@ public class VisitMonitorModule: Module {
     returnSoftFired = false
     returnCommitFired = false
     returnCommitSince = 0
+    returnReachedCar = false
   }
 
   // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
@@ -656,15 +663,18 @@ public class VisitMonitorModule: Module {
     guard let car = carLocation else { return }
     let dist = loc.distance(from: car)
     if dist > returnMaxDist { returnMaxDist = dist }
-    // Re-arm for a REPEAT return: if a return already fired but the owner then walked AWAY again (without
-    // driving off — driving off would rearm the whole detector via isDriveAwayFromCar), reset so a fresh
-    // sustained approach fires again. Fixes "went to the car, left, came back → no 2nd return" (2026-07-12).
-    if (returnSoftFired || returnCommitFired) && dist > VisitMonitorModule.returnReArmDistM {
+    // After a return fired, note when the owner actually REACHED the car — required before we'll re-arm.
+    if (returnSoftFired || returnCommitFired) && dist < VisitMonitorModule.returnReachedDistM { returnReachedCar = true }
+    // Re-arm for a REPEAT return: only after they REACHED the car (completed the return) and then walked
+    // AWAY again. The reached-car gate stops the hover-near-40m flap (2026-07-13: 40x soft/rearm) while
+    // still handling "went to the car, left, came back" (2026-07-12). Driving off rearms via isDriveAwayFromCar.
+    if (returnSoftFired || returnCommitFired) && returnReachedCar && dist > VisitMonitorModule.returnReArmDistM {
       returnSoftFired = false
       returnCommitFired = false
       returnCommitSince = 0
       returnSmoothedConf = 0
       returnPrevFix = nil
+      returnReachedCar = false
       logNativeFix(loc, tag: "return-rearm", force: true)
     }
     guard !returnCommitFired else { return }
