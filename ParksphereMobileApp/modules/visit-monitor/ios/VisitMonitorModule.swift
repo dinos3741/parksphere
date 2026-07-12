@@ -97,6 +97,7 @@ public class VisitMonitorModule: Module {
   private static let returnCommitHoldSec = 8.0   // sustained COMMIT-level confidence before "vacating now"
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
+  private static let returnReArmDistM = 40.0     // walked this far from the car AFTER a return ⇒ re-arm for the next one
 
   // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
   // Mirrors CarAudioModule's route detection but runs IN VisitMonitor so it works in the background
@@ -648,9 +649,21 @@ public class VisitMonitorModule: Module {
   // the owner, having gone AWAY from the car, sustains an APPROACH back toward it — distance-based, so
   // it works for close parking a geofence can't catch.
   fileprivate func detectReturn(_ loc: CLLocation) {
-    guard let car = carLocation, !returnCommitFired else { return }
+    guard let car = carLocation else { return }
     let dist = loc.distance(from: car)
     if dist > returnMaxDist { returnMaxDist = dist }
+    // Re-arm for a REPEAT return: if a return already fired but the owner then walked AWAY again (without
+    // driving off — driving off would rearm the whole detector via isDriveAwayFromCar), reset so a fresh
+    // sustained approach fires again. Fixes "went to the car, left, came back → no 2nd return" (2026-07-12).
+    if (returnSoftFired || returnCommitFired) && dist > VisitMonitorModule.returnReArmDistM {
+      returnSoftFired = false
+      returnCommitFired = false
+      returnCommitSince = 0
+      returnSmoothedConf = 0
+      returnPrevFix = nil
+      logNativeFix(loc, tag: "return-rearm", force: true)
+    }
+    guard !returnCommitFired else { return }
     // Update the confidence only on REAL movement — a stationary jitter near the car must not build
     // confidence (that fired the premature return at 40m). approachAlignment ∈ [-1,1] = how much the
     // movement heads toward the car; EMA-smooth it so a single aligned twitch can't trip the boundary.
