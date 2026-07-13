@@ -92,15 +92,14 @@ public class VisitMonitorModule: Module {
   private var returnSoftFired = false
   private var returnCommitFired = false
   private var returnCommitSince: TimeInterval = 0
-  private var returnAwaySince: TimeInterval = 0 // when the owner last became clearly away (>reArmDist) — re-arm gate
+  private var returnMinDist: Double = .greatestFiniteMagnitude // closest approach since firing — re-arm when they leave it
   private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return
   private static let returnMinMoveM = 5.0        // ignore sub-5m jitter when updating the confidence
   private static let returnEmaAlpha = 0.30       // confidence smoothing (matches the JS ALPHA)
   private static let returnCommitHoldSec = 8.0   // sustained COMMIT-level confidence before "vacating now"
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
-  private static let returnReArmDistM = 40.0     // clearly away from the car (beyond this) counts toward re-arm
-  private static let returnReArmSustainSec = 120.0 // must stay clearly away THIS long to re-arm — beats the hover-flap AND the multi-hour latch
+  private static let returnLeaveMarginM = 40.0   // moved this far BACK from the closest approach ⇒ left again ⇒ re-arm
   // R4: log the returning confidence TRAJECTORY (dist/conf/thresholds/zone) periodically while in the
   // watch phase, so the heartbeat shows WHY it fired or didn't → precise threshold tuning.
   private var lastReturnLogAt: TimeInterval = 0
@@ -653,7 +652,7 @@ public class VisitMonitorModule: Module {
     returnSoftFired = false
     returnCommitFired = false
     returnCommitSince = 0
-    returnAwaySince = 0
+    returnMinDist = .greatestFiniteMagnitude
   }
 
   // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
@@ -663,28 +662,32 @@ public class VisitMonitorModule: Module {
     guard let car = carLocation else { return }
     let dist = loc.distance(from: car)
     if dist > returnMaxDist { returnMaxDist = dist }
-    // Track how long the owner has been clearly AWAY from the car (reset when they come back within range).
-    if dist > VisitMonitorModule.returnReArmDistM {
-      if returnAwaySince == 0 { returnAwaySince = Date().timeIntervalSince1970 }
-    } else {
-      returnAwaySince = 0
-    }
-    // Re-arm for a REPEAT return: after a return fired, once the owner has been clearly away for a
-    // SUSTAINED period, reset so a fresh approach re-fires. Sustained (not instant) beats the rapid
-    // hover-at-40m flap (2026-07-13: 40x soft/rearm); and unlike the reached-car gate it doesn't LATCH a
-    // premature return that never reached the car (2026-07-13: an early commit blocked the real 7h-later
-    // return). Handles the multi-hour park + "went to car, left, came back". Driving off rearms separately.
-    if (returnSoftFired || returnCommitFired) && returnAwaySince != 0
-       && Date().timeIntervalSince1970 - returnAwaySince > VisitMonitorModule.returnReArmSustainSec {
-      returnSoftFired = false
-      returnCommitFired = false
-      returnCommitSince = 0
-      returnSmoothedConf = 0
-      returnPrevFix = nil
-      returnAwaySince = 0
-      logNativeFix(loc, tag: "return-rearm", force: true)
+    // Re-arm for a REPEAT return: after a return fired, track the CLOSEST approach and re-arm only when
+    // the owner moves clearly BACK from it (returnLeaveMarginM) — the true "left again" signal. It doesn't
+    // flap while still approaching (2026-07-13/14: "away for Ns" was trivially true at 2km), doesn't latch
+    // a premature fire (2026-07-13 7h latch), and ignores a hover. Handles multi-hour + "went to car, left,
+    // came back". Driving off rearms separately (isDriveAwayFromCar).
+    if returnSoftFired || returnCommitFired {
+      if dist < returnMinDist { returnMinDist = dist }
+      if dist > returnMinDist + VisitMonitorModule.returnLeaveMarginM {
+        returnSoftFired = false
+        returnCommitFired = false
+        returnCommitSince = 0
+        returnSmoothedConf = 0
+        returnPrevFix = nil
+        returnMinDist = .greatestFiniteMagnitude
+        logNativeFix(loc, tag: "return-rearm", force: true)
+      }
     }
     guard !returnCommitFired else { return }
+    // Only detect returning WITHIN the alert range (mirrors JS distToParked < ALERT_MAX_RANGE). A long
+    // aligned approach from 2km out must not fire returning at 2km (2026-07-14) — beyond the range no
+    // confidence builds and nothing fires; it starts fresh when the owner enters the range.
+    if dist >= VisitMonitorModule.returnAlertMaxRange {
+      returnSmoothedConf = 0
+      returnPrevFix = loc
+      return
+    }
     // Update the confidence only on REAL movement — a stationary jitter near the car must not build
     // confidence (that fired the premature return at 40m). approachAlignment ∈ [-1,1] = how much the
     // movement heads toward the car; EMA-smooth it so a single aligned twitch can't trip the boundary.
