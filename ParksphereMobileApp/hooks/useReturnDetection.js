@@ -280,7 +280,10 @@ export function useReturnDetection() {
         for (const ln of lines) {
           try {
             const e = JSON.parse(ln);
-            logHeartbeat({ src: 'nativeHb', t: e.t, gps: e.gps, lat: e.lat, lon: e.lon, spd: e.spd, tag: e.tag, dtMs: Math.round((e.t || 0) - (e.gps || 0)), mergedAt: Date.now() });
+            // Spread the whole native entry so extra fields (return-traj: dist/conf/soft/commit/zone;
+            // btDisconnect: spd) carry through — previously only a fixed subset was copied and the
+            // trajectory data was silently dropped (2026-07-13: all return-traj fields were null).
+            logHeartbeat({ src: 'nativeHb', ...e, dtMs: Math.round((e.t || 0) - (e.gps || 0)), mergedAt: Date.now() });
           } catch (_) {}
         }
         await flushTelemetry();
