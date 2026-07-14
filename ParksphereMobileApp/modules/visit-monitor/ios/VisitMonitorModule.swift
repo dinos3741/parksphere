@@ -92,11 +92,13 @@ public class VisitMonitorModule: Module {
   private var returnSoftFired = false
   private var returnCommitFired = false
   private var returnCommitSince: TimeInterval = 0
+  private var returnSoftSince: TimeInterval = 0  // when conf first crossed the soft curve — SOFT needs it sustained
   private var returnMinDist: Double = .greatestFiniteMagnitude // closest approach since firing — re-arm when they leave it
   private static let returnAwayThresholdM = 40.0 // must get this far from the car to arm return
   private static let returnMinMoveM = 5.0        // ignore sub-5m jitter when updating the confidence
   private static let returnEmaAlpha = 0.30       // confidence smoothing (matches the JS ALPHA)
   private static let returnCommitHoldSec = 8.0   // sustained COMMIT-level confidence before "vacating now"
+  private static let returnSoftHoldSec = 5.0     // sustained SOFT-level confidence before "freeing soon" — filters brief spikes
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
   private static let returnLeaveMarginM = 40.0   // moved this far BACK from the closest approach ⇒ left again ⇒ re-arm
@@ -652,6 +654,7 @@ public class VisitMonitorModule: Module {
     returnSoftFired = false
     returnCommitFired = false
     returnCommitSince = 0
+    returnSoftSince = 0
     returnMinDist = .greatestFiniteMagnitude
   }
 
@@ -673,6 +676,7 @@ public class VisitMonitorModule: Module {
         returnSoftFired = false
         returnCommitFired = false
         returnCommitSince = 0
+        returnSoftSince = 0
         returnSmoothedConf = 0
         returnPrevFix = nil
         returnMinDist = .greatestFiniteMagnitude
@@ -729,13 +733,20 @@ public class VisitMonitorModule: Module {
     } else {
       returnCommitSince = 0 // dropped below the commit curve → restart the hold
     }
-    // SOFT — above the soft curve → "freeing soon" (once). Cheap heads-up; COMMIT is the confirmed one.
-    if !returnSoftFired && P > VisitMonitorModule.softThreshold(dist) {
-      returnSoftFired = true
-      returningNotified = true
-      postLocalNotification(title: "🟡 Spot freeing soon", body: "You're heading back (~\(Int(dist))m).")
-      logNativeFix(loc, tag: "return-soft", force: true)
-      recomputeState()
+    // SOFT — SUSTAINED above the soft curve → "freeing soon" (once). The hold (like COMMIT) filters
+    // brief confidence spikes so a momentary alignment while wandering doesn't fire it (2026-07-14: soft
+    // was noisy, firing on 0.4–0.5 bounces). COMMIT is the confirmed one; SOFT is the earlier heads-up.
+    if P > VisitMonitorModule.softThreshold(dist) {
+      if returnSoftSince == 0 { returnSoftSince = Date().timeIntervalSince1970 }
+      if !returnSoftFired && Date().timeIntervalSince1970 - returnSoftSince >= VisitMonitorModule.returnSoftHoldSec {
+        returnSoftFired = true
+        returningNotified = true
+        postLocalNotification(title: "🟡 Spot freeing soon", body: "You're heading back (~\(Int(dist))m).")
+        logNativeFix(loc, tag: "return-soft", force: true)
+        recomputeState()
+      }
+    } else {
+      returnSoftSince = 0 // dropped below the soft curve → restart the hold
     }
   }
 
