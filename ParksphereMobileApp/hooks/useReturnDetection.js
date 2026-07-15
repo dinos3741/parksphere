@@ -292,6 +292,21 @@ export function useReturnDetection() {
       } catch (e) { console.warn('[Return] mergeNativeLog failed (rebuild?):', e?.message); }
     };
 
+    // ── R5.1: hand the native backend client its config (base URL + token + car type) ─────────────
+    // Native can't read env/AsyncStorage; give it the current values on every foreground so its token
+    // stays fresh (it can then declare/update/delete spots on the server from the background).
+    const configureNativeBackend = async () => {
+      if (!VM?.configureBackend) return;
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) return;
+        const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
+        const carType = (await AsyncStorage.getItem('carType')) || 'sedan';
+        await VM.configureBackend(serverUrl, token, carType);
+        console.log('[Return] native backend configured');
+      } catch (e) { console.warn('[Return] configureBackend failed:', e?.message); }
+    };
+
     // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
     // Pull the authoritative state native maintained in the background and log it (validation for now;
     // R3 wires it into the UI). Confirms native's classification (driving/stopped/parked/returning).
@@ -630,7 +645,7 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); } // fold in native fixes + adopt park + read state
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); } // fold in native fixes + adopt park + read state + refresh backend config
         // House test: on backgrounding, schedule a native notification so it lands while suspended.
         if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
           VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
@@ -645,6 +660,7 @@ export function useReturnDetection() {
       await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
       await mergeNativePark(); // adopt a park the native detector declared before this launch
       await readNativeState(); // R1: log native's authoritative current-state on launch
+      await configureNativeBackend(); // R5.1: hand native the backend config on launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };

@@ -17,6 +17,7 @@ import CoreMotion
 public class VisitMonitorModule: Module {
   private var manager: CLLocationManager?
   private var delegateProxy: LocationDelegate?
+  private let backend = BackendClient() // R5.1: native → Parksphere server (works while JS is suspended)
   private static let regionId = "parkedSpot"
   // ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
   // A small region re-armed around the CURRENT location on every crossing. Each crossing wakes a
@@ -386,6 +387,24 @@ public class VisitMonitorModule: Module {
       guard let url = self.nativeStateURL,
             let s = try? String(contentsOf: url, encoding: .utf8) else { return "" }
       return s
+    }
+
+    // ── R5.1: native backend client (JS hands over config; native calls the server) ────────────────
+    // JS provides the base URL + current Bearer token + car type (native can't read env/AsyncStorage);
+    // persisted so native still has it after a background relaunch. Call on login + every foreground.
+    AsyncFunction("configureBackend") { (serverUrl: String, token: String, carType: String) in
+      self.backend.configure(url: serverUrl, token: token, carType: carType)
+    }
+    // Declare an auto-detected spot (starts 'occupied' = private). Returns spotId (>0) or -1 on failure.
+    AsyncFunction("declareSpotNative") { (latitude: Double, longitude: Double, timeToLeave: Int, promise: Promise) in
+      Task { promise.resolve(await self.backend.declareSpot(lat: latitude, lon: longitude, timeToLeave: timeToLeave)) }
+    }
+    // Update a spot's status (occupied|soon_free|committed|vacating|free) — the returning broadcast.
+    AsyncFunction("updateSpotStatusNative") { (spotId: Int, status: String, promise: Promise) in
+      Task { promise.resolve(await self.backend.updateStatus(spotId: spotId, status: status)) }
+    }
+    AsyncFunction("deleteSpotNative") { (spotId: Int, promise: Promise) in
+      Task { promise.resolve(await self.backend.deleteSpot(spotId: spotId)) }
     }
 
     // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
@@ -969,5 +988,66 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   // from significant-location-change wakes rather than relying on this.
   func locationManagerDidResumeLocationUpdates(_ manager: CLLocationManager) {
     onLocationResumed()
+  }
+}
+
+// R5.1 (2026-07-15): native backend client so the app can talk to the Parksphere server from the
+// BACKGROUND, where the RN JS thread is suspended and its fetch()/AsyncStorage are unavailable. JS hands
+// over the config (base URL + Bearer token + car type) via configureBackend; it's persisted in
+// UserDefaults so native still has it after a background relaunch. userId is derived server-side from the
+// JWT, so it isn't needed here. Uses URLSession.shared (native is alive during detection); a background
+// URLSession is a later robustness upgrade for the fire-then-resuspend case.
+final class BackendClient {
+  private var baseUrl: String { UserDefaults.standard.string(forKey: "psBackendUrl") ?? "" }
+  private var token: String { UserDefaults.standard.string(forKey: "psBackendToken") ?? "" }
+  private var carType: String { UserDefaults.standard.string(forKey: "psBackendCarType") ?? "sedan" }
+
+  func configure(url: String, token: String, carType: String) {
+    let d = UserDefaults.standard
+    d.set(url, forKey: "psBackendUrl")
+    d.set(token, forKey: "psBackendToken")
+    d.set(carType, forKey: "psBackendCarType")
+  }
+
+  private func send(_ path: String, method: String, body: [String: Any]?) async -> (Int, [String: Any]?) {
+    guard !baseUrl.isEmpty, !token.isEmpty, let url = URL(string: baseUrl + path) else { return (0, nil) }
+    var req = URLRequest(url: url)
+    req.httpMethod = method
+    req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    req.timeoutInterval = 15
+    if let body = body {
+      req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+    }
+    do {
+      let (data, resp) = try await URLSession.shared.data(for: req)
+      let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+      let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+      return (code, json)
+    } catch { return (0, nil) }
+  }
+
+  // POST /api/declare-spot → spotId (>0) or -1. Auto-detected spot starts 'occupied' (private to owner).
+  func declareSpot(lat: Double, lon: Double, timeToLeave: Int) async -> Int {
+    let body: [String: Any] = [
+      "latitude": lat, "longitude": lon, "timeToLeave": timeToLeave,
+      "costType": "free", "price": 0, "declaredCarType": carType,
+      "comments": "Auto-detected (native)", "isAutoDetected": true
+    ]
+    let (code, json) = await send("/api/declare-spot", method: "POST", body: body)
+    guard (200...299).contains(code) else { return -1 }
+    return (json?["spotId"] as? Int) ?? -1
+  }
+
+  // PUT /api/parkingspots/:id/status  (occupied|soon_free|committed|vacating|free)
+  func updateStatus(spotId: Int, status: String) async -> Bool {
+    let (code, _) = await send("/api/parkingspots/\(spotId)/status", method: "PUT", body: ["status": status])
+    return (200...299).contains(code)
+  }
+
+  // DELETE /api/parkingspots/:id
+  func deleteSpot(spotId: Int) async -> Bool {
+    let (code, _) = await send("/api/parkingspots/\(spotId)", method: "DELETE", body: nil)
+    return (200...299).contains(code)
   }
 }

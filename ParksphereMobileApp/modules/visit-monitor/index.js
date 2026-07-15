@@ -155,6 +155,22 @@ export function readNativeState() {
   return VisitMonitor.readNativeState();
 }
 
+// ── R5.1: native backend client ──────────────────────────────────────────────
+// So the app can declare/update/delete spots on the server FROM NATIVE — required because detection is
+// native/background and the RN JS thread (fetch/AsyncStorage) is suspended then. JS hands over config.
+export function configureBackend(serverUrl, token, carType) {
+  return VisitMonitor.configureBackend(serverUrl, token, carType);
+}
+export function declareSpotNative(latitude, longitude, timeToLeave = 60) {
+  return VisitMonitor.declareSpotNative(latitude, longitude, timeToLeave); // → spotId (>0) or -1
+}
+export function updateSpotStatusNative(spotId, status) {
+  return VisitMonitor.updateSpotStatusNative(spotId, status); // status: occupied|soon_free|committed|vacating|free
+}
+export function deleteSpotNative(spotId) {
+  return VisitMonitor.deleteSpotNative(spotId);
+}
+
 // ── Native return-watcher control (Build E) ──────────────────────────────────
 // setCarLocation: hand native the car spot so it watches the fix stream for the walk back (distance-
 // based — catches close-parking returns a geofence can't). resetParkDetection: on drive-off/new trip,
