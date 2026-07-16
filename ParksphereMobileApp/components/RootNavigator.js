@@ -23,7 +23,7 @@ export default function RootNavigator({
   socket,
   setActiveScreen,
 }) {
-  const { currentUser, fetchUserData } = useAuth();
+  const { currentUser, fetchUserData, getAvatarUri } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
   const { hasNewRequests } = useSpots();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
@@ -74,7 +74,9 @@ export default function RootNavigator({
               } else if (route.name === 'Search') {
                 iconName = 'search';
               } else if (route.name === 'Profile') {
-                return <Image source={{ uri: currentUser?.avatar_url }} style={styles.tabBarIcon} />;
+                // Use the robust URI builder (was the raw avatar_url — broke for local /uploads paths).
+                const avatarUri = getAvatarUri(currentUser?.avatar_url, currentUser?.username);
+                return <Image source={{ uri: avatarUri }} style={styles.tabBarIcon} />;
               }
 
               return (

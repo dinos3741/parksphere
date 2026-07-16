@@ -98,8 +98,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getAvatarUri = (avatarPath) => {
-    return avatarPath ? `${serverUrl}${avatarPath}` : null;
+  // Robust, shared avatar-URI builder (previously duplicated 4x + a naive version here). Handles:
+  // no avatar → pravatar placeholder; a full http(s) URL (e.g. Google) as-is, rewriting a stale
+  // localhost host to the current serverUrl; a relative /uploads/... path → prefixed with serverUrl.
+  const getAvatarUri = (avatarPath, username) => {
+    if (!avatarPath) return username ? `https://i.pravatar.cc/150?u=${username}` : null;
+    if (avatarPath.startsWith('http')) {
+      return avatarPath.includes('://localhost')
+        ? avatarPath.replace(/http:\/\/localhost:3001/, serverUrl)
+        : avatarPath;
+    }
+    return `${serverUrl}${avatarPath}`;
   };
 
   // The Login function

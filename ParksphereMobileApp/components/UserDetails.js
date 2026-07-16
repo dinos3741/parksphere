@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -7,6 +7,7 @@ import { apiRequest } from '../utils/apiService';
 
 const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUpdate }) => {
   const { currentUser: user, token, logout: onLogout, serverUrl } = useAuth();
+  const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
   if (!user) {
     return null;
   }
@@ -147,7 +148,14 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
         <View style={styles.profileDetailsTwoColumn}>
           <View style={styles.profileLeftColumn}>
             <TouchableOpacity onPress={pickImage}>
-              <Image source={{ uri: getAvatarUri() }} style={styles.avatar} />
+              <Image
+                source={{ uri: avatarError ? `https://i.pravatar.cc/150?u=${user.username}` : getAvatarUri() }}
+                style={styles.avatar}
+                onError={(e) => {
+                  console.log('[Avatar] load FAILED for', getAvatarUri(), '→', e?.nativeEvent?.error);
+                  setAvatarError(true);
+                }}
+              />
             </TouchableOpacity>
             <Text style={styles.username}>{user.username}</Text>
             <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
