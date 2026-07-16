@@ -171,6 +171,19 @@ export function deleteSpotNative(spotId) {
   return VisitMonitor.deleteSpotNative(spotId);
 }
 
+// ── R5.2: shared serverSpotId (native bg + JS fg dedup) ───────────────────────
+// One park = one server spot. JS reads native's id on foreground to adopt a background-declared spot
+// (so it won't re-declare); JS writes its id before backgrounding so native owns a foreground-declared one.
+export function getServerSpotId() {
+  return VisitMonitor.getServerSpotId(); // 0 = none
+}
+export function setServerSpotId(spotId) {
+  return VisitMonitor.setServerSpotId(spotId);
+}
+export function clearServerSpotId() {
+  return VisitMonitor.clearServerSpotId();
+}
+
 // ── Native return-watcher control (Build E) ──────────────────────────────────
 // setCarLocation: hand native the car spot so it watches the fix stream for the walk back (distance-
 // based — catches close-parking returns a geofence can't). resetParkDetection: on drive-off/new trip,

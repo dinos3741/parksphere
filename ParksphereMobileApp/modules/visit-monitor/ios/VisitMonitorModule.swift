@@ -18,6 +18,13 @@ public class VisitMonitorModule: Module {
   private var manager: CLLocationManager?
   private var delegateProxy: LocationDelegate?
   private let backend = BackendClient() // R5.1: native → Parksphere server (works while JS is suspended)
+  // R5.2: the server spot this device currently owns (0 = none). Persisted so it survives a background
+  // relaunch, and SHARED with JS (foreground) via get/set so native(bg) + the JS HMM(fg) never
+  // double-declare — one park = one server spot.
+  private var serverSpotId: Int {
+    get { UserDefaults.standard.integer(forKey: "psServerSpotId") }
+    set { UserDefaults.standard.set(newValue, forKey: "psServerSpotId") }
+  }
   private static let regionId = "parkedSpot"
   // ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
   // A small region re-armed around the CURRENT location on every crossing. Each crossing wakes a
@@ -407,6 +414,13 @@ public class VisitMonitorModule: Module {
       Task { promise.resolve(await self.backend.deleteSpot(spotId: spotId)) }
     }
 
+    // R5.2 dedup: the shared serverSpotId (0 = none). JS reads it on foreground to ADOPT a spot native
+    // declared in the background (so JS won't re-declare); JS writes it before backgrounding so native
+    // owns a spot JS declared in the foreground. One park = one server spot across the fg/bg boundary.
+    AsyncFunction("getServerSpotId") { () -> Int in self.serverSpotId }
+    AsyncFunction("setServerSpotId") { (spotId: Int) in self.serverSpotId = spotId }
+    AsyncFunction("clearServerSpotId") { self.serverSpotId = 0 }
+
     // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
     // launch) so native watches for the return even when JS didn't declare the park itself.
     // DEDUPE: if we're already watching this same spot, DON'T re-arm — beginReturnWatch resets
@@ -434,6 +448,30 @@ public class VisitMonitorModule: Module {
         afterSeconds: max(1, afterSeconds)
       )
     }
+  }
+
+  // ── R5.2: drive the server spot lifecycle from native detection (background) ──────────────────────
+  // Each fires a fire-and-forget URLSession task (native is alive during detection). serverSpotId is the
+  // shared handle. declare deletes any prior spot first (backend 409s a 2nd spot for the same user).
+  private func declareServerSpot(_ loc: CLLocation) {
+    let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
+    Task { [weak self] in
+      guard let self = self else { return }
+      if self.serverSpotId > 0 { _ = await self.backend.deleteSpot(spotId: self.serverSpotId); self.serverSpotId = 0 }
+      let id = await self.backend.declareSpot(lat: lat, lon: lon, timeToLeave: 60)
+      if id > 0 { self.serverSpotId = id }
+    }
+  }
+  private func updateServerStatus(_ status: String) {
+    let id = serverSpotId
+    guard id > 0 else { return }
+    Task { [weak self] in _ = await self?.backend.updateStatus(spotId: id, status: status) }
+  }
+  private func deleteServerSpot() {
+    let id = serverSpotId
+    guard id > 0 else { return }
+    serverSpotId = 0
+    Task { [weak self] in _ = await self?.backend.deleteSpot(spotId: id) }
   }
 
   // Post a local notification straight from native code. UNUserNotificationCenter delivers even when
@@ -515,6 +553,7 @@ public class VisitMonitorModule: Module {
     logNativeFix(loc, tag: "park-\(source)", force: true) // source = stop | bt (heartbeat diagnostics)
     beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
     recomputeState() // → parked, immediately
+    declareServerSpot(loc) // R5.2: create the server spot (starts 'occupied' = private to the owner)
     let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source]
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
@@ -649,6 +688,7 @@ public class VisitMonitorModule: Module {
   // parked car, so multi-trip days work WITHOUT JS (suspended between trips). carBtTripSeen is left as
   // is (still in the car ⇒ still a trip); the JS resetParkDetection re-seeds it from the live route.
   private func rearmParkDetection() {
+    deleteServerSpot() // R5.2: owner drove off / new trip → the spot is freed (delete on the server)
     carLocation = nil
     returningNotified = false
     parkDriveSeen = false
@@ -747,6 +787,7 @@ public class VisitMonitorModule: Module {
         postLocalNotification(title: "🟢 Spot vacating now", body: eta != nil ? "Arriving in ~\(eta!)s." : "You're heading back to the car.")
         logNativeFix(loc, tag: "return-commit", force: true)
         recomputeState()
+        updateServerStatus("committed") // R5.2: seekers see "vacating now"
         return
       }
     } else {
@@ -763,6 +804,7 @@ public class VisitMonitorModule: Module {
         postLocalNotification(title: "🟡 Spot freeing soon", body: "You're heading back (~\(Int(dist))m).")
         logNativeFix(loc, tag: "return-soft", force: true)
         recomputeState()
+        updateServerStatus("soon_free") // R5.2: spot goes PUBLIC — broadcast to seekers
       }
     } else {
       returnSoftSince = 0 // dropped below the soft curve → restart the hold

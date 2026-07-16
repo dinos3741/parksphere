@@ -20,7 +20,7 @@ import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
-import { seedParkedSpot, queryTravelMode } from '../utils/parkDetectionService';
+import { seedParkedSpot, queryTravelMode, adoptServerSpotId, getStoredServerSpotId } from '../utils/parkDetectionService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
@@ -305,6 +305,16 @@ export function useReturnDetection() {
         await VM.configureBackend(serverUrl, token, carType);
         console.log('[Return] native backend configured');
       } catch (e) { console.warn('[Return] configureBackend failed:', e?.message); }
+    };
+
+    // R5.2 dedup: on foreground, adopt the serverSpotId native declared in the background into PARK_STATE,
+    // so the foreground HMM manages the SAME server spot (status updates on return) instead of re-declaring.
+    const syncServerSpotOnForeground = async () => {
+      if (!VM?.getServerSpotId) return;
+      try {
+        const nativeId = await VM.getServerSpotId();
+        if (nativeId > 0) await adoptServerSpotId(nativeId);
+      } catch (e) { console.warn('[Return] serverSpot sync failed:', e?.message); }
     };
 
     // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
@@ -645,7 +655,11 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); } // fold in native fixes + adopt park + read state + refresh backend config
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); syncServerSpotOnForeground(); } // native fixes + park + state + backend cfg + serverSpotId dedup
+        else if ((s === 'background' || s === 'inactive') && VM?.setServerSpotId) {
+          // R5.2 dedup: hand native the serverSpotId the foreground HMM owns, so native can manage it in bg.
+          getStoredServerSpotId().then((id) => { if (id > 0) VM.setServerSpotId(id).catch(() => {}); }).catch(() => {});
+        }
         // House test: on backgrounding, schedule a native notification so it lands while suspended.
         if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
           VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
