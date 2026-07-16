@@ -115,9 +115,9 @@ public class VisitMonitorModule: Module {
   private var lastReturnLogAt: TimeInterval = 0
   private static let returnLogThrottleSec: TimeInterval = 10.0
   // R5.3: confirmation interactive notification (SOFT gating). User taps Yes → spot goes public; No → suppress.
-  private static let notifCategoryReturn = "PARKSPHERE_RETURN_CONFIRM"
-  private static let notifActionYes = "CONFIRM_YES"
-  private static let notifActionNo = "CONFIRM_NO"
+  fileprivate static let notifCategoryReturn = "PARKSPHERE_RETURN_CONFIRM"
+  fileprivate static let notifActionYes = "CONFIRM_YES"
+  fileprivate static let notifActionNo = "CONFIRM_NO"
   private var notifProxy: ReturnNotifProxy?  // strong ref — owns the delegate chain
   private var returnSuppressed = false       // user tapped No → suppress COMMIT too; reset on rearm
 
@@ -636,7 +636,7 @@ public class VisitMonitorModule: Module {
   // mode — we only READ the route), seed the current state, and observe route changes. Registered once.
   private func setupCarBtObserver() {
     if carBtObserver != nil { return }
-    try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.allowBluetooth, .mixWithOthers, .defaultToSpeaker])
+    try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: [.allowBluetoothHFP, .mixWithOthers, .defaultToSpeaker])
     carBtConnected = (firstCarPort() != nil)
     carBtTripSeen = carBtConnected
     carBtObserver = NotificationCenter.default.addObserver(
