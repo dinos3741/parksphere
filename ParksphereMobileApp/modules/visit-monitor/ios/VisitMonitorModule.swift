@@ -114,6 +114,12 @@ public class VisitMonitorModule: Module {
   // watch phase, so the heartbeat shows WHY it fired or didn't → precise threshold tuning.
   private var lastReturnLogAt: TimeInterval = 0
   private static let returnLogThrottleSec: TimeInterval = 10.0
+  // R5.3: confirmation interactive notification (SOFT gating). User taps Yes → spot goes public; No → suppress.
+  private static let notifCategoryReturn = "PARKSPHERE_RETURN_CONFIRM"
+  private static let notifActionYes = "CONFIRM_YES"
+  private static let notifActionNo = "CONFIRM_NO"
+  private var notifProxy: ReturnNotifProxy?  // strong ref — owns the delegate chain
+  private var returnSuppressed = false       // user tapped No → suppress COMMIT too; reset on rearm
 
   // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
   // Mirrors CarAudioModule's route detection but runs IN VisitMonitor so it works in the background
@@ -474,6 +480,69 @@ public class VisitMonitorModule: Module {
     Task { [weak self] in _ = await self?.backend.deleteSpot(spotId: id) }
   }
 
+  // R5.3 ── Confirmation interactive notification for SOFT return. ─────────────────────────────────
+  // Fires before broadcasting the spot, so the owner can confirm they're actually returning (Yes)
+  // or flag a false alarm (No). Ignore → COMMIT fires naturally on its own, then publishes the spot.
+  // iOS wakes the app (background) to call the delegate when the user taps an action button, so the
+  // handler runs in native even with JS suspended.
+  private func postReturnConfirmNotification(dist: Int) {
+    ensureNotifProxy() // install the action-response delegate chain once
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+      let content = UNMutableNotificationContent()
+      content.title = "Are you returning to your car?"
+      content.body = "You appear to be heading back (~\(dist)m away). Confirm to alert nearby drivers."
+      content.sound = .default
+      content.categoryIdentifier = VisitMonitorModule.notifCategoryReturn
+      let req = UNNotificationRequest(identifier: "return-confirm-\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
+      center.add(req, withCompletionHandler: nil)
+    }
+  }
+
+  // Install the forwarding proxy once, lazily, so we don't race expo-notifications' own init.
+  // Merges our RETURN_CONFIRM category with whatever expo-notifications already registered.
+  private func ensureNotifProxy() {
+    guard notifProxy == nil else { return }
+    let center = UNUserNotificationCenter.current()
+    let proxy = ReturnNotifProxy(wrapped: center.delegate, module: self)
+    center.delegate = proxy
+    notifProxy = proxy
+    // Merge our category alongside any expo-notifications categories already registered.
+    center.getNotificationCategories { existing in
+      let yes = UNNotificationAction(identifier: VisitMonitorModule.notifActionYes,
+                                     title: "Yes, I'm returning", options: [])
+      let no  = UNNotificationAction(identifier: VisitMonitorModule.notifActionNo,
+                                     title: "No, false alarm", options: .destructive)
+      let cat = UNNotificationCategory(identifier: VisitMonitorModule.notifCategoryReturn,
+                                       actions: [yes, no], intentIdentifiers: [], options: [])
+      var cats = existing
+      cats.insert(cat)
+      center.setNotificationCategories(cats)
+    }
+  }
+
+  // Called by ReturnNotifProxy when the user taps an action on the confirm notification.
+  fileprivate func handleReturnConfirmAction(_ actionId: String) {
+    if actionId == VisitMonitorModule.notifActionYes {
+      // Confirmed returning — publish the spot immediately (seekers will see it).
+      updateServerStatus("soon_free")
+      logNativeFix(lastLiveFix ?? CLLocation(), tag: "return-confirm-yes", force: true)
+    } else if actionId == VisitMonitorModule.notifActionNo {
+      // False alarm — suppress the COMMIT too and reset the whole return state.
+      returnSuppressed = true
+      returnSoftFired = false
+      returnCommitFired = false
+      returnCommitSince = 0
+      returnSoftSince = 0
+      returnSmoothedConf = 0
+      returnPrevFix = nil
+      returningNotified = false
+      recomputeState()
+      logNativeFix(lastLiveFix ?? CLLocation(), tag: "return-confirm-no", force: true)
+    }
+    // Default (UNNotificationDefaultActionIdentifier — user tapped the body): ignore → let COMMIT decide.
+  }
+
   // Post a local notification straight from native code. UNUserNotificationCenter delivers even when
   // the RN JS thread is suspended, so a native-detected park can alert the user LIVE in the background
   // — no server, no APNs, no foreground. Shares the app's notification authorization (granted by the JS
@@ -694,6 +763,7 @@ public class VisitMonitorModule: Module {
     parkDriveSeen = false
     parkStopFix = nil
     parkDeclared = false
+    returnSuppressed = false // R5.3: new trip clears any No-suppression from the previous one
     recomputeState() // → driving/idle, the new trip
   }
 
@@ -778,7 +848,8 @@ public class VisitMonitorModule: Module {
       ])
     }
     // COMMIT — sustained above the (distance-weighted) commit curve → "vacating now" + ETA.
-    if P > VisitMonitorModule.commitThreshold(dist) {
+    // R5.3: suppressed when the user tapped No on the confirm notification — they told us it's a false alarm.
+    if !returnSuppressed && P > VisitMonitorModule.commitThreshold(dist) {
       if returnCommitSince == 0 { returnCommitSince = Date().timeIntervalSince1970 }
       if Date().timeIntervalSince1970 - returnCommitSince >= VisitMonitorModule.returnCommitHoldSec {
         returnCommitFired = true
@@ -787,9 +858,15 @@ public class VisitMonitorModule: Module {
         postLocalNotification(title: "🟢 Spot vacating now", body: eta != nil ? "Arriving in ~\(eta!)s." : "You're heading back to the car.")
         logNativeFix(loc, tag: "return-commit", force: true)
         recomputeState()
-        updateServerStatus("committed") // R5.2: seekers see "vacating now"
+        // R5.3: if user already said Yes (soft→soon_free already sent), just update to committed.
+        // If user ignored the SOFT prompt (no action taken), catch up: soon_free first so the spot broadcasts,
+        // then committed immediately after so seekers see the full progression.
+        if !returnSoftFired { updateServerStatus("soon_free") }
+        updateServerStatus("committed") // seekers see "vacating now"
         return
       }
+    } else if returnSuppressed {
+      returnCommitSince = 0
     } else {
       returnCommitSince = 0 // dropped below the commit curve → restart the hold
     }
@@ -801,10 +878,10 @@ public class VisitMonitorModule: Module {
       if !returnSoftFired && Date().timeIntervalSince1970 - returnSoftSince >= VisitMonitorModule.returnSoftHoldSec {
         returnSoftFired = true
         returningNotified = true
-        postLocalNotification(title: "🟡 Spot freeing soon", body: "You're heading back (~\(Int(dist))m).")
+        postReturnConfirmNotification(dist: Int(dist)) // R5.3: ask Yes/No before going public
         logNativeFix(loc, tag: "return-soft", force: true)
         recomputeState()
-        updateServerStatus("soon_free") // R5.2: spot goes PUBLIC — broadcast to seekers
+        // updateServerStatus("soon_free") is DEFERRED to Yes response (or auto-publish on COMMIT if user ignores)
       }
     } else {
       returnSoftSince = 0 // dropped below the soft curve → restart the hold
@@ -931,6 +1008,42 @@ public class VisitMonitorModule: Module {
     self.manager = m
     self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
     self.startActivityUpdatesIfAvailable() // R1: motion activity → authoritative current-state
+  }
+}
+
+// R5.3 ── Forwarding proxy for UNUserNotificationCenterDelegate. ──────────────────────────────────
+// Wraps whatever delegate expo-notifications installed, intercepts PARKSPHERE_RETURN_CONFIRM action
+// responses, and forwards everything else unchanged. Installed once on the first SOFT fire (by then
+// expo-notifications has certainly set its own delegate). The module holds a strong ref so it lives.
+final class ReturnNotifProxy: NSObject, UNUserNotificationCenterDelegate {
+  private weak var wrapped: UNUserNotificationCenterDelegate?
+  private weak var module: VisitMonitorModule?
+
+  init(wrapped: UNUserNotificationCenterDelegate?, module: VisitMonitorModule) {
+    self.wrapped = wrapped; self.module = module
+  }
+
+  // Called when the user taps a button (action) on a notification — iOS wakes the app in background
+  // just for this. We intercept our category; everything else forwards to expo-notifications.
+  func userNotificationCenter(_ center: UNUserNotificationCenter,
+                               didReceive response: UNNotificationResponse,
+                               withCompletionHandler completionHandler: @escaping () -> Void) {
+    if response.notification.request.content.categoryIdentifier == VisitMonitorModule.notifCategoryReturn {
+      module?.handleReturnConfirmAction(response.actionIdentifier)
+      completionHandler()
+    } else {
+      wrapped?.userNotificationCenter?(center, didReceive: response, withCompletionHandler: completionHandler)
+        ?? completionHandler()
+    }
+  }
+
+  // Called when a notification is about to be presented while the app is foregrounded. Forward to
+  // expo-notifications so its own banner/sound logic is unchanged.
+  func userNotificationCenter(_ center: UNUserNotificationCenter,
+                               willPresent notification: UNNotification,
+                               withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    wrapped?.userNotificationCenter?(center, willPresent: notification, withCompletionHandler: completionHandler)
+      ?? completionHandler([.banner, .sound])
   }
 }
 
