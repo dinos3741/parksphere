@@ -119,6 +119,13 @@ public class VisitMonitorModule: Module {
   fileprivate static let notifActionYes = "CONFIRM_YES"
   fileprivate static let notifActionNo = "CONFIRM_NO"
   private var notifProxy: ReturnNotifProxy?  // strong ref — owns the delegate chain
+  private var notifCategoryRegistered = false        // true once setNotificationCategories has landed
+  private var pendingNotifCategoryCallbacks: [() -> Void] = []  // queued posts waiting on registration
+  // R5.3 foreground fallback: the banner's Yes/No only work if the user catches it (Temporary banner
+  // style auto-dismisses; iOS gives apps no way to force Persistent). So also track "awaiting an answer"
+  // here — JS polls this on every foreground and shows an in-app Yes/No popup if still pending.
+  private var returnConfirmPending = false
+  private var returnConfirmPendingDist = 0
   private var returnSuppressed = false       // user tapped No → suppress COMMIT too; reset on rearm
 
   // ── Native BT car-audio park signal (Build E, 2026-07-09) ────────────────────
@@ -164,6 +171,7 @@ public class VisitMonitorModule: Module {
         self.ensureManager()
         self.manager?.requestAlwaysAuthorization()
         self.manager?.startMonitoringVisits()
+        self.ensureNotifCategoryRegistered() // register Yes/No actions early, well before any return can fire
       }
     }
 
@@ -427,6 +435,17 @@ public class VisitMonitorModule: Module {
     AsyncFunction("setServerSpotId") { (spotId: Int) in self.serverSpotId = spotId }
     AsyncFunction("clearServerSpotId") { self.serverSpotId = 0 }
 
+    // R5.3 foreground fallback: JS polls this on every foreground. Returns the pending distance (m) if
+    // a SOFT return is still awaiting a Yes/No answer (banner missed/dismissed), or -1 if none is pending.
+    AsyncFunction("getPendingReturnConfirmDist") { () -> Int in
+      self.returnConfirmPending ? self.returnConfirmPendingDist : -1
+    }
+    // JS calls this after the user answers the in-app fallback popup — same effect as tapping the
+    // notification's own Yes/No action.
+    AsyncFunction("respondReturnConfirm") { (yes: Bool) in
+      self.handleReturnConfirmAction(yes ? VisitMonitorModule.notifActionYes : VisitMonitorModule.notifActionNo)
+    }
+
     // JS hands the native watcher a car spot (a park declared by the foreground HMM or reconciled on
     // launch) so native watches for the return even when JS didn't declare the park itself.
     // DEDUPE: if we're already watching this same spot, DON'T re-arm — beginReturnWatch resets
@@ -486,29 +505,44 @@ public class VisitMonitorModule: Module {
   // iOS wakes the app (background) to call the delegate when the user taps an action button, so the
   // handler runs in native even with JS suspended.
   private func postReturnConfirmNotification(dist: Int) {
-    ensureNotifProxy() // install the action-response delegate chain once
-    let center = UNUserNotificationCenter.current()
-    center.requestAuthorization(options: [.alert, .sound]) { _, _ in
-      let content = UNMutableNotificationContent()
-      content.title = "Are you returning to your car?"
-      content.body = "You appear to be heading back (~\(dist)m away). Confirm to alert nearby drivers."
-      content.sound = .default
-      content.categoryIdentifier = VisitMonitorModule.notifCategoryReturn
-      let req = UNNotificationRequest(identifier: "return-confirm-\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
-      center.add(req, withCompletionHandler: nil)
+    // Wait for the category to be registered before posting — posting first races
+    // setNotificationCategories and iOS silently drops the action buttons if it loses.
+    withNotifCategoryRegistered {
+      let center = UNUserNotificationCenter.current()
+      center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+        let content = UNMutableNotificationContent()
+        content.title = "Are you returning to your car?"
+        content.body = "You appear to be heading back (~\(dist)m away). Confirm to alert nearby drivers."
+        content.sound = .default
+        content.categoryIdentifier = VisitMonitorModule.notifCategoryReturn
+        let req = UNNotificationRequest(identifier: "return-confirm-\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
+        center.add(req, withCompletionHandler: nil)
+      }
     }
   }
 
-  // Install the forwarding proxy once, lazily, so we don't race expo-notifications' own init.
-  // Merges our RETURN_CONFIRM category with whatever expo-notifications already registered.
-  private func ensureNotifProxy() {
-    guard notifProxy == nil else { return }
+  // Call as early as possible (module "start") so registration has long finished by the
+  // time a real SOFT return can fire — avoids racing the first notification post.
+  private func ensureNotifCategoryRegistered() {
+    withNotifCategoryRegistered {}
+  }
+
+  // Installs the forwarding delegate + registers the RETURN_CONFIRM category exactly once;
+  // runs `completion` only after registration has landed (queuing callers that arrive mid-registration).
+  private func withNotifCategoryRegistered(_ completion: @escaping () -> Void) {
+    if notifCategoryRegistered {
+      completion()
+      return
+    }
+    pendingNotifCategoryCallbacks.append(completion)
+    guard notifProxy == nil else { return } // registration already in flight; queued above
+
     let center = UNUserNotificationCenter.current()
     let proxy = ReturnNotifProxy(wrapped: center.delegate, module: self)
     center.delegate = proxy
     notifProxy = proxy
     // Merge our category alongside any expo-notifications categories already registered.
-    center.getNotificationCategories { existing in
+    center.getNotificationCategories { [weak self] existing in
       let yes = UNNotificationAction(identifier: VisitMonitorModule.notifActionYes,
                                      title: "Yes, I'm returning", options: [])
       let no  = UNNotificationAction(identifier: VisitMonitorModule.notifActionNo,
@@ -518,11 +552,19 @@ public class VisitMonitorModule: Module {
       var cats = existing
       cats.insert(cat)
       center.setNotificationCategories(cats)
+      DispatchQueue.main.async {
+        guard let self = self else { return }
+        self.notifCategoryRegistered = true
+        let callbacks = self.pendingNotifCategoryCallbacks
+        self.pendingNotifCategoryCallbacks.removeAll()
+        callbacks.forEach { $0() }
+      }
     }
   }
 
   // Called by ReturnNotifProxy when the user taps an action on the confirm notification.
   fileprivate func handleReturnConfirmAction(_ actionId: String) {
+    returnConfirmPending = false // answered (via notification tap or the in-app fallback popup) — stop asking
     if actionId == VisitMonitorModule.notifActionYes {
       // Confirmed returning — publish the spot immediately (seekers will see it).
       updateServerStatus("soon_free")
@@ -785,6 +827,8 @@ public class VisitMonitorModule: Module {
     returnCommitSince = 0
     returnSoftSince = 0
     returnMinDist = .greatestFiniteMagnitude
+    returnConfirmPending = false
+    returnConfirmPendingDist = 0
   }
 
   // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
@@ -809,6 +853,7 @@ public class VisitMonitorModule: Module {
         returnSmoothedConf = 0
         returnPrevFix = nil
         returnMinDist = .greatestFiniteMagnitude
+        returnConfirmPending = false
         logNativeFix(loc, tag: "return-rearm", force: true)
       }
     }
@@ -854,6 +899,7 @@ public class VisitMonitorModule: Module {
       if Date().timeIntervalSince1970 - returnCommitSince >= VisitMonitorModule.returnCommitHoldSec {
         returnCommitFired = true
         returningNotified = true
+        returnConfirmPending = false // COMMIT auto-publishes now — the SOFT prompt (if any) is moot
         let eta = VisitMonitorModule.etaSeconds(dist, loc.speed)
         postLocalNotification(title: "🟢 Spot vacating now", body: eta != nil ? "Arriving in ~\(eta!)s." : "You're heading back to the car.")
         logNativeFix(loc, tag: "return-commit", force: true)
@@ -878,6 +924,8 @@ public class VisitMonitorModule: Module {
       if !returnSoftFired && Date().timeIntervalSince1970 - returnSoftSince >= VisitMonitorModule.returnSoftHoldSec {
         returnSoftFired = true
         returningNotified = true
+        returnConfirmPending = true // JS shows the in-app fallback popup if the banner is missed
+        returnConfirmPendingDist = Int(dist)
         postReturnConfirmNotification(dist: Int(dist)) // R5.3: ask Yes/No before going public
         logNativeFix(loc, tag: "return-soft", force: true)
         recomputeState()

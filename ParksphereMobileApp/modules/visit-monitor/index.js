@@ -195,4 +195,15 @@ export function resetParkDetection() {
   return VisitMonitor.resetParkDetection();
 }
 
+// ── R5.3: returning confirmation foreground fallback ─────────────────────────
+// The notification's own Yes/No actions only work if the user catches/interacts with the banner before
+// it auto-dismisses (Temporary banner style — iOS gives apps no API to force Persistent). So JS also
+// polls this on every foreground; if still pending it shows an in-app Yes/No popup as a guaranteed path.
+export function getPendingReturnConfirmDist() {
+  return VisitMonitor.getPendingReturnConfirmDist(); // -1 = none pending, else distance in meters
+}
+export function respondReturnConfirm(yes) {
+  return VisitMonitor.respondReturnConfirm(yes);
+}
+
 export default VisitMonitor;

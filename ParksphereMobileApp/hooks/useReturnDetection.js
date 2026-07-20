@@ -14,7 +14,7 @@
 // KNOWN LIMITS (test build):
 //  • CLVisit arrival is delayed (minutes) and coarse — the geofence centers on an approximate spot.
 import { useEffect } from 'react';
-import { AppState, DeviceEventEmitter } from 'react-native';
+import { AppState, DeviceEventEmitter, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -315,6 +315,26 @@ export function useReturnDetection() {
         const nativeId = await VM.getServerSpotId();
         if (nativeId > 0) await adoptServerSpotId(nativeId);
       } catch (e) { console.warn('[Return] serverSpot sync failed:', e?.message); }
+    };
+
+    // ── R5.3 foreground fallback: guaranteed path if the notification's Yes/No banner was missed ──
+    // (Temporary banner style auto-dismisses; there's no API to force Persistent.) On every foreground,
+    // ask native whether a SOFT return is still awaiting an answer; if so, show an in-app popup — same
+    // Yes/No outcome as tapping the notification action, just reachable from inside the app too.
+    const checkPendingReturnConfirm = async () => {
+      if (!VM?.getPendingReturnConfirmDist) return;
+      try {
+        const dist = await VM.getPendingReturnConfirmDist();
+        if (dist < 0) return;
+        Alert.alert(
+          'Are you returning to your car?',
+          `You appear to be heading back (~${dist}m away). Confirm to alert nearby drivers.`,
+          [
+            { text: 'No, false alarm', style: 'destructive', onPress: () => VM.respondReturnConfirm(false).catch(() => {}) },
+            { text: "Yes, I'm returning", onPress: () => VM.respondReturnConfirm(true).catch(() => {}) },
+          ],
+        );
+      } catch (e) { console.warn('[Return] checkPendingReturnConfirm failed (rebuild?):', e?.message); }
     };
 
     // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
@@ -655,7 +675,7 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); syncServerSpotOnForeground(); } // native fixes + park + state + backend cfg + serverSpotId dedup
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); syncServerSpotOnForeground(); checkPendingReturnConfirm(); } // native fixes + park + state + backend cfg + serverSpotId dedup + return-confirm fallback
         else if ((s === 'background' || s === 'inactive') && VM?.setServerSpotId) {
           // R5.2 dedup: hand native the serverSpotId the foreground HMM owns, so native can manage it in bg.
           getStoredServerSpotId().then((id) => { if (id > 0) VM.setServerSpotId(id).catch(() => {}); }).catch(() => {});
@@ -675,6 +695,7 @@ export function useReturnDetection() {
       await mergeNativePark(); // adopt a park the native detector declared before this launch
       await readNativeState(); // R1: log native's authoritative current-state on launch
       await configureNativeBackend(); // R5.1: hand native the backend config on launch
+      await checkPendingReturnConfirm(); // R5.3: catch a SOFT return whose banner was missed before launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };
