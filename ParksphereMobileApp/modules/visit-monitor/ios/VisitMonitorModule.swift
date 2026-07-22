@@ -564,12 +564,13 @@ public class VisitMonitorModule: Module {
 
   // Called by ReturnNotifProxy when the user taps an action on the confirm notification.
   fileprivate func handleReturnConfirmAction(_ actionId: String) {
-    returnConfirmPending = false // answered (via notification tap or the in-app fallback popup) — stop asking
     if actionId == VisitMonitorModule.notifActionYes {
+      returnConfirmPending = false // answered (via notification action or the in-app fallback popup) — stop asking
       // Confirmed returning — publish the spot immediately (seekers will see it).
       updateServerStatus("soon_free")
       logNativeFix(lastLiveFix ?? CLLocation(), tag: "return-confirm-yes", force: true)
     } else if actionId == VisitMonitorModule.notifActionNo {
+      returnConfirmPending = false // answered — stop asking
       // False alarm — suppress the COMMIT too and reset the whole return state.
       returnSuppressed = true
       returnSoftFired = false
@@ -582,7 +583,9 @@ public class VisitMonitorModule: Module {
       recomputeState()
       logNativeFix(lastLiveFix ?? CLLocation(), tag: "return-confirm-no", force: true)
     }
-    // Default (UNNotificationDefaultActionIdentifier — user tapped the body): ignore → let COMMIT decide.
+    // Default (UNNotificationDefaultActionIdentifier — user tapped the body, no long-press): leave
+    // returnConfirmPending untouched so the in-app fallback popup (checkPendingReturnConfirm in
+    // useReturnDetection.js) can still catch it once the app opens.
   }
 
   // Post a local notification straight from native code. UNUserNotificationCenter delivers even when
