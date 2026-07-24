@@ -76,6 +76,14 @@ public class VisitMonitorModule: Module {
   private static let parkStopRadiusM = 40.0    // GPS noise + parking maneuver
   private static let parkStopConfirmSec = 120.0 // sustained stillness to beat a long traffic light
   private static let parkRearmDistM = 150.0     // drove >this from the car at speed ⇒ new trip ⇒ re-arm park detection
+  // R6: accuracy-aware anchor (port of parkDetectionService.js's stoppedCandidateLocation guard,
+  // :646-648, and its 90s refinement window, :622-624,652-664) — every return-distance calc is measured
+  // FROM this anchor, so a bad-accuracy park fix corrupts everything downstream otherwise.
+  private var parkDeclaredAt: TimeInterval = 0        // when declarePark fired — 0 = no active refine window
+  private var parkDeclaredAccuracy: Double = 0        // horizontalAccuracy of the currently-declared anchor
+  private static let parkAnchorGoodAccuracyM = 50.0   // only PREFER a candidate fix at least this accurate
+  private static let parkAnchorRefineWindowSec = 90.0 // matches the JS 90s post-park refinement window
+  private static let parkAnchorRefineFactor = 0.5     // a refining fix must beat the declared accuracy by 2x
   private var nativeParkURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_park.json")
@@ -95,7 +103,9 @@ public class VisitMonitorModule: Module {
   // (sustained) = "vacating now" + ETA. Confidence updates ONLY on real movement (>returnMinMoveM) so
   // stationary GPS jitter near the car can't fire it (the 2026-07-11 premature return at 40m). Replaces
   // the lean "3 sustained-approach fixes" trigger. No ML (geometry-first per the 2026-07-11 revision).
-  private var returnPrevFix: CLLocation?
+  private var returnPrevFiltered: [Double]?      // last FILTERED [x,y] (meters, car=origin), not the raw fix
+  private var returnPositionFilter = ReturnPositionFilter() // R6: accuracy-weighted Kalman position filter
+  private var returnProgressHistory: [(x: Double, y: Double, dist: Double)] = [] // R6: PGR-lite rolling window
   private var returnSmoothedConf: Double = 0
   private var returnSoftFired = false
   private var returnCommitFired = false
@@ -110,6 +120,15 @@ public class VisitMonitorModule: Module {
   private static let returnAlertMaxRange = 200.0 // returnBoundary ALERT_MAX_RANGE
   private static let returnEtaMinSpeed = 0.5     // m/s — below this, no ETA
   private static let returnLeaveMarginM = 40.0   // moved this far BACK from the closest approach ⇒ left again ⇒ re-arm
+  // R6: GPS-spike robustness — port of the foreground JS HMM's accuracy-awareness (parkDetection_HMM.js)
+  // into the native return path, which previously trusted every fix equally regardless of accuracy.
+  private static let returnAccuracyRefDist = 20.0      // gpsWeight neutral point (matches JS "accuracy > 20")
+  private static let returnAccuracyWeightFloor = 0.2   // gpsWeight floor (matches JS)
+  private static let returnDefaultAccuracy = 20.0       // fallback when horizontalAccuracy is invalid (≤0)
+  private static let returnProgressWindowSize = 15      // PGR history cap (matches JS PROGRESS_WINDOW_SIZE)
+  private static let returnProgressMinSamples = 5       // PGR untrusted below this many samples (matches JS)
+  private static let returnProgressNeutral = 0.2        // pgr value at which progressWeight reaches 1.0
+  private static let returnProgressWeightFloor = 0.3    // progressWeight floor — damp, don't hard-veto
   // R4: log the returning confidence TRAJECTORY (dist/conf/thresholds/zone) periodically while in the
   // watch phase, so the heartbeat shows WHY it fired or didn't → precise threshold tuning.
   private var lastReturnLogAt: TimeInterval = 0
@@ -578,7 +597,8 @@ public class VisitMonitorModule: Module {
       returnCommitSince = 0
       returnSoftSince = 0
       returnSmoothedConf = 0
-      returnPrevFix = nil
+      returnPrevFiltered = nil
+      returnProgressHistory.removeAll()
       returningNotified = false
       recomputeState()
       logNativeFix(lastLiveFix ?? CLLocation(), tag: "return-confirm-no", force: true)
@@ -640,10 +660,18 @@ public class VisitMonitorModule: Module {
     let now = Date().timeIntervalSince1970
     if let cand = parkStopFix {
       if loc.distance(from: cand) <= VisitMonitorModule.parkStopRadiusM {
+        // R6: prefer a materially better-accuracy fix as the anchor candidate WITHOUT resetting the
+        // confirm timer — the eventual declare is measured from whichever fix is held here (port of
+        // JS's accuracy-gated stoppedCandidateLocation, parkDetectionService.js:646-648).
+        let candAccuracy = cand.horizontalAccuracy > 0 ? cand.horizontalAccuracy : .greatestFiniteMagnitude
+        if loc.horizontalAccuracy > 0 && loc.horizontalAccuracy < candAccuracy
+          && loc.horizontalAccuracy < VisitMonitorModule.parkAnchorGoodAccuracyM {
+          parkStopFix = loc
+        }
         // Still resting near the candidate. Confirmed once we've held it long enough.
         if now - parkStopSince >= VisitMonitorModule.parkStopConfirmSec {
           parkDeclared = true
-          declarePark(at: cand)
+          declarePark(at: parkStopFix ?? cand)
         }
       } else {
         // Moved off the candidate (a light that turned green, or crept forward) → reset the candidate.
@@ -666,9 +694,23 @@ public class VisitMonitorModule: Module {
     armParkedRegion(lat, lon, 200) // returning geofence — backup wake; ENTER fires even if JS never wakes
     logNativeFix(loc, tag: "park-\(source)", force: true) // source = stop | bt (heartbeat diagnostics)
     beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
+    // R6: open the anchor-refinement window (see detectReturn) — a better-accuracy fix arriving shortly
+    // can still replace this anchor before the owner starts actually walking away.
+    parkDeclaredAt = Date().timeIntervalSince1970
+    parkDeclaredAccuracy = loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : VisitMonitorModule.parkAnchorGoodAccuracyM
     recomputeState() // → parked, immediately
     declareServerSpot(loc) // R5.2: create the server spot (starts 'occupied' = private to the owner)
-    let entry: [String: Any] = ["lat": lat, "lon": lon, "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source]
+    persistNativeParkEntry(loc, source: source)
+  }
+
+  // Persist the current anchor for JS to reconcile on next foreground (native_park.json). Factored out
+  // of declarePark so the R6 anchor-refinement path (detectReturn) can re-persist after replacing the
+  // anchor with a better-accuracy fix, without duplicating the write.
+  private func persistNativeParkEntry(_ loc: CLLocation, source: String) {
+    let entry: [String: Any] = [
+      "lat": loc.coordinate.latitude, "lon": loc.coordinate.longitude,
+      "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source
+    ]
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
             let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
@@ -808,6 +850,8 @@ public class VisitMonitorModule: Module {
     parkDriveSeen = false
     parkStopFix = nil
     parkDeclared = false
+    parkDeclaredAt = 0 // R6: close out any still-open anchor-refinement window from the previous park
+    parkDeclaredAccuracy = 0
     returnSuppressed = false // R5.3: new trip clears any No-suppression from the previous one
     recomputeState() // → driving/idle, the new trip
   }
@@ -823,7 +867,9 @@ public class VisitMonitorModule: Module {
     carLocation = loc
     returningNotified = false
     returnMaxDist = 0
-    returnPrevFix = nil
+    returnPrevFiltered = nil
+    returnPositionFilter.reset() // R6: fresh Kalman state — a new anchor means a new local-meters origin
+    returnProgressHistory.removeAll()
     returnSmoothedConf = 0
     returnSoftFired = false
     returnCommitFired = false
@@ -838,8 +884,35 @@ public class VisitMonitorModule: Module {
   // the owner, having gone AWAY from the car, sustains an APPROACH back toward it — distance-based, so
   // it works for close parking a geofence can't catch.
   fileprivate func detectReturn(_ loc: CLLocation) {
-    guard let car = carLocation else { return }
-    let dist = loc.distance(from: car)
+    guard var car = carLocation else { return }
+    // R6: brief post-park anchor refinement — if a materially better-accuracy fix arrives inside the
+    // window opened by declarePark, replace the anchor IN PLACE (no new notification/re-declare) and
+    // reset the tracking below (a new anchor is a new local-meters origin for the Kalman filter). Every
+    // distance/alignment calc in this function is measured FROM the anchor, so a bad park fix would
+    // otherwise corrupt everything downstream regardless of how good the live-fix filtering is (port of
+    // JS's 90s refinement window, parkDetectionService.js:622-624,652-664).
+    if parkDeclaredAt > 0,
+       Date().timeIntervalSince1970 - parkDeclaredAt < VisitMonitorModule.parkAnchorRefineWindowSec,
+       loc.horizontalAccuracy > 0, parkDeclaredAccuracy > 0,
+       loc.horizontalAccuracy < parkDeclaredAccuracy * VisitMonitorModule.parkAnchorRefineFactor,
+       loc.distance(from: car) <= VisitMonitorModule.parkStopRadiusM {
+      parkDeclaredAccuracy = loc.horizontalAccuracy
+      beginReturnWatch(at: loc)
+      persistNativeParkEntry(loc, source: "refine")
+      logNativeFix(loc, tag: "park-refine", force: true)
+      car = loc
+    }
+    // R6: accuracy — invalid (≤0, e.g. no fix yet) falls back to a neutral value (no penalty/bonus).
+    let accuracy = loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : VisitMonitorModule.returnDefaultAccuracy
+    let gpsWeight = accuracy > VisitMonitorModule.returnAccuracyRefDist
+      ? max(VisitMonitorModule.returnAccuracyWeightFloor, VisitMonitorModule.returnAccuracyRefDist / accuracy)
+      : 1.0
+    // R6: run the raw fix through the accuracy-weighted Kalman filter (car = local-meters origin) before
+    // any distance/alignment math — a low-accuracy indoor fix barely moves the filtered position, so
+    // stationary GPS jitter can't masquerade as walking toward the car (port of JS Kalman2D, :106-146).
+    let rawMeters = VisitMonitorModule.metersFromOrigin(loc, origin: car)
+    let filtered = returnPositionFilter.update(rawMeters, at: loc.timestamp.timeIntervalSince1970, accuracy: accuracy)
+    let dist = (filtered[0] * filtered[0] + filtered[1] * filtered[1]).squareRoot()
     if dist > returnMaxDist { returnMaxDist = dist }
     // Re-arm for a REPEAT return: after a return fired, track the CLOSEST approach and re-arm only when
     // the owner moves clearly BACK from it (returnLeaveMarginM) — the true "left again" signal. It doesn't
@@ -854,7 +927,8 @@ public class VisitMonitorModule: Module {
         returnCommitSince = 0
         returnSoftSince = 0
         returnSmoothedConf = 0
-        returnPrevFix = nil
+        returnPrevFiltered = nil
+        returnProgressHistory.removeAll()
         returnMinDist = .greatestFiniteMagnitude
         returnConfirmPending = false
         logNativeFix(loc, tag: "return-rearm", force: true)
@@ -866,24 +940,41 @@ public class VisitMonitorModule: Module {
     // confidence builds and nothing fires; it starts fresh when the owner enters the range.
     if dist >= VisitMonitorModule.returnAlertMaxRange {
       returnSmoothedConf = 0
-      returnPrevFix = loc
+      returnPrevFiltered = filtered
+      returnProgressHistory.removeAll()
       return
     }
-    // Update the confidence only on REAL movement — a stationary jitter near the car must not build
-    // confidence (that fired the premature return at 40m). approachAlignment ∈ [-1,1] = how much the
+    // Update the confidence only on REAL (filtered) movement — a stationary jitter near the car must not
+    // build confidence (that fired the premature return at 40m). gpsWeight further damps a low-accuracy
+    // fix's contribution (port of JS gpsWeight, parkDetection_HMM.js:352-353) so bad GPS can't push the
+    // EMA even once it clears the move gate. approachAlignmentMeters ∈ [-1,1] = how much the FILTERED
     // movement heads toward the car; EMA-smooth it so a single aligned twitch can't trip the boundary.
-    if let prev = returnPrevFix {
-      if prev.distance(from: loc) >= VisitMonitorModule.returnMinMoveM {
-        let inst = max(0, approachAlignment(prev: prev, cur: loc, car: car))
-        returnSmoothedConf = VisitMonitorModule.returnEmaAlpha * inst
-          + (1 - VisitMonitorModule.returnEmaAlpha) * returnSmoothedConf
-        returnPrevFix = loc
+    if let prev = returnPrevFiltered {
+      let moved = ((filtered[0] - prev[0]) * (filtered[0] - prev[0]) + (filtered[1] - prev[1]) * (filtered[1] - prev[1]))
+        .squareRoot()
+      if moved >= VisitMonitorModule.returnMinMoveM {
+        let inst = max(0, VisitMonitorModule.approachAlignmentMeters(prev: prev, cur: filtered))
+        let effectiveAlpha = VisitMonitorModule.returnEmaAlpha * gpsWeight
+        returnSmoothedConf = effectiveAlpha * inst + (1 - effectiveAlpha) * returnSmoothedConf
+        returnPrevFiltered = filtered
+        returnProgressHistory.append((x: filtered[0], y: filtered[1], dist: dist))
+        if returnProgressHistory.count > VisitMonitorModule.returnProgressWindowSize {
+          returnProgressHistory.removeFirst()
+        }
       }
     } else {
-      returnPrevFix = loc
+      returnPrevFiltered = filtered
     }
     guard returnMaxDist > VisitMonitorModule.returnAwayThresholdM else { return } // must have left the car
-    let P = returnSmoothedConf
+    // R6: PGR-lite — net distance gained toward the car ÷ total path walked, over the rolling window.
+    // Damps (not vetoes) the confidence so a bouncing GPS spike near-zeroes `pgr` even if one instant
+    // alignment sample looked good (port of JS calculatePGR, parkDetection_HMM.js:207-241 — consistency
+    // and slope are intentionally omitted; this is the "lite" version scoped in the plan).
+    let pgr = VisitMonitorModule.calculatePGR(returnProgressHistory)
+    let progressWeight = returnProgressHistory.count < VisitMonitorModule.returnProgressMinSamples
+      ? 1.0
+      : max(VisitMonitorModule.returnProgressWeightFloor, min(1.0, pgr / VisitMonitorModule.returnProgressNeutral))
+    let P = returnSmoothedConf * progressWeight
     // R4: log the confidence trajectory (throttled) so a field test shows the curve vs the thresholds.
     let soft = VisitMonitorModule.softThreshold(dist), commit = VisitMonitorModule.commitThreshold(dist)
     let now = Date().timeIntervalSince1970
@@ -892,7 +983,9 @@ public class VisitMonitorModule: Module {
       let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
       logNativeFix(loc, tag: "return-traj", force: true, extra: [
         "dist": Int(dist), "conf": (P * 100).rounded() / 100,
-        "soft": (soft * 100).rounded() / 100, "commit": (commit * 100).rounded() / 100, "zone": zone
+        "soft": (soft * 100).rounded() / 100, "commit": (commit * 100).rounded() / 100, "zone": zone,
+        "acc": Int(accuracy), "gpsW": (gpsWeight * 100).rounded() / 100, "pgr": (pgr * 100).rounded() / 100,
+        "rawDist": Int(loc.distance(from: car))
       ])
     }
     // COMMIT — sustained above the (distance-weighted) commit curve → "vacating now" + ETA.
@@ -939,17 +1032,41 @@ public class VisitMonitorModule: Module {
     }
   }
 
-  // Movement-vs-car-direction cosine ∈ [-1,1] (equirectangular; mirrors the JS HMM approachAlignment).
-  private func approachAlignment(prev: CLLocation, cur: CLLocation, car: CLLocation) -> Double {
-    let kx = cos(cur.coordinate.latitude * .pi / 180)
-    let vx = (cur.coordinate.longitude - prev.coordinate.longitude) * kx
-    let vy = (cur.coordinate.latitude - prev.coordinate.latitude)
-    let dx = (car.coordinate.longitude - cur.coordinate.longitude) * kx
-    let dy = (car.coordinate.latitude - cur.coordinate.latitude)
+  // R6: local flat-earth projection around `origin`, in meters (equirectangular; same convention the
+  // old approachAlignment used, and mirrors JS latLonToMeters, parkDetection_HMM.js:180-186). Using the
+  // car as origin means the filtered position IS the car-relative (x,y) — no extra lat/lon round-trip.
+  private static func metersFromOrigin(_ loc: CLLocation, origin: CLLocation) -> [Double] {
+    let latRad = origin.coordinate.latitude * .pi / 180
+    let dLat = (loc.coordinate.latitude - origin.coordinate.latitude) * .pi / 180
+    let dLon = (loc.coordinate.longitude - origin.coordinate.longitude) * .pi / 180
+    return [earthRadiusM * dLon * cos(latRad), earthRadiusM * dLat]
+  }
+  private static let earthRadiusM = 6371000.0
+
+  // Movement-vs-car-direction cosine ∈ [-1,1], operating on FILTERED positions in the car-as-origin
+  // meters frame (so the car itself is always (0,0)) — mirrors the JS HMM approachAlignment, but on
+  // Kalman-filtered rather than raw points so GPS noise can't fake an aligned movement.
+  private static func approachAlignmentMeters(prev: [Double], cur: [Double]) -> Double {
+    let vx = cur[0] - prev[0], vy = cur[1] - prev[1] // movement vector
+    let dx = -cur[0], dy = -cur[1]                   // direction to car (origin) from cur
     let magV = (vx * vx + vy * vy).squareRoot()
     let magD = (dx * dx + dy * dy).squareRoot()
     if magV == 0 || magD == 0 { return 0 }
     return (vx * dx + vy * dy) / (magV * magD)
+  }
+
+  // R6: net distance gained toward the car ÷ total path walked over the rolling window — PGR-lite port
+  // of calculatePGR (parkDetection_HMM.js:222-234; consistency/slope intentionally omitted, see plan).
+  private static func calculatePGR(_ history: [(x: Double, y: Double, dist: Double)]) -> Double {
+    guard history.count >= returnProgressMinSamples, let start = history.first, let end = history.last else { return 0 }
+    let netGain = start.dist - end.dist
+    var totalPath = 0.0
+    for i in 1..<history.count {
+      let dx = history[i].x - history[i - 1].x
+      let dy = history[i].y - history[i - 1].y
+      totalPath += (dx * dx + dy * dy).squareRoot()
+    }
+    return totalPath < 1.0 ? 0 : netGain / totalPath
   }
 
   // returnBoundary (ported from returnBoundary.js) — distance-weighted zone curves + ETA. Far from the
@@ -1059,6 +1176,78 @@ public class VisitMonitorModule: Module {
     self.manager = m
     self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
     self.startActivityUpdatesIfAvailable() // R1: motion activity → authoritative current-state
+  }
+}
+
+// R6 ── 2D constant-velocity Kalman filter in local meters, port of parkDetection_HMM.js's Kalman2D
+// (:106-146). Measurement noise scales with accuracy² (floored at 25), so a low-accuracy indoor fix
+// barely moves the filtered position — the defense the JS foreground HMM uses against GPS spikes that
+// VisitMonitorModule's return-detector previously had none of (raw fixes were trusted equally always).
+private struct ReturnPositionFilter {
+  private var x = [0.0, 0.0, 0.0, 0.0] // [px, py, vx, vy]
+  private var P: [[Double]] = ReturnPositionFilter.diag(1000)
+  private var lastTime: TimeInterval?
+
+  private static func diag(_ v: Double) -> [[Double]] {
+    (0..<4).map { i in (0..<4).map { j in i == j ? v : 0 } }
+  }
+
+  mutating func reset() {
+    x = [0, 0, 0, 0]
+    P = ReturnPositionFilter.diag(1000)
+    lastTime = nil
+  }
+
+  // z = [x, y] meters; returns the filtered [x, y]. First call seeds the state directly (no prior to
+  // predict from), exactly like the JS version's `if (!this.lastTime)` branch.
+  mutating func update(_ z: [Double], at time: TimeInterval, accuracy: Double) -> [Double] {
+    guard let last = lastTime else {
+      lastTime = time
+      x[0] = z[0]; x[1] = z[1]
+      return [x[0], x[1]]
+    }
+    let dt = max(0.001, time - last)
+    lastTime = time
+    let qv = 0.1, rVal = max(25.0, accuracy * accuracy)
+
+    // Predict: x = F x, P = F P Fᵀ + Q, with F = [[1,0,dt,0],[0,1,0,dt],[0,0,1,0],[0,0,0,1]] (constant
+    // velocity) and Q = diag(0.1). Expanded by hand (rather than generic NxM helpers, unlike the JS
+    // original) since F/H have a fixed, known structure here.
+    x = [x[0] + dt * x[2], x[1] + dt * x[3], x[2], x[3]]
+    var fp = [[Double]](repeating: [Double](repeating: 0, count: 4), count: 4)
+    for i in 0..<4 {
+      for j in 0..<4 {
+        fp[i][j] = P[i][j] + (i == 0 ? dt * P[2][j] : 0) + (i == 1 ? dt * P[3][j] : 0)
+      }
+    }
+    for i in 0..<4 {
+      for j in 0..<4 {
+        P[i][j] = fp[i][j] + (j == 0 ? dt * fp[i][2] : 0) + (j == 1 ? dt * fp[i][3] : 0) + (i == j ? qv : 0)
+      }
+    }
+
+    // Update against z = [x, y] (H picks the position rows/cols out of the 4-state vector).
+    let yx = z[0] - x[0], yy = z[1] - x[1]
+    let s00 = P[0][0] + rVal, s01 = P[0][1], s10 = P[1][0], s11 = P[1][1] + rVal
+    let det = s00 * s11 - s01 * s10
+    guard abs(det) > 1e-6 else { return [x[0], x[1]] }
+    let si00 = s11 / det, si01 = -s01 / det, si10 = -s10 / det, si11 = s00 / det
+
+    var k = [[Double]](repeating: [0, 0], count: 4)
+    for i in 0..<4 {
+      k[i][0] = P[i][0] * si00 + P[i][1] * si10
+      k[i][1] = P[i][0] * si01 + P[i][1] * si11
+    }
+    for i in 0..<4 { x[i] += k[i][0] * yx + k[i][1] * yy }
+
+    var newP = P
+    for i in 0..<4 {
+      for j in 0..<4 {
+        newP[i][j] = P[i][j] - k[i][0] * P[0][j] - k[i][1] * P[1][j]
+      }
+    }
+    P = newP
+    return [x[0], x[1]]
   }
 }
 
