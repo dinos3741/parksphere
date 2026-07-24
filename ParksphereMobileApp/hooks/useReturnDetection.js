@@ -322,9 +322,10 @@ export function useReturnDetection() {
     // ask native whether a SOFT return is still awaiting an answer; if so, show an in-app popup — same
     // Yes/No outcome as tapping the notification action, just reachable from inside the app too.
     const checkPendingReturnConfirm = async () => {
-      if (!VM?.getPendingReturnConfirmDist) return;
+      if (!VM?.getPendingReturnConfirmDist) { await log({ src: 'confirmFallback', action: 'no-native-fn' }); return; }
       try {
         const dist = await VM.getPendingReturnConfirmDist();
+        await log({ src: 'confirmFallback', action: 'checked', dist, app: AppState.currentState });
         if (dist < 0) return;
         Alert.alert(
           'Are you returning to your car?',
