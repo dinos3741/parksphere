@@ -222,7 +222,7 @@ public class VisitMonitorModule: Module {
   // postLocalNotification, updateServerStatus, postReturnConfirmNotification) — only the DECISION
   // of when to fire differs. Dedicated hold-timer/fired-flag state below is kept separate from the
   // R1-R6 path's return*/park* fields so the two engines never share state regardless of the toggle.
-  private static let useFullHMM = false
+  private static let useFullHMM = true
   private let hmmEngine = ParkDetectionHMMEngine()
   private let stepRateProvider = StepRateProvider()
   private let returnPredictor = ParkReturnPredictor()
@@ -496,17 +496,23 @@ public class VisitMonitorModule: Module {
     // persisted so native still has it after a background relaunch. Call on login + every foreground.
     AsyncFunction("configureBackend") { (serverUrl: String, token: String, carType: String) in
       self.backend.configure(url: serverUrl, token: token, carType: carType)
+      // R7 field-test diagnosability: log that native got (re)configured, and with what URL/car type —
+      // never the token itself. If server calls later show code=0, this confirms whether native even
+      // had a URL to call at all.
+      if let loc = self.lastLiveFix {
+        self.logNativeFix(loc, tag: "server-configure", force: true, extra: ["url": serverUrl, "carType": carType, "hasToken": !token.isEmpty])
+      }
     }
     // Declare an auto-detected spot (starts 'occupied' = private). Returns spotId (>0) or -1 on failure.
     AsyncFunction("declareSpotNative") { (latitude: Double, longitude: Double, timeToLeave: Int, promise: Promise) in
-      Task { promise.resolve(await self.backend.declareSpot(lat: latitude, lon: longitude, timeToLeave: timeToLeave)) }
+      Task { promise.resolve(await self.backend.declareSpot(lat: latitude, lon: longitude, timeToLeave: timeToLeave).id) }
     }
     // Update a spot's status (occupied|soon_free|committed|vacating|free) — the returning broadcast.
     AsyncFunction("updateSpotStatusNative") { (spotId: Int, status: String, promise: Promise) in
-      Task { promise.resolve(await self.backend.updateStatus(spotId: spotId, status: status)) }
+      Task { promise.resolve(await self.backend.updateStatus(spotId: spotId, status: status).ok) }
     }
     AsyncFunction("deleteSpotNative") { (spotId: Int, promise: Promise) in
-      Task { promise.resolve(await self.backend.deleteSpot(spotId: spotId)) }
+      Task { promise.resolve(await self.backend.deleteSpot(spotId: spotId).ok) }
     }
 
     // R5.2 dedup: the shared serverSpotId (0 = none). JS reads it on foreground to ADOPT a spot native
@@ -563,27 +569,47 @@ public class VisitMonitorModule: Module {
     let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
     Task { [weak self] in
       guard let self = self else { return }
-      if self.serverSpotId > 0 { _ = await self.backend.deleteSpot(spotId: self.serverSpotId); self.serverSpotId = 0 }
-      let id = await self.backend.declareSpot(lat: lat, lon: lon, timeToLeave: 60)
+      if self.serverSpotId > 0 {
+        let priorId = self.serverSpotId
+        let (ok, code) = await self.backend.deleteSpot(spotId: priorId)
+        self.logNativeFix(loc, tag: "server-delete", force: true, extra: ["ok": ok, "code": code, "spotId": priorId, "via": "redeclare"])
+        self.serverSpotId = 0
+      }
+      let (id, code) = await self.backend.declareSpot(lat: lat, lon: lon, timeToLeave: 60)
+      self.logNativeFix(loc, tag: "server-declare", force: true, extra: ["ok": id > 0, "code": code, "spotId": id])
       if id > 0 { self.serverSpotId = id }
     }
   }
   private func updateServerStatus(_ status: String) {
     let id = serverSpotId
     guard id > 0 else { return }
-    Task { [weak self] in _ = await self?.backend.updateStatus(spotId: id, status: status) }
+    let loc = lastLiveFix
+    Task { [weak self] in
+      guard let self = self else { return }
+      let (ok, code) = await self.backend.updateStatus(spotId: id, status: status)
+      if let loc = loc { self.logNativeFix(loc, tag: "server-status", force: true, extra: ["ok": ok, "code": code, "spotId": id, "status": status]) }
+    }
   }
   private func deleteServerSpot() {
     let id = serverSpotId
     guard id > 0 else { return }
     serverSpotId = 0
-    Task { [weak self] in _ = await self?.backend.deleteSpot(spotId: id) }
+    let loc = lastLiveFix
+    Task { [weak self] in
+      guard let self = self else { return }
+      let (ok, code) = await self.backend.deleteSpot(spotId: id)
+      if let loc = loc { self.logNativeFix(loc, tag: "server-delete", force: true, extra: ["ok": ok, "code": code, "spotId": id, "via": "rearm"]) }
+    }
   }
   private func updateServerSpotLocation(_ loc: CLLocation) {
     let id = serverSpotId
     guard id > 0 else { return }
     let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
-    Task { [weak self] in _ = await self?.backend.updateLocation(spotId: id, lat: lat, lon: lon) }
+    Task { [weak self] in
+      guard let self = self else { return }
+      let (ok, code) = await self.backend.updateLocation(spotId: id, lat: lat, lon: lon)
+      self.logNativeFix(loc, tag: "server-location", force: true, extra: ["ok": ok, "code": code, "spotId": id])
+    }
   }
 
   // R5.3 ── Confirmation interactive notification for SOFT return. ─────────────────────────────────
@@ -1632,35 +1658,38 @@ final class BackendClient {
     } catch { return (0, nil) }
   }
 
-  // POST /api/declare-spot → spotId (>0) or -1. Auto-detected spot starts 'occupied' (private to owner).
-  func declareSpot(lat: Double, lon: Double, timeToLeave: Int) async -> Int {
+  // POST /api/declare-spot → (spotId, httpCode). spotId>0 on success, -1 on failure. The httpCode is
+  // exposed (R7 field-test diagnosability, alongside the useFullHMM rollout) so a 0 (network/DNS —
+  // e.g. the .local hostname didn't resolve) can be told apart from a 401 (bad/demo token) or other
+  // 4xx/5xx from the server itself.
+  func declareSpot(lat: Double, lon: Double, timeToLeave: Int) async -> (id: Int, code: Int) {
     let body: [String: Any] = [
       "latitude": lat, "longitude": lon, "timeToLeave": timeToLeave,
       "costType": "free", "price": 0, "declaredCarType": carType,
       "comments": "Auto-detected (native)", "isAutoDetected": true
     ]
     let (code, json) = await send("/api/declare-spot", method: "POST", body: body)
-    guard (200...299).contains(code) else { return -1 }
-    return (json?["spotId"] as? Int) ?? -1
+    guard (200...299).contains(code) else { return (-1, code) }
+    return ((json?["spotId"] as? Int) ?? -1, code)
   }
 
   // PUT /api/parkingspots/:id/status  (occupied|soon_free|committed|vacating|free)
-  func updateStatus(spotId: Int, status: String) async -> Bool {
+  func updateStatus(spotId: Int, status: String) async -> (ok: Bool, code: Int) {
     let (code, _) = await send("/api/parkingspots/\(spotId)/status", method: "PUT", body: ["status": status])
-    return (200...299).contains(code)
+    return ((200...299).contains(code), code)
   }
 
   // DELETE /api/parkingspots/:id
-  func deleteSpot(spotId: Int) async -> Bool {
+  func deleteSpot(spotId: Int) async -> (ok: Bool, code: Int) {
     let (code, _) = await send("/api/parkingspots/\(spotId)", method: "DELETE", body: nil)
-    return (200...299).contains(code)
+    return ((200...299).contains(code), code)
   }
 
   // PUT /api/parkingspots/:id/location — R7: keeps the server spot in sync when the post-park
   // anchor-refinement window (declarePark/refineParkAnchorIfNeeded) replaces the anchor with a
   // better-accuracy fix. Port of updateSpotLocation, parkDetectionService.js:210-225.
-  func updateLocation(spotId: Int, lat: Double, lon: Double) async -> Bool {
+  func updateLocation(spotId: Int, lat: Double, lon: Double) async -> (ok: Bool, code: Int) {
     let (code, _) = await send("/api/parkingspots/\(spotId)/location", method: "PUT", body: ["latitude": lat, "longitude": lon])
-    return (200...299).contains(code)
+    return ((200...299).contains(code), code)
   }
 }
