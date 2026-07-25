@@ -14,13 +14,17 @@ export const useSpots = () => {
   return context;
 };
 
-export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation }) => {
+export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation, parkedLocation }) => {
   const { token, isLoggedIn, serverUrl, logout } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
   const [acceptedSpot, setAcceptedSpotState] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [arrivalConfirmed, setArrivalConfirmedState] = useState(false);
+  // R7 (2026-07-26): gates the reconciliation effect below — parkingSpots starts empty on every
+  // launch while the first fetch is in flight, and without this the "no spot found for me" branch
+  // would fire immediately and wipe a real cached marker before the server had even been asked.
+  const [spotsLoaded, setSpotsLoaded] = useState(false);
 
   const setAcceptedSpot = useCallback(async (spot) => {
     setAcceptedSpotState(spot);
@@ -156,6 +160,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
         const data = await response.json();
         const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
         setParkingSpots(transformedData);
+        setSpotsLoaded(true);
       } else if (response.status === 401 || response.status === 403) {
         await logout();
       }
@@ -163,6 +168,26 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       console.error('[SpotContext] Error fetching parking spots:', error);
     }
   }, [isLoggedIn, token, serverUrl, logout]);
+
+  // R7 (2026-07-26): reconcile the map's "Your Car" marker against the server's own record of THIS
+  // user's active spot, instead of trusting whatever's cached locally. Fixes both an account-switch
+  // leak (a previous account's spot surviving login) and a gap where a correctly-detected clear
+  // (native/HMM drive-off) never touched parkedLocation at all — the server's occupied-spot listing
+  // (already privacy-filtered to the owner, so this needs no new endpoint) is the source of truth.
+  // Runs on every parkingSpots change, so it reacts to the initial fetch AND the real-time
+  // newParkingSpot/spotDeleted/spotStatusUpdated socket events above, not just app launch.
+  useEffect(() => {
+    if (!spotsLoaded || !userId) return;
+    const myActiveSpot = parkingSpots.find((s) => s.user_id === userId);
+    if (myActiveSpot) {
+      const serverLoc = { latitude: myActiveSpot.latitude, longitude: myActiveSpot.longitude };
+      if (!parkedLocation || parkedLocation.latitude !== serverLoc.latitude || parkedLocation.longitude !== serverLoc.longitude) {
+        setParkedLocation(serverLoc);
+      }
+    } else if (parkedLocation) {
+      setParkedLocation(null);
+    }
+  }, [spotsLoaded, parkingSpots, userId, parkedLocation, setParkedLocation]);
 
   const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
     if (!token) return;
@@ -290,6 +315,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
 
   const resetParkingSpots = useCallback(async () => {
     setParkingSpots([]);
+    setSpotsLoaded(false);
     setAcceptedSpotState(null);
     setArrivalConfirmedState(false);
     setSpotRequests([]);

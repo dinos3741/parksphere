@@ -39,7 +39,11 @@ export const LocationProvider = ({ children }) => {
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener('dataReset', resetLocation);
-    return () => subscription.remove();
+    // R7 (2026-07-26): a routine "spot cleared" (drive-off/HMM clear) never emitted 'dataReset'
+    // (nor should it — that also wipes SpotContext's unrelated acceptedSpot/request state) but
+    // still needs to clear THIS marker; see useReturnDetection.js's clearSpot().
+    const clearedSub = DeviceEventEmitter.addListener('parkedLocationCleared', resetLocation);
+    return () => { subscription.remove(); clearedSub.remove(); };
   }, [resetLocation]);
 
   const getDistance = (lat1, lon1, lat2, lon2) => {

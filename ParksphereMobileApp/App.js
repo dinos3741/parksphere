@@ -52,7 +52,7 @@ function AppContent() {
 
   const [fontLoaded, setFontLoaded] = useState(false);
   const navigationRef = useNavigationContainerRef(); 
-  const { setParkedLocation } = useLocation(); 
+  const { setParkedLocation, parkedLocation } = useLocation();
   const [showRegister, setShowRegister] = useState(false);
   const [activeScreen, setActiveScreen] = useState('Home');
 
@@ -117,8 +117,9 @@ function AppContent() {
       currentUsername={currentUsername}
       triggerNotification={triggerNotification}
       setParkedLocation={setParkedLocation}
+      parkedLocation={parkedLocation}
     >
-      <ChatProvider 
+      <ChatProvider
         socket={socket} 
         userId={userId} 
         triggerNotification={triggerNotification}

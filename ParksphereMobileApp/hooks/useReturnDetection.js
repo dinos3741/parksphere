@@ -246,6 +246,11 @@ export function useReturnDetection() {
       await seedParkedSpot(null); // keep the HMM's PARK_STATE in sync so no stale spot resurfaces
       hasArmedSpot = false; // trip over → let the session release; re-arm native park detection
       if (VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
+      // R7 (2026-07-26): this correctly clears the geofence + native/HMM state, but never touched
+      // parkedLocation — the AsyncStorage key LocationContext actually draws "Your Car" from — so a
+      // real, correctly-detected clear could still leave a stale marker on the map. A dedicated event
+      // (not 'dataReset') so this doesn't also wipe SpotContext's unrelated acceptedSpot/request state.
+      DeviceEventEmitter.emit('parkedLocationCleared');
       await log({ src: 'clearSpot', source });
       console.log(`[Return] spot cleared by ${source}`);
     };
