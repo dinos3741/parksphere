@@ -324,6 +324,10 @@ final class ParkDetectionHMMEngine {
   private static let progressWindowSize = 15
   private static let pgrHistoryCap = 15
   private static let earthRadiusM = 6371000.0
+  // R7 field-test fix (2026-07-26, native-only deviation from JS parity — see the state-switch
+  // block below): how close you must actually be to the car for a RETURNING→STOPPED transition to
+  // count as "arrived," rather than any stop-anywhere-on-foot coincidentally matching the label.
+  private static let returningArrivalProximityM = 20.0
 
   // Module-level JS state (parkDetection_HMM.js :56-69), as instance state — this class instance
   // itself IS the persistence for as long as the native background session lives; see file header.
@@ -791,7 +795,13 @@ final class ParkDetectionHMMEngine {
       else if isReturningIntentLocked && currentState == .returning && (candidate == .idle || candidate == .walking) { blocked = true }
 
       if !blocked {
-        if currentState == .returning && candidate == .stopped {
+        // R7 field-test fix (2026-07-26): JS resets isAway unconditionally on RETURNING→STOPPED,
+        // assuming that transition always means "arrived at the car." It doesn't — walking away from
+        // the car toward some OTHER destination and stopping there (e.g. arriving home, still ~120m
+        // from the car) produces the exact same state-label transition, and the unconditional reset
+        // then let a stale "trip time" dwell satisfy isVacatingSpot's clear-the-spot condition despite
+        // never having gone anywhere near the car. Gate the reset on actually being close to it.
+        if currentState == .returning && candidate == .stopped && dist < ParkDetectionHMMEngine.returningArrivalProximityM {
           isAway = false
           proximityCounter = 0
         }

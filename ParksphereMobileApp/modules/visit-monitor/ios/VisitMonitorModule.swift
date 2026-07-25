@@ -1170,14 +1170,26 @@ public class VisitMonitorModule: Module {
     // R7: track the best-accuracy STOPPED fix while hunting for a park — a service-layer concern in
     // JS too (parkDetectionService.js's stoppedCandidateLocation lives outside parkDetection_HMM.js),
     // so it lives here rather than inside ParkDetectionHMMEngine. Same gate as detectPark's candidate
-    // preference (speed<5km/h, accuracy<25m and better than the current candidate).
+    // preference (speed<5km/h, accuracy<25m and better than the current candidate) — PLUS, as of the
+    // 2026-07-26 field-test fix, the same "moved off the candidate → reset" behavior detectPark has
+    // (:707-710). Without that reset, a momentary STOPPED reading at a red light or stop sign — if it
+    // happened to have better accuracy than the real final parking spot — would stay "best" for the
+    // rest of the drive and get used as the anchor, hundreds of metres from where the car actually
+    // ended up (exactly what happened in that field test: dist sat at ~570m the whole watch because
+    // hmmStopCandidate had locked onto an early, wrong-location stop).
     if carLocation == nil {
       if result.state == .stopped {
-        let isStoppedSpeed = loc.speed * 3.6 < 5
-        let candAccuracy = hmmStopCandidate?.horizontalAccuracy ?? .greatestFiniteMagnitude
-        if isStoppedSpeed, loc.horizontalAccuracy > 0, loc.horizontalAccuracy < candAccuracy,
-           loc.horizontalAccuracy < VisitMonitorModule.parkAnchorGoodAccuracyM {
-          hmmStopCandidate = loc
+        if let cand = hmmStopCandidate, loc.distance(from: cand) > VisitMonitorModule.parkStopRadiusM {
+          hmmStopCandidate = loc // moved off the old candidate — it was a different stop, start over
+        } else {
+          let isStoppedSpeed = loc.speed * 3.6 < 5
+          let candAccuracy = hmmStopCandidate?.horizontalAccuracy ?? .greatestFiniteMagnitude
+          if hmmStopCandidate == nil {
+            hmmStopCandidate = loc // seed a candidate even before any accuracy bar is cleared
+          } else if isStoppedSpeed, loc.horizontalAccuracy > 0, loc.horizontalAccuracy < candAccuracy,
+                    loc.horizontalAccuracy < VisitMonitorModule.parkAnchorGoodAccuracyM {
+            hmmStopCandidate = loc
+          }
         }
       }
       if result.parkedEvent {
