@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Alert, DeviceEventEmitter } from 'react-native';
+import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { apiRequest } from '../utils/apiService';
@@ -168,6 +168,18 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       console.error('[SpotContext] Error fetching parking spots:', error);
     }
   }, [isLoggedIn, token, serverUrl, logout]);
+
+  // R7 (2026-07-26): fetchParkingSpots only runs once at login (App.js's effect keys off
+  // isLoggedIn/userId/token) — if the server happened to be unreachable at that moment, spotsLoaded
+  // stays false and the reconciliation effect below never runs for the rest of the session. Re-fetch
+  // on every foreground so a transient failure at launch doesn't strand the whole session; mirrors
+  // the AppState pattern already used in useReturnDetection.js.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') fetchParkingSpots();
+    });
+    return () => sub.remove();
+  }, [fetchParkingSpots]);
 
   // R7 (2026-07-26): reconcile the map's "Your Car" marker against the server's own record of THIS
   // user's active spot, instead of trusting whatever's cached locally. Fixes both an account-switch
