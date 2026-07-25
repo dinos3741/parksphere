@@ -180,6 +180,37 @@ public class VisitMonitorModule: Module {
       .appendingPathComponent("native_heartbeat.jsonl")
   }
 
+  // ── R7 Phase C spike (2026-07-25) ────────────────────────────────────────────────────────────
+  // Before building the full FFT/spectral pipeline (which needs sustained 50Hz accelerometer
+  // sampling), confirm that raw CMMotionManager sampling actually survives in the background at
+  // all. Unlike CLLocationUpdate.liveUpdates (a SANCTIONED background-delivery API,
+  // CLBackgroundActivitySession proven to keep it alive), CMMotionManager has no such guarantee —
+  // it only keeps sampling if the PROCESS happens to be alive for another reason (here: the same
+  // location session). This just counts samples and logs a throttled heartbeat entry so a field
+  // test can show whether a steady spread of counts (native truly alive) or one huge burst at
+  // foreground-resume (suspended, exactly the failure mode location itself had pre-Build-E).
+  private let motionManager = CMMotionManager()
+  private var accelSpikeSampleCount = 0
+  private var lastAccelSpikeLogAt: TimeInterval = 0
+  private static let accelSpikeLogThrottleSec: TimeInterval = 10.0
+  private static let accelSpikeUpdateInterval: TimeInterval = 0.02 // 50Hz — the eventual real FFT rate
+
+  private func startAccelSpike() {
+    guard motionManager.isAccelerometerAvailable, !motionManager.isAccelerometerActive else { return }
+    motionManager.accelerometerUpdateInterval = VisitMonitorModule.accelSpikeUpdateInterval
+    motionManager.startAccelerometerUpdates(to: .main) { [weak self] _, _ in
+      guard let self = self else { return }
+      self.accelSpikeSampleCount += 1
+      let now = Date().timeIntervalSince1970
+      guard now - self.lastAccelSpikeLogAt > VisitMonitorModule.accelSpikeLogThrottleSec else { return }
+      let count = self.accelSpikeSampleCount
+      self.accelSpikeSampleCount = 0
+      self.lastAccelSpikeLogAt = now
+      guard let loc = self.lastLiveFix else { return } // no fix yet (e.g. cold start) — skip, not an error
+      self.logNativeFix(loc, tag: "accel-spike", force: true, extra: ["count": count])
+    }
+  }
+
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
 
@@ -1176,6 +1207,7 @@ public class VisitMonitorModule: Module {
     self.manager = m
     self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
     self.startActivityUpdatesIfAvailable() // R1: motion activity → authoritative current-state
+    self.startAccelSpike() // R7 Phase C spike: is raw accelerometer sampling alive in the background?
   }
 }
 
