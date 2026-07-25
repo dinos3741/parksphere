@@ -1228,11 +1228,18 @@ public class VisitMonitorModule: Module {
     if now - lastHmmLogAt > VisitMonitorModule.returnLogThrottleSec {
       lastHmmLogAt = now
       let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
+      // R7 field-test fix (2026-07-26): the R6 return-traj log had acc/gpsW and this didn't — that
+      // gap slowed down diagnosing the 2026-07-26 field-test bugs. gpsWeight here is recomputed
+      // locally with the same formula the engine uses internally (parkDetection_HMM.js:352-353) —
+      // display-only, not read back from inside ParkDetectionHMMEngine.
+      let accuracy = supplemental.accuracy
+      let gpsWeight = accuracy > 20 ? max(0.2, 20 / accuracy) : 1.0
       logNativeFix(loc, tag: "hmm-traj", force: true, extra: [
         "dist": Int(dist), "conf": (P * 100).rounded() / 100,
         "soft": (soft * 100).rounded() / 100, "commit": (commit * 100).rounded() / 100, "zone": zone,
         "state": result.state.rawValue, "aiConf": (aiConf * 100).rounded() / 100,
-        "pgr": (result.pgr * 100).rounded() / 100, "pgrCons": (result.pgrConsistency * 100).rounded() / 100
+        "pgr": (result.pgr * 100).rounded() / 100, "pgrCons": (result.pgrConsistency * 100).rounded() / 100,
+        "acc": Int(accuracy), "gpsW": (gpsWeight * 100).rounded() / 100
       ])
     }
 

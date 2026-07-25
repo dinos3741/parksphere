@@ -821,6 +821,14 @@ final class ParkDetectionHMMEngine {
       tripDrivingDistance = 0
       lastTripX = nil; lastTripY = nil
       isAway = false
+      // R7 field-test fix (2026-07-26, native-only deviation — JS has this same latent gap):
+      // progressHistory/pgrHistory hold `dist`-to-the-OLD-anchor values; a new park means a new
+      // anchor, so the very next PGR calc would compute a bogus netGain against the wrong reference
+      // point. Confirmed in the field test: park #2 (declared ~134m from its anchor) briefly computed
+      // pgr=1.9/1.75 — mathematically impossible for a real approach — because leftover history from
+      // park #1 (~560m from ITS anchor) was still in the window.
+      progressHistory.removeAll()
+      pgrHistory.removeAll()
     }
 
     // Clear-parking-event detection (parkDetection_HMM.js :937-950)
