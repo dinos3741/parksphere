@@ -81,9 +81,13 @@ public class VisitMonitorModule: Module {
   // FROM this anchor, so a bad-accuracy park fix corrupts everything downstream otherwise.
   private var parkDeclaredAt: TimeInterval = 0        // when declarePark fired — 0 = no active refine window
   private var parkDeclaredAccuracy: Double = 0        // horizontalAccuracy of the currently-declared anchor
-  private static let parkAnchorGoodAccuracyM = 50.0   // only PREFER a candidate fix at least this accurate
+  // R7: tightened to match JS's exact gates (parkDetectionService.js:635-668) — was a flat <50m
+  // ceiling with no speed guard; now <25m (matching JS's stoppedCandidateLocation) with a separate
+  // ceiling on the REFINING fix itself (parkAnchorRefineAccuracyCeilingM, JS's `currentAccuracy<20`).
+  private static let parkAnchorGoodAccuracyM = 25.0   // only PREFER a candidate fix at least this accurate
   private static let parkAnchorRefineWindowSec = 90.0 // matches the JS 90s post-park refinement window
   private static let parkAnchorRefineFactor = 0.5     // a refining fix must beat the declared accuracy by 2x
+  private static let parkAnchorRefineAccuracyCeilingM = 20.0 // AND itself be under this accuracy
   private var nativeParkURL: URL? {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
       .appendingPathComponent("native_park.json")
@@ -210,6 +214,26 @@ public class VisitMonitorModule: Module {
       self.logNativeFix(loc, tag: "accel-spike", force: true, extra: ["count": count])
     }
   }
+
+  // ── R7 Phase E: full-HMM engine integration (toggle-gated) ───────────────────────────────────
+  // OFF by default — the R1-R6 path above (detectPark/detectReturn) stays live as the proven
+  // fallback until the new engine is field-validated across several real trips. Flip to true once
+  // validated; both paths share the same side-effect functions (declarePark, rearmParkDetection,
+  // postLocalNotification, updateServerStatus, postReturnConfirmNotification) — only the DECISION
+  // of when to fire differs. Dedicated hold-timer/fired-flag state below is kept separate from the
+  // R1-R6 path's return*/park* fields so the two engines never share state regardless of the toggle.
+  private static let useFullHMM = false
+  private let hmmEngine = ParkDetectionHMMEngine()
+  private let stepRateProvider = StepRateProvider()
+  private let returnPredictor = ParkReturnPredictor()
+  private var hmmFusion = HMMFusion()
+  private var currentActivityDetail = HMMActivity() // rich per-fix activity (confidence + multi-flag), unlike the R1-R6 path's simple `currentActivity` label string
+  private var hmmStopCandidate: CLLocation?          // best-accuracy STOPPED fix while hunting for a park (mirrors parkStopFix, port of stoppedCandidateLocation)
+  private var hmmSoftFired = false
+  private var hmmCommitFired = false
+  private var hmmSoftSince: TimeInterval = 0
+  private var hmmCommitSince: TimeInterval = 0
+  private var lastHmmLogAt: TimeInterval = 0
 
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
@@ -377,6 +401,7 @@ public class VisitMonitorModule: Module {
         guard self.liveTask == nil else { return }
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
+          if VisitMonitorModule.useFullHMM { self.stepRateProvider.start() }
           // NB: do NOT reset the park/return state here — the session can restart mid-watch (bg↔fg) and
           // we must preserve a declared park. JS calls resetParkDetection() on drive-off/new trip.
           self.liveTask = Task { [weak self] in
@@ -393,9 +418,14 @@ public class VisitMonitorModule: Module {
                   DispatchQueue.main.async { self.refreshCarBt(reason: "poll") }
                 }
                 self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
-                // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
-                // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
-                if self.carLocation == nil {
+                // R7: toggle-gated — the full-HMM engine owns BOTH park-hunting and return-watching in
+                // one unified call (mirrors JS's single processLocationHMM), so it doesn't need the
+                // R1-R6 path's explicit carLocation==nil / isDriveAwayFromCar dispatch below.
+                if VisitMonitorModule.useFullHMM {
+                  await self.processFullHMM(loc)
+                } else if self.carLocation == nil {
+                  // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
+                  // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
                   self.detectPark(loc)
                 } else if self.isDriveAwayFromCar(loc) {
                   self.logNativeFix(loc, tag: "rearm", force: true)
@@ -419,6 +449,7 @@ public class VisitMonitorModule: Module {
       DispatchQueue.main.async {
         self.liveTask?.cancel()
         self.liveTask = nil
+        if VisitMonitorModule.useFullHMM { self.stepRateProvider.stop() }
       }
     }
 
@@ -547,6 +578,12 @@ public class VisitMonitorModule: Module {
     guard id > 0 else { return }
     serverSpotId = 0
     Task { [weak self] in _ = await self?.backend.deleteSpot(spotId: id) }
+  }
+  private func updateServerSpotLocation(_ loc: CLLocation) {
+    let id = serverSpotId
+    guard id > 0 else { return }
+    let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
+    Task { [weak self] in _ = await self?.backend.updateLocation(spotId: id, lat: lat, lon: lon) }
   }
 
   // R5.3 ── Confirmation interactive notification for SOFT return. ─────────────────────────────────
@@ -691,11 +728,14 @@ public class VisitMonitorModule: Module {
     let now = Date().timeIntervalSince1970
     if let cand = parkStopFix {
       if loc.distance(from: cand) <= VisitMonitorModule.parkStopRadiusM {
-        // R6: prefer a materially better-accuracy fix as the anchor candidate WITHOUT resetting the
-        // confirm timer — the eventual declare is measured from whichever fix is held here (port of
-        // JS's accuracy-gated stoppedCandidateLocation, parkDetectionService.js:646-648).
+        // R6/R7: prefer a materially better-accuracy fix as the anchor candidate WITHOUT resetting
+        // the confirm timer — tightened in R7 to match JS's exact stoppedCandidateLocation gate: a
+        // genuinely slow/stopped fix (speed unknown, -1, is treated as stopped too, same as JS's -1
+        // sentinel) with accuracy under 25m that beats the current candidate (parkDetectionService.js
+        // :635-650).
+        let isStoppedSpeed = loc.speed * 3.6 < 5
         let candAccuracy = cand.horizontalAccuracy > 0 ? cand.horizontalAccuracy : .greatestFiniteMagnitude
-        if loc.horizontalAccuracy > 0 && loc.horizontalAccuracy < candAccuracy
+        if isStoppedSpeed && loc.horizontalAccuracy > 0 && loc.horizontalAccuracy < candAccuracy
           && loc.horizontalAccuracy < VisitMonitorModule.parkAnchorGoodAccuracyM {
           parkStopFix = loc
         }
@@ -725,10 +765,12 @@ public class VisitMonitorModule: Module {
     armParkedRegion(lat, lon, 200) // returning geofence — backup wake; ENTER fires even if JS never wakes
     logNativeFix(loc, tag: "park-\(source)", force: true) // source = stop | bt (heartbeat diagnostics)
     beginReturnWatch(at: loc) // keep watching the fix stream for the walk back (primary return signal)
-    // R6: open the anchor-refinement window (see detectReturn) — a better-accuracy fix arriving shortly
-    // can still replace this anchor before the owner starts actually walking away.
-    parkDeclaredAt = Date().timeIntervalSince1970
-    parkDeclaredAccuracy = loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : VisitMonitorModule.parkAnchorGoodAccuracyM
+    // R6/R7: open the anchor-refinement window (see refineParkAnchorIfNeeded) ONLY if this declare
+    // itself was on poor accuracy — tightened in R7 to match JS exactly: a good-accuracy declare
+    // never opens the window at all (parkDetectionService.js:622-624: `finalAccuracy > 20 ? ... : null`).
+    let declareAccuracy = loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : .greatestFiniteMagnitude
+    parkDeclaredAt = declareAccuracy > VisitMonitorModule.parkAnchorRefineAccuracyCeilingM ? Date().timeIntervalSince1970 : 0
+    parkDeclaredAccuracy = declareAccuracy
     recomputeState() // → parked, immediately
     declareServerSpot(loc) // R5.2: create the server spot (starts 'occupied' = private to the owner)
     persistNativeParkEntry(loc, source: source)
@@ -815,6 +857,12 @@ public class VisitMonitorModule: Module {
       else if a.stationary { label = "stationary" }
       else { label = "unknown" }
       if label != self.currentActivity { self.currentActivity = label; self.recomputeState() }
+      // R7: richer activity signal for the full-HMM path — multi-flag (not just one label) plus the
+      // real CMMotionActivityConfidence (.low/.medium/.high = 0/1/2, matching JS's numeric activity.confidence).
+      self.currentActivityDetail = HMMActivity(
+        automotive: a.automotive, walking: a.walking || a.running, stationary: a.stationary,
+        unknown: a.unknown, confidence: Int(a.confidence.rawValue)
+      )
     }
   }
 
@@ -914,25 +962,36 @@ public class VisitMonitorModule: Module {
   // Feed one fix to the return watcher (called from the liveUpdates loop while parked). Fires once when
   // the owner, having gone AWAY from the car, sustains an APPROACH back toward it — distance-based, so
   // it works for close parking a geofence can't catch.
+  // R6/R7: shared post-park anchor-refinement check (used by both this R1-R6 path and the R7
+  // full-HMM path) — if a materially better-accuracy fix arrives inside the window opened by
+  // declarePark, replace the anchor IN PLACE (no new notification/re-declare) and re-arm the
+  // return-watch tracking (a new anchor is a new local-meters origin for the Kalman filter). Every
+  // distance/alignment calc downstream is measured FROM the anchor, so a bad park fix would otherwise
+  // corrupt everything regardless of how good the live-fix filtering is. Tightened in R7 to match
+  // JS's exact gates (parkDetectionService.js:622-624,652-668): the refining fix must both beat the
+  // declared accuracy by 2x AND itself be under parkAnchorRefineAccuracyCeilingM, and the window
+  // closes on the FIRST qualifying fix (JS sets parkRefinementExpiry=null after one refine, doesn't
+  // keep refining repeatedly). Returns the refined location if the anchor was just replaced.
+  @discardableResult
+  private func refineParkAnchorIfNeeded(_ loc: CLLocation) -> CLLocation? {
+    guard let car = carLocation, parkDeclaredAt > 0,
+          Date().timeIntervalSince1970 - parkDeclaredAt < VisitMonitorModule.parkAnchorRefineWindowSec,
+          loc.horizontalAccuracy > 0, parkDeclaredAccuracy > 0,
+          loc.horizontalAccuracy < parkDeclaredAccuracy * VisitMonitorModule.parkAnchorRefineFactor,
+          loc.horizontalAccuracy < VisitMonitorModule.parkAnchorRefineAccuracyCeilingM,
+          loc.distance(from: car) <= VisitMonitorModule.parkStopRadiusM else { return nil }
+    parkDeclaredAccuracy = loc.horizontalAccuracy
+    parkDeclaredAt = 0 // close the window — JS refines once, not repeatedly
+    beginReturnWatch(at: loc)
+    persistNativeParkEntry(loc, source: "refine")
+    logNativeFix(loc, tag: "park-refine", force: true)
+    updateServerSpotLocation(loc) // R7: keep the server spot's coordinates in sync with the refined anchor
+    return loc
+  }
+
   fileprivate func detectReturn(_ loc: CLLocation) {
     guard var car = carLocation else { return }
-    // R6: brief post-park anchor refinement — if a materially better-accuracy fix arrives inside the
-    // window opened by declarePark, replace the anchor IN PLACE (no new notification/re-declare) and
-    // reset the tracking below (a new anchor is a new local-meters origin for the Kalman filter). Every
-    // distance/alignment calc in this function is measured FROM the anchor, so a bad park fix would
-    // otherwise corrupt everything downstream regardless of how good the live-fix filtering is (port of
-    // JS's 90s refinement window, parkDetectionService.js:622-624,652-664).
-    if parkDeclaredAt > 0,
-       Date().timeIntervalSince1970 - parkDeclaredAt < VisitMonitorModule.parkAnchorRefineWindowSec,
-       loc.horizontalAccuracy > 0, parkDeclaredAccuracy > 0,
-       loc.horizontalAccuracy < parkDeclaredAccuracy * VisitMonitorModule.parkAnchorRefineFactor,
-       loc.distance(from: car) <= VisitMonitorModule.parkStopRadiusM {
-      parkDeclaredAccuracy = loc.horizontalAccuracy
-      beginReturnWatch(at: loc)
-      persistNativeParkEntry(loc, source: "refine")
-      logNativeFix(loc, tag: "park-refine", force: true)
-      car = loc
-    }
+    if let refined = refineParkAnchorIfNeeded(loc) { car = refined }
     // R6: accuracy — invalid (≤0, e.g. no fix yet) falls back to a neutral value (no penalty/bonus).
     let accuracy = loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : VisitMonitorModule.returnDefaultAccuracy
     let gpsWeight = accuracy > VisitMonitorModule.returnAccuracyRefDist
@@ -1060,6 +1119,125 @@ public class VisitMonitorModule: Module {
       }
     } else {
       returnSoftSince = 0 // dropped below the soft curve → restart the hold
+    }
+  }
+
+  // R7: the full-HMM path (toggle-gated, see useFullHMM) — one unified call per fix, mirroring JS's
+  // single processLocationHMM/handleLocationUpdate rather than the R1-R6 path's separate
+  // detectPark/detectReturn dispatch. Reuses the SAME side-effect functions the R1-R6 path uses
+  // (declarePark, rearmParkDetection, postLocalNotification, updateServerStatus,
+  // postReturnConfirmNotification) — only the decision of WHEN to call them differs.
+  private func processFullHMM(_ loc: CLLocation) async {
+    await stepRateProvider.refreshCurrentStepRate()
+
+    let parkedCoord = carLocation?.coordinate
+    let supplemental = HMMSupplemental(
+      stepRate: stepRateProvider.gatedStepRate(),
+      accelerationMagnitude: nil, // Phase C: pending the accel-spike field-test result
+      motionActivity: currentActivityDetail,
+      bluetoothConnected: carBtConnected,
+      spectralFeatures: nil,
+      accuracy: loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : 10
+    )
+    let result = hmmEngine.process(location: loc, parkedLocation: parkedCoord, supplemental: supplemental)
+
+    // R7: track the best-accuracy STOPPED fix while hunting for a park — a service-layer concern in
+    // JS too (parkDetectionService.js's stoppedCandidateLocation lives outside parkDetection_HMM.js),
+    // so it lives here rather than inside ParkDetectionHMMEngine. Same gate as detectPark's candidate
+    // preference (speed<5km/h, accuracy<25m and better than the current candidate).
+    if carLocation == nil {
+      if result.state == .stopped {
+        let isStoppedSpeed = loc.speed * 3.6 < 5
+        let candAccuracy = hmmStopCandidate?.horizontalAccuracy ?? .greatestFiniteMagnitude
+        if isStoppedSpeed, loc.horizontalAccuracy > 0, loc.horizontalAccuracy < candAccuracy,
+           loc.horizontalAccuracy < VisitMonitorModule.parkAnchorGoodAccuracyM {
+          hmmStopCandidate = loc
+        }
+      }
+      if result.parkedEvent {
+        let anchor = hmmStopCandidate ?? loc
+        hmmStopCandidate = nil
+        declarePark(at: anchor, source: "hmm")
+      }
+      return
+    }
+
+    if result.clearParkingEvent {
+      rearmParkDetection()
+      hmmSoftFired = false; hmmCommitFired = false; hmmSoftSince = 0; hmmCommitSince = 0
+      return
+    }
+
+    refineParkAnchorIfNeeded(loc)
+
+    // ML prediction + fusion (Phases D + A), then the shared returnBoundary curves/hold-times.
+    let aiFeatures = ParkReturnPredictor.Features(
+      speed: result.filteredSpeed, stepRate: supplemental.stepRate,
+      accel: supplemental.accelerationMagnitude ?? 1.5,
+      pgr: result.pgr, pgrSlope: result.slope, approachAlignment: result.approachAlignment,
+      deltaRate: result.deltaRate
+    )
+    let aiConf = returnPredictor.predict(aiFeatures)
+    let P = hmmFusion.update(
+      hmmBelief: result.belief[.returning] ?? 0, aiConfidence: aiConf,
+      approachAlignment: result.approachAlignment, isAway: result.isAway,
+      hasParkedLocation: true, distToParked: result.distToParked
+    )
+
+    let dist = result.distToParked
+    let soft = VisitMonitorModule.softThreshold(dist), commit = VisitMonitorModule.commitThreshold(dist)
+    let now = Date().timeIntervalSince1970
+    if now - lastHmmLogAt > VisitMonitorModule.returnLogThrottleSec {
+      lastHmmLogAt = now
+      let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
+      logNativeFix(loc, tag: "hmm-traj", force: true, extra: [
+        "dist": Int(dist), "conf": (P * 100).rounded() / 100,
+        "soft": (soft * 100).rounded() / 100, "commit": (commit * 100).rounded() / 100, "zone": zone,
+        "state": result.state.rawValue, "aiConf": (aiConf * 100).rounded() / 100,
+        "pgr": (result.pgr * 100).rounded() / 100, "pgrCons": (result.pgrConsistency * 100).rounded() / 100
+      ])
+    }
+
+    // COMMIT — sustained above the commit curve → "vacating now" + ETA. Re-arm semantics match JS
+    // exactly (parkDetectionService.js:744-748): the fired-flag resets the moment the zone drops
+    // OUT of COMMIT, not via a leave-margin distance hysteresis like the R1-R6 path uses.
+    if !returnSuppressed, P > commit {
+      if hmmCommitSince == 0 { hmmCommitSince = now }
+      if !hmmCommitFired, now - hmmCommitSince >= VisitMonitorModule.returnCommitHoldSec {
+        hmmCommitFired = true
+        returningNotified = true
+        returnConfirmPending = false
+        let eta = VisitMonitorModule.etaSeconds(dist, loc.speed)
+        postLocalNotification(title: "🟢 Spot vacating now", body: eta != nil ? "Arriving in ~\(eta!)s." : "You're heading back to the car.")
+        logNativeFix(loc, tag: "hmm-commit", force: true)
+        recomputeState()
+        if !hmmSoftFired { updateServerStatus("soon_free") } // catch up if the SOFT prompt was never answered
+        updateServerStatus("committed")
+        return
+      }
+    } else {
+      hmmCommitSince = 0
+      hmmCommitFired = false
+    }
+
+    // SOFT — sustained above the soft curve → confirmation prompt before broadcasting (R5.3's
+    // Yes/No gate applies here too — a native-specific UX safeguard kept for both paths, same
+    // reasoning as keeping the R1-R6 hold-times: it fixed a real native-observed false-broadcast
+    // issue that predates this engine).
+    if P > soft {
+      if hmmSoftSince == 0 { hmmSoftSince = now }
+      if !hmmSoftFired, now - hmmSoftSince >= VisitMonitorModule.returnSoftHoldSec {
+        hmmSoftFired = true
+        returningNotified = true
+        returnConfirmPending = true
+        returnConfirmPendingDist = Int(dist)
+        postReturnConfirmNotification(dist: Int(dist))
+        logNativeFix(loc, tag: "hmm-soft", force: true)
+        recomputeState()
+      }
+    } else {
+      hmmSoftSince = 0
+      hmmSoftFired = false
     }
   }
 
@@ -1475,6 +1653,14 @@ final class BackendClient {
   // DELETE /api/parkingspots/:id
   func deleteSpot(spotId: Int) async -> Bool {
     let (code, _) = await send("/api/parkingspots/\(spotId)", method: "DELETE", body: nil)
+    return (200...299).contains(code)
+  }
+
+  // PUT /api/parkingspots/:id/location — R7: keeps the server spot in sync when the post-park
+  // anchor-refinement window (declarePark/refineParkAnchorIfNeeded) replaces the anchor with a
+  // better-accuracy fix. Port of updateSpotLocation, parkDetectionService.js:210-225.
+  func updateLocation(spotId: Int, lat: Double, lon: Double) async -> Bool {
+    let (code, _) = await send("/api/parkingspots/\(spotId)/location", method: "PUT", body: ["latitude": lat, "longitude": lon])
     return (200...299).contains(code)
   }
 }
