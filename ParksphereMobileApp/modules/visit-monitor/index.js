@@ -206,4 +206,14 @@ export function respondReturnConfirm(yes) {
   return VisitMonitor.respondReturnConfirm(yes);
 }
 
+// ── R7: push-based park-state change (fg/bg engine unification) ─────────────
+// Fires the instant native's own park state actually changes (declarePark / anchor-refine /
+// rearmParkDetection), so JS can update the map immediately regardless of foreground/background —
+// unlike the file-based native_park.json handoff (readNativePark/mergeNativePark), which only gets
+// checked on an AppState edge and would otherwise miss a park detected while staying foregrounded.
+// listener({ cleared: false, latitude, longitude, accuracy } | { cleared: true })
+export function addNativeParkChangedListener(listener) {
+  return VisitMonitor.addListener('onNativeParkChanged', listener);
+}
+
 export default VisitMonitor;

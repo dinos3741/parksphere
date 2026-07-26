@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { DeviceEventEmitter, AppState } from 'react-native';
+import { DeviceEventEmitter, AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { startParkDetection, stopParkDetection, handleLocationUpdate, feedLocationBatch } from '../utils/parkDetectionService';
@@ -74,7 +74,14 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     // A batch = the buffered fixes iOS delivers when it wakes the app after suspending it during a
     // drive (or a single foreground fix). feedLocationBatch runs the proven pipeline (temporal replay
     // + historical activity backfill) and cold-inits the engine if this is a fresh background wake.
-    if (VM) {
+    // R7 fg/bg unification (2026-07-26): iOS's own native processFullHMM now owns the full lifecycle
+    // (park/return/clear/server calls) in both foreground and background — see useReturnDetection.js's
+    // applyMode/onNativeParkChanged — so feeding these SAME fixes into this separate JS engine too was
+    // exactly the divergence that caused a foreground-detected park to never reach the server. Gate
+    // this feed to non-iOS: it's currently a no-op on Android anyway (VM is null there, no
+    // onLocationBatch events fire), so this costs nothing today and is the right seam for the future
+    // Android work (real location plumbing feeding this exact pipeline) to reuse.
+    if (VM && Platform.OS !== 'ios') {
       locationSub = VM.addLocationBatchListener((batch) => {
         const raw = batch?.locations || [];
         if (!raw.length) return;

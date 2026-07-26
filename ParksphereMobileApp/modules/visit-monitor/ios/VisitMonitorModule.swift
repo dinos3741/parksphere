@@ -238,7 +238,11 @@ public class VisitMonitorModule: Module {
   public func definition() -> ModuleDefinition {
     Name("VisitMonitor")
 
-    Events("onVisit", "onGeofence", "onLocationBatch", "onLocationPaused", "onLocationResumed")
+    // R7: onNativeParkChanged fires the instant native's own park state changes (declarePark/
+    // refineParkAnchorIfNeeded/rearmParkDetection), so JS can update the map immediately regardless of
+    // foreground/background — fg/bg engine unification (native_park.json + AppState-edge polling stays
+    // as a catch-up path for when JS was fully suspended and missed the live event).
+    Events("onVisit", "onGeofence", "onLocationBatch", "onLocationPaused", "onLocationResumed", "onNativeParkChanged")
 
     AsyncFunction("start") {
       DispatchQueue.main.async {
@@ -810,6 +814,13 @@ public class VisitMonitorModule: Module {
       "lat": loc.coordinate.latitude, "lon": loc.coordinate.longitude,
       "acc": loc.horizontalAccuracy, "t": Date().timeIntervalSince1970 * 1000.0, "source": source
     ]
+    // R7: push the new/refined anchor to JS immediately (fg/bg engine unification) — this is the
+    // single point declarePark AND refineParkAnchorIfNeeded both funnel through, so one emit covers
+    // both. Don't wait on the async file write below, which is only the native_park.json catch-up path.
+    sendEvent("onNativeParkChanged", [
+      "cleared": false, "latitude": loc.coordinate.latitude, "longitude": loc.coordinate.longitude,
+      "accuracy": loc.horizontalAccuracy
+    ])
     nativeLogQueue.async { [weak self] in
       guard let self = self, let url = self.nativeParkURL,
             let data = try? JSONSerialization.data(withJSONObject: entry) else { return }
@@ -959,6 +970,9 @@ public class VisitMonitorModule: Module {
     parkDeclaredAccuracy = 0
     returnSuppressed = false // R5.3: new trip clears any No-suppression from the previous one
     recomputeState() // → driving/idle, the new trip
+    // R7: push the clear to JS immediately (fg/bg engine unification) — mirrors the emit in
+    // persistNativeParkEntry for the declare/refine side.
+    sendEvent("onNativeParkChanged", ["cleared": true])
   }
 
   // Owner is driving clearly away from the parked car ⇒ a new trip → time to re-arm park detection.

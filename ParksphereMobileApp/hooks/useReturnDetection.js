@@ -154,6 +154,7 @@ export function useReturnDetection() {
     if (!VM) return;
     let visitSub = null;
     let geoSub = null;
+    let nativeParkSub = null;
     let locSub = null;
     let hmmSpotSub = null;
     let pausedSub = null;
@@ -424,6 +425,37 @@ export function useReturnDetection() {
         }
       } catch (_) {}
 
+      // R7 fg/bg unification (2026-07-26): native's processFullHMM now runs identically whether the
+      // app is foregrounded or backgrounded (see applyMode above), so its park/clear events need a
+      // path to the map that ISN'T gated by an AppState edge — unlike mergeNativePark (mount + the
+      // AppState 'active' listener only), which would otherwise miss anything detected while the app
+      // stays continuously foregrounded. This is that path: registered once, unconditionally, for the
+      // life of the hook. mergeNativePark/native_park.json remain as the catch-up path for when JS was
+      // fully suspended and missed this live event.
+      nativeParkSub = VM.addNativeParkChangedListener?.(async (p) => {
+        if (cancelled) return;
+        try {
+          if (p?.cleared) {
+            await clearSpot('native-live');
+            return;
+          }
+          if (typeof p?.latitude !== 'number' || typeof p?.longitude !== 'number') return;
+          const spot = { latitude: p.latitude, longitude: p.longitude, accuracy: p.accuracy };
+          // Mirror to the map immediately, same as mergeNativePark's own "authoritative on foreground" mirror.
+          DeviceEventEmitter.emit('nativeSpotAdopted', spot);
+          const existing = await AsyncStorage.getItem(SPOT_KEY);
+          if (existing) {
+            const s = JSON.parse(existing);
+            if (metersBetween(s.latitude, s.longitude, spot.latitude, spot.longitude) < 60) {
+              return; // same spot (e.g. anchor-refinement just tightened it slightly) — nothing more to do
+            }
+          }
+          await armSpot(spot, 'native-live');
+          await seedParkedSpot(spot);
+          await log({ src: 'nativeParkLive', lat: spot.latitude, lon: spot.longitude });
+        } catch (e) { console.warn('[Return] onNativeParkChanged handling failed:', e?.message); }
+      });
+
       // CLVisit → park (BACKGROUND only). In the foreground the HMM is the authority and sets the
       // spot via its park event (below), so ignore CLVisit arrivals while active — this stops CLVisit
       // from arming a geofence at every foreground dwell. In the background the HMM can't run, so
@@ -625,37 +657,48 @@ export function useReturnDetection() {
         console.log('[Return] iOS resumed location (movement).');
       });
 
-      // Mode controller — one CLLocationManager, three location modes:
-      //   • foreground (AppState active)      → 'stream' (continuous, no pause) so the HMM runs live.
-      //   • background + drive-capturing      → 'drive'  (auto-pausing .automotiveNavigation) to catch the park.
-      //   • otherwise                         → 'off'    so the app suspends; SLC/visit/geofence wake it.
-      let lastMode = null; // dedupe: only act (and log) when the desired mode actually changes
+      // Mode controller — one CLLocationManager, two location states:
+      //   • 'watching' (foreground, OR backgrounded + drive-capturing/an armed spot) → native
+      //     liveUpdates (processFullHMM), the SAME engine regardless of foreground/background. R7 fg/bg
+      //     unification (2026-07-26): foreground used to run a separate, un-ported JS engine via plain
+      //     startLocationUpdates (whose delegate callback did no detection at all) — which is why a
+      //     park detected with the app open never reached the server even though the identical
+      //     background case worked. Now there is exactly one detection path for both.
+      //   • 'off' (backgrounded, nothing driving/armed) → app suspends; SLC/visit/geofence wake it.
+      // The background-activity-session is a SEPARATE concern from which mode is active — it's only
+      // needed to survive actually being backgrounded, so its own dedupe reacts to `active` directly
+      // rather than to `mode` (mode no longer changes on a foreground↔background transition while
+      // continuously watching, so gating the session off `mode`'s dedupe would silently stop engaging it).
+      let lastMode = null;      // 'watching' | 'off' — dedupe for starting/stopping the liveUpdates task
+      let lastBgSession = null; // true | false — dedupe for the background-activity-session hold
       const applyMode = async () => {
         if (cancelled) return;
         const active = AppState.currentState === 'active';
-        // Background 'drive' mode holds liveUpdates + the background session. Keep it while a car is
-        // parked (hasArmedSpot) so native watches for the return, not only while actively drive-capturing.
-        const mode = active ? 'stream' : ((driveCaptureActive || hasArmedSpot) ? 'drive' : 'off');
-        if (mode === lastMode) return;
-        lastMode = mode;
-        console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
-        try {
-          if (mode === 'drive') {
-            // Build D-v2: modern liveUpdates (kept alive by the session) vs legacy startUpdatingLocation.
-            if (USE_LIVE_UPDATES && VM.startDriveLiveUpdates) await VM.startDriveLiveUpdates();
-            else await VM.startDriveLocationUpdates();
-          } else {
-            if (VM.stopDriveLiveUpdates) await VM.stopDriveLiveUpdates(); // end the live task when leaving drive
-            if (mode === 'stream') await VM.startLocationUpdates();
-            else await VM.stopLocationUpdates();
-          }
-        } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
-        // Build D: hold a CLBackgroundActivitySession for the duration of a background drive so iOS
-        // keeps the app alive receiving fixes instead of suspending-and-buffering (Build B failure).
-        // Bound to 'drive' mode — released the moment we leave it (park, foreground, or suspend).
-        if (BACKGROUND_SESSION_ENABLED && VM?.startBackgroundSession) {
+        const mode = (active || driveCaptureActive || hasArmedSpot) ? 'watching' : 'off';
+
+        if (mode !== lastMode) {
+          lastMode = mode;
+          console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
           try {
-            if (mode === 'drive') { await VM.startBackgroundSession(); await log({ src: 'bgSession', action: 'start' }); }
+            if (mode === 'watching') {
+              // Build D-v2: modern liveUpdates (kept alive by the session in background) — the only
+              // path that runs processFullHMM, foreground or background alike.
+              if (USE_LIVE_UPDATES && VM.startDriveLiveUpdates) await VM.startDriveLiveUpdates();
+              else await VM.startDriveLocationUpdates();
+            } else if (VM.stopDriveLiveUpdates) {
+              await VM.stopDriveLiveUpdates();
+            }
+          } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
+        }
+
+        // Build D: hold a CLBackgroundActivitySession only while actually backgrounded AND watching —
+        // foreground never needs it (iOS won't suspend a foreground app). Bound to that exact
+        // condition, released the moment either side flips (park, foreground, or suspend).
+        const wantBgSession = mode === 'watching' && !active;
+        if (BACKGROUND_SESSION_ENABLED && wantBgSession !== lastBgSession && VM?.startBackgroundSession) {
+          lastBgSession = wantBgSession;
+          try {
+            if (wantBgSession) { await VM.startBackgroundSession(); await log({ src: 'bgSession', action: 'start' }); }
             else { await VM.stopBackgroundSession(); await log({ src: 'bgSession', action: 'stop', mode }); }
           } catch (e) { console.warn('[Return] bgSession toggle failed (rebuild?):', e?.message); }
         }
@@ -711,6 +754,7 @@ export function useReturnDetection() {
 
     return () => {
       cancelled = true;
+      try { nativeParkSub?.remove(); } catch {}
       try { visitSub?.remove(); } catch {}
       try { geoSub?.remove(); } catch {}
       try { locSub?.remove(); } catch {}
