@@ -181,13 +181,17 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     return () => sub.remove();
   }, [fetchParkingSpots]);
 
-  // R7 (2026-07-26): reconcile the map's "Your Car" marker against the server's own record of THIS
-  // user's active spot, instead of trusting whatever's cached locally. Fixes both an account-switch
-  // leak (a previous account's spot surviving login) and a gap where a correctly-detected clear
-  // (native/HMM drive-off) never touched parkedLocation at all — the server's occupied-spot listing
-  // (already privacy-filtered to the owner, so this needs no new endpoint) is the source of truth.
-  // Runs on every parkingSpots change, so it reacts to the initial fetch AND the real-time
-  // newParkingSpot/spotDeleted/spotStatusUpdated socket events above, not just app launch.
+  // R7 (2026-07-26): sync the map's "Your Car" marker FROM the server when it knows about a spot
+  // the client doesn't have locally yet (e.g. an account switch that left a stale/empty local cache).
+  // Deliberately one-directional — SET only, never CLEAR. `parkedLocation` is a personal, offline-
+  // first "where's my car" indicator; the server's spot listing is a separate, connectivity-dependent
+  // feature (sharing your spot with other users). An earlier version of this effect also cleared
+  // parkedLocation when the user had no active spot server-side, which sounds right but isn't: if
+  // declareServerSpot fails (no connectivity — confirmed 2026-07-26, server unreachable, code:0/
+  // ok:false), the server legitimately has no record of a spot native just detected locally, and the
+  // clear branch erased that real, freshly-detected park purely because it hadn't reached the network
+  // yet. Clearing stays exclusively the job of clearSpot()'s 'parkedLocationCleared' event
+  // (useReturnDetection.js) — driven by local detection, so it works fully offline.
   useEffect(() => {
     if (!spotsLoaded || !userId) return;
     const myActiveSpot = parkingSpots.find((s) => s.user_id === userId);
@@ -196,8 +200,6 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       if (!parkedLocation || parkedLocation.latitude !== serverLoc.latitude || parkedLocation.longitude !== serverLoc.longitude) {
         setParkedLocation(serverLoc);
       }
-    } else if (parkedLocation) {
-      setParkedLocation(null);
     }
   }, [spotsLoaded, parkingSpots, userId, parkedLocation, setParkedLocation]);
 
