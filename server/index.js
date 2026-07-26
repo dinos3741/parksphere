@@ -1091,6 +1091,49 @@ app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// R7 (2026-07-26): the native app's post-park anchor-refinement (a short window after declaring
+// where a materially better-accuracy GPS fix can correct the saved location) calls this to keep the
+// server's copy in sync — without it, a spot declared on a noisy fix stays imprecise for every OTHER
+// user even after native quietly improves its own local anchor. Mirrors the generic edit route above
+// (auth + ownership check, single UPDATE, re-fetch + emit) but only touches lat/lng — and, since
+// fuzzed_latitude/fuzzed_longitude are derived from the real coordinates at declare-time
+// (getRandomPointInCircle, :951), those need recomputing here too or they'd stay centered on the
+// stale original position while the real coordinates move.
+app.put('/api/parkingspots/:id/location', authenticateToken, async (req, res) => {
+  const spotId = req.params.id;
+  const userId = req.user.userId;
+  const { latitude, longitude } = req.body;
+
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return res.status(400).send('latitude and longitude are required.');
+  }
+
+  try {
+    const spot = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+    if (spot.rows.length === 0) {
+      return res.status(404).send('Parking spot not found.');
+    }
+    if (spot.rows[0].user_id !== userId) {
+      return res.status(403).send('You are not authorized to update this parking spot.');
+    }
+
+    const [fuzzedLat, fuzzedLon] = getRandomPointInCircle(latitude, longitude, 130);
+    await pool.query(
+      'UPDATE parking_spots SET latitude = $1, longitude = $2, fuzzed_latitude = $3, fuzzed_longitude = $4 WHERE id = $5',
+      [latitude, longitude, fuzzedLat, fuzzedLon, spotId]
+    );
+
+    const updatedSpotResult = await pool.query('SELECT * FROM parking_spots WHERE id = $1', [spotId]);
+    const updatedSpot = updatedSpotResult.rows[0];
+
+    io.emit('spotUpdated', updatedSpot); // same event SpotContext already listens for (onSpotUpdated)
+    res.status(200).json({ message: 'Parking spot location updated successfully!', spot: updatedSpot });
+  } catch (error) {
+    console.error('Error updating parking spot location:', error);
+    res.status(500).send('Server error updating parking spot location.');
+  }
+});
+
 app.delete('/api/parkingspots/:id', authenticateToken, async (req, res) => {
   const spotId = req.params.id;
   const userId = req.user.userId;
