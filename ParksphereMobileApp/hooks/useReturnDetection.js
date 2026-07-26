@@ -161,6 +161,7 @@ export function useReturnDetection() {
     let resumedSub = null;
     let appStateSub = null;
     let modeTimer = null;
+    let nativeStatePollTimer = null;
     let alive = null;
     let cancelled = false;
 
@@ -347,7 +348,10 @@ export function useReturnDetection() {
     // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
     // Pull the authoritative state native maintained in the background and log it (validation for now;
     // R3 wires it into the UI). Confirms native's classification (driving/stopped/parked/returning).
-    const readNativeState = async () => {
+    // shouldLog=false for the polling call site below — logging every few seconds would flood the
+    // heartbeat log (already capped at 5000 entries and prone to evicting a whole trip's worth of
+    // data); mount + foreground-transition calls keep logging since those are naturally infrequent.
+    const readNativeState = async (shouldLog = true) => {
       if (!VM?.readNativeState) return;
       try {
         const raw = await VM.readNativeState();
@@ -356,8 +360,10 @@ export function useReturnDetection() {
         // R3: seed the UI with native's authoritative state so the overlay shows the TRUE state instantly
         // on foreground (no INITIALIZING/stale flash), then the live HMM refines it.
         DeviceEventEmitter.emit('nativeCurrentState', s);
-        await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
-        console.log('[Return] native current-state:', raw);
+        if (shouldLog) {
+          await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
+          console.log('[Return] native current-state:', raw);
+        }
       } catch (e) { console.warn('[Return] readNativeState failed (rebuild?):', e?.message); }
     };
 
@@ -738,6 +744,16 @@ export function useReturnDetection() {
       // just-woken JS thread. Re-assert the mode on a short timer (JS is suspended in the background,
       // so this only ticks in the foreground) so the stream reliably returns on foreground.
       modeTimer = setInterval(() => applyMode(), 4000);
+      // R7 fg/bg unification follow-up (2026-07-27): readNativeState() used to be pulled only on
+      // mount + foreground transitions, which was fine while the OLD JS engine's own
+      // parkDetectionDetailedUpdate events kept the HMMOverlay debug view refreshing live in between.
+      // Now that engine is gated off entirely on iOS (see useParkDetectionEngine.js), nativeCurrentState
+      // is the overlay's ONLY data source — so it needs to keep refreshing on its own while foregrounded,
+      // or the overlay freezes at whatever it caught at the last foreground transition (looked like
+      // "stuck on walking/idle" during a field-test drive, even though native was tracking correctly).
+      // Foreground-only in effect: JS is suspended in the background so this simply doesn't fire there,
+      // same as modeTimer above.
+      nativeStatePollTimer = setInterval(() => { if (AppState.currentState === 'active') readNativeState(false); }, 3000);
       console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
       await applyMode(); // apply current state on mount
       await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
@@ -765,6 +781,7 @@ export function useReturnDetection() {
       try { VM.stopLocationUpdates(); } catch {}
       try { VM.stopSignificantChangeMonitoring(); } catch {}
       if (modeTimer) clearInterval(modeTimer);
+      if (nativeStatePollTimer) clearInterval(nativeStatePollTimer);
       if (driveTimer) clearTimeout(driveTimer);
       if (alive) clearInterval(alive);
       // Not stopping visit/region monitoring — iOS should keep delivering visits/geofence in the
