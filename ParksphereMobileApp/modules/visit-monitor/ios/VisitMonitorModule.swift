@@ -25,6 +25,20 @@ public class VisitMonitorModule: Module {
     get { UserDefaults.standard.integer(forKey: "psServerSpotId") }
     set { UserDefaults.standard.set(newValue, forKey: "psServerSpotId") }
   }
+  // 2026-07-26: a server-delete fires fire-and-forget when the car leaves; if it fails (no
+  // connectivity at that moment), the OLD code just dropped serverSpotId to 0 and forgot the id —
+  // the spot then sat in the database forever showing false "still parked" info, with no way to
+  // ever clean it up even once connectivity returned. This remembers that debt separately from
+  // serverSpotId (which must still drop to 0 immediately regardless of delete success — the
+  // redeclare-conflict check and JS's dedup semantics both depend on serverSpotId meaning "there is
+  // a currently active park", not "there's cleanup owed"). Persisted for the same reason
+  // serverSpotId is: must survive a background relaunch/termination while a delete is still owed.
+  private var pendingDeleteSpotId: Int {
+    get { UserDefaults.standard.integer(forKey: "psPendingDeleteSpotId") }
+    set { UserDefaults.standard.set(newValue, forKey: "psPendingDeleteSpotId") }
+  }
+  private var lastDeleteRetryAt: TimeInterval = 0
+  private static let deleteRetryThrottleSec: TimeInterval = 30.0
   private static let regionId = "parkedSpot"
   // ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
   // A small region re-armed around the CURRENT location on every crossing. Each crossing wakes a
@@ -569,15 +583,25 @@ public class VisitMonitorModule: Module {
   // ── R5.2: drive the server spot lifecycle from native detection (background) ──────────────────────
   // Each fires a fire-and-forget URLSession task (native is alive during detection). serverSpotId is the
   // shared handle. declare deletes any prior spot first (backend 409s a 2nd spot for the same user).
+  // Shared by every delete call site (rearm, redeclare-cleanup, pending-retry) so all three log the
+  // same way and agree on what "success" means for clearing pendingDeleteSpotId.
+  @discardableResult
+  private func attemptServerDelete(_ id: Int, loc: CLLocation?, via: String) async -> Bool {
+    let (ok, code) = await backend.deleteSpot(spotId: id)
+    if let loc = loc { logNativeFix(loc, tag: "server-delete", force: true, extra: ["ok": ok, "code": code, "spotId": id, "via": via]) }
+    return ok
+  }
+
   private func declareServerSpot(_ loc: CLLocation) {
     let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
     Task { [weak self] in
       guard let self = self else { return }
       if self.serverSpotId > 0 {
         let priorId = self.serverSpotId
-        let (ok, code) = await self.backend.deleteSpot(spotId: priorId)
-        self.logNativeFix(loc, tag: "server-delete", force: true, extra: ["ok": ok, "code": code, "spotId": priorId, "via": "redeclare"])
         self.serverSpotId = 0
+        if !(await self.attemptServerDelete(priorId, loc: loc, via: "redeclare")) {
+          self.pendingDeleteSpotId = priorId // backend 409s a 2nd spot for this user — must keep retrying
+        }
       }
       let (id, code) = await self.backend.declareSpot(lat: lat, lon: lon, timeToLeave: 60)
       self.logNativeFix(loc, tag: "server-declare", force: true, extra: ["ok": id > 0, "code": code, "spotId": id])
@@ -601,8 +625,24 @@ public class VisitMonitorModule: Module {
     let loc = lastLiveFix
     Task { [weak self] in
       guard let self = self else { return }
-      let (ok, code) = await self.backend.deleteSpot(spotId: id)
-      if let loc = loc { self.logNativeFix(loc, tag: "server-delete", force: true, extra: ["ok": ok, "code": code, "spotId": id, "via": "rearm"]) }
+      if !(await self.attemptServerDelete(id, loc: loc, via: "rearm")) {
+        self.pendingDeleteSpotId = id
+      }
+    }
+  }
+  // Opportunistic retry for a delete that failed earlier (no connectivity at the moment the car
+  // left). Piggybacks off whatever live fix arrives next rather than running a dedicated network-
+  // reachability observer — the moment connectivity returns, the next fix's call picks it up.
+  // Throttled so a long outage doesn't hammer the backend once fixes resume.
+  private func retryPendingDeleteIfNeeded(_ loc: CLLocation) {
+    guard pendingDeleteSpotId > 0 else { return }
+    let now = Date().timeIntervalSince1970
+    guard now - lastDeleteRetryAt > VisitMonitorModule.deleteRetryThrottleSec else { return }
+    lastDeleteRetryAt = now
+    let id = pendingDeleteSpotId
+    Task { [weak self] in
+      guard let self = self else { return }
+      if await self.attemptServerDelete(id, loc: loc, via: "retry") { self.pendingDeleteSpotId = 0 }
     }
   }
   private func updateServerSpotLocation(_ loc: CLLocation) {
@@ -1168,6 +1208,8 @@ public class VisitMonitorModule: Module {
   // (declarePark, rearmParkDetection, postLocalNotification, updateServerStatus,
   // postReturnConfirmNotification) — only the decision of WHEN to call them differs.
   private func processFullHMM(_ loc: CLLocation) async {
+    retryPendingDeleteIfNeeded(loc) // catch up any server-delete that failed for lack of connectivity
+
     await stepRateProvider.refreshCurrentStepRate()
 
     let parkedCoord = carLocation?.coordinate
