@@ -256,7 +256,7 @@ public class VisitMonitorModule: Module {
     // refineParkAnchorIfNeeded/rearmParkDetection), so JS can update the map immediately regardless of
     // foreground/background — fg/bg engine unification (native_park.json + AppState-edge polling stays
     // as a catch-up path for when JS was fully suspended and missed the live event).
-    Events("onVisit", "onGeofence", "onLocationBatch", "onLocationPaused", "onLocationResumed", "onNativeParkChanged")
+    Events("onVisit", "onGeofence", "onLocationBatch", "onLocationPaused", "onLocationResumed", "onNativeParkChanged", "onHMMDetail")
 
     AsyncFunction("start") {
       DispatchQueue.main.async {
@@ -1207,6 +1207,35 @@ public class VisitMonitorModule: Module {
   // detectPark/detectReturn dispatch. Reuses the SAME side-effect functions the R1-R6 path uses
   // (declarePark, rearmParkDetection, postLocalNotification, updateServerStatus,
   // postReturnConfirmNotification) — only the decision of WHEN to call them differs.
+  // R7 fg/bg unification follow-up (2026-07-27): the HMMOverlay debug view's ORIGINAL data source
+  // (parkDetectionDetailedUpdate) was emitted every processing tick by the old JS engine, now gated
+  // off entirely on iOS — so the overlay had nothing but the current STATE (via readNativeState,
+  // fixed separately) and none of its other fields (confidence, zone, ETA, motion/step/accel,
+  // returning sureness). This mirrors that JS event's shape closely enough for HMMOverlay to read it
+  // unchanged, sourced from native's own already-computed values instead of duplicating any logic.
+  private func emitHMMDetail(
+    state: HMMState, confidence: Double, activity: HMMActivity, stepRate: Double,
+    dist: Double? = nil, zone: String? = nil, etaSeconds: Int? = nil, returningConfidence: Double? = nil
+  ) {
+    var payload: [String: Any] = [
+      "state": state.rawValue,
+      "confidence": confidence,
+      "returningConfidence": returningConfidence ?? 0,
+      "zone": zone ?? "WAIT",
+      "metrics": [
+        "stepRate": stepRate,
+        "motionActivity": [
+          "automotive": activity.automotive, "walking": activity.walking,
+          "stationary": activity.stationary, "unknown": activity.unknown
+        ],
+        "bluetoothConnected": carBtConnected,
+        "distToParked": dist ?? 0
+      ]
+    ]
+    if let etaSeconds = etaSeconds { payload["etaSeconds"] = etaSeconds }
+    sendEvent("onHMMDetail", payload)
+  }
+
   private func processFullHMM(_ loc: CLLocation) async {
     retryPendingDeleteIfNeeded(loc) // catch up any server-delete that failed for lack of connectivity
 
@@ -1253,6 +1282,8 @@ public class VisitMonitorModule: Module {
         hmmStopCandidate = nil
         declarePark(at: anchor, source: "hmm")
       }
+      emitHMMDetail(state: result.state, confidence: result.belief[result.state] ?? 0,
+                    activity: currentActivityDetail, stepRate: supplemental.stepRate)
       return
     }
 
@@ -1281,9 +1312,9 @@ public class VisitMonitorModule: Module {
     let dist = result.distToParked
     let soft = VisitMonitorModule.softThreshold(dist), commit = VisitMonitorModule.commitThreshold(dist)
     let now = Date().timeIntervalSince1970
+    let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
     if now - lastHmmLogAt > VisitMonitorModule.returnLogThrottleSec {
       lastHmmLogAt = now
-      let zone = P > commit ? "COMMIT" : (P > soft ? "SOFT" : "WAIT")
       // R7 field-test fix (2026-07-26): the R6 return-traj log had acc/gpsW and this didn't — that
       // gap slowed down diagnosing the 2026-07-26 field-test bugs. gpsWeight here is recomputed
       // locally with the same formula the engine uses internally (parkDetection_HMM.js:352-353) —
@@ -1298,6 +1329,12 @@ public class VisitMonitorModule: Module {
         "acc": Int(accuracy), "gpsW": (gpsWeight * 100).rounded() / 100
       ])
     }
+    // Unthrottled (unlike the hmm-traj log above) so the debug overlay updates every fix, not once
+    // per returnLogThrottleSec — it's a cheap bridge send, no disk I/O.
+    emitHMMDetail(state: result.state, confidence: result.belief[result.state] ?? 0,
+                  activity: currentActivityDetail, stepRate: supplemental.stepRate,
+                  dist: dist, zone: zone, etaSeconds: VisitMonitorModule.etaSeconds(dist, loc.speed),
+                  returningConfidence: P)
 
     // COMMIT — sustained above the commit curve → "vacating now" + ETA. Re-arm semantics match JS
     // exactly (parkDetectionService.js:744-748): the fired-flag resets the moment the zone drops

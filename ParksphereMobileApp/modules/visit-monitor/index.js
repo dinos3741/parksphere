@@ -216,4 +216,13 @@ export function addNativeParkChangedListener(listener) {
   return VisitMonitor.addListener('onNativeParkChanged', listener);
 }
 
+// ── R7 fg/bg unification follow-up: per-fix HMM detail for the debug overlay ─
+// Fires on every processed fix with the engine's current state/confidence/zone/ETA/motion — mirrors
+// the shape parkDetectionDetailedUpdate used to carry from the old JS engine, so HMMOverlay.js can
+// keep reading that same event name unchanged (see useReturnDetection.js's re-broadcast).
+// listener({ state, confidence, returningConfidence, zone, etaSeconds, metrics: {...} })
+export function addHMMDetailListener(listener) {
+  return VisitMonitor.addListener('onHMMDetail', listener);
+}
+
 export default VisitMonitor;

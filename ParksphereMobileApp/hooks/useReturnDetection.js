@@ -155,6 +155,7 @@ export function useReturnDetection() {
     let visitSub = null;
     let geoSub = null;
     let nativeParkSub = null;
+    let hmmDetailSub = null;
     let locSub = null;
     let hmmSpotSub = null;
     let pausedSub = null;
@@ -460,6 +461,18 @@ export function useReturnDetection() {
           await seedParkedSpot(spot);
           await log({ src: 'nativeParkLive', lat: spot.latitude, lon: spot.longitude });
         } catch (e) { console.warn('[Return] onNativeParkChanged handling failed:', e?.message); }
+      });
+
+      // R7 fg/bg unification follow-up (2026-07-27): re-broadcast native's per-fix detail (state,
+      // confidence, zone, ETA, motion/step, returning sureness) under the SAME event name the old JS
+      // engine used to emit it under (parkDetectionDetailedUpdate) — HMMOverlay.js already knows how
+      // to render that shape, so it needs no changes; only iOS's actual data source changed. Without
+      // this, the overlay's confidence/zone/ETA/motion fields have no source at all on iOS now that
+      // the old engine is gated off (only `state` had a native fallback, fixed separately via the
+      // readNativeState poll above).
+      hmmDetailSub = VM.addHMMDetailListener?.((d) => {
+        if (cancelled || !d) return;
+        DeviceEventEmitter.emit('parkDetectionDetailedUpdate', d);
       });
 
       // CLVisit → park (BACKGROUND only). In the foreground the HMM is the authority and sets the
@@ -771,6 +784,7 @@ export function useReturnDetection() {
     return () => {
       cancelled = true;
       try { nativeParkSub?.remove(); } catch {}
+      try { hmmDetailSub?.remove(); } catch {}
       try { visitSub?.remove(); } catch {}
       try { geoSub?.remove(); } catch {}
       try { locSub?.remove(); } catch {}
