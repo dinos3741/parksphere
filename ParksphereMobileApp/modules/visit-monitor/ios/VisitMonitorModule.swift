@@ -1000,6 +1000,16 @@ public class VisitMonitorModule: Module {
   // parked car, so multi-trip days work WITHOUT JS (suspended between trips). carBtTripSeen is left as
   // is (still in the car ⇒ still a trip); the JS resetParkDetection re-seeds it from the live route.
   private func rearmParkDetection() {
+    // 2026-07-27: MUST be computed before carLocation is reset below, and MUST gate the emit at the
+    // end — without this, calling rearmParkDetection() when there was nothing parked (as happens on
+    // the very next line of this exact function, see below) fired the event anyway, which is what
+    // turned this into an infinite JS↔native loop: JS's onNativeParkChanged listener calls
+    // clearSpot('native-live') on any 'cleared' event, clearSpot() calls VM.resetParkDetection() to
+    // tell native to reset, resetParkDetection() calls THIS function again, which — unconditionally —
+    // emitted 'cleared' again, waking the same JS listener. No exit condition; a field test caught it
+    // looping ~4800 times in 22s (clearSpot log entries 4ms apart), pegging the bridge and evicting
+    // the whole day's telemetry from the rolling log.
+    let hadCar = carLocation != nil
     deleteServerSpot() // R5.2: owner drove off / new trip → the spot is freed (delete on the server)
     carLocation = nil
     returningNotified = false
@@ -1011,8 +1021,12 @@ public class VisitMonitorModule: Module {
     returnSuppressed = false // R5.3: new trip clears any No-suppression from the previous one
     recomputeState() // → driving/idle, the new trip
     // R7: push the clear to JS immediately (fg/bg engine unification) — mirrors the emit in
-    // persistNativeParkEntry for the declare/refine side.
-    sendEvent("onNativeParkChanged", ["cleared": true])
+    // persistNativeParkEntry for the declare/refine side. Only if there was actually something to
+    // clear (see comment above) — this is what makes a resetParkDetection() call in response to our
+    // OWN emit a harmless no-op instead of a second emit.
+    if hadCar {
+      sendEvent("onNativeParkChanged", ["cleared": true])
+    }
   }
 
   // Owner is driving clearly away from the parked car ⇒ a new trip → time to re-arm park detection.

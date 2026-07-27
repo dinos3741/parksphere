@@ -248,7 +248,14 @@ export function useReturnDetection() {
       await VM.clearGeofence();
       await seedParkedSpot(null); // keep the HMM's PARK_STATE in sync so no stale spot resurfaces
       hasArmedSpot = false; // trip over → let the session release; re-arm native park detection
-      if (VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
+      // 2026-07-27: skip when THIS clear originated from native's own onNativeParkChanged push
+      // (source === 'native-live') — native already rearmed itself before emitting that event, so
+      // calling resetParkDetection() here is pure redundancy. It used to be worse than redundant: it
+      // fed straight into an infinite loop (resetParkDetection() → rearmParkDetection() → another
+      // onNativeParkChanged 'cleared' emit → this same listener → clearSpot() → resetParkDetection()
+      // again...). Native now guards its side too (only emits 'cleared' if there was actually a park
+      // to clear), but skipping the round-trip here as well avoids depending on either fix alone.
+      if (source !== 'native-live' && VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
       // R7 (2026-07-26): this correctly clears the geofence + native/HMM state, but never touched
       // parkedLocation — the AsyncStorage key LocationContext actually draws "Your Car" from — so a
       // real, correctly-detected clear could still leave a stale marker on the map. A dedicated event
