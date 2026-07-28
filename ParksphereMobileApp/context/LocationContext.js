@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 
 const LocationContext = createContext();
 
@@ -9,7 +10,12 @@ export const LocationProvider = ({ children }) => {
   const [locationPermissionGranted, setLocationPermissionGranted] = useState(false);
   const [parkedLocation, setParkedLocationState] = useState(null);
 
+  // 2026-07-29: last link in the map-marker chain — logs whether the React state update itself
+  // actually runs, closing the gap left by useParkDetectionEngine.js's nativeSpotAdopted log (which
+  // only proves the listener fired, not that this setter's state update landed / Map.js re-rendered).
   const setParkedLocation = useCallback(async (location) => {
+    logHeartbeat({ src: 'setParkedLocation', lat: location?.latitude, lon: location?.longitude, cleared: !location });
+    flushTelemetry();
     setParkedLocationState(location);
     if (location) {
       await AsyncStorage.setItem('parkedLocation', JSON.stringify(location));

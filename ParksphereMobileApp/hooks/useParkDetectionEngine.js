@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { startParkDetection, stopParkDetection, handleLocationUpdate, feedLocationBatch } from '../utils/parkDetectionService';
 import { visitMonitorToLocation } from '../utils/visitMonitorAdapter';
 import { useBluetoothMonitoring } from './useBluetoothMonitoring';
+import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
 
 const PARK_STATE_KEY = 'PARK_STATE';
 // Native now owns ALL background detection (park-bt/park-stop/return/rearm in VisitMonitor). When the
@@ -50,7 +51,14 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
     });
     // When useReturnDetection adopts the authoritative native park on foreground, mirror it to the map
     // immediately (don't wait for the next 'active' sync, and it's the last state after the churn fix).
+    // 2026-07-29: field test showed the notification fired (useReturnDetection.js's armSpot/
+    // nativeParkLive both logged) but no red dot appeared on the map — every other link in the chain
+    // checked out on code review, so this logs whether THIS specific listener (the last unverified
+    // link — LocationContext.setParkedLocation → HomeScreen → Map.js) actually receives the event and
+    // calls setParkedLocation, to find out whether it's a real bug here or something further downstream.
     const nativeSub = DeviceEventEmitter.addListener('nativeSpotAdopted', (spot) => {
+      logHeartbeat({ src: 'nativeSpotAdopted', hasSpot: !!spot, hasSetter: !!setParkedLocation, lat: spot?.latitude, lon: spot?.longitude });
+      flushTelemetry();
       if (spot && setParkedLocation) setParkedLocation(spot);
     });
     syncSpotToMap(); // also run once on mount
