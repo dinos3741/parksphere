@@ -33,6 +33,19 @@ export function addGeofenceListener(listener) {
   return VisitMonitor.addListener('onGeofence', listener);
 }
 
+// ── Idle/rest geofence (2026-07-29) ──────────────────────────────────────────
+// SLC and CLVisit can both miss a short, local round trip (confirmed 2026-07-28/29 field test — a
+// ~300m drive + short walk left the app fully suspended, no wake at all). Arm a tight, static region
+// around wherever native was last positioned the moment the app goes idle (mode 'off'); native centers
+// it on its own last fix, no coords needed. EXIT fires via the SAME onGeofence event (id: 'restFence'),
+// so the mode controller starts drive-capture on it exactly like an SLC wake.
+export function armIdleFence(radius = 180) {
+  return VisitMonitor.armIdleFence(radius);
+}
+export function clearIdleFence() {
+  return VisitMonitor.clearIdleFence();
+}
+
 // ── On-demand location stream (feeds the HMM) ────────────────────────────────
 // Streams fixes from the SAME CLLocationManager that does visits + regions, so the app never runs a
 // second location owner. The JS mode controller turns this on for the foreground and for the bounded

@@ -595,6 +595,19 @@ export function useReturnDetection() {
           await log({ src: 'roll', type: g?.type, lat: g?.lat, lon: g?.lon, app: AppState.currentState });
           return;
         }
+        // 2026-07-29: the idle/rest fence (armed whenever mode goes 'off', see applyMode below) closes
+        // the gap SLC/CLVisit can both miss on a short local trip — only EXIT matters here, mirroring
+        // the SLC-wake branch in the onLocationBatch handler above exactly (same guard, same actions).
+        if (g?.id === 'restFence') {
+          await log({ src: 'restFence', type: g?.type, app: AppState.currentState });
+          if (g?.type === 'exit' && !driveCaptureActive && AppState.currentState !== 'active') {
+            maybeOneShot();
+            startDriveCapture();
+            startRolling();
+          }
+          if (VM?.clearIdleFence) { try { await VM.clearIdleFence(); } catch (_) {} }
+          return;
+        }
         await log({ src: 'geofence', type: g?.type });
         console.log('[Return] geofence:', JSON.stringify(g));
         if (g?.type === 'enter') {
@@ -715,6 +728,18 @@ export function useReturnDetection() {
               await VM.stopDriveLiveUpdates();
             }
           } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
+          // 2026-07-29: arm the idle/rest fence the moment nothing is being watched — closes the short-
+          // local-trip gap SLC/CLVisit can both miss (see the id === 'restFence' branch above). Cleared
+          // the instant we're watching again, whichever path got us there (this fence's own exit, SLC,
+          // or CLVisit) so there's never more than one reason something is monitoring for "left the area".
+          if (mode === 'off') {
+            if (VM?.armIdleFence) {
+              try { await VM.armIdleFence(); await log({ src: 'idleFence', action: 'arm' }); }
+              catch (e) { console.warn('[Return] armIdleFence failed (rebuild?):', e?.message); }
+            }
+          } else if (VM?.clearIdleFence) {
+            try { await VM.clearIdleFence(); } catch (_) {}
+          }
         }
 
         // Build D: hold a CLBackgroundActivitySession only while actually backgrounded AND watching —

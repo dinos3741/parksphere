@@ -40,6 +40,15 @@ public class VisitMonitorModule: Module {
   private var lastDeleteRetryAt: TimeInterval = 0
   private static let deleteRetryThrottleSec: TimeInterval = 30.0
   private static let regionId = "parkedSpot"
+  // ── Idle/rest geofence (2026-07-29) ───────────────────────────────────────────
+  // SLC (~hundreds of meters, real latency) and CLVisit (needs a sustained dwell before it registers
+  // a new visit) can both miss a short, local round trip entirely — a field test (2026-07-28/29)
+  // confirmed a ~300m drive + short walk left the app fully suspended for the whole trip, no wake at
+  // all. A single, STATIC region (armed once when going idle, not rapidly re-armed like the rolling
+  // fence — so it doesn't hit the throttling that got Build C disabled) with a tighter, developer-
+  // controlled radius closes that gap: leaving it is a much crisper "you're moving" signal than either
+  // Apple API alone. Separate id so it never collides with the parked-spot or rolling regions.
+  private static let restRegionId = "restFence"
   // ── Rolling geofence (Build C, Life360-style) ────────────────────────────────
   // A small region re-armed around the CURRENT location on every crossing. Each crossing wakes a
   // suspended app in the background, so we get a periodic movement-triggered wake WITHOUT running
@@ -282,6 +291,23 @@ public class VisitMonitorModule: Module {
       DispatchQueue.main.async {
         guard let m = self.manager else { return }
         for r in m.monitoredRegions where r.identifier == VisitMonitorModule.regionId {
+          m.stopMonitoring(for: r)
+        }
+      }
+    }
+
+    // Arm the idle/rest fence around wherever native's own last known fix was — self-centered, no
+    // coords needed from JS, so it's always as fresh as possible at the moment mode goes idle.
+    // No-op if there's no fix yet (e.g. cold launch before any location has ever been seen).
+    AsyncFunction("armIdleFence") { (radius: Double) in
+      guard let loc = self.lastLiveFix else { return }
+      self.armRestRegion(loc.coordinate.latitude, loc.coordinate.longitude, radius)
+    }
+
+    AsyncFunction("clearIdleFence") {
+      DispatchQueue.main.async {
+        guard let m = self.manager else { return }
+        for r in m.monitoredRegions where r.identifier == VisitMonitorModule.restRegionId {
           m.stopMonitoring(for: r)
         }
       }
@@ -778,6 +804,25 @@ public class VisitMonitorModule: Module {
       }
       let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
       let region = CLCircularRegion(center: center, radius: radius, identifier: VisitMonitorModule.regionId)
+      region.notifyOnEntry = true
+      region.notifyOnExit = true
+      m.startMonitoring(for: region)
+    }
+  }
+
+  // Same pattern as armParkedRegion, own region id — see the restRegionId comment above for why this
+  // exists. Only EXIT matters (JS's onGeofence handler starts drive-capture on it); entry is armed too
+  // since a region must monitor at least one edge and exit-only regions still fire spurious tiny fixes
+  // on some devices, but JS ignores the enter side for this id.
+  fileprivate func armRestRegion(_ latitude: Double, _ longitude: Double, _ radius: Double) {
+    DispatchQueue.main.async {
+      self.ensureManager()
+      guard let m = self.manager else { return }
+      for r in m.monitoredRegions where r.identifier == VisitMonitorModule.restRegionId {
+        m.stopMonitoring(for: r)
+      }
+      let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+      let region = CLCircularRegion(center: center, radius: radius, identifier: VisitMonitorModule.restRegionId)
       region.notifyOnEntry = true
       region.notifyOnExit = true
       m.startMonitoring(for: region)
@@ -1335,6 +1380,15 @@ public class VisitMonitorModule: Module {
     // ended up (exactly what happened in that field test: dist sat at ~570m the whole watch because
     // hmmStopCandidate had locked onto an early, wrong-location stop).
     if carLocation == nil {
+      // 2026-07-29: reconnects the BT-disconnect instant-park fast-path (refreshCarBt, :912) to the
+      // full-HMM engine. parkDriveSeen used to be set only by the retired detectPark() (:793) via this
+      // exact same raw-speed check — since detectPark never runs under useFullHMM, parkDriveSeen stayed
+      // permanently false and the fast-path's gate (parkDriveSeen && carLocation == nil) could never be
+      // satisfied, silently disabling it. Mirrors detectPark's own check exactly (a plain speed
+      // threshold, deliberately independent of the HMM's own classification — the fast-path's whole
+      // point is to declare a park immediately on BT disconnect, not wait for isExitEvent's confirmed-
+      // walking + trip-time/distance thresholds).
+      if loc.speed >= VisitMonitorModule.parkDriveSpeedMS { parkDriveSeen = true }
       if result.state == .stopped {
         if let cand = hmmStopCandidate, loc.distance(from: cand) > VisitMonitorModule.parkStopRadiusM {
           hmmStopCandidate = loc // moved off the old candidate — it was a different stop, start over
