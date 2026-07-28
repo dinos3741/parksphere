@@ -1296,6 +1296,26 @@ public class VisitMonitorModule: Module {
         hmmStopCandidate = nil
         declarePark(at: anchor, source: "hmm")
       }
+      // 2026-07-28: hmm-hunt trace, the pre-park counterpart to hmm-traj below — added after a full
+      // field-test day produced ZERO parkedEvents with no visibility into why (tripDrivingTime/
+      // tripDrivingDistance/walkingConfirmed/drivingConfirmed are all engine-internal and were never
+      // surfaced for this phase). Same throttle as hmm-traj since the two branches are mutually
+      // exclusive (carLocation == nil vs not) — never double-fires per tick.
+      let now = Date().timeIntervalSince1970
+      if now - lastHmmLogAt > VisitMonitorModule.returnLogThrottleSec {
+        lastHmmLogAt = now
+        let act = currentActivityDetail
+        logNativeFix(loc, tag: "hmm-hunt", force: true, extra: [
+          "state": result.state.rawValue, "best": result.bestState.rawValue,
+          "conf": (result.confidence * 100).rounded() / 100,
+          "tripT": Int(result.tripDrivingTime), "tripD": Int(result.tripDrivingDistance),
+          "walkConf": result.walkingConfirmed, "driveConf": result.drivingConfirmed,
+          "spd": Int(result.filteredSpeed), "acc": Int(supplemental.accuracy),
+          "auto": act.automotive, "walk": act.walking, "still": act.stationary, "unk": act.unknown,
+          "actConf": act.confidence, "bt": carBtConnected,
+          "stopCand": hmmStopCandidate != nil
+        ])
+      }
       emitHMMDetail(state: result.state, confidence: result.belief[result.state] ?? 0,
                     activity: currentActivityDetail, stepRate: supplemental.stepRate)
       return

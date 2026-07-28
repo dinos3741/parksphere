@@ -124,6 +124,13 @@ struct HMMResult {
   var slope: Double
   var pgrConsistency: Double
   var approachAlignment: Double
+  // 2026-07-28: diagnostic-only, for the pre-park "hunting" phase trace (no equivalent of hmm-traj
+  // existed for this phase — a full field-test day produced zero parkedEvents with no visibility
+  // into why, since tripDrivingTime/tripDrivingDistance/*Confirmed were all engine-internal).
+  var tripDrivingTime: Double
+  var tripDrivingDistance: Double
+  var walkingConfirmed: Bool
+  var drivingConfirmed: Bool
 }
 
 // MARK: - Math helpers (port of parkDetection_HMM.js :325-334)
@@ -842,7 +849,9 @@ final class ParkDetectionHMMEngine {
       parkedEvent: parkedEvent, awayEvent: awayEvent, clearParkingEvent: clearParkingEvent,
       isAway: isAway, distToParked: dist, deltaRate: stableDeltaRate, filteredSpeed: speed,
       filteredCoords: filteredCoords, pgr: pgrVal, slope: slopeVal, pgrConsistency: consistencyVal,
-      approachAlignment: approachAlignment
+      approachAlignment: approachAlignment, tripDrivingTime: tripDrivingTime,
+      tripDrivingDistance: tripDrivingDistance, walkingConfirmed: walkingConfirmed,
+      drivingConfirmed: drivingConfirmed
     )
   }
 }
