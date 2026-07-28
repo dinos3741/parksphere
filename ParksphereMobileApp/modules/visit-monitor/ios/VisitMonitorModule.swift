@@ -943,6 +943,55 @@ public class VisitMonitorModule: Module {
     }
   }
 
+  // 2026-07-28: JS's foreground/background engine never trusted the LIVE activity callback above
+  // alone — utils/parkDetectionService.js's fetchActivityTimeline/activityAt always resolved each fix
+  // against CMMotionActivityManager's HISTORICAL query instead, and that resolution overwrote
+  // whatever the live listener had written (parkDetectionService.js:1141-1143), for BOTH foreground
+  // and background batches. Why: the live push callback has real classification latency (seconds to
+  // tens of seconds ramping from 'unknown' to a confident category) — a property of the on-device
+  // classifier itself, not of foreground/background. The historical query asks "what did the
+  // coprocessor conclude actually happened at this past instant," which is already-resolved,
+  // high-confidence data even when queried moments later. A field-test day (2026-07-28) with zero
+  // parkedEvents despite confirmed real driving is consistent with isExitEvent's hasDrivingSignal
+  // veto / trip-time accumulation being starved by the live-only stream's lag. This ports that same
+  // historical-correction behavior, generalized to Swift's now-continuous fg/bg execution: throttled
+  // periodic query (not per-fix, to avoid hammering the query API) instead of JS's per-batch query,
+  // since native has no batch boundary anymore.
+  private let activityQueryQueue = OperationQueue()
+  private var lastActivityQueryAt: TimeInterval = 0
+  private var lastActivityQueryWindowEnd: Date?
+  private static let activityQueryThrottleSec: TimeInterval = 8.0
+  private static let activityQueryMaxLookbackSec: TimeInterval = 120 // cap the window after a long idle gap
+
+  private func maybeQueryActivityHistory() {
+    guard CMMotionActivityManager.isActivityAvailable() else { return }
+    let now = Date().timeIntervalSince1970
+    guard now - lastActivityQueryAt > VisitMonitorModule.activityQueryThrottleSec else { return }
+    lastActivityQueryAt = now
+    let end = Date()
+    let earliestStart = end.addingTimeInterval(-VisitMonitorModule.activityQueryMaxLookbackSec)
+    let start = max(lastActivityQueryWindowEnd ?? earliestStart, earliestStart)
+    guard start < end else { return }
+    activityManager.queryActivityStarting(from: start, to: end, to: activityQueryQueue) { [weak self] activities, _ in
+      guard let self = self, let last = activities?.last else { return }
+      DispatchQueue.main.async {
+        self.lastActivityQueryWindowEnd = end
+        let label: String
+        if last.automotive { label = "automotive" }
+        else if last.cycling { label = "cycling" }
+        else if last.running { label = "running" }
+        else if last.walking { label = "walking" }
+        else if last.stationary { label = "stationary" }
+        else { label = "unknown" }
+        if label != self.currentActivity { self.currentActivity = label; self.recomputeState() }
+        self.currentActivityDetail = HMMActivity(
+          automotive: last.automotive, walking: last.walking || last.running, stationary: last.stationary,
+          unknown: last.unknown, confidence: Int(last.confidence.rawValue)
+        )
+      }
+    }
+  }
+
   // Derive the single authoritative state from the park/return lifecycle + motion activity + speed.
   // Persists + logs only on a real change. Called from the fix loop, the activity handler, and every
   // lifecycle transition (park/return/rearm), so native_state.json always holds the true current state.
@@ -1252,14 +1301,23 @@ public class VisitMonitorModule: Module {
 
   private func processFullHMM(_ loc: CLLocation) async {
     retryPendingDeleteIfNeeded(loc) // catch up any server-delete that failed for lack of connectivity
+    maybeQueryActivityHistory() // periodic historical correction of currentActivityDetail (see above)
 
     await stepRateProvider.refreshCurrentStepRate()
 
     let parkedCoord = carLocation?.coordinate
+    // Speed safety net (parkDetectionService.js:1145-1150): if activity is still unresolved (either
+    // the historical query hasn't landed yet, or the coprocessor itself is genuinely unsure) but GPS
+    // speed is clearly vehicular — impossible on foot — synthesize a medium-confidence automotive
+    // signal so isExitEvent's hasDrivingSignal veto / trip accumulation aren't starved waiting on it.
+    var activity = currentActivityDetail
+    if activity.unknown && loc.speed * 3.6 > 20 {
+      activity = HMMActivity(automotive: true, walking: false, stationary: false, unknown: false, confidence: 1)
+    }
     let supplemental = HMMSupplemental(
       stepRate: stepRateProvider.gatedStepRate(),
       accelerationMagnitude: nil, // Phase C: pending the accel-spike field-test result
-      motionActivity: currentActivityDetail,
+      motionActivity: activity,
       bluetoothConnected: carBtConnected,
       spectralFeatures: nil,
       accuracy: loc.horizontalAccuracy > 0 ? loc.horizontalAccuracy : 10
