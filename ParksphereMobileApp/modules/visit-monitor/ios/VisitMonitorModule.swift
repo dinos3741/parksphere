@@ -70,6 +70,13 @@ public class VisitMonitorModule: Module {
   // CLLocationUpdate.liveUpdates async API — not the legacy startUpdatingLocation delegate (Build D
   // buffered anyway). This Task consumes liveUpdates and forwards each fix through the same batch path.
   private var liveTask: Task<Void, Never>?
+  // 2026-07-29: tracks "should the loop be running" independent of the Task itself, so a self-healing
+  // retry (see the catch block below) knows whether to relaunch after an unexpected end, without
+  // waiting on JS to notice (JS's mode dedupe only re-calls startDriveLiveUpdates() on an ACTUAL mode
+  // transition — if the loop dies mid-drive, mode never changes from JS's point of view, so nothing
+  // would otherwise prompt a restart until the drive ends and a new one begins, possibly much later).
+  private var liveUpdatesWanted = false
+  private var liveRestartAttempt = 0
 
   // ── Native heartbeat (Build E premise test, 2026-07-07) ──────────────────────
   // Prior "app suspended during the drive" verdicts came from watching the JS heartbeat go silent —
@@ -442,55 +449,19 @@ public class VisitMonitorModule: Module {
     // as a 1-element onLocationBatch so the existing HMM pipeline is unchanged.
     AsyncFunction("startDriveLiveUpdates") {
       DispatchQueue.main.async {
-        guard self.liveTask == nil else { return }
+        self.liveUpdatesWanted = true
+        self.liveRestartAttempt = 0
         if #available(iOS 17.0, *) {
           self.ensureManager() // make sure Always auth has been requested
           if VisitMonitorModule.useFullHMM { self.stepRateProvider.start() }
-          // NB: do NOT reset the park/return state here — the session can restart mid-watch (bg↔fg) and
-          // we must preserve a declared park. JS calls resetParkDetection() on drive-off/new trip.
-          self.liveTask = Task { [weak self] in
-            do {
-              for try await update in CLLocationUpdate.liveUpdates() {
-                if Task.isCancelled { break }
-                guard let self = self, let loc = update.location else { continue }
-                self.lastLiveFix = loc // freshest fix for the BT-disconnect park (manager.location is stale under liveUpdates)
-                // Poll the BT state (reason-agnostic disconnect catcher), throttled; on main to avoid a
-                // race with the route-change observer that also drives the edge detector.
-                let btNow = Date().timeIntervalSince1970
-                if btNow - self.lastBtPollAt > 3.0 {
-                  self.lastBtPollAt = btNow
-                  DispatchQueue.main.async { self.refreshCarBt(reason: "poll") }
-                }
-                self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
-                // R7: toggle-gated — the full-HMM engine owns BOTH park-hunting and return-watching in
-                // one unified call (mirrors JS's single processLocationHMM), so it doesn't need the
-                // R1-R6 path's explicit carLocation==nil / isDriveAwayFromCar dispatch below.
-                if VisitMonitorModule.useFullHMM {
-                  await self.processFullHMM(loc)
-                } else if self.carLocation == nil {
-                  // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
-                  // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
-                  self.detectPark(loc)
-                } else if self.isDriveAwayFromCar(loc) {
-                  self.logNativeFix(loc, tag: "rearm", force: true)
-                  self.rearmParkDetection()
-                  self.detectPark(loc)
-                } else {
-                  self.detectReturn(loc)
-                }
-                self.recomputeState() // R1: keep the authoritative current-state fresh per fix
-                self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
-              }
-            } catch {
-              // liveUpdates threw (e.g. authorization) — leave the task to end; JS falls back on foreground.
-            }
-          }
+          self.launchLiveUpdatesTask()
         }
       }
     }
 
     AsyncFunction("stopDriveLiveUpdates") {
       DispatchQueue.main.async {
+        self.liveUpdatesWanted = false // tell a pending self-healing retry (see launchLiveUpdatesTask) to stand down
         self.liveTask?.cancel()
         self.liveTask = nil
         if VisitMonitorModule.useFullHMM { self.stepRateProvider.stop() }
@@ -826,6 +797,75 @@ public class VisitMonitorModule: Module {
       region.notifyOnEntry = true
       region.notifyOnExit = true
       m.startMonitoring(for: region)
+    }
+  }
+
+  // 2026-07-29: extracted from startDriveLiveUpdates so a died loop can relaunch itself without
+  // waiting for JS to notice (see liveUpdatesWanted's declaration for why that matters). Self-healing:
+  // on any error ending the loop, retry with a short linear backoff (capped) as long as
+  // liveUpdatesWanted is still true — bounded so a persistent failure (e.g. revoked authorization)
+  // doesn't spin forever, but transient OS-level interruptions recover within seconds instead of
+  // silencing the app for the rest of the day.
+  @available(iOS 17.0, *)
+  private func launchLiveUpdatesTask() {
+    guard liveTask == nil else { return }
+    liveTask = Task { [weak self] in
+      do {
+        for try await update in CLLocationUpdate.liveUpdates() {
+          if Task.isCancelled { break }
+          guard let self = self, let loc = update.location else { continue }
+          self.liveRestartAttempt = 0 // a real fix landed — the loop is healthy again
+          self.lastLiveFix = loc // freshest fix for the BT-disconnect park (manager.location is stale under liveUpdates)
+          // Poll the BT state (reason-agnostic disconnect catcher), throttled; on main to avoid a
+          // race with the route-change observer that also drives the edge detector.
+          let btNow = Date().timeIntervalSince1970
+          if btNow - self.lastBtPollAt > 3.0 {
+            self.lastBtPollAt = btNow
+            DispatchQueue.main.async { self.refreshCarBt(reason: "poll") }
+          }
+          self.logNativeFix(loc, tag: "live") // native-liveness probe (independent of JS)
+          // R7: toggle-gated — the full-HMM engine owns BOTH park-hunting and return-watching in
+          // one unified call (mirrors JS's single processLocationHMM), so it doesn't need the
+          // R1-R6 path's explicit carLocation==nil / isDriveAwayFromCar dispatch below.
+          if VisitMonitorModule.useFullHMM {
+            await self.processFullHMM(loc)
+          } else if self.carLocation == nil {
+            // Phase: no car spot → look for a park; parked & driving away → new trip, re-arm (so
+            // multi-trip days work WITHOUT JS, which is suspended between trips); else watch for return.
+            self.detectPark(loc)
+          } else if self.isDriveAwayFromCar(loc) {
+            self.logNativeFix(loc, tag: "rearm", force: true)
+            self.rearmParkDetection()
+            self.detectPark(loc)
+          } else {
+            self.detectReturn(loc)
+          }
+          self.recomputeState() // R1: keep the authoritative current-state fresh per fix
+          self.sendEvent("onLocationBatch", ["locations": [self.fixDict(loc)]])
+        }
+      } catch {
+        // 2026-07-29: THIS was a real bug, not just a comment describing intended behavior — when
+        // liveUpdates() throws (auth hiccup, an OS-level interruption; CLLocationUpdate.liveUpdates
+        // can and does end this way over the course of a day), self.liveTask was never reset to nil.
+        // Every future startDriveLiveUpdates() call then no-op'd forever (the guard above), because it
+        // still held a reference to the now-dead task — permanently silencing native for the rest of
+        // the app's process lifetime. A field test (2026-07-29) showed exactly this: driveCapture/
+        // bgSession started correctly on both of the day's trips, but the "live" heartbeat tag —
+        // written on every loop iteration, independent of the JS bridge — appears essentially zero
+        // times during either drive, meaning the loop had already silently died earlier and nothing
+        // ever restarted it.
+        guard let self = self else { return }
+        if let loc = self.lastLiveFix {
+          self.logNativeFix(loc, tag: "liveUpdates-died", force: true, extra: ["err": String(describing: error), "attempt": self.liveRestartAttempt])
+        }
+        self.liveTask = nil
+        guard self.liveUpdatesWanted else { return }
+        self.liveRestartAttempt += 1
+        guard self.liveRestartAttempt <= 5 else { return } // give up after 5 — a persistent failure (e.g. revoked auth) shouldn't spin forever
+        let delaySec = Double(min(self.liveRestartAttempt, 3)) * 2.0 // 2s, 4s, 6s, 6s, 6s
+        try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
+        DispatchQueue.main.async { self.launchLiveUpdatesTask() }
+      }
     }
   }
 
