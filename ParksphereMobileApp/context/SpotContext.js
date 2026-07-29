@@ -194,13 +194,24 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   // (useReturnDetection.js) — driven by local detection, so it works fully offline.
   useEffect(() => {
     if (!spotsLoaded || !userId) return;
-    const myActiveSpot = parkingSpots.find((s) => s.user_id === userId);
-    if (myActiveSpot) {
-      const serverLoc = { latitude: myActiveSpot.latitude, longitude: myActiveSpot.longitude };
-      if (!parkedLocation || parkedLocation.latitude !== serverLoc.latitude || parkedLocation.longitude !== serverLoc.longitude) {
-        setParkedLocation(serverLoc);
+    // 2026-07-29: mock/demo mode's apiService.js returns a HARDCODED fixture spot (San Francisco,
+    // 37.78825/-122.4324) for the demo user (id 766) on every /api/parkingspots call, regardless of
+    // whether anything was actually detected — there is no real server to reconcile against in mock
+    // mode. Without this guard, that fixture repeatedly overwrote a real, just-detected parkedLocation
+    // the moment the spot list refreshed (confirmed via a field test: a real park at commit 464995f
+    // era code got clobbered by this fixture within seconds, then churned against clearSpot()).
+    let cancelled = false;
+    AsyncStorage.getItem('mockModeEnabled').then((mock) => {
+      if (cancelled || mock === 'true') return;
+      const myActiveSpot = parkingSpots.find((s) => s.user_id === userId);
+      if (myActiveSpot) {
+        const serverLoc = { latitude: myActiveSpot.latitude, longitude: myActiveSpot.longitude };
+        if (!parkedLocation || parkedLocation.latitude !== serverLoc.latitude || parkedLocation.longitude !== serverLoc.longitude) {
+          setParkedLocation(serverLoc);
+        }
       }
-    }
+    });
+    return () => { cancelled = true; };
   }, [spotsLoaded, parkingSpots, userId, parkedLocation, setParkedLocation]);
 
   const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
