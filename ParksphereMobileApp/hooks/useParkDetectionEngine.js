@@ -30,8 +30,22 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
   useEffect(() => {
     console.log(`[useParkDetectionEngine] Bluetooth isConnected: ${isConnected}`);
 
-    // ⚡ Inject Bluetooth state into the HMM engine on change
-    handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
+    // 2026-07-29: found via a field test — this call was NOT covered by the Platform.OS !== 'ios' gate
+    // below (that only covers the location-batch feed), so the old JS engine's own "Bluetooth Veto"
+    // logic (parkDetectionService.js:317-376) was still running on every BT connect/disconnect,
+    // completely independent of native. It reads that engine's OWN separate persisted storage
+    // (STORAGE_KEY, distinct from native's PARK_STATE/SPOT_KEY) and, if it looks like a stale active
+    // park, fires notify({clearParkedLocation:true}) — which useReturnDetection.js's hmmSpotSub mirrors
+    // into a REAL clearSpot('hmm') call, which itself calls VM.resetParkDetection() and can even hit
+    // the server with its own deleteSpot() — all driven by a dead engine's stale local storage, with
+    // zero awareness of what native's own park-detection state actually is. Confirmed in a field test:
+    // two bursts of repeated clearSpot('hmm') calls, timed exactly at BT connect (getting in the car)
+    // and BT disconnect (getting out) — precisely where this code path fires. Native already owns BT-
+    // based detection entirely on iOS (the reconnected fast-path, refreshCarBt/declarePark(source:"bt")),
+    // so this injection has no reason to run there at all — gate it exactly like the location feed.
+    if (Platform.OS !== 'ios') {
+      handleLocationUpdate({ bluetoothConnected: isConnected }, null, true);
+    }
   }, [isConnected]);
 
   // Surface the current parked spot to the map on foreground. A spot declared in the BACKGROUND by
