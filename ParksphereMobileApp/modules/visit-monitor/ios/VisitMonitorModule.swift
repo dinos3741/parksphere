@@ -1709,7 +1709,19 @@ public class VisitMonitorModule: Module {
     self.manager = m
     self.setupCarBtObserver() // start watching car-audio connect/disconnect for the fast-path park
     self.startActivityUpdatesIfAvailable() // R1: motion activity → authoritative current-state
-    self.startAccelSpike() // R7 Phase C spike: is raw accelerometer sampling alive in the background?
+    // 2026-07-29: DISABLED. This was the only change to ensureManager() (and everything it starts)
+    // between the last pre-HMM-port commit (c51a87e) and now — every CLLocationManager setting is
+    // otherwise identical. It answered a one-off spike question ("is raw accelerometer sampling alive
+    // in the background?") for the future FFT pipeline that was never built — processFullHMM still
+    // passes accelerationMagnitude: nil into the HMM, so nothing downstream ever reads this data. But
+    // it ran continuous 50Hz accelerometer sampling (accelerometerUpdateInterval = 0.02), dispatched to
+    // the main thread, for the app's entire lifetime once location was ever used — a real, sustained
+    // background CPU cost competing with CLLocationUpdate.liveUpdates() for the same background
+    // execution budget. Prime suspect for a field-test-confirmed regression: liveUpdates delivering
+    // only a handful of fixes over many minutes during an actual drive, despite the background session
+    // being held — behavior that didn't exist before this spike was added. Function kept (harmless,
+    // unused) for if the full FFT pipeline is ever built and this needs reactivating deliberately.
+    // self.startAccelSpike()
   }
 }
 
