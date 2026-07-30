@@ -180,10 +180,10 @@ function AppLayout({
           pointerEvents="box-none"
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
         >
-           <HMMOverlay 
-             isVisible={navigationRef.getCurrentRoute()?.name === 'Home'} 
+           <HMMOverlay
+             isVisible={navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin'}
            />
-           {navigationRef.getCurrentRoute()?.name === 'Home' && <DebugSimulator userLocation={userLocation} />}
+           {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && <DebugSimulator userLocation={userLocation} />}
         </View>
       )}
     </>

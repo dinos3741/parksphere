@@ -10,7 +10,8 @@ const MOCK_DATA = {
     plate_number: 'ABC-1234',
     avatar_url: 'https://i.pravatar.cc/150?u=demouser',
     auto_detect: true,
-    created_at: '2020-01-01T00:00:00.000Z'
+    created_at: '2020-01-01T00:00:00.000Z',
+    role: 'demo'
   },
   spots: [
     {

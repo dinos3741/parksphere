@@ -112,6 +112,12 @@ async function createUsersTable() {
       ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3, 2) DEFAULT 0.00;
     `);
 
+    // Add role column if it doesn't exist — account levels: 'user' (default), 'admin', 'demo'
+    await client.query(`
+      ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'demo'));
+    `);
+
     // Migration: Handle auto_detection_enabled -> auto_detect
     const checkColumns = await client.query(`
       SELECT column_name 
