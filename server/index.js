@@ -488,7 +488,7 @@ async function authenticateToken(req, res, next) {
     if (token.startsWith('mock-jwt-token-')) {
       console.warn('DEBUG: Using mock token bypass for:', token);
       req.user = {
-        userId: 766,
+        userId: -1,
         username: 'demo user',
         carType: 'sedan',
         carColor: 'black',
