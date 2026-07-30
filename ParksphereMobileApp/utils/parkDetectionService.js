@@ -1215,6 +1215,27 @@ export async function seedParkedSpot(location) {
   }).catch(() => {});
 }
 
+// ── R5.2 dedup: keep the foreground HMM's serverSpotId in sync with native's (background) ────────────
+// One park = one server spot. adoptServerSpotId writes native's id into PARK_STATE so the foreground HMM
+// manages the SAME server spot (updates its status on return) instead of ignoring it or re-declaring.
+// getStoredServerSpotId reads the HMM's current numeric id back (for the foreground→native push).
+export async function adoptServerSpotId(id) {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    const st = saved ? JSON.parse(saved) : {};
+    if (st.serverSpotId === id) return;
+    st.serverSpotId = id;
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+  } catch (_) {}
+}
+export async function getStoredServerSpotId() {
+  try {
+    const saved = await AsyncStorage.getItem(STORAGE_KEY);
+    const id = saved ? JSON.parse(saved).serverSpotId : null;
+    return (typeof id === 'number' && id > 0) ? id : 0;
+  } catch { return 0; }
+}
+
 // ---------------- CONTINUOUS LOCATION UPDATES ----------------
 async function startContinuousUpdates() {
   // RETIRED: never (re)register the persistent continuous-location task — it's the second

@@ -33,6 +33,19 @@ export function addGeofenceListener(listener) {
   return VisitMonitor.addListener('onGeofence', listener);
 }
 
+// ── Idle/rest geofence (2026-07-29) ──────────────────────────────────────────
+// SLC and CLVisit can both miss a short, local round trip (confirmed 2026-07-28/29 field test — a
+// ~300m drive + short walk left the app fully suspended, no wake at all). Arm a tight, static region
+// around wherever native was last positioned the moment the app goes idle (mode 'off'); native centers
+// it on its own last fix, no coords needed. EXIT fires via the SAME onGeofence event (id: 'restFence'),
+// so the mode controller starts drive-capture on it exactly like an SLC wake.
+export function armIdleFence(radius = 180) {
+  return VisitMonitor.armIdleFence(radius);
+}
+export function clearIdleFence() {
+  return VisitMonitor.clearIdleFence();
+}
+
 // ── On-demand location stream (feeds the HMM) ────────────────────────────────
 // Streams fixes from the SAME CLLocationManager that does visits + regions, so the app never runs a
 // second location owner. The JS mode controller turns this on for the foreground and for the bounded
@@ -155,6 +168,35 @@ export function readNativeState() {
   return VisitMonitor.readNativeState();
 }
 
+// ── R5.1: native backend client ──────────────────────────────────────────────
+// So the app can declare/update/delete spots on the server FROM NATIVE — required because detection is
+// native/background and the RN JS thread (fetch/AsyncStorage) is suspended then. JS hands over config.
+export function configureBackend(serverUrl, token, carType) {
+  return VisitMonitor.configureBackend(serverUrl, token, carType);
+}
+export function declareSpotNative(latitude, longitude, timeToLeave = 60) {
+  return VisitMonitor.declareSpotNative(latitude, longitude, timeToLeave); // → spotId (>0) or -1
+}
+export function updateSpotStatusNative(spotId, status) {
+  return VisitMonitor.updateSpotStatusNative(spotId, status); // status: occupied|soon_free|committed|vacating|free
+}
+export function deleteSpotNative(spotId) {
+  return VisitMonitor.deleteSpotNative(spotId);
+}
+
+// ── R5.2: shared serverSpotId (native bg + JS fg dedup) ───────────────────────
+// One park = one server spot. JS reads native's id on foreground to adopt a background-declared spot
+// (so it won't re-declare); JS writes its id before backgrounding so native owns a foreground-declared one.
+export function getServerSpotId() {
+  return VisitMonitor.getServerSpotId(); // 0 = none
+}
+export function setServerSpotId(spotId) {
+  return VisitMonitor.setServerSpotId(spotId);
+}
+export function clearServerSpotId() {
+  return VisitMonitor.clearServerSpotId();
+}
+
 // ── Native return-watcher control (Build E) ──────────────────────────────────
 // setCarLocation: hand native the car spot so it watches the fix stream for the walk back (distance-
 // based — catches close-parking returns a geofence can't). resetParkDetection: on drive-off/new trip,
@@ -164,6 +206,36 @@ export function setCarLocation(latitude, longitude) {
 }
 export function resetParkDetection() {
   return VisitMonitor.resetParkDetection();
+}
+
+// ── R5.3: returning confirmation foreground fallback ─────────────────────────
+// The notification's own Yes/No actions only work if the user catches/interacts with the banner before
+// it auto-dismisses (Temporary banner style — iOS gives apps no API to force Persistent). So JS also
+// polls this on every foreground; if still pending it shows an in-app Yes/No popup as a guaranteed path.
+export function getPendingReturnConfirmDist() {
+  return VisitMonitor.getPendingReturnConfirmDist(); // -1 = none pending, else distance in meters
+}
+export function respondReturnConfirm(yes) {
+  return VisitMonitor.respondReturnConfirm(yes);
+}
+
+// ── R7: push-based park-state change (fg/bg engine unification) ─────────────
+// Fires the instant native's own park state actually changes (declarePark / anchor-refine /
+// rearmParkDetection), so JS can update the map immediately regardless of foreground/background —
+// unlike the file-based native_park.json handoff (readNativePark/mergeNativePark), which only gets
+// checked on an AppState edge and would otherwise miss a park detected while staying foregrounded.
+// listener({ cleared: false, latitude, longitude, accuracy } | { cleared: true })
+export function addNativeParkChangedListener(listener) {
+  return VisitMonitor.addListener('onNativeParkChanged', listener);
+}
+
+// ── R7 fg/bg unification follow-up: per-fix HMM detail for the debug overlay ─
+// Fires on every processed fix with the engine's current state/confidence/zone/ETA/motion — mirrors
+// the shape parkDetectionDetailedUpdate used to carry from the old JS engine, so HMMOverlay.js can
+// keep reading that same event name unchanged (see useReturnDetection.js's re-broadcast).
+// listener({ state, confidence, returningConfidence, zone, etaSeconds, metrics: {...} })
+export function addHMMDetailListener(listener) {
+  return VisitMonitor.addListener('onHMMDetail', listener);
 }
 
 export default VisitMonitor;

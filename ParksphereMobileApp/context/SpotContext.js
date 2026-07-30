@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Alert, DeviceEventEmitter } from 'react-native';
+import { Alert, AppState, DeviceEventEmitter } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { apiRequest } from '../utils/apiService';
@@ -14,13 +14,17 @@ export const useSpots = () => {
   return context;
 };
 
-export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation }) => {
+export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation, parkedLocation }) => {
   const { token, isLoggedIn, serverUrl, logout } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
   const [acceptedSpot, setAcceptedSpotState] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
   const [hasNewRequests, setHasNewRequests] = useState(false);
   const [arrivalConfirmed, setArrivalConfirmedState] = useState(false);
+  // R7 (2026-07-26): gates the reconciliation effect below — parkingSpots starts empty on every
+  // launch while the first fetch is in flight, and without this the "no spot found for me" branch
+  // would fire immediately and wipe a real cached marker before the server had even been asked.
+  const [spotsLoaded, setSpotsLoaded] = useState(false);
 
   const setAcceptedSpot = useCallback(async (spot) => {
     setAcceptedSpotState(spot);
@@ -156,6 +160,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
         const data = await response.json();
         const transformedData = data.map(spot => ({ ...spot, ownerId: spot.user_id }));
         setParkingSpots(transformedData);
+        setSpotsLoaded(true);
       } else if (response.status === 401 || response.status === 403) {
         await logout();
       }
@@ -163,6 +168,51 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       console.error('[SpotContext] Error fetching parking spots:', error);
     }
   }, [isLoggedIn, token, serverUrl, logout]);
+
+  // R7 (2026-07-26): fetchParkingSpots only runs once at login (App.js's effect keys off
+  // isLoggedIn/userId/token) — if the server happened to be unreachable at that moment, spotsLoaded
+  // stays false and the reconciliation effect below never runs for the rest of the session. Re-fetch
+  // on every foreground so a transient failure at launch doesn't strand the whole session; mirrors
+  // the AppState pattern already used in useReturnDetection.js.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') fetchParkingSpots();
+    });
+    return () => sub.remove();
+  }, [fetchParkingSpots]);
+
+  // R7 (2026-07-26): sync the map's "Your Car" marker FROM the server when it knows about a spot
+  // the client doesn't have locally yet (e.g. an account switch that left a stale/empty local cache).
+  // Deliberately one-directional — SET only, never CLEAR. `parkedLocation` is a personal, offline-
+  // first "where's my car" indicator; the server's spot listing is a separate, connectivity-dependent
+  // feature (sharing your spot with other users). An earlier version of this effect also cleared
+  // parkedLocation when the user had no active spot server-side, which sounds right but isn't: if
+  // declareServerSpot fails (no connectivity — confirmed 2026-07-26, server unreachable, code:0/
+  // ok:false), the server legitimately has no record of a spot native just detected locally, and the
+  // clear branch erased that real, freshly-detected park purely because it hadn't reached the network
+  // yet. Clearing stays exclusively the job of clearSpot()'s 'parkedLocationCleared' event
+  // (useReturnDetection.js) — driven by local detection, so it works fully offline.
+  useEffect(() => {
+    if (!spotsLoaded || !userId) return;
+    // 2026-07-29: mock/demo mode's apiService.js returns a HARDCODED fixture spot (San Francisco,
+    // 37.78825/-122.4324) for the demo user (id 766) on every /api/parkingspots call, regardless of
+    // whether anything was actually detected — there is no real server to reconcile against in mock
+    // mode. Without this guard, that fixture repeatedly overwrote a real, just-detected parkedLocation
+    // the moment the spot list refreshed (confirmed via a field test: a real park at commit 464995f
+    // era code got clobbered by this fixture within seconds, then churned against clearSpot()).
+    let cancelled = false;
+    AsyncStorage.getItem('mockModeEnabled').then((mock) => {
+      if (cancelled || mock === 'true') return;
+      const myActiveSpot = parkingSpots.find((s) => s.user_id === userId);
+      if (myActiveSpot) {
+        const serverLoc = { latitude: myActiveSpot.latitude, longitude: myActiveSpot.longitude };
+        if (!parkedLocation || parkedLocation.latitude !== serverLoc.latitude || parkedLocation.longitude !== serverLoc.longitude) {
+          setParkedLocation(serverLoc);
+        }
+      }
+    });
+    return () => { cancelled = true; };
+  }, [spotsLoaded, parkingSpots, userId, parkedLocation, setParkedLocation]);
 
   const handleRequestSpot = async (spotId, requesterLat, requesterLon) => {
     if (!token) return;
@@ -290,6 +340,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
 
   const resetParkingSpots = useCallback(async () => {
     setParkingSpots([]);
+    setSpotsLoaded(false);
     setAcceptedSpotState(null);
     setArrivalConfirmedState(false);
     setSpotRequests([]);

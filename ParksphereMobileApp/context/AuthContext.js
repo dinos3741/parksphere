@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiRequest } from '../utils/apiService';
+import { resetAllAppData } from '../utils/dataReset';
 
 // 1. Create the Context
 const AuthContext = createContext({});
@@ -98,8 +99,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const getAvatarUri = (avatarPath) => {
-    return avatarPath ? `${serverUrl}${avatarPath}` : null;
+  // Robust, shared avatar-URI builder (previously duplicated 4x + a naive version here). Handles:
+  // no avatar → pravatar placeholder; a full http(s) URL (e.g. Google) as-is, rewriting a stale
+  // localhost host to the current serverUrl; a relative /uploads/... path → prefixed with serverUrl.
+  const getAvatarUri = (avatarPath, username) => {
+    if (!avatarPath) return username ? `https://i.pravatar.cc/150?u=${username}` : null;
+    if (avatarPath.startsWith('http')) {
+      return avatarPath.includes('://localhost')
+        ? avatarPath.replace(/http:\/\/localhost:3001/, serverUrl)
+        : avatarPath;
+    }
+    return `${serverUrl}${avatarPath}`;
   };
 
   // The Login function
@@ -113,14 +123,17 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('username', data.username);
   };
 
-  // The Logout function
+  // The Logout function. Uses resetAllAppData() (not a plain AsyncStorage.multiRemove of just the
+  // auth keys) so a full logout also clears park-detection state — otherwise a stale spot/geofence/
+  // parkedLocation from THIS account survives into whoever logs in next (2026-07-26 incident: a
+  // Demo Login session's native-owned spot leaked onto a real user's map as their own parked car).
   const logout = async () => {
     setToken(null);
     setUserId(null);
     setCurrentUsername(null);
     setCurrentUser(null);
     setIsLoggedIn(false);
-    await AsyncStorage.multiRemove(['userToken', 'userId', 'username']);
+    await resetAllAppData();
   };
 
   // 3. Expose the data and functions

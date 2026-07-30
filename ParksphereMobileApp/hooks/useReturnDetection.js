@@ -14,13 +14,13 @@
 // KNOWN LIMITS (test build):
 //  • CLVisit arrival is delayed (minutes) and coarse — the geofence centers on an approximate spot.
 import { useEffect } from 'react';
-import { AppState, DeviceEventEmitter } from 'react-native';
+import { AppState, DeviceEventEmitter, Alert } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initNotifications, notifyUser } from '../utils/notificationService';
 import { logHeartbeat, flushTelemetry } from '../utils/telemetryService';
-import { seedParkedSpot, queryTravelMode } from '../utils/parkDetectionService';
+import { seedParkedSpot, queryTravelMode, adoptServerSpotId, getStoredServerSpotId } from '../utils/parkDetectionService';
 
 const SPOT_KEY = 'EVENT_PARKED_SPOT';
 const GEOFENCE_RADIUS = 200; // metres — bigger = more return lead time (within iOS reliability)
@@ -154,12 +154,15 @@ export function useReturnDetection() {
     if (!VM) return;
     let visitSub = null;
     let geoSub = null;
+    let nativeParkSub = null;
+    let hmmDetailSub = null;
     let locSub = null;
     let hmmSpotSub = null;
     let pausedSub = null;
     let resumedSub = null;
     let appStateSub = null;
     let modeTimer = null;
+    let nativeStatePollTimer = null;
     let alive = null;
     let cancelled = false;
 
@@ -245,7 +248,19 @@ export function useReturnDetection() {
       await VM.clearGeofence();
       await seedParkedSpot(null); // keep the HMM's PARK_STATE in sync so no stale spot resurfaces
       hasArmedSpot = false; // trip over → let the session release; re-arm native park detection
-      if (VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
+      // 2026-07-27: skip when THIS clear originated from native's own onNativeParkChanged push
+      // (source === 'native-live') — native already rearmed itself before emitting that event, so
+      // calling resetParkDetection() here is pure redundancy. It used to be worse than redundant: it
+      // fed straight into an infinite loop (resetParkDetection() → rearmParkDetection() → another
+      // onNativeParkChanged 'cleared' emit → this same listener → clearSpot() → resetParkDetection()
+      // again...). Native now guards its side too (only emits 'cleared' if there was actually a park
+      // to clear), but skipping the round-trip here as well avoids depending on either fix alone.
+      if (source !== 'native-live' && VM?.resetParkDetection) { try { await VM.resetParkDetection(); } catch (_) {} }
+      // R7 (2026-07-26): this correctly clears the geofence + native/HMM state, but never touched
+      // parkedLocation — the AsyncStorage key LocationContext actually draws "Your Car" from — so a
+      // real, correctly-detected clear could still leave a stale marker on the map. A dedicated event
+      // (not 'dataReset') so this doesn't also wipe SpotContext's unrelated acceptedSpot/request state.
+      DeviceEventEmitter.emit('parkedLocationCleared');
       await log({ src: 'clearSpot', source });
       console.log(`[Return] spot cleared by ${source}`);
     };
@@ -292,10 +307,59 @@ export function useReturnDetection() {
       } catch (e) { console.warn('[Return] mergeNativeLog failed (rebuild?):', e?.message); }
     };
 
+    // ── R5.1: hand the native backend client its config (base URL + token + car type) ─────────────
+    // Native can't read env/AsyncStorage; give it the current values on every foreground so its token
+    // stays fresh (it can then declare/update/delete spots on the server from the background).
+    const configureNativeBackend = async () => {
+      if (!VM?.configureBackend) return;
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) return;
+        const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP || 'localhost'}:3001`;
+        const carType = (await AsyncStorage.getItem('carType')) || 'sedan';
+        await VM.configureBackend(serverUrl, token, carType);
+        console.log('[Return] native backend configured');
+      } catch (e) { console.warn('[Return] configureBackend failed:', e?.message); }
+    };
+
+    // R5.2 dedup: on foreground, adopt the serverSpotId native declared in the background into PARK_STATE,
+    // so the foreground HMM manages the SAME server spot (status updates on return) instead of re-declaring.
+    const syncServerSpotOnForeground = async () => {
+      if (!VM?.getServerSpotId) return;
+      try {
+        const nativeId = await VM.getServerSpotId();
+        if (nativeId > 0) await adoptServerSpotId(nativeId);
+      } catch (e) { console.warn('[Return] serverSpot sync failed:', e?.message); }
+    };
+
+    // ── R5.3 foreground fallback: guaranteed path if the notification's Yes/No banner was missed ──
+    // (Temporary banner style auto-dismisses; there's no API to force Persistent.) On every foreground,
+    // ask native whether a SOFT return is still awaiting an answer; if so, show an in-app popup — same
+    // Yes/No outcome as tapping the notification action, just reachable from inside the app too.
+    const checkPendingReturnConfirm = async () => {
+      if (!VM?.getPendingReturnConfirmDist) { await log({ src: 'confirmFallback', action: 'no-native-fn' }); return; }
+      try {
+        const dist = await VM.getPendingReturnConfirmDist();
+        await log({ src: 'confirmFallback', action: 'checked', dist, app: AppState.currentState });
+        if (dist < 0) return;
+        Alert.alert(
+          'Are you returning to your car?',
+          `You appear to be heading back (~${dist}m away). Confirm to alert nearby drivers.`,
+          [
+            { text: 'No, false alarm', style: 'destructive', onPress: () => VM.respondReturnConfirm(false).catch(() => {}) },
+            { text: "Yes, I'm returning", onPress: () => VM.respondReturnConfirm(true).catch(() => {}) },
+          ],
+        );
+      } catch (e) { console.warn('[Return] checkPendingReturnConfirm failed (rebuild?):', e?.message); }
+    };
+
     // ── Native current-state read (R1) ───────────────────────────────────────────────────────────
     // Pull the authoritative state native maintained in the background and log it (validation for now;
     // R3 wires it into the UI). Confirms native's classification (driving/stopped/parked/returning).
-    const readNativeState = async () => {
+    // shouldLog=false for the polling call site below — logging every few seconds would flood the
+    // heartbeat log (already capped at 5000 entries and prone to evicting a whole trip's worth of
+    // data); mount + foreground-transition calls keep logging since those are naturally infrequent.
+    const readNativeState = async (shouldLog = true) => {
       if (!VM?.readNativeState) return;
       try {
         const raw = await VM.readNativeState();
@@ -304,8 +368,10 @@ export function useReturnDetection() {
         // R3: seed the UI with native's authoritative state so the overlay shows the TRUE state instantly
         // on foreground (no INITIALIZING/stale flash), then the live HMM refines it.
         DeviceEventEmitter.emit('nativeCurrentState', s);
-        await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
-        console.log('[Return] native current-state:', raw);
+        if (shouldLog) {
+          await log({ src: 'nativeState', state: s.state, activity: s.activity, since: s.since });
+          console.log('[Return] native current-state:', raw);
+        }
       } catch (e) { console.warn('[Return] readNativeState failed (rebuild?):', e?.message); }
     };
 
@@ -372,6 +438,49 @@ export function useReturnDetection() {
           console.log('[Return] re-armed geofence from stored spot:', saved);
         }
       } catch (_) {}
+
+      // R7 fg/bg unification (2026-07-26): native's processFullHMM now runs identically whether the
+      // app is foregrounded or backgrounded (see applyMode above), so its park/clear events need a
+      // path to the map that ISN'T gated by an AppState edge — unlike mergeNativePark (mount + the
+      // AppState 'active' listener only), which would otherwise miss anything detected while the app
+      // stays continuously foregrounded. This is that path: registered once, unconditionally, for the
+      // life of the hook. mergeNativePark/native_park.json remain as the catch-up path for when JS was
+      // fully suspended and missed this live event.
+      nativeParkSub = VM.addNativeParkChangedListener?.(async (p) => {
+        if (cancelled) return;
+        try {
+          if (p?.cleared) {
+            await clearSpot('native-live');
+            return;
+          }
+          if (typeof p?.latitude !== 'number' || typeof p?.longitude !== 'number') return;
+          const spot = { latitude: p.latitude, longitude: p.longitude, accuracy: p.accuracy };
+          // Mirror to the map immediately, same as mergeNativePark's own "authoritative on foreground" mirror.
+          DeviceEventEmitter.emit('nativeSpotAdopted', spot);
+          const existing = await AsyncStorage.getItem(SPOT_KEY);
+          if (existing) {
+            const s = JSON.parse(existing);
+            if (metersBetween(s.latitude, s.longitude, spot.latitude, spot.longitude) < 60) {
+              return; // same spot (e.g. anchor-refinement just tightened it slightly) — nothing more to do
+            }
+          }
+          await armSpot(spot, 'native-live');
+          await seedParkedSpot(spot);
+          await log({ src: 'nativeParkLive', lat: spot.latitude, lon: spot.longitude });
+        } catch (e) { console.warn('[Return] onNativeParkChanged handling failed:', e?.message); }
+      });
+
+      // R7 fg/bg unification follow-up (2026-07-27): re-broadcast native's per-fix detail (state,
+      // confidence, zone, ETA, motion/step, returning sureness) under the SAME event name the old JS
+      // engine used to emit it under (parkDetectionDetailedUpdate) — HMMOverlay.js already knows how
+      // to render that shape, so it needs no changes; only iOS's actual data source changed. Without
+      // this, the overlay's confidence/zone/ETA/motion fields have no source at all on iOS now that
+      // the old engine is gated off (only `state` had a native fallback, fixed separately via the
+      // readNativeState poll above).
+      hmmDetailSub = VM.addHMMDetailListener?.((d) => {
+        if (cancelled || !d) return;
+        DeviceEventEmitter.emit('parkDetectionDetailedUpdate', d);
+      });
 
       // CLVisit → park (BACKGROUND only). In the foreground the HMM is the authority and sets the
       // spot via its park event (below), so ignore CLVisit arrivals while active — this stops CLVisit
@@ -486,6 +595,19 @@ export function useReturnDetection() {
           await log({ src: 'roll', type: g?.type, lat: g?.lat, lon: g?.lon, app: AppState.currentState });
           return;
         }
+        // 2026-07-29: the idle/rest fence (armed whenever mode goes 'off', see applyMode below) closes
+        // the gap SLC/CLVisit can both miss on a short local trip — only EXIT matters here, mirroring
+        // the SLC-wake branch in the onLocationBatch handler above exactly (same guard, same actions).
+        if (g?.id === 'restFence') {
+          await log({ src: 'restFence', type: g?.type, app: AppState.currentState });
+          if (g?.type === 'exit' && !driveCaptureActive && AppState.currentState !== 'active') {
+            maybeOneShot();
+            startDriveCapture();
+            startRolling();
+          }
+          if (VM?.clearIdleFence) { try { await VM.clearIdleFence(); } catch (_) {} }
+          return;
+        }
         await log({ src: 'geofence', type: g?.type });
         console.log('[Return] geofence:', JSON.stringify(g));
         if (g?.type === 'enter') {
@@ -574,37 +696,60 @@ export function useReturnDetection() {
         console.log('[Return] iOS resumed location (movement).');
       });
 
-      // Mode controller — one CLLocationManager, three location modes:
-      //   • foreground (AppState active)      → 'stream' (continuous, no pause) so the HMM runs live.
-      //   • background + drive-capturing      → 'drive'  (auto-pausing .automotiveNavigation) to catch the park.
-      //   • otherwise                         → 'off'    so the app suspends; SLC/visit/geofence wake it.
-      let lastMode = null; // dedupe: only act (and log) when the desired mode actually changes
+      // Mode controller — one CLLocationManager, two location states:
+      //   • 'watching' (foreground, OR backgrounded + drive-capturing/an armed spot) → native
+      //     liveUpdates (processFullHMM), the SAME engine regardless of foreground/background. R7 fg/bg
+      //     unification (2026-07-26): foreground used to run a separate, un-ported JS engine via plain
+      //     startLocationUpdates (whose delegate callback did no detection at all) — which is why a
+      //     park detected with the app open never reached the server even though the identical
+      //     background case worked. Now there is exactly one detection path for both.
+      //   • 'off' (backgrounded, nothing driving/armed) → app suspends; SLC/visit/geofence wake it.
+      // The background-activity-session is a SEPARATE concern from which mode is active — it's only
+      // needed to survive actually being backgrounded, so its own dedupe reacts to `active` directly
+      // rather than to `mode` (mode no longer changes on a foreground↔background transition while
+      // continuously watching, so gating the session off `mode`'s dedupe would silently stop engaging it).
+      let lastMode = null;      // 'watching' | 'off' — dedupe for starting/stopping the liveUpdates task
+      let lastBgSession = null; // true | false — dedupe for the background-activity-session hold
       const applyMode = async () => {
         if (cancelled) return;
         const active = AppState.currentState === 'active';
-        // Background 'drive' mode holds liveUpdates + the background session. Keep it while a car is
-        // parked (hasArmedSpot) so native watches for the return, not only while actively drive-capturing.
-        const mode = active ? 'stream' : ((driveCaptureActive || hasArmedSpot) ? 'drive' : 'off');
-        if (mode === lastMode) return;
-        lastMode = mode;
-        console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
-        try {
-          if (mode === 'drive') {
-            // Build D-v2: modern liveUpdates (kept alive by the session) vs legacy startUpdatingLocation.
-            if (USE_LIVE_UPDATES && VM.startDriveLiveUpdates) await VM.startDriveLiveUpdates();
-            else await VM.startDriveLocationUpdates();
-          } else {
-            if (VM.stopDriveLiveUpdates) await VM.stopDriveLiveUpdates(); // end the live task when leaving drive
-            if (mode === 'stream') await VM.startLocationUpdates();
-            else await VM.stopLocationUpdates();
-          }
-        } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
-        // Build D: hold a CLBackgroundActivitySession for the duration of a background drive so iOS
-        // keeps the app alive receiving fixes instead of suspending-and-buffering (Build B failure).
-        // Bound to 'drive' mode — released the moment we leave it (park, foreground, or suspend).
-        if (BACKGROUND_SESSION_ENABLED && VM?.startBackgroundSession) {
+        const mode = (active || driveCaptureActive || hasArmedSpot) ? 'watching' : 'off';
+
+        if (mode !== lastMode) {
+          lastMode = mode;
+          console.log(`[Return] location mode → ${mode} (app=${AppState.currentState}, drive=${driveCaptureActive})`);
           try {
-            if (mode === 'drive') { await VM.startBackgroundSession(); await log({ src: 'bgSession', action: 'start' }); }
+            if (mode === 'watching') {
+              // Build D-v2: modern liveUpdates (kept alive by the session in background) — the only
+              // path that runs processFullHMM, foreground or background alike.
+              if (USE_LIVE_UPDATES && VM.startDriveLiveUpdates) await VM.startDriveLiveUpdates();
+              else await VM.startDriveLocationUpdates();
+            } else if (VM.stopDriveLiveUpdates) {
+              await VM.stopDriveLiveUpdates();
+            }
+          } catch (e) { lastMode = null; console.warn('[Return] mode switch failed:', e?.message); }
+          // 2026-07-29: arm the idle/rest fence the moment nothing is being watched — closes the short-
+          // local-trip gap SLC/CLVisit can both miss (see the id === 'restFence' branch above). Cleared
+          // the instant we're watching again, whichever path got us there (this fence's own exit, SLC,
+          // or CLVisit) so there's never more than one reason something is monitoring for "left the area".
+          if (mode === 'off') {
+            if (VM?.armIdleFence) {
+              try { await VM.armIdleFence(); await log({ src: 'idleFence', action: 'arm' }); }
+              catch (e) { console.warn('[Return] armIdleFence failed (rebuild?):', e?.message); }
+            }
+          } else if (VM?.clearIdleFence) {
+            try { await VM.clearIdleFence(); } catch (_) {}
+          }
+        }
+
+        // Build D: hold a CLBackgroundActivitySession only while actually backgrounded AND watching —
+        // foreground never needs it (iOS won't suspend a foreground app). Bound to that exact
+        // condition, released the moment either side flips (park, foreground, or suspend).
+        const wantBgSession = mode === 'watching' && !active;
+        if (BACKGROUND_SESSION_ENABLED && wantBgSession !== lastBgSession && VM?.startBackgroundSession) {
+          lastBgSession = wantBgSession;
+          try {
+            if (wantBgSession) { await VM.startBackgroundSession(); await log({ src: 'bgSession', action: 'start' }); }
             else { await VM.stopBackgroundSession(); await log({ src: 'bgSession', action: 'stop', mode }); }
           } catch (e) { console.warn('[Return] bgSession toggle failed (rebuild?):', e?.message); }
         }
@@ -630,7 +775,11 @@ export function useReturnDetection() {
       };
       appStateSub = AppState.addEventListener('change', (s) => {
         applyMode();
-        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); } // fold in native fixes + adopt park + read state
+        if (s === 'active') { mergeNativeLog(); mergeNativePark(); readNativeState(); configureNativeBackend(); syncServerSpotOnForeground(); checkPendingReturnConfirm(); } // native fixes + park + state + backend cfg + serverSpotId dedup + return-confirm fallback
+        else if ((s === 'background' || s === 'inactive') && VM?.setServerSpotId) {
+          // R5.2 dedup: hand native the serverSpotId the foreground HMM owns, so native can manage it in bg.
+          getStoredServerSpotId().then((id) => { if (id > 0) VM.setServerSpotId(id).catch(() => {}); }).catch(() => {});
+        }
         // House test: on backgrounding, schedule a native notification so it lands while suspended.
         if (NATIVE_NOTIF_HOUSE_TEST && (s === 'background' || s === 'inactive') && VM?.scheduleTestNotification) {
           VM.scheduleTestNotification(HOUSE_TEST_DELAY_SEC).catch(() => {});
@@ -640,11 +789,23 @@ export function useReturnDetection() {
       // just-woken JS thread. Re-assert the mode on a short timer (JS is suspended in the background,
       // so this only ticks in the foreground) so the stream reliably returns on foreground.
       modeTimer = setInterval(() => applyMode(), 4000);
+      // R7 fg/bg unification follow-up (2026-07-27): readNativeState() used to be pulled only on
+      // mount + foreground transitions, which was fine while the OLD JS engine's own
+      // parkDetectionDetailedUpdate events kept the HMMOverlay debug view refreshing live in between.
+      // Now that engine is gated off entirely on iOS (see useParkDetectionEngine.js), nativeCurrentState
+      // is the overlay's ONLY data source — so it needs to keep refreshing on its own while foregrounded,
+      // or the overlay freezes at whatever it caught at the last foreground transition (looked like
+      // "stuck on walking/idle" during a field-test drive, even though native was tracking correctly).
+      // Foreground-only in effect: JS is suspended in the background so this simply doesn't fire there,
+      // same as modeTimer above.
+      nativeStatePollTimer = setInterval(() => { if (AppState.currentState === 'active') readNativeState(false); }, 3000);
       console.log(`[Return] mode controller armed; current AppState=${AppState.currentState}`);
       await applyMode(); // apply current state on mount
       await mergeNativeLog(); // fold in any native-captured fixes buffered from a drive before this launch
       await mergeNativePark(); // adopt a park the native detector declared before this launch
       await readNativeState(); // R1: log native's authoritative current-state on launch
+      await configureNativeBackend(); // R5.1: hand native the backend config on launch
+      await checkPendingReturnConfirm(); // R5.3: catch a SOFT return whose banner was missed before launch
 
       // Light liveness ping (cadence while awake, gap while suspended) for traceability.
       const ping = async () => { if (!cancelled) await log({ src: 'alive' }); };
@@ -654,6 +815,8 @@ export function useReturnDetection() {
 
     return () => {
       cancelled = true;
+      try { nativeParkSub?.remove(); } catch {}
+      try { hmmDetailSub?.remove(); } catch {}
       try { visitSub?.remove(); } catch {}
       try { geoSub?.remove(); } catch {}
       try { locSub?.remove(); } catch {}
@@ -664,6 +827,7 @@ export function useReturnDetection() {
       try { VM.stopLocationUpdates(); } catch {}
       try { VM.stopSignificantChangeMonitoring(); } catch {}
       if (modeTimer) clearInterval(modeTimer);
+      if (nativeStatePollTimer) clearInterval(nativeStatePollTimer);
       if (driveTimer) clearTimeout(driveTimer);
       if (alive) clearInterval(alive);
       // Not stopping visit/region monitoring — iOS should keep delivering visits/geofence in the

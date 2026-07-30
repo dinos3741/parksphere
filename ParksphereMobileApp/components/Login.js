@@ -60,12 +60,16 @@ const Login = ({ onRegister }) => {
 
   const handleGoogleSuccess = async (idToken) => {
     try {
+      // Disable mock mode BEFORE any request — apiRequest()/fetch below must hit the real server,
+      // not get intercepted by a mockModeEnabled flag left over from a prior Demo Login (2026-07-26:
+      // this ordering bug silently logged a "real" login in as the demo user/mock token instead).
+      await AsyncStorage.setItem('mockModeEnabled', 'false');
       const res = await fetch(`${serverUrl}/api/auth/google`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           idToken,
           plateNumber: plateNumber || null,
           carColor: carColor || null,
@@ -75,8 +79,6 @@ const Login = ({ onRegister }) => {
 
       if (res.ok) {
         const data = await res.json();
-        // Ensure mock mode is disabled for real login
-        await AsyncStorage.setItem('mockModeEnabled', 'false');
         login(data);
       } else if (res.status === 428) { // Precondition Required - missing car details
         setTempIdToken(idToken);
@@ -100,6 +102,11 @@ const Login = ({ onRegister }) => {
 
   const handleLogin = async () => {
     try {
+      // Disable mock mode BEFORE the request — apiRequest() checks this flag on EVERY call
+      // regardless of endpoint, so leaving it set from a prior Demo Login would silently intercept
+      // this real login and hand back the mock user/token instead of hitting the real server
+      // (2026-07-26: exactly this happened — a real-credentials login logged in as "demo user").
+      await AsyncStorage.setItem('mockModeEnabled', 'false');
       const response = await apiRequest(`${serverUrl}/api/login`, {
         method: 'POST',
         headers: {
@@ -110,8 +117,6 @@ const Login = ({ onRegister }) => {
 
       if (response.ok) {
         const data = await response.json();
-        // Ensure mock mode is disabled for real login
-        await AsyncStorage.setItem('mockModeEnabled', 'false');
         login(data);
       } else {
         const errorText = await response.text();

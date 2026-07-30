@@ -927,11 +927,18 @@ export function processLocationHMM(location, parkedLocation, supplemental = {}) 
   if (isExitEvent) {
     console.log(`[HMM] 🚗 Parking detected via confirmed exit event (Trip: ${_tripDrivingTime.toFixed(0)}s, ${_tripDrivingDistance.toFixed(0)}m)`);
     parkedEvent = true;
-    _tripDrivingTime = 0; 
-    _tripDrivingDistance = 0; 
+    _tripDrivingTime = 0;
+    _tripDrivingDistance = 0;
     _lastTripX = null;
     _lastTripY = null;
     isAway = false; // 🚀 FIX: Reset for new session
+    // 🛡️ 2026-07-26: a new park means a new parkedLocation anchor — progressHistory/pgrHistory hold
+    // `dist` values computed against the OLD anchor, so the next PGR calc would compute a bogus
+    // netGain against the wrong reference point (found via the native Swift port's field test: a
+    // fresh park's PGR briefly read >1, mathematically impossible for a real approach, because
+    // leftover history from the PREVIOUS park was still in the window).
+    progressHistory = [];
+    pgrHistory = [];
   }
 
   // ==============================
