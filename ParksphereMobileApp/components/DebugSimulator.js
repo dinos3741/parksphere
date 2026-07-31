@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
 import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, resetParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
-import { startTelemetry, stopTelemetry, shareTelemetryLog, shareHeartbeatLog, clearTelemetryLog, getTelemetryStatus, setManualLabel } from '../utils/telemetryService';
+import { shareHeartbeatLog, setManualLabel } from '../utils/telemetryService';
 import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
 import { useAuth } from '../context/AuthContext';
@@ -54,25 +54,13 @@ const DebugSimulator = ({ userLocation }) => {
   };
 
   const [isBluetoothSimulated, setIsBluetoothSimulated] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
-        setIsRecording(getTelemetryStatus());
         setIsEngineRunning(isDetectionEngineRunning());
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleStartRecording = async () => {
-    await startTelemetry();
-    setIsRecording(true);
-  };
-
-  const handleStopRecording = async () => {
-    await stopTelemetry();
-    setIsRecording(false);
-  };
 
   const toggleBluetooth = () => {
     const newState = !isBluetoothSimulated;
@@ -180,27 +168,6 @@ const DebugSimulator = ({ userLocation }) => {
       {...panResponder.panHandlers}
     >
       <Text style={styles.headerTitle}>FLIGHT RECORDER</Text>
-      
-      <View style={styles.row}>
-        {!isRecording ? (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#22c55e' }]} onPress={handleStartRecording}>
-            <Text style={styles.btnText}>⏺ START RECORDING</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#ef4444' }]} onPress={handleStopRecording}>
-            <Text style={styles.btnText}>⏹ STOP & SAVE</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#3b82f6' }]} onPress={shareTelemetryLog}>
-          <Text style={styles.btnText}>📤 EXPORT</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { width: '48%', backgroundColor: '#f59e0b' }]} onPress={clearTelemetryLog}>
-          <Text style={styles.btnText}>🗑️ CLEAR</Text>
-        </TouchableOpacity>
-      </View>
 
       <View style={styles.row}>
         <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#8b5cf6' }]} onPress={shareHeartbeatLog}>
