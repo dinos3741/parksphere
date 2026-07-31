@@ -138,7 +138,19 @@ export const useParkDetectionEngine = (currentUser, isLoggedIn, addNotification,
           autoDetect = cached === null ? true : cached === 'true';
         }
 
-        if (autoDetect) {
+        // 2026-07-31: found via a field test — gating the location feed (:106) and the isConnected
+        // effect's Bluetooth injection (above) only suppressed two of this engine's OUTPUTS.
+        // startParkDetection() itself was still called unconditionally, which sets isInitialized=true
+        // and calls startSensors() (parkDetectionService.js:829) — a completely separate 50Hz
+        // Accelerometer listener, a Pedometer.watchStepCount watcher, and a MotionActivityTracker
+        // listener, ALL still fully running on iOS, entirely independent of the two gates above.
+        // Any of them calling triggerVirtualUpdate() (:253) replays the OLD engine's full HMM pipeline
+        // against STALE AsyncStorage state (STORAGE_KEY, this engine's own separate storage) — which
+        // is exactly how a clearParkedLocation notify (mirrored into a real clearSpot('hmm') by
+        // useReturnDetection.js's hmmSpotSub) kept firing on iOS despite neither of the narrower gates
+        // being touched. Native already owns the full lifecycle there; the old engine has no reason to
+        // even initialize on iOS — gate the whole thing, not just its individual outputs.
+        if (autoDetect && Platform.OS !== 'ios') {
           await startParkDetection();
         }
 
