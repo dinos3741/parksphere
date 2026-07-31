@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#9b59b6',
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 10,
+    bottom: 100, // clears the floating tab bar (bottom: 20, height: 64) with room to spare
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',

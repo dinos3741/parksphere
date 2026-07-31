@@ -103,7 +103,24 @@ export default function RootNavigator({
             tabBarActiveTintColor: 'tomato',
             tabBarInactiveTintColor: 'gray',
             headerShown: false,
-            tabBarStyle: { height: 60 },
+            // Floating pill tab bar (Instagram-style): detached from all four edges via absolute
+            // positioning + margins, fully rounded, with a shadow to read as elevated above the
+            // screen content rather than docked to the bottom.
+            tabBarStyle: {
+              position: 'absolute',
+              left: 20,
+              right: 20,
+              bottom: 20,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: 'white',
+              borderTopWidth: 0,
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 10,
+            },
           })}
         >
           <Tab.Screen name="Home">
