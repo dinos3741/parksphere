@@ -67,7 +67,10 @@ const styles = StyleSheet.create({
   notificationArea: {
     backgroundColor: '#ffffff', // From park-detection
     marginHorizontal: 10,
-    marginBottom: 10,
+    // Reaches the true screen bottom on purpose — the floating tab bar (position:absolute) is
+    // translucent and floats on top of it, Instagram-style, rather than the content needing to
+    // stay clear of it.
+    marginBottom: 0,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#ddd',
