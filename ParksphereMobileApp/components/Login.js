@@ -132,7 +132,7 @@ const Login = ({ onRegister }) => {
   const handleDemoLogin = async () => {
     const mockData = {
       token: 'mock-jwt-token-demo',
-      userId: 766,
+      userId: -1,
       username: 'demo user',
       carType: 'sedan'
     };

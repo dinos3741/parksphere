@@ -487,14 +487,15 @@ async function authenticateToken(req, res, next) {
     // Development bypass for mock tokens
     if (token.startsWith('mock-jwt-token-')) {
       console.warn('DEBUG: Using mock token bypass for:', token);
-      req.user = { 
-        userId: 766, 
-        username: 'demo user', 
+      req.user = {
+        userId: -1,
+        username: 'demo user',
         carType: 'sedan',
         carColor: 'black',
         plateNumber: 'ABC-1234',
-        createdAt: '2020-01-01T00:00:00.000Z'
-      }; 
+        createdAt: '2020-01-01T00:00:00.000Z',
+        role: 'demo'
+      };
       return next();
     }
 
@@ -522,7 +523,7 @@ async function authenticateToken(req, res, next) {
 
     try {
       // 1. First, check if a user already exists with this Keycloak ID
-      let result = await pool.query('SELECT id, username, car_type, credits FROM users WHERE keycloak_id = $1', [keycloakId]);
+      let result = await pool.query('SELECT id, username, car_type, credits, role FROM users WHERE keycloak_id = $1', [keycloakId]);
       let user = result.rows[0];
 
       if (!user) {
@@ -545,8 +546,9 @@ async function authenticateToken(req, res, next) {
         }
       }
 
-      // Attach our internal database ID to the request
-      req.user = { userId: user.id, username: username, keycloakId: keycloakId };
+      // Attach our internal database ID to the request. role falls back to 'user' since the
+      // link/create branches above don't re-fetch it — matches the actual DB default for those cases.
+      req.user = { userId: user.id, username: username, keycloakId: keycloakId, role: user.role || 'user' };
       next();
     } catch (dbError) {
       console.error('Database Sync Error:', dbError);
@@ -571,11 +573,12 @@ app.get('/api/me', authenticateToken, async (req, res) => {
         u.avatar_url,
         u.auto_detect,
         u.notifications_enabled,
+        u.role,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as average_rating
       FROM users u
       WHERE u.id = $1`,
       [req.user.userId]
-    );    
+    );
     const user = result.rows[0];
     console.log('DEBUG: User lookup result:', user);
 
@@ -652,6 +655,7 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
         u.avatar_url,
         u.auto_detect,
         u.notifications_enabled,
+        u.role,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
 
         (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
@@ -1533,7 +1537,7 @@ app.post('/api/login', async (req, res) => {
       
       console.log(`Server: Creating local record for Keycloak user ${username}`);
       const newUserResult = await pool.query(
-        'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username, car_type',
+        'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username, car_type, role',
         [username, email, keycloakId, `https://i.pravatar.cc/80?u=${username}`]
       );
       user = newUserResult.rows[0];
@@ -1541,7 +1545,7 @@ app.post('/api/login', async (req, res) => {
 
     // 3. Issue our Local JWT (HS256) for the app to use
     const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, carType: user.car_type },
+      { userId: user.id, username: user.username, carType: user.car_type, role: user.role },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -1551,7 +1555,8 @@ app.post('/api/login', async (req, res) => {
       token: accessToken,
       userId: user.id,
       username: user.username,
-      carType: user.car_type
+      carType: user.car_type,
+      role: user.role
     });
 
   } catch (error) {
@@ -1613,14 +1618,14 @@ app.post('/api/auth/google', async (req, res) => {
       }
 
       const newUserResult = await pool.query(
-        'INSERT INTO users (username, email, google_id, avatar_url, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, car_type, avatar_url',
+        'INSERT INTO users (username, email, google_id, avatar_url, plate_number, car_color, car_type) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, username, car_type, avatar_url, role',
         [username, email, googleId, picture, plateNumber, carColor, carType]
       );
       user = newUserResult.rows[0];
     }
 
     const accessToken = jwt.sign(
-      { userId: user.id, username: user.username, carType: user.car_type },
+      { userId: user.id, username: user.username, carType: user.car_type, role: user.role },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -1631,6 +1636,7 @@ app.post('/api/auth/google', async (req, res) => {
       userId: user.id,
       username: user.username,
       avatar_url: user.avatar_url,
+      role: user.role,
       isNewUser
     });
   } catch (error) {
@@ -1657,7 +1663,7 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
     );
 
     // Fetch the updated user data to create a new JWT
-    const updatedUserResult = await pool.query('SELECT id, username, car_type FROM users WHERE id = $1', [userId]);
+    const updatedUserResult = await pool.query('SELECT id, username, car_type, role FROM users WHERE id = $1', [userId]);
     const updatedUser = updatedUserResult.rows[0];
 
     if (!updatedUser) {
@@ -1665,7 +1671,7 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
     }
 
     // Re-issue JWT with updated carType
-    const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type }, JWT_SECRET, { expiresIn: '30d' });
+    const newAccessToken = jwt.sign({ userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type, role: updatedUser.role }, JWT_SECRET, { expiresIn: '30d' });
 
     res.status(200).json({ message: 'Car details updated successfully!', token: newAccessToken });
   } catch (error) {

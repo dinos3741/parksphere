@@ -1341,6 +1341,13 @@ export const startParkDetection = async () => {
 };
 
 export const stopParkDetection = async () => {
+  // 2026-07-31: guard the whole body on isInitialized — this is called unconditionally on every
+  // cleanup in useParkDetectionEngine.js, on every platform. Since startParkDetection() is now gated
+  // to non-iOS (d6743be), isInitialized is always false there, so this used to still unsubscribe
+  // sensors that were never subscribed and unconditionally notify "stopped" for an engine that never
+  // started. Harmless functionally, but a confusing "Background HMM detection stopped" banner with
+  // nothing having run. Guarding here also makes this correct on Android for the same reason.
+  if (!isInitialized) return;
   try {
     console.log('[ParkDetection] Stopping park detection...');
     isInitialized = false;

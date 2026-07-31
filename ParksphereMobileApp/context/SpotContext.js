@@ -195,11 +195,12 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   useEffect(() => {
     if (!spotsLoaded || !userId) return;
     // 2026-07-29: mock/demo mode's apiService.js returns a HARDCODED fixture spot (San Francisco,
-    // 37.78825/-122.4324) for the demo user (id 766) on every /api/parkingspots call, regardless of
-    // whether anything was actually detected — there is no real server to reconcile against in mock
-    // mode. Without this guard, that fixture repeatedly overwrote a real, just-detected parkedLocation
-    // the moment the spot list refreshed (confirmed via a field test: a real park at commit 464995f
-    // era code got clobbered by this fixture within seconds, then churned against clearSpot()).
+    // 37.78825/-122.4324) for the demo user (id -1 as of 2026-07-31; was 766, which collided with a
+    // real account — see git history) on every /api/parkingspots call, regardless of whether anything
+    // was actually detected — there is no real server to reconcile against in mock mode. Without this
+    // guard, that fixture repeatedly overwrote a real, just-detected parkedLocation the moment the
+    // spot list refreshed (confirmed via a field test: a real park at commit 464995f era code got
+    // clobbered by this fixture within seconds, then churned against clearSpot()).
     let cancelled = false;
     AsyncStorage.getItem('mockModeEnabled').then((mock) => {
       if (cancelled || mock === 'true') return;
