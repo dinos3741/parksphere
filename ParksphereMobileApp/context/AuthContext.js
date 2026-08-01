@@ -49,6 +49,12 @@ export const AuthProvider = ({ children }) => {
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
+          // Cache locally (no network needed to read it back) so the Login screen can offer an
+          // offline mock-mode entry point on this device without requiring a live login first —
+          // the whole point being to reach mock mode when there's no connectivity at all.
+          if (data.role === 'admin') {
+            await AsyncStorage.setItem('wasAdmin', 'true');
+          }
         } else if (response.status === 401 || response.status === 403) {
           await logout();
         }

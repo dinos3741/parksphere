@@ -20,6 +20,16 @@ const Login = ({ onRegister }) => {
   const [carTypes, setCarTypes] = useState([]);
   const [showCarDetailsFields, setShowCarDetailsFields] = useState(false);
   const [tempIdToken, setTempIdToken] = useState(null);
+  // Offline mock-mode entry point: only shown on a device that has previously logged in as an
+  // admin (cached locally by AuthContext's fetchUserData, survives logout). No network is involved
+  // in checking this or in the button itself — the whole point is reaching mock mode when there's
+  // no connectivity at all, which the in-profile Mock Mode toggle can't do since reaching the
+  // profile screen requires a live online login first.
+  const [showOfflineModeButton, setShowOfflineModeButton] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('wasAdmin').then((value) => setShowOfflineModeButton(value === 'true'));
+  }, []);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: '320058445002-lddk8d48h06bei48bh6u08ku97t1i3kd.apps.googleusercontent.com',
@@ -94,6 +104,16 @@ const Login = ({ onRegister }) => {
     }
   };
 
+  const handleOfflineMode = async () => {
+    await AsyncStorage.setItem('mockModeEnabled', 'true');
+    login({
+      token: 'mock-jwt-token-demo',
+      userId: -1,
+      username: 'demo user',
+      carType: 'sedan',
+    });
+  };
+
   const handleCarDetailsSubmit = () => {
     if (tempIdToken) {
       handleGoogleSuccess(tempIdToken);
@@ -127,18 +147,6 @@ const Login = ({ onRegister }) => {
       console.error('Error during login:', error);
       Alert.alert('Error', 'Could not connect to the server for login.');
     }
-  };
-
-  const handleDemoLogin = async () => {
-    const mockData = {
-      token: 'mock-jwt-token-demo',
-      userId: -1,
-      username: 'demo user',
-      carType: 'sedan'
-    };
-    // Explicitly enable mock mode for demo
-    await AsyncStorage.setItem('mockModeEnabled', 'true');
-    login(mockData);
   };
 
   return (
@@ -215,13 +223,15 @@ const Login = ({ onRegister }) => {
                   <Text style={styles.loginButtonText}>Login</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity 
-                  style={[styles.loginButton, { backgroundColor: '#6c757d', marginTop: 10 }]} 
-                  onPress={handleDemoLogin}
-                >
-                  <Text style={styles.loginButtonText}>Demo Login</Text>
-                </TouchableOpacity>
-                
+                {showOfflineModeButton && (
+                  <TouchableOpacity
+                    style={[styles.loginButton, { backgroundColor: '#6c757d', marginTop: 10 }]}
+                    onPress={handleOfflineMode}
+                  >
+                    <Text style={styles.loginButtonText}>Offline Mode</Text>
+                  </TouchableOpacity>
+                )}
+
                 <View style={styles.separatorContainer}>
                   <View style={styles.separatorLine} />
                   <Text style={styles.separatorText}>OR</Text>
