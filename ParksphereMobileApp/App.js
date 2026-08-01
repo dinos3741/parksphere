@@ -162,7 +162,7 @@ function AppLayout({
   return (
     <>
       <StatusBar style="auto" />
-      {__DEV__ && <StreamMonitor />}
+      {__DEV__ && currentUser?.role === 'admin' && <StreamMonitor />}
       {isLoggedIn && currentUser ? (
         <RootNavigator
           navigationRef={navigationRef}

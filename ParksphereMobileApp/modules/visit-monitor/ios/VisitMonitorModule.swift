@@ -998,9 +998,17 @@ public class VisitMonitorModule: Module {
       // A real park is STATIONARY when BT drops (engine off). A transient BT dropout while DRIVING
       // (2026-07-13: false park-bt @58km/h) must NOT declare a park — gate on low speed. speed==-1
       // (unknown, common when stopped) is < the threshold so it still allows a genuine park.
+      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true, extra: [
+        "spd": loc.speed, "parkDriveSeen": parkDriveSeen, "carLocNil": carLocation == nil, "declared": true
+      ])
       declarePark(at: loc, source: "bt")
     } else {
-      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true, extra: ["spd": loc.speed])
+      // 2026-08-01: three real park events (gym/supermarket/home) took THIS branch instead of
+      // declaring — the log couldn't say which of the three gate conditions was false. Log all
+      // three explicitly so the next field test answers it directly instead of static analysis.
+      logNativeFix(loc, tag: "btDisconnect:\(reason)", force: true, extra: [
+        "spd": loc.speed, "parkDriveSeen": parkDriveSeen, "carLocNil": carLocation == nil, "declared": false
+      ])
     }
   }
 

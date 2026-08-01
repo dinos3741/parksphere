@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 100, // clears the floating tab bar (bottom: 20, height: 64) with room to spare
     alignSelf: 'center',
     paddingVertical: 10,
     paddingHorizontal: 20,

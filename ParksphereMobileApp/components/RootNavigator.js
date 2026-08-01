@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { PlatformPressable } from '@react-navigation/elements';
 import { NavigationContainer } from '@react-navigation/native';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { BlurView } from 'expo-blur';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import HomeScreen from './HomeScreen';
 import ChatTab from './ChatTab';
@@ -17,6 +19,11 @@ import { useChat } from '../context/ChatContext';
 import { useSpots } from '../context/SpotContext';
 
 const Tab = createBottomTabNavigator();
+
+// Tab bar side margin, computed (not guessed) so "10% narrower" is exact regardless of device
+// width: previous margin was 24pt each side; solving (screenWidth - 2*margin) = 0.9 * (screenWidth
+// - 2*24) for margin gives screenWidth*0.05 + 21.6.
+const TAB_BAR_SIDE_MARGIN = Dimensions.get('window').width * 0.05 + 21.6;
 
 export default function RootNavigator({
   navigationRef,
@@ -62,17 +69,17 @@ export default function RootNavigator({
               let showChatBadge = false;
 
               if (route.name === 'Home') {
-                iconName = 'home';
+                iconName = 'home-outline';
               } else if (route.name === 'Chat') {
-                iconName = 'comments';
+                iconName = 'chatbubbles-outline';
                 showChatBadge = totalUnreadMessagesCount > 0;
               } else if (route.name === 'Requests') {
-                iconName = 'list-alt';
+                iconName = 'list-outline';
                 if (hasNewRequests) {
                     showRequestBadge = true;
                 }
               } else if (route.name === 'Search') {
-                iconName = 'search';
+                iconName = 'search-outline';
               } else if (route.name === 'Profile') {
                 // Use the robust URI builder (was the raw avatar_url — broke for local /uploads paths).
                 const avatarUri = getAvatarUri(currentUser?.avatar_url, currentUser?.username);
@@ -81,7 +88,7 @@ export default function RootNavigator({
 
               return (
                 <View>
-                  <FontAwesome name={iconName} size={size} color={color} />
+                  <Ionicons name={iconName} size={size} color={color} />
                   {(showRequestBadge || showChatBadge) && (
                     <View
                       style={{
@@ -100,10 +107,69 @@ export default function RootNavigator({
                 </View>
               );
             },
-            tabBarActiveTintColor: 'tomato',
-            tabBarInactiveTintColor: 'gray',
+            tabBarActiveTintColor: '#0A84FF', // iOS system blue
+            tabBarInactiveTintColor: 'black',
             headerShown: false,
-            tabBarStyle: { height: 60 },
+            // Floating pill tab bar (Instagram-style): detached from all four edges via absolute
+            // positioning + margins, fully rounded, with a shadow to read as elevated above the
+            // screen content rather than docked to the bottom.
+            // NOTE: the library's own default style (BottomTabBar.tsx) pins the bar with
+            // start/end (RN's logical, writing-direction-aware equivalent of left/right), not
+            // left/right themselves. Setting only left/right here doesn't override that default —
+            // both land on the node and start/end wins, so the bar silently stayed edge-to-edge
+            // no matter the left/right value. Must override with start/end to actually take effect.
+            tabBarStyle: {
+              position: 'absolute',
+              start: TAB_BAR_SIDE_MARGIN,
+              end: TAB_BAR_SIDE_MARGIN,
+              bottom: 20,
+              height: 58, // 64 minus 10%
+              // The library's default (non-sidebar) style still applies paddingBottom: insets.bottom
+              // (~34pt home-indicator safe area) meant for a bar docked flush to the screen edge.
+              // Our pill already floats clear of that edge via `bottom: 20`, so that padding just
+              // eats into the 64pt content area — with overflow:'hidden' below (needed to clip the
+              // blur to the rounded corners), that shrunk area was clipping the icons' tops once
+              // centered. Zero both paddings; the pill supplies its own spacing.
+              paddingBottom: 0,
+              paddingTop: 0,
+              borderRadius: 29, // stays a full pill (half the new height)
+              backgroundColor: 'transparent', // tabBarBackground below paints the actual surface
+              borderTopWidth: 0,
+              overflow: 'hidden', // clip the blur/tint to the pill's rounded corners
+              elevation: 8,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.15,
+              shadowRadius: 10,
+            },
+            // Letting the blur pick up color from fullContainer's own background (rather than
+            // painting a color directly on the bar) turned out not to render the mauve through in
+            // practice — confirmed with a fresh build (About-screen stamp matched the dirty tree)
+            // that the gap area was still flat grey, not mauve. Reverted to painting the tint
+            // directly on the bar: BlurView for the glass/frosted quality, plus an explicit mauve
+            // overlay so the color reads reliably regardless of what's actually behind it.
+            tabBarBackground: () => (
+              <View style={StyleSheet.absoluteFill}>
+                <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
+                <View
+                  style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(81, 45, 168, 0.25)' }]}
+                />
+              </View>
+            ),
+            // The library's default tab item is a flex:1 button with justifyContent:'flex-start'
+            // baked into BottomTabItem's internal styles.tabVerticalUiKit — not exposed via
+            // tabBarItemStyle (that prop only reaches an outer wrapper View that the flex:1 button
+            // fills completely, leaving no room to visibly re-center). Re-implementing the button
+            // via tabBarButton is the only override point that can actually reach that inner style.
+            tabBarButton: (props) => {
+              const flatStyle = StyleSheet.flatten(props.style);
+              return (
+                <PlatformPressable
+                  {...props}
+                  style={[flatStyle, { justifyContent: 'center' }]}
+                />
+              );
+            },
           })}
         >
           <Tab.Screen name="Home">
