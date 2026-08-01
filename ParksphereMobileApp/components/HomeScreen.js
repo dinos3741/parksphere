@@ -202,7 +202,7 @@ export default function HomeScreen({
         <TouchableOpacity
           style={[
             styles.fab,
-            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'gray' }
+            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'rgba(128, 128, 128, 0.75)' }
           ]}
           onPress={handleLocalFabPress}
           disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
@@ -306,10 +306,10 @@ const styles = StyleSheet.create({
     width: 91,
     height: 91,
     borderRadius: 46,
-    backgroundColor: '#9b59b6',
+    backgroundColor: 'rgba(155, 89, 182, 0.75)', // translucent — same purple, map shows through
     justifyContent: 'center',
     alignItems: 'center',
-    bottom: 100, // clears the floating tab bar (bottom: 20, height: 64) with room to spare
+    bottom: 50,
     alignSelf: 'center',
     elevation: 8,
     shadowColor: '#000',

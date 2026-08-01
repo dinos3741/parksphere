@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { NavigationContainer } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import HomeScreen from './HomeScreen';
 import ChatTab from './ChatTab';
@@ -19,6 +19,11 @@ import { useChat } from '../context/ChatContext';
 import { useSpots } from '../context/SpotContext';
 
 const Tab = createBottomTabNavigator();
+
+// Tab bar side margin, computed (not guessed) so "10% narrower" is exact regardless of device
+// width: previous margin was 24pt each side; solving (screenWidth - 2*margin) = 0.9 * (screenWidth
+// - 2*24) for margin gives screenWidth*0.05 + 21.6.
+const TAB_BAR_SIDE_MARGIN = Dimensions.get('window').width * 0.05 + 21.6;
 
 export default function RootNavigator({
   navigationRef,
@@ -64,17 +69,17 @@ export default function RootNavigator({
               let showChatBadge = false;
 
               if (route.name === 'Home') {
-                iconName = 'home';
+                iconName = 'home-outline';
               } else if (route.name === 'Chat') {
-                iconName = 'comments';
+                iconName = 'chatbubbles-outline';
                 showChatBadge = totalUnreadMessagesCount > 0;
               } else if (route.name === 'Requests') {
-                iconName = 'list-alt';
+                iconName = 'list-outline';
                 if (hasNewRequests) {
                     showRequestBadge = true;
                 }
               } else if (route.name === 'Search') {
-                iconName = 'search';
+                iconName = 'search-outline';
               } else if (route.name === 'Profile') {
                 // Use the robust URI builder (was the raw avatar_url — broke for local /uploads paths).
                 const avatarUri = getAvatarUri(currentUser?.avatar_url, currentUser?.username);
@@ -83,7 +88,7 @@ export default function RootNavigator({
 
               return (
                 <View>
-                  <FontAwesome name={iconName} size={size} color={color} />
+                  <Ionicons name={iconName} size={size} color={color} />
                   {(showRequestBadge || showChatBadge) && (
                     <View
                       style={{
@@ -102,8 +107,8 @@ export default function RootNavigator({
                 </View>
               );
             },
-            tabBarActiveTintColor: '#ff6f5e', // brighter than 'tomato' against the mauve glass
-            tabBarInactiveTintColor: 'white',
+            tabBarActiveTintColor: '#0A84FF', // iOS system blue
+            tabBarInactiveTintColor: 'black',
             headerShown: false,
             // Floating pill tab bar (Instagram-style): detached from all four edges via absolute
             // positioning + margins, fully rounded, with a shadow to read as elevated above the
@@ -115,10 +120,10 @@ export default function RootNavigator({
             // no matter the left/right value. Must override with start/end to actually take effect.
             tabBarStyle: {
               position: 'absolute',
-              start: 24,
-              end: 24,
+              start: TAB_BAR_SIDE_MARGIN,
+              end: TAB_BAR_SIDE_MARGIN,
               bottom: 20,
-              height: 64,
+              height: 58, // 64 minus 10%
               // The library's default (non-sidebar) style still applies paddingBottom: insets.bottom
               // (~34pt home-indicator safe area) meant for a bar docked flush to the screen edge.
               // Our pill already floats clear of that edge via `bottom: 20`, so that padding just
@@ -127,7 +132,7 @@ export default function RootNavigator({
               // centered. Zero both paddings; the pill supplies its own spacing.
               paddingBottom: 0,
               paddingTop: 0,
-              borderRadius: 32,
+              borderRadius: 29, // stays a full pill (half the new height)
               backgroundColor: 'transparent', // tabBarBackground below paints the actual surface
               borderTopWidth: 0,
               overflow: 'hidden', // clip the blur/tint to the pill's rounded corners
@@ -147,7 +152,7 @@ export default function RootNavigator({
               <View style={StyleSheet.absoluteFill}>
                 <BlurView intensity={80} tint="light" style={StyleSheet.absoluteFill} />
                 <View
-                  style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(81, 45, 168, 0.35)' }]}
+                  style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(81, 45, 168, 0.25)' }]}
                 />
               </View>
             ),
