@@ -23,7 +23,7 @@ const carTypes = [
 ];
 
 const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
-  const { currentUser: user, token, logout: onLogout, serverUrl } = useAuth();
+  const { currentUser: user, token, logout: onLogout, serverUrl, updateToken } = useAuth();
   const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
@@ -233,7 +233,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     setIsEditingUsername(false);
   };
 
-  const confirmEditingUsername = () => {
+  const confirmEditingUsername = async () => {
     const trimmed = usernameDraft.trim();
     if (!trimmed) {
       Alert.alert('Invalid username', 'Username cannot be empty.');
@@ -243,13 +243,31 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
       setIsEditingUsername(false);
       return;
     }
-    // TODO: wire to the real username-update endpoint (mirrors the web app's) once its contract
-    // is confirmed — this UI is intentionally complete/interactive, but not yet connected.
-    Alert.alert(
-      'Not connected yet',
-      `This would rename your account to "${trimmed}" — not wired to the server yet.`
-    );
-    setIsEditingUsername(false);
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/username`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username: trimmed }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.token) {
+          await updateToken(data.token); // re-issued JWT's `username` claim must match going forward
+        }
+        if (onProfileUpdate) {
+          onProfileUpdate();
+        }
+        setIsEditingUsername(false);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update username.');
+      }
+    } catch (error) {
+      console.error('Error updating username:', error);
+      Alert.alert('Error', 'Could not connect to the server to update username.');
+    }
   };
 
   const openPasswordModal = () => {
@@ -259,7 +277,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     setShowPasswordModal(true);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       Alert.alert('Missing fields', 'Please fill in all three fields.');
       return;
@@ -272,10 +290,26 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
       Alert.alert("Passwords don't match", 'New password and confirmation must match.');
       return;
     }
-    // TODO: wire to the real change-password endpoint (mirrors the web app's) once its contract
-    // is confirmed — this UI/validation is intentionally complete, but not yet connected.
-    Alert.alert('Not connected yet', "Password change isn't wired to the server yet.");
-    setShowPasswordModal(false);
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert('Success', 'Password updated successfully.');
+        setShowPasswordModal(false);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update password.');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      Alert.alert('Error', 'Could not connect to the server to change password.');
+    }
   };
 
   return (

@@ -113,7 +113,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   // The Login function
-  const login = async (data) => {
+  // useCallback (both this and logout below): neither was memoized, so every AuthProvider re-render
+  // handed out a fresh function reference. fetchParkingSpots (SpotContext.js) depends on `logout` in
+  // its own useCallback deps, so that fresh reference cascaded into a fresh fetchParkingSpots every
+  // render — which changed App.js's AppLayout effect's dependency array, re-firing
+  // fetchUserData()/fetchParkingSpots() on every render, whose state updates caused the next
+  // re-render, recreating `logout` again: an infinite fetch loop (2026-08-02 field report — the
+  // console log showed "Fetching user data and spots..." repeating continuously). Both only close
+  // over stable setters + module-level imports, so an empty dependency array is correct.
+  const login = useCallback(async (data) => {
     setToken(data.token);
     setUserId(data.userId);
     setCurrentUsername(data.username);
@@ -121,20 +129,29 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('userToken', data.token);
     await AsyncStorage.setItem('userId', data.userId.toString());
     await AsyncStorage.setItem('username', data.username);
-  };
+  }, []);
 
-  // The Logout function. Uses resetAllAppData() (not a plain AsyncStorage.multiRemove of just the
-  // auth keys) so a full logout also clears park-detection state — otherwise a stale spot/geofence/
-  // parkedLocation from THIS account survives into whoever logs in next (2026-07-26 incident: a
-  // Demo Login session's native-owned spot leaked onto a real user's map as their own parked car).
-  const logout = async () => {
+  // Uses resetAllAppData() (not a plain AsyncStorage.multiRemove of just the auth keys) so a full
+  // logout also clears park-detection state — otherwise a stale spot/geofence/parkedLocation from
+  // THIS account survives into whoever logs in next (2026-07-26 incident: a Demo Login session's
+  // native-owned spot leaked onto a real user's map as their own parked car).
+  const logout = useCallback(async () => {
     setToken(null);
     setUserId(null);
     setCurrentUsername(null);
     setCurrentUser(null);
     setIsLoggedIn(false);
     await resetAllAppData();
-  };
+  }, []);
+
+  // A username change re-issues a JWT (its payload includes `username`), and the client needs to
+  // start using it — car-details' own token re-issue is silently discarded today (a pre-existing
+  // gap, not fixed here), but a stale username claim is more likely to actually bite, so this one is
+  // persisted properly.
+  const updateToken = useCallback(async (newToken) => {
+    setToken(newToken);
+    await AsyncStorage.setItem('userToken', newToken);
+  }, []);
 
   // 3. Expose the data and functions
   return (
@@ -147,10 +164,11 @@ export const AuthProvider = ({ children }) => {
         setCurrentUser,
         isLoggedIn, 
         isLoading, 
-        login, 
+        login,
         logout,
         serverUrl,
         fetchUserData,
+        updateToken,
         rateUser,
         updateProfile,
         getAvatarUri
