@@ -754,6 +754,30 @@ export function useReturnDetection() {
           } catch (e) { console.warn('[Return] bgSession toggle failed (rebuild?):', e?.message); }
         }
       };
+      // 2026-08-02: the 60-minute cap used to end the trip unconditionally, even mid-drive — a field
+      // test caught it firing while still doing 49 km/h, dropping location mode to 'off' and blacking
+      // out monitoring for the rest of the drive (14 minutes with zero fixes, right through the actual
+      // park). Before ending, check the last known speed: if it still looks like driving, extend
+      // instead of ending, and re-check again after another DRIVE_CAPTURE_MAX_MS. Only truly ends the
+      // capture once speed evidence says we've actually stopped (or there's no recent fix at all).
+      const armDriveTimer = () => {
+        if (driveTimer) clearTimeout(driveTimer);
+        driveTimer = setTimeout(async () => {
+          if (!driveCaptureActive) return;
+          const speedKmh = (lastDriveFix?.speed || 0) * 3.6; // matches driveSessionSawDriving's own threshold
+          if (speedKmh > 15) {
+            console.log(`[Return] drive-capture hit max duration but still driving (${speedKmh.toFixed(0)} km/h) — extending.`);
+            await log({ src: 'driveCapture', action: 'extend', spd: speedKmh });
+            armDriveTimer();
+            return;
+          }
+          console.log('[Return] drive-capture hit max duration — ending (iOS never auto-paused).');
+          driveCaptureActive = false;
+          await log({ src: 'driveCapture', action: 'timeout' });
+          await applyMode();
+        }, DRIVE_CAPTURE_MAX_MS);
+      };
+
       startDriveCapture = async () => {
         if (!DRIVE_CAPTURE_ENABLED) return; // #2 A/B: pure CLVisit + geofence when disabled
         if (driveCaptureActive) return;
@@ -761,14 +785,7 @@ export function useReturnDetection() {
         lastDriveFix = null;
         driveSessionSawDriving = false;
         driveSpotSetThisTrip = false;
-        if (driveTimer) clearTimeout(driveTimer);
-        driveTimer = setTimeout(async () => {
-          if (!driveCaptureActive) return;
-          console.log('[Return] drive-capture hit max duration — ending (iOS never auto-paused).');
-          driveCaptureActive = false;
-          await log({ src: 'driveCapture', action: 'timeout' });
-          await applyMode();
-        }, DRIVE_CAPTURE_MAX_MS);
+        armDriveTimer();
         await log({ src: 'driveCapture', action: 'start', app: AppState.currentState });
         console.log('[Return] drive-capture started');
         await applyMode(); // → 'drive' if backgrounded

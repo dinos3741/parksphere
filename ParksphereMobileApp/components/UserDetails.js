@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert,
-  TextInput, Switch, KeyboardAvoidingView, Platform,
+  TextInput, Switch, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -29,6 +30,12 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(user ? user.notifications_enabled : true);
   const [isMockMode, setIsMockMode] = useState(false);
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     const loadMockMode = async () => {
@@ -216,6 +223,61 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     }
   };
 
+  const startEditingUsername = () => {
+    setUsernameDraft(user.username);
+    setIsEditingUsername(true);
+  };
+
+  const cancelEditingUsername = () => {
+    setUsernameDraft(user.username);
+    setIsEditingUsername(false);
+  };
+
+  const confirmEditingUsername = () => {
+    const trimmed = usernameDraft.trim();
+    if (!trimmed) {
+      Alert.alert('Invalid username', 'Username cannot be empty.');
+      return;
+    }
+    if (trimmed === user.username) {
+      setIsEditingUsername(false);
+      return;
+    }
+    // TODO: wire to the real username-update endpoint (mirrors the web app's) once its contract
+    // is confirmed — this UI is intentionally complete/interactive, but not yet connected.
+    Alert.alert(
+      'Not connected yet',
+      `This would rename your account to "${trimmed}" — not wired to the server yet.`
+    );
+    setIsEditingUsername(false);
+  };
+
+  const openPasswordModal = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPasswordModal(true);
+  };
+
+  const handleChangePassword = () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Missing fields', 'Please fill in all three fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Password too short', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Passwords don't match", 'New password and confirmation must match.');
+      return;
+    }
+    // TODO: wire to the real change-password endpoint (mirrors the web app's) once its contract
+    // is confirmed — this UI/validation is intentionally complete, but not yet connected.
+    Alert.alert('Not connected yet', "Password change isn't wired to the server yet.");
+    setShowPasswordModal(false);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -239,7 +301,28 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
                 }}
               />
             </TouchableOpacity>
-            <Text style={styles.username}>{user.username}</Text>
+            {isEditingUsername ? (
+              <View style={styles.usernameEditRow}>
+                <TextInput
+                  style={styles.usernameInput}
+                  value={usernameDraft}
+                  onChangeText={setUsernameDraft}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity onPress={confirmEditingUsername} style={styles.usernameIconButton}>
+                  <Ionicons name="checkmark" size={22} color="#2e7d32" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={cancelEditingUsername} style={styles.usernameIconButton}>
+                  <Ionicons name="close" size={22} color="#c62828" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={startEditingUsername}>
+                <Text style={styles.username}>{user.username}</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.profileRightColumn}>
             <View style={styles.infoRow}>
@@ -366,11 +449,56 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           <TouchableOpacity style={styles.button} onPress={handleUpdate}>
             <Text style={styles.buttonText}>Save Changes</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.changePasswordButton} onPress={openPasswordModal}>
+            <Text style={styles.changePasswordButtonText}>Change Password</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </TouchableOpacity>
+
+      <Modal
+        visible={showPasswordModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.sectionTitle}>Change Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Current password"
+              secureTextEntry
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+            />
+            <TextInput
+              style={[styles.input, styles.modalInputSpacing]}
+              placeholder="New password"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
+            <TextInput
+              style={[styles.input, styles.modalInputSpacing]}
+              placeholder="Confirm new password"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity style={[styles.button, styles.modalInputSpacing]} onPress={handleChangePassword}>
+              <Text style={styles.buttonText}>Change Password</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelLink} onPress={() => setShowPasswordModal(false)}>
+              <Text style={styles.modalCancelLinkText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -389,6 +517,23 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginTop: 10,
+  },
+  usernameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  usernameInput: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    borderBottomWidth: 1,
+    borderBottomColor: '#512da8',
+    minWidth: 90,
+    paddingVertical: 2,
+    color: '#333',
+  },
+  usernameIconButton: {
+    marginLeft: 6,
   },
   profileDetailsTwoColumn: {
     flexDirection: 'row',
@@ -440,7 +585,7 @@ const styles = StyleSheet.create({
   },
   editSection: {
     padding: 20,
-    paddingBottom: 140, // clears the floating tab bar + logout button below the scroll content
+    paddingBottom: 120, // clears the floating tab bar, since Logout is now the last item in-flow
   },
   sectionTitle: {
     fontSize: 20,
@@ -503,11 +648,17 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 2,
   },
+  // Pill-shaped, 80% width (20% narrower) and 49pt tall (~10% less than the old ~54pt
+  // padding-derived height) — matches the floating tab bar's rounded aesthetic instead of the
+  // previous slightly-rounded rectangles.
   button: {
     backgroundColor: '#512da8',
-    paddingVertical: 15,
-    borderRadius: 10,
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    borderRadius: 24.5,
     alignItems: 'center',
+    alignSelf: 'center',
     marginTop: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -521,18 +672,60 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   logoutButton: {
-    position: 'absolute',
-    bottom: 100, // clears the floating tab bar (bottom: 20, height: 64) with room to spare
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    alignItems: 'center',
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    marginTop: 12,
     backgroundColor: '#ff3b30',
-    borderRadius: 10,
+    borderRadius: 24.5,
   },
   logoutButtonText: {
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  changePasswordButton: {
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    borderRadius: 24.5,
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#512da8',
+  },
+  changePasswordButtonText: {
+    color: '#512da8',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 20,
+  },
+  modalInputSpacing: {
+    marginTop: 12,
+  },
+  modalCancelLink: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  modalCancelLinkText: {
+    color: '#666',
+    fontSize: 15,
   },
 });
 

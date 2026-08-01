@@ -22,7 +22,7 @@ import { apiRequest } from '../utils/apiService';
 export default function HomeScreen({ 
   socket,
 }) {
-  const { userId, token, currentUsername, serverUrl } = useAuth();
+  const { userId, token, currentUsername, serverUrl, currentUser } = useAuth();
   const { userLocation, getDistance, locationPermissionGranted, parkedLocation } = useLocation();
   const { notifications, addNotification, triggerNotification } = useNotifications();
   const { 
@@ -216,7 +216,7 @@ export default function HomeScreen({
           )}
         </TouchableOpacity>
       </View>
-      <Notifications notifications={notifications} />
+      {currentUser?.role === 'admin' && <Notifications notifications={notifications} />}
 
       <LeavingModal
         visible={isLeavingModalVisible}
