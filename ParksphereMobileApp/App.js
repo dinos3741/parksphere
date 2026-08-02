@@ -32,6 +32,7 @@ import { ChatProvider, useChat } from './context/ChatContext';
 import { NotificationProvider, useNotifications } from './context/NotificationContext';
 import { LocationProvider, useLocation } from './context/LocationContext';
 import { OverlayProvider } from './context/OverlayContext';
+import { HeaderActionProvider } from './context/HeaderActionContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -62,6 +63,7 @@ function AppContent() {
       try {
         await Font.loadAsync({
           'AdventPro-SemiBold': require('./assets/fonts/AdventPro-SemiBold.ttf'),
+          'AdventPro-Regular': require('./assets/fonts/AdventPro-Regular.ttf'),
         });
         console.log('[App.js] Fonts loaded successfully');
       } catch (e) {
@@ -162,7 +164,6 @@ function AppLayout({
   return (
     <>
       <StatusBar style="auto" />
-      {__DEV__ && currentUser?.role === 'admin' && <StreamMonitor />}
       {isLoggedIn && currentUser ? (
         <RootNavigator
           navigationRef={navigationRef}
@@ -184,6 +185,7 @@ function AppLayout({
              isVisible={navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin'}
            />
            {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && <DebugSimulator userLocation={userLocation} />}
+           {__DEV__ && navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && <StreamMonitor />}
         </View>
       )}
     </>
@@ -195,7 +197,9 @@ export default function App() {
     <AuthProvider>
       <LocationProvider>
         <OverlayProvider>
-          <AppContentWrapper />
+          <HeaderActionProvider>
+            <AppContentWrapper />
+          </HeaderActionProvider>
         </OverlayProvider>
       </LocationProvider>
     </AuthProvider>

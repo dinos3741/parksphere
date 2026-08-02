@@ -1697,6 +1697,167 @@ app.put('/api/users/:id/auto-detection', authenticateToken, async (req, res) => 
   }
 });
 
+// Username and password both live in Keycloak (not the local `users` table — its `password` column
+// was explicitly dropped; auth is entirely Keycloak-backed). Both endpoints below mirror the
+// admin-token / ROPC patterns already used by /api/register and /api/login rather than inventing a
+// new auth mechanism.
+app.put('/api/users/:id/username', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { username } = req.body;
+
+  if (req.user.userId !== parseInt(userId)) {
+    return res.status(403).json({ message: 'Forbidden: You can only update your own username.' });
+  }
+  const trimmedUsername = (username || '').trim();
+  if (!trimmedUsername) {
+    return res.status(400).json({ message: 'Username cannot be empty.' });
+  }
+
+  try {
+    const userResult = await pool.query('SELECT keycloak_id FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Fail fast on an obvious local collision before making any Keycloak calls.
+    const existing = await pool.query('SELECT id FROM users WHERE username = $1 AND id != $2', [trimmedUsername, userId]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: 'Username already taken.' });
+    }
+
+    if (user.keycloak_id) {
+      // 1. Get an admin token (same pattern as /api/register).
+      const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'password',
+          client_id: 'admin-cli',
+          username: 'admin',
+          password: 'admin'
+        })
+      });
+      if (!tokenResponse.ok) {
+        throw new Error('Failed to get Keycloak admin token');
+      }
+      const { access_token: adminToken } = await tokenResponse.json();
+
+      // 2. Update the username in Keycloak first — if this fails, we bail before touching Postgres,
+      // so the two stores can't end up disagreeing about who the local user actually is.
+      const updateResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${user.keycloak_id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username: trimmedUsername })
+      });
+      if (!updateResponse.ok) {
+        if (updateResponse.status === 409) {
+          return res.status(409).json({ message: 'Username already taken.' });
+        }
+        const errorText = await updateResponse.text();
+        throw new Error(`Failed to update username in Keycloak: ${errorText}`);
+      }
+    }
+
+    // 3. Mirror the change locally.
+    await pool.query('UPDATE users SET username = $1 WHERE id = $2', [trimmedUsername, userId]);
+
+    const updatedUserResult = await pool.query('SELECT id, username, car_type, role FROM users WHERE id = $1', [userId]);
+    const updatedUser = updatedUserResult.rows[0];
+    const newAccessToken = jwt.sign(
+      { userId: updatedUser.id, username: updatedUser.username, carType: updatedUser.car_type, role: updatedUser.role },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.status(200).json({ message: 'Username updated successfully!', token: newAccessToken, username: updatedUser.username });
+  } catch (error) {
+    if (error.code === '23505') { // Postgres unique_violation
+      return res.status(409).json({ message: 'Username already taken.' });
+    }
+    console.error('Error updating username:', error);
+    res.status(500).json({ message: 'Server error updating username.' });
+  }
+});
+
+app.put('/api/users/:id/password', authenticateToken, async (req, res) => {
+  const userId = req.params.id;
+  const { currentPassword, newPassword } = req.body;
+
+  if (req.user.userId !== parseInt(userId)) {
+    return res.status(403).json({ message: 'Forbidden: You can only change your own password.' });
+  }
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current and new password are required.' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'New password must be at least 6 characters.' });
+  }
+
+  try {
+    const userResult = await pool.query('SELECT username, keycloak_id FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user || !user.keycloak_id) {
+      return res.status(400).json({ message: 'Password changes are only supported for Keycloak-linked accounts.' });
+    }
+
+    // 1. Verify the current password by attempting a real ROPC grant with it (the same mechanism
+    // /api/login uses) — proves it's correct without the server ever needing to store or compare
+    // passwords itself.
+    const verifyResponse = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({
+        client_id: 'parksphere-client',
+        username: user.username,
+        password: currentPassword,
+        grant_type: 'password',
+        scope: 'openid profile email'
+      })
+    });
+    if (!verifyResponse.ok) {
+      return res.status(401).json({ message: 'Current password is incorrect.' });
+    }
+
+    // 2. Get an admin token, then set the new password (same pattern as /api/register's initial
+    // password set).
+    const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'password',
+        client_id: 'admin-cli',
+        username: 'admin',
+        password: 'admin'
+      })
+    });
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to get Keycloak admin token');
+    }
+    const { access_token: adminToken } = await tokenResponse.json();
+
+    const setPasswordResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${user.keycloak_id}/reset-password`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ type: 'password', value: newPassword, temporary: false })
+    });
+    if (!setPasswordResponse.ok) {
+      throw new Error('Failed to set new password in Keycloak.');
+    }
+
+    res.status(200).json({ message: 'Password updated successfully!' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Server error changing password.' });
+  }
+});
+
 app.post('/api/users/rate', authenticateToken, async (req, res) => {
   const { rated_user_id, rating } = req.body;
   const rater_id = req.user.userId;

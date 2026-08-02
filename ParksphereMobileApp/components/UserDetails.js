@@ -1,13 +1,49 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, RefreshControl, Alert,
+  TextInput, Switch, KeyboardAvoidingView, Platform, Modal,
+} from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../utils/apiService';
 
-const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUpdate }) => {
-  const { currentUser: user, token, logout: onLogout, serverUrl } = useAuth();
+const carTypes = [
+  'motorcycle',
+  'city car',
+  'hatchback',
+  'sedan',
+  'family car',
+  'SUV',
+  'van',
+  'truck',
+];
+
+const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
+  const { currentUser: user, token, logout: onLogout, serverUrl, updateToken } = useAuth();
   const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
+  const [carType, setCarType] = useState(user ? user.car_type : '');
+  const [carColor, setCarColor] = useState(user ? user.car_color : '');
+  const [plateNumber, setPlateNumber] = useState(user ? user.plate_number : '');
+  const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
+  const [isEditingUsername, setIsEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      setCarType(user.car_type);
+      setCarColor(user.car_color);
+      setPlateNumber(user.plate_number);
+      setAutoDetectionEnabled(user.auto_detect);
+    }
+  }, [user]);
+
   if (!user) {
     return null;
   }
@@ -16,7 +52,7 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
     if (!user.avatar_url) {
       return `https://i.pravatar.cc/150?u=${user.username}`;
     }
-    
+
     // If it's already a full URL but contains localhost, replace it with serverUrl
     if (user.avatar_url.startsWith('http')) {
       if (user.avatar_url.includes('localhost')) {
@@ -138,9 +174,135 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
     );
   };
 
+  const handleUpdate = async () => {
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/car-details`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          car_type: carType,
+          car_color: carColor,
+          plate_number: plateNumber,
+          auto_detect: autoDetectionEnabled,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (onProfileUpdate) {
+          onProfileUpdate();
+        }
+        Alert.alert('Success', 'Profile updated successfully.');
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update profile.');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'Could not connect to the server to update profile.');
+    }
+  };
+
+  const startEditingUsername = () => {
+    setUsernameDraft(user.username);
+    setIsEditingUsername(true);
+  };
+
+  const cancelEditingUsername = () => {
+    setUsernameDraft(user.username);
+    setIsEditingUsername(false);
+  };
+
+  const confirmEditingUsername = async () => {
+    const trimmed = usernameDraft.trim();
+    if (!trimmed) {
+      Alert.alert('Invalid username', 'Username cannot be empty.');
+      return;
+    }
+    if (trimmed === user.username) {
+      setIsEditingUsername(false);
+      return;
+    }
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/username`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ username: trimmed }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (data.token) {
+          await updateToken(data.token); // re-issued JWT's `username` claim must match going forward
+        }
+        if (onProfileUpdate) {
+          onProfileUpdate();
+        }
+        setIsEditingUsername(false);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update username.');
+      }
+    } catch (error) {
+      console.error('Error updating username:', error);
+      Alert.alert('Error', 'Could not connect to the server to update username.');
+    }
+  };
+
+  const openPasswordModal = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPasswordModal(true);
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Missing fields', 'Please fill in all three fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Password too short', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Passwords don't match", 'New password and confirmation must match.');
+      return;
+    }
+    try {
+      const response = await apiRequest(`${serverUrl}/api/users/${user.id}/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert('Success', 'Password updated successfully.');
+        setShowPasswordModal(false);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to update password.');
+      }
+    } catch (error) {
+      console.error('Error changing password:', error);
+      Alert.alert('Error', 'Could not connect to the server to change password.');
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    >
       <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -157,10 +319,28 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
                 }}
               />
             </TouchableOpacity>
-            <Text style={styles.username}>{user.username}</Text>
-            <TouchableOpacity style={styles.editButton} onPress={onEditProfile}>
-              <Text style={styles.editButtonText}>Edit User Details</Text>
-            </TouchableOpacity>
+            {isEditingUsername ? (
+              <View style={styles.usernameEditRow}>
+                <TextInput
+                  style={styles.usernameInput}
+                  value={usernameDraft}
+                  onChangeText={setUsernameDraft}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <TouchableOpacity onPress={confirmEditingUsername} style={styles.usernameIconButton}>
+                  <Ionicons name="checkmark" size={22} color="#2e7d32" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={cancelEditingUsername} style={styles.usernameIconButton}>
+                  <Ionicons name="close" size={22} color="#c62828" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={startEditingUsername}>
+                <Text style={styles.username}>{user.username}</Text>
+              </TouchableOpacity>
+            )}
           </View>
           <View style={styles.profileRightColumn}>
             <View style={styles.infoRow}>
@@ -214,11 +394,115 @@ const UserDetails = ({ onBack, onEditProfile, onRefresh, refreshing, onProfileUp
             <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
           </View>
         </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.editSection}>
+          <Text style={styles.sectionTitle}>Edit Your Car Details</Text>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Plate Number</Text>
+            <TextInput
+              style={styles.input}
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              placeholder="e.g., ABC-1234"
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Car Color</Text>
+            <TextInput
+              style={styles.input}
+              value={carColor}
+              onChangeText={setCarColor}
+              placeholder="e.g., Blue"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Car Type</Text>
+            <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={carType}
+                style={styles.picker}
+                onValueChange={(itemValue) => setCarType(itemValue)}
+              >
+                {carTypes.map((type) => (
+                  <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={styles.settingTextContainer}>
+              <Text style={styles.settingLabel}>Auto spot detection</Text>
+              <Text style={styles.settingDescription}>Automatically detect when you park or leave a spot.</Text>
+            </View>
+            <Switch
+              trackColor={{ false: '#767577', true: '#512da8' }}
+              thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
+              onValueChange={setAutoDetectionEnabled}
+              value={autoDetectionEnabled}
+            />
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={handleUpdate}>
+            <Text style={styles.buttonText}>Save Changes</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.changePasswordButton} onPress={openPasswordModal}>
+            <Text style={styles.changePasswordButtonText}>Change Password</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
-      </TouchableOpacity>
-    </View>
+
+      <Modal
+        visible={showPasswordModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.sectionTitle}>Change Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Current password"
+              secureTextEntry
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+            />
+            <TextInput
+              style={[styles.input, styles.modalInputSpacing]}
+              placeholder="New password"
+              secureTextEntry
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
+            <TextInput
+              style={[styles.input, styles.modalInputSpacing]}
+              placeholder="Confirm new password"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity style={[styles.button, styles.modalInputSpacing]} onPress={handleChangePassword}>
+              <Text style={styles.buttonText}>Change Password</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelLink} onPress={() => setShowPasswordModal(false)}>
+              <Text style={styles.modalCancelLinkText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -226,16 +510,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    // No top padding here — it belongs on the ScrollView's own contentContainerStyle (below) so
+    // the content can scroll up underneath the floating header, not just sit permanently below it.
   },
-  backButton: {
-    position: 'absolute',
-    top: 40,
-    left: 20,
-    zIndex: 1,
-  },
-  backButtonText: {
-    fontSize: 18,
-    color: '#007bff',
+  scrollContent: {
+    paddingTop: 100, // lets the content scroll up underneath the floating header
   },
   avatar: {
     width: 80,
@@ -246,10 +525,24 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginTop: 10,
+    color: '#512da8',
   },
-  value: {
+  usernameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  usernameInput: {
     fontSize: 18,
-    marginBottom: 10,
+    fontWeight: 'bold',
+    borderBottomWidth: 1,
+    borderBottomColor: '#512da8',
+    minWidth: 90,
+    paddingVertical: 2,
+    color: '#333',
+  },
+  usernameIconButton: {
+    marginLeft: 6,
   },
   profileDetailsTwoColumn: {
     flexDirection: 'row',
@@ -266,7 +559,7 @@ const styles = StyleSheet.create({
   },
   profileRightColumn: {
     flexDirection: 'column',
-    width: '60%', 
+    width: '60%',
     marginLeft: -15, // Shifted another 5px left
   },
   profileLabel: {
@@ -291,32 +584,160 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
+    color: '#512da8',
   },
-  editButton: {
-    marginTop: 10,
-    marginLeft: 10, // Move button to the right
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    backgroundColor: '#D8BFD8',
-    borderRadius: 10,
+  divider: {
+    height: 8,
+    backgroundColor: '#f4f4f8',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#ddd',
   },
-  editButtonText: {
-    color: 'black',
+  editSection: {
+    padding: 20,
+    paddingBottom: 120, // clears the floating tab bar, since Logout is now the last item in-flow
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#512da8',
+  },
+  inputContainer: {
+    marginBottom: 20,
+    width: '100%',
+  },
+  label: {
     fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    fontSize: 16,
+    color: '#333',
+  },
+  pickerWrapper: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    overflow: 'hidden', // Ensures the picker respects the border radius
+  },
+  picker: {
+    width: '100%',
+    height: 180, // Standard height for picker
+    color: '#333',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  settingTextContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  settingDescription: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  // Pill-shaped, 80% width (20% narrower) and 49pt tall (~10% less than the old ~54pt
+  // padding-derived height) — matches the floating tab bar's rounded aesthetic instead of the
+  // previous slightly-rounded rectangles.
+  button: {
+    backgroundColor: '#512da8',
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    borderRadius: 24.5,
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
   },
   logoutButton: {
-    position: 'absolute',
-    bottom: 100, // clears the floating tab bar (bottom: 20, height: 64) with room to spare
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    alignItems: 'center',
     alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    marginTop: 12,
     backgroundColor: '#ff3b30',
-    borderRadius: 10,
+    borderRadius: 24.5,
   },
   logoutButtonText: {
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  changePasswordButton: {
+    width: '80%',
+    height: 49,
+    justifyContent: 'center',
+    borderRadius: 24.5,
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#512da8',
+  },
+  changePasswordButtonText: {
+    color: '#512da8',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 20,
+  },
+  modalInputSpacing: {
+    marginTop: 12,
+  },
+  modalCancelLink: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  modalCancelLinkText: {
+    color: '#666',
+    fontSize: 15,
   },
 });
 

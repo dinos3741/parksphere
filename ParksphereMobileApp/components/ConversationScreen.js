@@ -130,7 +130,10 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
 
 const styles = StyleSheet.create({
   fullContainer: { flex: 1, backgroundColor: '#f0f0f0' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 15, paddingTop: 10, backgroundColor: '#512da8' },
+  // marginTop clears the app-wide floating header (RootNavigator.js) — this screen has its own
+  // solid in-thread header underneath it, so unlike a plain list, there's no sense in trying to
+  // scroll messages through both header layers; this one just needs to sit below the outer one.
+  header: { flexDirection: 'row', alignItems: 'center', padding: 15, paddingTop: 10, marginTop: 100, backgroundColor: '#512da8' },
   backButtonText: { color: 'white', fontSize: 18 },
   headerTitle: { flex: 1, textAlign: 'center', color: 'white', fontSize: 20, fontWeight: 'bold' },
   messageRow: { flexDirection: 'row', margin: 10, alignItems: 'flex-end' },

@@ -80,11 +80,15 @@ const ConversationsList = ({ onSelectConversation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Messages</Text>
       <FlatList
         data={conversations}
         keyExtractor={(item) => item.other_user_id.toString()}
         renderItem={renderConversationItem}
+        // "Messages" lives here (not as a fixed sibling above the list) so the FlatList's own box
+        // spans the full screen, including behind the floating header — letting the title and the
+        // first rows scroll up underneath it instead of being permanently stuck below it.
+        ListHeaderComponent={<Text style={styles.title}>Messages</Text>}
+        contentContainerStyle={styles.listContent}
       />
     </View>
   );
@@ -94,6 +98,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f0f0',
+  },
+  listContent: {
+    paddingTop: 100, // clears the floating header at rest; scrolling moves content up under it
   },
   title: {
     fontSize: 19.2,

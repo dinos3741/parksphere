@@ -11,12 +11,12 @@ import ChatTab from './ChatTab';
 import SearchScreen from './SearchScreen';
 import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
-import Profile from './Profile';
 import AboutScreen from './AboutScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { useSpots } from '../context/SpotContext';
+import { useHeaderAction } from '../context/HeaderActionContext';
 
 const Tab = createBottomTabNavigator();
 
@@ -33,15 +33,24 @@ export default function RootNavigator({
   const { currentUser, fetchUserData, getAvatarUri } = useAuth();
   const { totalUnreadMessagesCount } = useChat();
   const { hasNewRequests } = useSpots();
+  const { headerAction } = useHeaderAction();
   const [showAboutScreen, setShowAboutScreen] = useState(false);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  // Local copy of the active tab name — the screenListeners callback below already reports this to
+  // App.js via the setActiveScreen prop, but this component needs its own copy too, to decide
+  // whether to render the Home-only header action button.
+  const [activeScreen, setLocalActiveScreen] = useState('Home');
 
   return (
     <NavigationContainer ref={navigationRef}>
       <View style={styles.fullContainer}>
         <View style={styles.header}>
+          <View style={StyleSheet.absoluteFill}>
+            <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(81, 45, 168, 0.3)' }]} />
+          </View>
           <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
             <Image source={require('../assets/images/logo.png')} style={styles.logo} />
+            <Text style={styles.appName}>Venio</Text>
           </TouchableOpacity>
           <Modal
             visible={showAboutScreen}
@@ -50,9 +59,31 @@ export default function RootNavigator({
           >
             <AboutScreen onClose={() => setShowAboutScreen(false)} />
           </Modal>
-          <View style={styles.titleContainer}>
-            <Text style={styles.appName}>Parksphere</Text>
-          </View>
+          {/* Replaces the old floating FAB — HomeScreen publishes its "+" action into
+              HeaderActionContext since it can't render directly into this header (RootNavigator
+              sits outside the Tab.Navigator). Home-only: gated on the active tab, not just on
+              headerAction existing, since a screen registering this doesn't necessarily unmount
+              when you switch tabs. */}
+          {activeScreen === 'Home' && headerAction && (
+            <TouchableOpacity
+              onPress={headerAction.onPress}
+              disabled={headerAction.disabled}
+              style={[styles.headerAction, headerAction.disabled && styles.headerActionDisabled]}
+            >
+              {headerAction.mode === 'arrived' ? (
+                <Image source={require('../assets/images/arrived.png')} style={styles.headerActionImage} />
+              ) : (
+                <Ionicons
+                  name={headerAction.mode === 'cancel' ? 'close' : 'add'}
+                  size={31}
+                  color="#2f276a"
+                  // Ionicons glyphs don't have a bold variant to switch to — this shadow trick
+                  // thickens the stroke a bit as an approximation of real boldness.
+                  style={styles.headerActionIcon}
+                />
+              )}
+            </TouchableOpacity>
+          )}
         </View>
         
         <Tab.Navigator
@@ -60,6 +91,7 @@ export default function RootNavigator({
             state: (e) => {
               const currentScreen = e.data.state.routes[e.data.state.index].name;
               setActiveScreen(currentScreen);
+              setLocalActiveScreen(currentScreen);
             },
           }}
           screenOptions={({ route }) => ({
@@ -88,7 +120,7 @@ export default function RootNavigator({
 
               return (
                 <View>
-                  <Ionicons name={iconName} size={size} color={color} />
+                  <Ionicons name={iconName} size={size * 1.1} color={color} />
                   {(showRequestBadge || showChatBadge) && (
                     <View
                       style={{
@@ -109,6 +141,7 @@ export default function RootNavigator({
             },
             tabBarActiveTintColor: '#0A84FF', // iOS system blue
             tabBarInactiveTintColor: 'black',
+            tabBarLabelStyle: { fontSize: 11 }, // library default is 10 — 10% up
             headerShown: false,
             // Floating pill tab bar (Instagram-style): detached from all four edges via absolute
             // positioning + margins, fully rounded, with a shadow to read as elevated above the
@@ -190,20 +223,7 @@ export default function RootNavigator({
             {(props) => <SearchScreen {...props} />}
           </Tab.Screen>
           <Tab.Screen name="Profile">
-            {(props) => (
-              isEditingProfile ? (
-                <Profile 
-                  onBack={() => setIsEditingProfile(false)} 
-                  onProfileUpdate={fetchUserData}
-                />
-              ) : (
-                <UserDetails
-                  onBack={() => {}} 
-                  onEditProfile={() => setIsEditingProfile(true)}
-                  onProfileUpdate={fetchUserData}
-                />
-              )
-            )}
+            {(props) => <UserDetails onProfileUpdate={fetchUserData} />}
           </Tab.Screen>
         </Tab.Navigator>
       </View>
@@ -217,23 +237,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   header: {
+    // Floating overlay (not in normal flow) — so content (the map, on Home) can extend up behind
+    // it and actually show through the blur when panned, instead of the header just blurring
+    // whatever flat background color happened to be directly behind it. Every other tab's root
+    // container has matching paddingTop added so its content doesn't render hidden underneath.
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 10,
     paddingHorizontal: 20,
-    backgroundColor: '#512da8',
+    backgroundColor: 'transparent', // the BlurView + tint layer above paints the actual surface
     paddingTop: 50,
     height: 100,
+    overflow: 'hidden',
   },
   headerLeft: {
-    zIndex: 1,
-  },
-  titleContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 50,
-    pointerEvents: 'none',
+    zIndex: 1,
   },
   logo: {
     width: 44,
@@ -241,15 +267,35 @@ const styles = StyleSheet.create({
     borderRadius: 28,
   },
   appName: {
+    // Back to the static SemiBold file — fontWeight on the variable AdventPro-Regular instance
+    // wasn't reliably bolding it (came out too thin in practice). A static single-weight TTF
+    // renders at its actual weight regardless of fontWeight support, so this is the safe bet.
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 21.12,
-    fontWeight: '600',
-    color: 'white',
-    letterSpacing: 0,
+    fontSize: 22,
+    color: '#2f276a', // sampled directly from the logo's navy circle
+    letterSpacing: 0.5,
+    marginLeft: 12,
+  },
+  headerAction: {
+    zIndex: 1,
+    padding: 6,
+  },
+  headerActionDisabled: {
+    opacity: 0.4,
+  },
+  headerActionImage: {
+    width: 26,
+    height: 26,
+    resizeMode: 'contain',
+  },
+  headerActionIcon: {
+    textShadowColor: '#2f276a',
+    textShadowOffset: { width: 0.6, height: 0.6 },
+    textShadowRadius: 0.6,
   },
   tabBarIcon: {
-    width: 24,
-    height: 24,
+    width: 26,
+    height: 26,
     borderRadius: 13,
   },
 });

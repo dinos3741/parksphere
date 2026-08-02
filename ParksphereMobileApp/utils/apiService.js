@@ -11,7 +11,13 @@ const MOCK_DATA = {
     avatar_url: 'https://i.pravatar.cc/150?u=demouser',
     auto_detect: true,
     created_at: '2020-01-01T00:00:00.000Z',
-    role: 'demo'
+    // Mock mode is only reachable via an admin's own toggle now (the old public Demo Login button
+    // is gone) — every debug-tool gate (HMMOverlay, DebugSimulator, StreamMonitor, the notification
+    // log, and this Mock Mode switch itself) checks specifically for role === 'admin', so a 'demo'
+    // role here made them all disappear the moment mock mode activated, including the switch needed
+    // to turn it back off. No server-side authorization depends on this value (checked: only these
+    // client-side UI gates do), so 'admin' here is safe.
+    role: 'admin'
   },
   spots: [
     {

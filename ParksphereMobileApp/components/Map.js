@@ -163,8 +163,11 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 20,
-    right: 20,
+    top: 130, // clears the floating header, and the native map's own compass control below it
+    // Horizontally centered on the header's "+" button: that button is a 31pt icon + 6pt padding
+    // (43pt wide) flush against the header's own 20pt edge inset, centering it 41.5pt from the
+    // screen edge. This 50pt-wide button matches that same center: 41.5 - 50/2 = 16.5.
+    right: 16.5,
     flexDirection: 'column',
   },
   centerButton: {

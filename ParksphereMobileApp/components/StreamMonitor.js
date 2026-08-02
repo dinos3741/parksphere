@@ -2,8 +2,8 @@
 // app deep-suspends and resumes, so console logs can't tell us whether the stream is actually alive
 // after a background→foreground cycle. This overlay updates on the DEVICE (no Metro needed): if the
 // fix count keeps climbing after you foreground, the stream resumed; if it's frozen, it didn't.
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, AppState } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { Text, StyleSheet, AppState, Animated, PanResponder } from 'react-native';
 
 let VM = null;
 try {
@@ -14,6 +14,23 @@ export default function StreamMonitor() {
   const [count, setCount] = useState(0);
   const [last, setLast] = useState('—');
   const [appState, setAppState] = useState(AppState.currentState);
+
+  // Draggable — this box's default position (top-right) sits right on top of the header's "+"
+  // action button (RootNavigator.js), so it needs to be movable out of the way rather than fixed.
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.setOffset({ x: pan.x._value, y: pan.y._value });
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { useNativeDriver: false }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (!VM) return;
@@ -33,11 +50,14 @@ export default function StreamMonitor() {
   }, []);
 
   return (
-    <View style={styles.box} pointerEvents="none">
+    <Animated.View
+      style={[styles.box, { transform: pan.getTranslateTransform() }]}
+      {...panResponder.panHandlers}
+    >
       <Text style={styles.txt}>📡 fixes: {count}</Text>
       <Text style={styles.txt}>last: {last}</Text>
       <Text style={styles.txt}>app: {appState}</Text>
-    </View>
+    </Animated.View>
   );
 }
 

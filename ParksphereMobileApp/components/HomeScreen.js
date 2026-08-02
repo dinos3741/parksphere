@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, TouchableOpacity, Text, Image, StyleSheet, DeviceEventEmitter, Alert } from 'react-native';
+import { View, StyleSheet, DeviceEventEmitter, Alert } from 'react-native';
 import * as Location from 'expo-location'; 
 import Map from './Map';
 import Notifications from './Notifications';
@@ -17,14 +17,16 @@ import { useNotifications } from '../context/NotificationContext';
 import { useSpots } from '../context/SpotContext';
 import { useChat } from '../context/ChatContext';
 import { useLocation } from '../context/LocationContext';
+import { useHeaderAction } from '../context/HeaderActionContext';
 import { apiRequest } from '../utils/apiService';
 
 export default function HomeScreen({ 
   socket,
 }) {
-  const { userId, token, currentUsername, serverUrl } = useAuth();
+  const { userId, token, currentUsername, serverUrl, currentUser } = useAuth();
   const { userLocation, getDistance, locationPermissionGranted, parkedLocation } = useLocation();
   const { notifications, addNotification, triggerNotification } = useNotifications();
+  const { setHeaderAction } = useHeaderAction();
   const { 
     parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
     handleRequestSpot, handleDeleteSpot, handleSaveEditedSpot, handleCreateSpot, 
@@ -144,6 +146,19 @@ export default function HomeScreen({
     }
   }, [acceptedSpot, arrivalConfirmed, isAddingSpot, handleManualArrivalClick]);
 
+  // Publishes the "+" action into the header (RootNavigator lives outside the Tab.Navigator, so it
+  // can't be reached with plain JSX composition) — replaces the old floating FAB. Cleared on
+  // unmount so a stray Home-only action can't linger into another tab if this screen ever gets
+  // unmounted on tab switch.
+  useEffect(() => {
+    setHeaderAction({
+      onPress: handleLocalFabPress,
+      disabled: hasActiveSpot && !acceptedSpot && !isAddingSpot,
+      mode: acceptedSpot ? 'arrived' : (isAddingSpot ? 'cancel' : 'add'),
+    });
+    return () => setHeaderAction(null);
+  }, [handleLocalFabPress, hasActiveSpot, acceptedSpot, isAddingSpot, setHeaderAction]);
+
   const handleLocalConfirmTransaction = () => {
     if (socket.current && arrivalConfirmationData) {
       socket.current.emit('confirm-transaction', {
@@ -199,24 +214,8 @@ export default function HomeScreen({
           acceptedSpot={acceptedSpot}
           parkedLocation={parkedLocation}
         />
-        <TouchableOpacity
-          style={[
-            styles.fab,
-            (hasActiveSpot && !acceptedSpot && !isAddingSpot) && { backgroundColor: 'rgba(128, 128, 128, 0.75)' }
-          ]}
-          onPress={handleLocalFabPress}
-          disabled={hasActiveSpot && !acceptedSpot && !isAddingSpot}
-        >
-          {(acceptedSpot) ? (
-            <Image source={require('../assets/images/arrived.png')} style={styles.fabIcon} />
-          ) : (
-            <Text style={isAddingSpot ? styles.fabTextSmall : styles.fabText}>
-              {isAddingSpot ? 'X' : '+'}
-            </Text>
-          )}
-        </TouchableOpacity>
       </View>
-      <Notifications notifications={notifications} />
+      {currentUser?.role === 'admin' && <Notifications notifications={notifications} />}
 
       <LeavingModal
         visible={isLeavingModalVisible}
@@ -296,44 +295,5 @@ export default function HomeScreen({
 const styles = StyleSheet.create({
   mapBorderWrapper: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: 'blue',
-    borderRadius: 10,
-    margin: 5,
-  },
-  fab: {
-    position: 'absolute',
-    width: 91,
-    height: 91,
-    borderRadius: 46,
-    backgroundColor: 'rgba(155, 89, 182, 0.75)', // translucent — same purple, map shows through
-    justifyContent: 'center',
-    alignItems: 'center',
-    bottom: 50,
-    alignSelf: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    transform: [{ rotate: '0deg' }],
-  },
-  fabText: {
-    color: 'white',
-    fontSize: 55,
-    fontWeight: '300',
-    lineHeight: 55,
-  },
-  fabTextSmall: {
-    color: 'red',
-    fontSize: 35,
-    fontWeight: '300',
-    lineHeight: 35,
-    top: 3,
-  },
-  fabIcon: {
-    width: 55,
-    height: 55,
-    resizeMode: 'contain',
   },
 });
