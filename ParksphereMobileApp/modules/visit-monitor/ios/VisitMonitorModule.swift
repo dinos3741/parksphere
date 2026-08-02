@@ -17,7 +17,7 @@ import CoreMotion
 public class VisitMonitorModule: Module {
   private var manager: CLLocationManager?
   private var delegateProxy: LocationDelegate?
-  private let backend = BackendClient() // R5.1: native → Parksphere server (works while JS is suspended)
+  private let backend = BackendClient() // R5.1: native → Venio server (works while JS is suspended)
   // R5.2: the server spot this device currently owns (0 = none). Persisted so it survives a background
   // relaunch, and SHARED with JS (foreground) via get/set so native(bg) + the JS HMM(fg) never
   // double-declare — one park = one server spot.
@@ -85,7 +85,7 @@ public class VisitMonitorModule: Module {
   // fix is processed alongside the fix's own GPS timestamp. If native runs live during the drive, the
   // `t` values are spread out and `t ≈ gps`; if native is frozen too, they cluster at foreground-resume
   // with a huge `t - gps` delta. Written to a JSON-lines file in Documents; JS merges it on foreground.
-  private let nativeLogQueue = DispatchQueue(label: "com.parksphere.nativelog")
+  private let nativeLogQueue = DispatchQueue(label: "com.venio.nativelog")
   private var lastNativeLogAt: TimeInterval = 0
   private static let nativeLogThrottleSec: TimeInterval = 30.0 // was 3s (Build-E liveness proof); 30s keeps
   // the 5000-cap heartbeat from evicting the meaningful tagged events (park/return/state/rearm) on a
@@ -168,7 +168,7 @@ public class VisitMonitorModule: Module {
   private var lastReturnLogAt: TimeInterval = 0
   private static let returnLogThrottleSec: TimeInterval = 10.0
   // R5.3: confirmation interactive notification (SOFT gating). User taps Yes → spot goes public; No → suppress.
-  fileprivate static let notifCategoryReturn = "PARKSPHERE_RETURN_CONFIRM"
+  fileprivate static let notifCategoryReturn = "VENIO_RETURN_CONFIRM"
   fileprivate static let notifActionYes = "CONFIRM_YES"
   fileprivate static let notifActionNo = "CONFIRM_NO"
   private var notifProxy: ReturnNotifProxy?  // strong ref — owns the delegate chain
@@ -1806,7 +1806,7 @@ private struct ReturnPositionFilter {
 }
 
 // R5.3 ── Forwarding proxy for UNUserNotificationCenterDelegate. ──────────────────────────────────
-// Wraps whatever delegate expo-notifications installed, intercepts PARKSPHERE_RETURN_CONFIRM action
+// Wraps whatever delegate expo-notifications installed, intercepts VENIO_RETURN_CONFIRM action
 // responses, and forwards everything else unchanged. Installed once on the first SOFT fire (by then
 // expo-notifications has certainly set its own delegate). The module holds a strong ref so it lives.
 final class ReturnNotifProxy: NSObject, UNUserNotificationCenterDelegate {
@@ -1940,7 +1940,7 @@ private class LocationDelegate: NSObject, CLLocationManagerDelegate {
   }
 }
 
-// R5.1 (2026-07-15): native backend client so the app can talk to the Parksphere server from the
+// R5.1 (2026-07-15): native backend client so the app can talk to the Venio server from the
 // BACKGROUND, where the RN JS thread is suspended and its fetch()/AsyncStorage are unavailable. JS hands
 // over the config (base URL + Bearer token + car type) via configureBackend; it's persisted in
 // UserDefaults so native still has it after a background relaunch. userId is derived server-side from the

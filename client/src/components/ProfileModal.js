@@ -89,9 +89,9 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
       <div className="profile-modal-content">
         <div className="profile-modal-header">
           <div className="profile-header-left"> {/* New container */}
-            <img src={logo} alt="Parksphere Logo" className="profile-modal-logo" />
+            <img src={logo} alt="Venio Logo" className="profile-modal-logo" />
             <div className="profile-title-tagline-container"> {/* New container for title and tagline */}
-              <h2 className="profile-modal-title">PARKSPHERE</h2>
+              <h2 className="profile-modal-title">VENIO</h2>
               <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
             </div>
           </div>

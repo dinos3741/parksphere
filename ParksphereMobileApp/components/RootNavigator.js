@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { NavigationContainer } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import HomeScreen from './HomeScreen';
@@ -46,7 +47,14 @@ export default function RootNavigator({
         <View style={styles.header}>
           <View style={StyleSheet.absoluteFill}>
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(81, 45, 168, 0.3)' }]} />
+            {/* Fading the tint out over the bottom ~30% (instead of a flat fill) is what sells the
+                merge with the map below — the solid color stops abruptly, but a tint trailing off
+                to fully transparent reads as a soft blend instead of a hard edge. */}
+            <LinearGradient
+              colors={['rgba(81, 45, 168, 0.3)', 'rgba(81, 45, 168, 0)']}
+              locations={[0.7, 1]}
+              style={StyleSheet.absoluteFill}
+            />
           </View>
           <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
             <Image source={require('../assets/images/logo.png')} style={styles.logo} />
@@ -85,7 +93,7 @@ export default function RootNavigator({
             </TouchableOpacity>
           )}
         </View>
-        
+
         <Tab.Navigator
           screenListeners={{
             state: (e) => {
@@ -252,8 +260,8 @@ const styles = StyleSheet.create({
     padding: 10,
     paddingHorizontal: 20,
     backgroundColor: 'transparent', // the BlurView + tint layer above paints the actual surface
-    paddingTop: 50,
-    height: 100,
+    paddingTop: 60,
+    height: 110,
     overflow: 'hidden',
   },
   headerLeft: {

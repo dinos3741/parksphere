@@ -232,7 +232,7 @@ const DebugSimulator = ({ userLocation }) => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    backgroundColor: 'rgba(15, 15, 15, 0.95)',
+    backgroundColor: 'rgba(0,0,0,0.75)',
     padding: 12,
     borderRadius: 16,
     width: 200,

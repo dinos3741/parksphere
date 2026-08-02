@@ -889,11 +889,11 @@ function MainAppContent({ serverUrl }) {
             <img
               src={logo}
               className={`logo-img ${isLogoAnimating ? 'logo-animate' : ''}`}
-              alt="Parksphere Logo"
+              alt="Venio Logo"
               onClick={handleLogoClick}
             />
             <div className="logo-container">
-              <h1 className="logo">PARKSPHERE</h1>
+              <h1 className="logo">VENIO</h1>
               <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
             </div>
           </div>

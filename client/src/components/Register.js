@@ -112,8 +112,8 @@ const Register = () => {
     <>
       <div className="auth-page-wrapper">
         <div className="logo-container">
-          <h1 className="logo">PARKSPHERE</h1>
-          <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
+          <h1 className="logo">VENIO</h1>
+          <h2 className="tagline">The intelligent way to <span className="highlight">arrive and park</span></h2>
         </div>
         <div className="auth-top-background"></div>
         <div className="spacer"></div>

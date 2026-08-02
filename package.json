@@ -1,7 +1,7 @@
 {
-  "name": "parksphere-root",
+  "name": "venio-root",
   "version": "1.0.0",
-  "description": "Root orchestration for Parksphere project",
+  "description": "Root orchestration for Venio project",
   "scripts": {
     "docker": "docker-compose up -d",
     "server": "cd server && npm start",

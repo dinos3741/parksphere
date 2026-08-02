@@ -1,15 +1,15 @@
-Parksphere is a community-centric real-time parking coordination platform designed to alleviate the frustration of
+Venio is a community-centric real-time parking coordination platform designed to alleviate the frustration of
 urban parking by facilitating real-time spot sharing between drivers. The application operates
 on a peer-to-peer model where users can announce when they are vacating a parking space or
 offer private spots to the community. By bridging the gap between departing and arriving
-drivers, Parksphere turns parking into a collaborative effort, helping to reduce city
+drivers, Venio turns parking into a collaborative effort, helping to reduce city
 congestion and the time spent searching for a place to park.
 
 The platform is built as a comprehensive full-stack solution featuring a React web interface, a
 cross-platform Expo mobile application, and a robust Node.js backend. It provides users with an
 interactive map for real-time navigation, an intuitive request-and-approval workflow, and
 integrated chat functionality for seamless coordination. With additional features like arrival
-confirmations, automated notifications, and a user rating system, Parksphere ensures a secure
+confirmations, automated notifications, and a user rating system, Venio ensures a secure
 and efficient ecosystem for modern urban mobility.
 
 

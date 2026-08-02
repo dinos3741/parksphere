@@ -21,10 +21,10 @@ const SplashScreen = () => {
       <div className="top-header">
         <div className="logo-container">
           <div className="logo-and-title">
-            <img src={logo} className="logo-img" alt="Parksphere Logo" />
-            <h1 className="logo">PARKSPHERE</h1>
+            <img src={logo} className="logo-img" alt="Venio Logo" />
+            <h1 className="logo">VENIO</h1>
           </div>
-          <h2 className="tagline-splash">the app you need to <span className="highlight">park in the city!</span></h2>
+          <h2 className="tagline-splash">The intelligent way to <span className="highlight">arrive and park</span></h2>
         </div>
         <div className="auth-buttons">
           <Link to="/login" className="btn signin">Sign In</Link>
@@ -37,14 +37,14 @@ const SplashScreen = () => {
           <img src={parkingBackground} alt="App preview" />
         </div>
         <div className="text">
-          <h2>Welcome to <span className="accent">ParkSphere!</span></h2>
+          <h2>Welcome to <span className="accent">Venio!</span></h2>
           <p>
-            Park Sphere helps drivers find free parking spots in real time by connecting those who are about to leave with those looking to park.
+            Venio helps drivers find free parking spots in real time by connecting those who are about to leave with those looking to park.
             Simply open the app to view nearby spots that will soon become available, reserve one with a small tip, and head to the location
-            while the other driver waits. Whether you're leaving or arriving, Park Sphere makes city parking faster, easier, and stress-free.
+            while the other driver waits. Whether you're leaving or arriving, Venio makes city parking faster, easier, and stress-free.
           </p>
 
-          <h2>How ParkSphere works</h2>
+          <h2>How Venio works</h2>
           <ul>
             <li>Step 1: Find nearby parking spots that will soon be free — updated in real time on the map.</li>
             <li>Step 2: Request the spot by sending a small tip to reserve it.</li>

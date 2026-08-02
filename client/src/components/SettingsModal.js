@@ -8,9 +8,9 @@ const SettingsModal = ({ onClose, selectedFilter, onFilterChange, selectedRadius
       <div className="settings-modal-content">
         <div className="settings-modal-header">
           <div className="settings-header-left">
-            <img src={logo} alt="Parksphere Logo" className="settings-modal-logo" />
+            <img src={logo} alt="Venio Logo" className="settings-modal-logo" />
             <div className="settings-title-tagline-container">
-              <h2 className="settings-modal-title">PARKSPHERE</h2>
+              <h2 className="settings-modal-title">VENIO</h2>
               <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
             </div>
           </div>

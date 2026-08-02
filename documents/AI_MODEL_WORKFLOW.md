@@ -1,6 +1,6 @@
-# Parksphere AI Model Workflow
+# Venio AI Model Workflow
 
-This document explains how the "Returning" AI model works within the Parksphere mobile app and the exact steps required to update it when new telemetry data is collected.
+This document explains how the "Returning" AI model works within the Venio mobile app and the exact steps required to update it when new telemetry data is collected.
 
 ## 1. How the Model Works in the App
 

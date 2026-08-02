@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     // the content can scroll up underneath the floating header, not just sit permanently below it.
   },
   scrollContent: {
-    paddingTop: 100, // lets the content scroll up underneath the floating header
+    paddingTop: 110, // lets the content scroll up underneath the floating header
   },
   avatar: {
     width: 80,

@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import HMMOverlay from './HMMOverlay';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -22,6 +23,7 @@ const Map = memo(({
   parkedLocation,
 }) => {
   const { userId } = useAuth();
+
   return (
     <View style={styles.mapScreenContainer}>
       {userLocation ? (
@@ -44,6 +46,13 @@ const Map = memo(({
                 })
           }
           showsUserLocation={locationPermissionGranted}
+          // Measured from a device screenshot: the compass's native (unoffset) position sits with
+          // its top ~17pt above the header's bottom edge (110pt), so a 10pt nudge still left it
+          // clipped. y:28 clears the header with a small 10pt gap below it. x:-3 is a fine nudge —
+          // the compass's default X already lands within ~3pt of the header "+" / center-map
+          // button's shared center (both computed to sit 41.5pt from the screen edge) — to land
+          // exactly on it.
+          compassOffset={{ x: -3, y: 28 }}
           onPress={(e) => {
             if (isAddingSpot) {
               const { coordinate } = e.nativeEvent;
@@ -139,7 +148,7 @@ const Map = memo(({
 
       <View style={styles.mapControls}>
         <TouchableOpacity style={styles.centerButton} onPress={handleCenterMap}>
-          <Text style={styles.centerButtonText}>⌖</Text>
+          <Ionicons name="navigate" size={19} color="#0A84FF" style={styles.centerButtonIcon} />
         </TouchableOpacity>
       </View>
     </View>
@@ -163,30 +172,32 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 130, // clears the floating header, and the native map's own compass control below it
+    top: 172, // clears the floating header and the now-lower compass (compassOffset y:28 below), with a 10pt gap under it
     // Horizontally centered on the header's "+" button: that button is a 31pt icon + 6pt padding
     // (43pt wide) flush against the header's own 20pt edge inset, centering it 41.5pt from the
-    // screen edge. This 50pt-wide button matches that same center: 41.5 - 50/2 = 16.5.
-    right: 16.5,
+    // screen edge. This 44pt-wide button matches that same center: 41.5 - 44/2 = 19.5.
+    right: 19.5,
     flexDirection: 'column',
   },
   centerButton: {
     backgroundColor: 'white',
-    padding: 10,
-    borderRadius: 30,
+    padding: 8,
+    borderRadius: 22,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    width: 50,
-    height: 50,
+    width: 44, // measured from a device screenshot: the native compass is ~43.7pt across
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  centerButtonText: {
-    fontSize: 24,
-    color: '#333',
+  centerButtonIcon: {
+    // The glyph's own visual weight sits slightly off-center within its bounding box — nudges it
+    // back to looking centered inside the round button.
+    marginLeft: -2,
+    marginTop: 2,
   },
   crosshairContainer: {
     position: 'absolute',

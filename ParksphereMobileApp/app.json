@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "ParksphereMobileApp",
-    "slug": "ParksphereMobileApp",
-    "scheme": "parksphere",
+    "name": "VenioMobileApp",
+    "slug": "VenioMobileApp",
+    "scheme": "venio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,9 +20,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use location to detect parking.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "We use location in background to detect parking.",
-        "NSLocationAlwaysUsageDescription": "Allow Parksphere to detect your parking spots automatically even when the app is in the background.",
-        "NSBluetoothAlwaysUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.",
-        "NSBluetoothPeripheralUsageDescription": "Parksphere uses Bluetooth to detect when you connect to your car's system.",
+        "NSLocationAlwaysUsageDescription": "Allow Venio to detect your parking spots automatically even when the app is in the background.",
+        "NSBluetoothAlwaysUsageDescription": "Venio uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.",
+        "NSBluetoothPeripheralUsageDescription": "Venio uses Bluetooth to detect when you connect to your car's system.",
         "UISupportedExternalAccessoryProtocols": [
           "com.apple.mfi.externalaccessory"
         ],
@@ -52,14 +52,14 @@
       [
         "expo-location",
         {
-          "locationAlwaysPermission": "Allow Parksphere to detect your parking spots automatically even when the app is in the background.",
+          "locationAlwaysPermission": "Allow Venio to detect your parking spots automatically even when the app is in the background.",
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
       [
         "react-native-motion-activity-tracker",
         {
-          "NSMotionUsageDescription": "Parksphere uses motion data to automatically detect when you are driving or walking to identify parking spots."
+          "NSMotionUsageDescription": "Venio uses motion data to automatically detect when you are driving or walking to identify parking spots."
         }
       ]
     ]
