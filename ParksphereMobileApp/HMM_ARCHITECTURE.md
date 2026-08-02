@@ -1,4 +1,4 @@
-# Parksphere HMM Architecture Overview
+# Venio HMM Architecture Overview
 
 This document provides a map of the files responsible for the automatic motion detection system (Hidden Markov Model). Use this as a guide when comparing system behavior across different branches or versions.
 

@@ -114,9 +114,9 @@ const Login = () => {
       <div className="auth-page-wrapper">
         <div className="logo-container">
           <div className="logo-and-title">
-            <h1 className="logo">PARKSPHERE</h1>
+            <h1 className="logo">VENIO</h1>
           </div>
-          <h2 className="tagline-login">the app you need to <span className="highlight">park in the city!</span></h2>
+          <h2 className="tagline-login">The intelligent way to <span className="highlight">arrive and park</span></h2>
         </div>
         
         <div className="auth-top-background"></div>

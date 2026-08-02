@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>ParksphereMobileApp</string>
+	<string>VenioMobileApp</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>parksphere</string>
+				<string>venio</string>
 				<string>com.konstantinos.parksphere</string>
 			</array>
 		</dict>
@@ -46,15 +46,15 @@
 		<true/>
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Parksphere uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.</string>
+	<string>Venio uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Parksphere uses Bluetooth to detect when you connect to your car's system.</string>
+	<string>Venio uses Bluetooth to detect when you connect to your car's system.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your camera</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We use location in background to detect parking.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Allow Parksphere to detect your parking spots automatically even when the app is in the background.</string>
+	<string>Allow Venio to detect your parking spots automatically even when the app is in the background.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We use location to detect parking.</string>
 	<key>NSMicrophoneUsageDescription</key>

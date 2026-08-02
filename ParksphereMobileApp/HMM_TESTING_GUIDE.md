@@ -1,4 +1,4 @@
-# Parksphere HMM Detection Engine: Testing Guide
+# Venio HMM Detection Engine: Testing Guide
 
 This guide explains how to run and interpret the automated tests for the Park Detection Hidden Markov Model (HMM) and the overarching Service Layer (`parkDetectionService.js`).
 

@@ -102,8 +102,8 @@ const Register = ({ onBack }) => {
         <View style={styles.loginOverlay}>
           <View style={styles.logoContainer}>
             <Image source={logo} style={styles.logoImage} />
-            <Text style={styles.parksphereTitle}>PARKSPHERE</Text>
-            <Text style={styles.tagline}>the app you need to <Text style={styles.highlight}>park in the city!</Text></Text>
+            <Text style={styles.venioTitle}>VENIO</Text>
+            <Text style={styles.tagline}>The intelligent way to <Text style={styles.highlight}>arrive and park</Text></Text>
           </View>
           <View style={styles.loginContainer}>
             <Text style={styles.loginTitle}>Register</Text>
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     marginBottom: 10,
   },
-  parksphereTitle: {
+  venioTitle: {
     fontFamily: 'AdventPro-SemiBold',
     fontSize: 32,
     color: 'white',

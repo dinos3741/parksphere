@@ -9,29 +9,29 @@ const AboutModal = ({ onClose }) => {
       <div className="about-modal-content">
         <div className="about-modal-header">
           <div className="about-header-left">
-            <img src={logo} alt="Parksphere Logo" className="about-modal-logo" />
+            <img src={logo} alt="Venio Logo" className="about-modal-logo" />
             <div className="about-title-tagline-container">
-              <h2 className="about-modal-title">PARKSPHERE</h2>
-              <h2 className="tagline">the app you need to <span className="highlight">park in the city!</span></h2>
+              <h2 className="about-modal-title">VENIO</h2>
+              <h2 className="tagline">The intelligent way to <span className="highlight">arrive and park</span></h2>
             </div>
           </div>
           <button className="about-modal-close-button" onClick={onClose}>&times;</button>
         </div>
         <div className="about-modal-body">
-          <h3 className="about-section-title">What is ParkSphere?</h3>
+          <h3 className="about-section-title">What is Venio?</h3>
           <img src={parkingBackground} alt="Parking Background" className="about-main-image" />
-          
+
           <p className="about-description">
-            Park Sphere is a peer-to-peer parking app that helps drivers find free parking spots in real time
-            by connecting those who are about to leave with those looking to park. Simply open the app to view 
-            nearby spots that will soon become available, reserve one, and head to the location while the other 
-            driver waits for your arrival. 
-            If you're parking out from a spot, simply notify those around you of your impending departure to earn 
+            Venio is a peer-to-peer parking app that helps drivers find free parking spots in real time
+            by connecting those who are about to leave with those looking to park. Simply open the app to view
+            nearby spots that will soon become available, reserve one, and head to the location while the other
+            driver waits for your arrival.
+            If you're parking out from a spot, simply notify those around you of your impending departure to earn
             some extra cash and/or parking credit points!
-            Whether you're leaving or arriving, Park Sphere makes city parking faster, easier, and stress-free.
+            Whether you're leaving or arriving, Venio makes city parking faster, easier, and stress-free.
           </p>
 
-          <h3 className="about-section-subtitle">How ParkSphere works</h3>
+          <h3 className="about-section-subtitle">How Venio works</h3>
           <div className="about-steps">
             <p className="about-step"><span className="about-step-highlight">Step 1:</span> Find nearby parking spots that will soon be free — updated in real time on the map.</p>
             <p className="about-step"><span className="about-step-highlight">Step 2:</span> Request the spot by sending a small tip to reserve it.</p>

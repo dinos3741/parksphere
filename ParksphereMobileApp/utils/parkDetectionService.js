@@ -47,7 +47,7 @@ const continuousLocationOptions = () => ({
   pausesUpdatesAutomatically: false,
   activityType: Location.ActivityType.OtherNavigation,
   foregroundService: {
-    notificationTitle: 'Parksphere',
+    notificationTitle: 'Venio',
     notificationBody: 'Detecting parking activity',
   },
 });
@@ -1288,7 +1288,7 @@ export const startParkDetection = async () => {
         // iOS will not re-prompt after the first decision, so send the user to Settings.
         Alert.alert(
           'Allow location "Always"',
-          'Parksphere needs the "Always" location permission to detect parking while the app is in the background or the screen is off. With "While Using", detection stops the moment you lock your phone.\n\nOpen Settings and set Location to "Always".',
+          'Venio needs the "Always" location permission to detect parking while the app is in the background or the screen is off. With "While Using", detection stops the moment you lock your phone.\n\nOpen Settings and set Location to "Always".',
           [
             { text: 'Not now', style: 'cancel' },
             { text: 'Open Settings', onPress: () => Linking.openSettings().catch(() => {}) },
