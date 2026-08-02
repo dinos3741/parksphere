@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import FontAwesome from '@expo/vector-icons/FontAwesome'; // Import FontAwesome
-import parkingBackground from '../assets/images/parking_background.png'; // Import the image
-import { BUILD_LABEL } from '../utils/buildInfo';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuth } from '../context/AuthContext';
+import { APP_VERSION, BUILD_LABEL } from '../utils/buildInfo';
+
+const HOW_IT_WORKS = [
+  'Venio detects automatically when you park or start driving away — no manual check-ins.',
+  "About to leave? Your spot appears on the map for nearby drivers looking to park.",
+  "A driver requests it. You accept, and it's held for them while you drive off.",
+  'They arrive, you both confirm the handoff — they get the spot, you earn credits.',
+];
 
 const AboutScreen = ({ onClose }) => {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin';
   const [copied, setCopied] = useState(false);
 
   const copyBuild = async () => {
@@ -16,35 +25,46 @@ const AboutScreen = ({ onClose }) => {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.backButton} onPress={onClose}>
-        <FontAwesome name="arrow-left" size={24} color="#4dd0e1" style={{ transform: [{ scaleX: 1.2 }, { scaleY: 0.8 }], fontWeight: '200' }} />
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={26} color="#512da8" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>About Venio</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>What is Venio?</Text>
-        <Image source={parkingBackground} style={styles.mainImage} />
-        
+        <Image source={require('../assets/images/logo.png')} style={styles.logo} />
+        <Text style={styles.appName}>Venio</Text>
+
         <Text style={styles.description}>
-          Venio is a peer-to-peer parking app that helps drivers find free parking spots in real time
-          by connecting those who are about to leave with those looking to park. Simply open the app to view
-          nearby spots that will soon become available, reserve one, and head to the location while the other
-          driver waits for your arrival.
-          If you're parking out from a spot, siply notify those around you of your impending departure to earn
-          some extra cash and/or parking credit points!
-          Whether you're leaving or arriving, Venio makes city parking faster, easier, and stress-free.
+          Venio automatically detects when you park and when you're about to leave, so nearby
+          drivers can see your spot the moment it opens up — no need to constantly check the app.
+          Looking for a spot yourself? Venio shows you real, soon-to-be-free spots around your
+          current location.
         </Text>
-        <Text style={styles.subtitle}>How Venio works</Text>
-        <View style={styles.stepContainer}>
-          <Text style={styles.step}><Text style={styles.highlight}>Step 1:</Text> Find nearby parking spots that will soon be free — updated in real time on the map.</Text>
-          <Text style={styles.step}><Text style={styles.highlight}>Step 2:</Text> Request the spot by sending a small tip to reserve it.</Text>
-          <Text style={styles.step}><Text style={styles.highlight}>Step 3:</Text> Get confirmation from the current driver and temporarily block the amount.</Text>
-          <Text style={styles.step}><Text style={styles.highlight}>Step 4:</Text> Arrive and confirm the handoff — the spot is yours to park!</Text>
+
+        <Text style={styles.sectionHeader}>HOW IT WORKS</Text>
+        <View style={styles.stepList}>
+          {HOW_IT_WORKS.map((step, i) => (
+            <View key={i} style={styles.stepRow}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepBadgeText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
         </View>
       </ScrollView>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>© 2025 Konstantinos Dimou</Text>
-        <TouchableOpacity onPress={copyBuild} activeOpacity={0.6}>
-          <Text style={styles.buildText}>{copied ? '✓ Copied!' : BUILD_LABEL}</Text>
-        </TouchableOpacity>
+        {isAdmin ? (
+          <TouchableOpacity onPress={copyBuild} activeOpacity={0.6}>
+            <Text style={styles.buildText}>{copied ? '✓ Copied!' : BUILD_LABEL}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.buildText}>v{APP_VERSION}</Text>
+        )}
       </View>
     </View>
   );
@@ -53,89 +73,108 @@ const AboutScreen = ({ onClose }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#512da8',
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingTop: 60,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e2e6',
   },
   backButton: {
-    position: 'absolute',
-    top: 60,
-    left: 20,
-    zIndex: 1,
-    padding: 10,
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#222',
   },
   scrollContent: {
     padding: 20,
-    paddingTop: 80, 
-    paddingBottom: 60, 
+    alignItems: 'center',
+    paddingBottom: 60,
   },
-  title: {
+  logo: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginTop: 12,
+  },
+  appName: {
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 32,
-    color: '#df1a83',
-    textAlign: 'center',
-    marginBottom: 20,
-    marginTop: 20, // Increased vertical space
-    letterSpacing: 2,
-  },
-  mainImage: {
-    width: '100%',
-    height: 200, // Adjust height as needed
-    resizeMode: 'contain', // or 'cover', 'stretch'
-    marginBottom: 20,
-    borderRadius: 10,
-  },
-  subtitle: {
-    fontFamily: 'AdventPro-SemiBold',
-    fontSize: 24,
-    color: '#df1a83',
-    textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 10,
-    letterSpacing: 1,
+    fontSize: 22,
+    color: '#2f276a',
+    marginTop: 10,
+    letterSpacing: 0.5,
   },
   description: {
-    fontSize: 16,
-    color: 'white',
+    fontSize: 15,
+    color: '#444',
     textAlign: 'center',
-    marginBottom: 15,
-    lineHeight: 24,
+    lineHeight: 22,
+    marginTop: 18,
   },
-  stepContainer: {
-    marginTop: 10,
+  sectionHeader: {
+    alignSelf: 'flex-start',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 32,
+    marginBottom: 14,
   },
-  step: {
-    fontSize: 16,
-    color: 'white',
-    textAlign: 'left',
-    marginBottom: 10,
-    lineHeight: 24,
+  stepList: {
+    width: '100%',
   },
-  highlight: {
-    color: '#4dd0e1',
-    fontWeight: 'bold',
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 18,
   },
-  accent: {
-    color: '#ef306f',
-    fontWeight: 'bold',
+  stepBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#512da8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  stepBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  stepText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 21,
+    paddingTop: 2,
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#547abb',
     paddingVertical: 10,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+    paddingBottom: 24,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e2e2e6',
   },
   footerText: {
     textAlign: 'center',
     fontSize: 12,
-    color: 'blue',
+    color: '#999',
   },
   buildText: {
     textAlign: 'center',
-    fontSize: 10,
-    color: '#dfe6f5',
+    fontSize: 11,
+    color: '#bbb',
     marginTop: 2,
   },
 });

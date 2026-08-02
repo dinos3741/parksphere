@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import { NavigationContainer } from '@react-navigation/native';
@@ -12,7 +12,6 @@ import ChatTab from './ChatTab';
 import SearchScreen from './SearchScreen';
 import RequestsScreen from './RequestsScreen';
 import UserDetails from './UserDetails';
-import AboutScreen from './AboutScreen';
 
 import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
@@ -35,7 +34,6 @@ export default function RootNavigator({
   const { totalUnreadMessagesCount } = useChat();
   const { hasNewRequests } = useSpots();
   const { headerAction } = useHeaderAction();
-  const [showAboutScreen, setShowAboutScreen] = useState(false);
   // Local copy of the active tab name — the screenListeners callback below already reports this to
   // App.js via the setActiveScreen prop, but this component needs its own copy too, to decide
   // whether to render the Home-only header action button.
@@ -56,17 +54,10 @@ export default function RootNavigator({
               style={StyleSheet.absoluteFill}
             />
           </View>
-          <TouchableOpacity onPress={() => setShowAboutScreen(true)} style={styles.headerLeft}>
+          <View style={styles.headerLeft}>
             <Image source={require('../assets/images/logo.png')} style={styles.logo} />
             <Text style={styles.appName}>Venio</Text>
-          </TouchableOpacity>
-          <Modal
-            visible={showAboutScreen}
-            animationType="slide"
-            onRequestClose={() => setShowAboutScreen(false)}
-          >
-            <AboutScreen onClose={() => setShowAboutScreen(false)} />
-          </Modal>
+          </View>
           {/* Replaces the old floating FAB — HomeScreen publishes its "+" action into
               HeaderActionContext since it can't render directly into this header (RootNavigator
               sits outside the Tab.Navigator). Home-only: gated on the active tab, not just on

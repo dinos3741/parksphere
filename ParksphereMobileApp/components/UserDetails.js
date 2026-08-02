@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSpots } from '../context/SpotContext';
 import { apiRequest } from '../utils/apiService';
 import RangeSlider from './RangeSlider';
+import AboutScreen from './AboutScreen';
 
 const carTypes = [
   'motorcycle',
@@ -35,6 +36,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -465,6 +467,11 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           <Text style={styles.rowLabel}>Change password</Text>
           <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
         </TouchableOpacity>
+        <View style={styles.rowDivider} />
+        <TouchableOpacity style={styles.row} onPress={() => setShowAboutModal(true)}>
+          <Text style={styles.rowLabel}>About Venio</Text>
+          <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
           <Text style={styles.logoutText}>Log out</Text>
@@ -565,6 +572,14 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showAboutModal}
+        animationType="slide"
+        onRequestClose={() => setShowAboutModal(false)}
+      >
+        <AboutScreen onClose={() => setShowAboutModal(false)} />
       </Modal>
     </KeyboardAvoidingView>
   );
