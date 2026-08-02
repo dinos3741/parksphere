@@ -118,10 +118,10 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 20,
     textAlign: 'center',
-    marginTop: 100, // clears the floating header — this text doesn't scroll, so it's fixed here
+    marginTop: 110, // clears the floating header — this text doesn't scroll, so it's fixed here
   },
   listContent: {
-    paddingTop: 100, // lets the list scroll up underneath the floating header
+    paddingTop: 110, // lets the list scroll up underneath the floating header
   },
   requestItem: {
     backgroundColor: 'white',

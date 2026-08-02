@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
   },
   listContent: {
-    paddingTop: 100, // clears the floating header at rest; scrolling moves content up under it
+    paddingTop: 110, // clears the floating header at rest; scrolling moves content up under it
   },
   title: {
     fontSize: 19.2,
