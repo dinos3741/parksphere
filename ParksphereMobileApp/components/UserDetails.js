@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useAuth } from '../context/AuthContext';
 import { useSpots } from '../context/SpotContext';
+import { useDebugTools } from '../context/DebugToolsContext';
 import { apiRequest } from '../utils/apiService';
 import RangeSlider from './RangeSlider';
 import AboutScreen from './AboutScreen';
@@ -27,6 +28,11 @@ const carTypes = [
 const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const { currentUser: user, token, logout: onLogout, serverUrl, updateToken } = useAuth();
   const { spotRadiusKm, setSpotRadiusKm } = useSpots();
+  const {
+    showHmmEngine, setShowHmmEngine,
+    showFlightRecorder, setShowFlightRecorder,
+    showFixesWindow, setShowFixesWindow,
+  } = useDebugTools();
   const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
@@ -472,6 +478,41 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           <Text style={styles.rowLabel}>About Venio</Text>
           <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
         </TouchableOpacity>
+
+        {user.role === 'admin' && (
+          <>
+            <Text style={styles.sectionHeader}>DEBUG TOOLS</Text>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>HMM Engine overlay</Text>
+              <Switch
+                trackColor={{ false: '#767577', true: '#512da8' }}
+                thumbColor={showHmmEngine ? '#fff' : '#f4f3f4'}
+                onValueChange={setShowHmmEngine}
+                value={showHmmEngine}
+              />
+            </View>
+            <View style={styles.rowDivider} />
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Flight Recorder</Text>
+              <Switch
+                trackColor={{ false: '#767577', true: '#512da8' }}
+                thumbColor={showFlightRecorder ? '#fff' : '#f4f3f4'}
+                onValueChange={setShowFlightRecorder}
+                value={showFlightRecorder}
+              />
+            </View>
+            <View style={styles.rowDivider} />
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Fixes window</Text>
+              <Switch
+                trackColor={{ false: '#767577', true: '#512da8' }}
+                thumbColor={showFixesWindow ? '#fff' : '#f4f3f4'}
+                onValueChange={setShowFixesWindow}
+                value={showFixesWindow}
+              />
+            </View>
+          </>
+        )}
 
         <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
           <Text style={styles.logoutText}>Log out</Text>

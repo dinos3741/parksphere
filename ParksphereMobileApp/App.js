@@ -23,7 +23,6 @@ import { useParkDetectionEngine } from './hooks/useParkDetectionEngine';
 import { useCarConnectionProbe } from './hooks/useCarConnectionProbe'; // MILESTONE 1: BT-wake validation (settled: BT disconnect won't wake suspended app)
 import { useReturnDetection } from './hooks/useReturnDetection'; // event-based lifecycle: CLVisit park + geofence return/drive-off
 
-import AboutScreen from './components/AboutScreen';
 import RootNavigator from './components/RootNavigator';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -33,6 +32,7 @@ import { NotificationProvider, useNotifications } from './context/NotificationCo
 import { LocationProvider, useLocation } from './context/LocationContext';
 import { OverlayProvider } from './context/OverlayContext';
 import { HeaderActionProvider } from './context/HeaderActionContext';
+import { DebugToolsProvider, useDebugTools } from './context/DebugToolsContext';
 
 import { enableScreens } from 'react-native-screens';
 enableScreens(false);
@@ -153,6 +153,7 @@ function AppLayout({
   const { fetchParkingSpots } = useSpots();
   const { userId, token, fetchUserData } = useAuth();
   const { userLocation } = useLocation();
+  const { showHmmEngine, showFlightRecorder, showFixesWindow } = useDebugTools();
 
   useEffect(() => {
     if (isLoggedIn && userId && token) {
@@ -182,10 +183,10 @@ function AppLayout({
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999 }}
         >
            <HMMOverlay
-             isVisible={navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin'}
+             isVisible={navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showHmmEngine}
            />
-           {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && <DebugSimulator userLocation={userLocation} />}
-           {__DEV__ && navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && <StreamMonitor />}
+           {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFlightRecorder && <DebugSimulator userLocation={userLocation} />}
+           {__DEV__ && navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFixesWindow && <StreamMonitor />}
         </View>
       )}
     </>
@@ -198,7 +199,9 @@ export default function App() {
       <LocationProvider>
         <OverlayProvider>
           <HeaderActionProvider>
-            <AppContentWrapper />
+            <DebugToolsProvider>
+              <AppContentWrapper />
+            </DebugToolsProvider>
           </HeaderActionProvider>
         </OverlayProvider>
       </LocationProvider>
