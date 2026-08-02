@@ -67,6 +67,8 @@ const ChatTab = ({ socket, onBack, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // No top padding here — both children (ConversationsList, ConversationScreen) handle their
+    // own clearance from the floating header now, so their content can scroll up underneath it.
   },
 });
 

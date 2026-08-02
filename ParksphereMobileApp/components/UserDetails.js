@@ -26,8 +26,8 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
+  const [plateNumber, setPlateNumber] = useState(user ? user.plate_number : '');
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(user ? user.notifications_enabled : true);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -39,8 +39,8 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     if (user) {
       setCarType(user.car_type);
       setCarColor(user.car_color);
+      setPlateNumber(user.plate_number);
       setAutoDetectionEnabled(user.auto_detect);
-      setNotificationsEnabled(user.notifications_enabled !== undefined ? user.notifications_enabled : true);
     }
   }, [user]);
 
@@ -185,8 +185,8 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
         body: JSON.stringify({
           car_type: carType,
           car_color: carColor,
+          plate_number: plateNumber,
           auto_detect: autoDetectionEnabled,
-          notifications_enabled: notificationsEnabled,
         }),
       });
 
@@ -302,6 +302,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
     >
       <ScrollView
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -400,6 +401,27 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           <Text style={styles.sectionTitle}>Edit Your Car Details</Text>
 
           <View style={styles.inputContainer}>
+            <Text style={styles.label}>Plate Number</Text>
+            <TextInput
+              style={styles.input}
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              placeholder="e.g., ABC-1234"
+              autoCapitalize="characters"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Car Color</Text>
+            <TextInput
+              style={styles.input}
+              value={carColor}
+              onChangeText={setCarColor}
+              placeholder="e.g., Blue"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
             <Text style={styles.label}>Car Type</Text>
             <View style={styles.pickerWrapper}>
               <Picker
@@ -414,16 +436,6 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
             </View>
           </View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Car Color</Text>
-            <TextInput
-              style={styles.input}
-              value={carColor}
-              onChangeText={setCarColor}
-              placeholder="e.g., Blue"
-            />
-          </View>
-
           <View style={styles.settingRow}>
             <View style={styles.settingTextContainer}>
               <Text style={styles.settingLabel}>Auto spot detection</Text>
@@ -434,19 +446,6 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
               thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
               onValueChange={setAutoDetectionEnabled}
               value={autoDetectionEnabled}
-            />
-          </View>
-
-          <View style={styles.settingRow}>
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Enable Notifications</Text>
-              <Text style={styles.settingDescription}>Ask user to confirm spot assessment</Text>
-            </View>
-            <Switch
-              trackColor={{ false: '#767577', true: '#512da8' }}
-              thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
-              onValueChange={setNotificationsEnabled}
-              value={notificationsEnabled}
             />
           </View>
 
@@ -511,6 +510,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    // No top padding here — it belongs on the ScrollView's own contentContainerStyle (below) so
+    // the content can scroll up underneath the floating header, not just sit permanently below it.
+  },
+  scrollContent: {
+    paddingTop: 100, // lets the content scroll up underneath the floating header
   },
   avatar: {
     width: 80,
@@ -521,6 +525,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginTop: 10,
+    color: '#512da8',
   },
   usernameEditRow: {
     flexDirection: 'row',
@@ -579,6 +584,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 10,
+    color: '#512da8',
   },
   divider: {
     height: 8,
@@ -595,6 +601,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
+    color: '#512da8',
   },
   inputContainer: {
     marginBottom: 20,
@@ -602,6 +609,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
+    fontWeight: 'bold',
     color: '#666',
     marginBottom: 8,
   },

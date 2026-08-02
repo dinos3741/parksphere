@@ -203,6 +203,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f0f0',
+    paddingTop: 100, // clears the now-floating header (RootNavigator.js)
   },
   inner: {
     flex: 1,

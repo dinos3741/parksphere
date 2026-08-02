@@ -87,6 +87,9 @@ const RequestsScreen = () => {
           data={spotRequests}
           renderItem={renderItem}
           keyExtractor={(item) => item.requestId.toString()}
+          // Only when there's no heading text above it (that text already carries its own
+          // clearance) — avoids double-spacing when both render together.
+          contentContainerStyle={!isRequestAccepted && styles.listContent}
         />
       ) : (
         <Text style={styles.text}>No pending requests</Text>
@@ -107,11 +110,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f0f0f0',
+    // No top padding here on purpose — it needs to be on the actual scrollable content (the
+    // FlatList's contentContainerStyle below), not the outer container, so content can scroll up
+    // underneath the floating header and actually show through the blur, the way Home's map does.
+    // Padding on this non-scrolling container would just be permanent dead space instead.
   },
   text: {
     fontSize: 20,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 100, // clears the floating header — this text doesn't scroll, so it's fixed here
+  },
+  listContent: {
+    paddingTop: 100, // lets the list scroll up underneath the floating header
   },
   requestItem: {
     backgroundColor: 'white',
