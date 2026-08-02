@@ -1,22 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert, Image } from 'react-native';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused } from '@react-navigation/native';
 
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 import { apiRequest } from '../utils/apiService';
 
-const SearchScreen = () => {
+const SearchScreen = ({ navigation }) => {
   const { token, serverUrl } = useAuth();
+  const { handleOpenChat } = useChat();
   const [username, setUsername] = useState('');
-  const [recentSearches, setRecentSearches] = useState([
-    { id: '1', username: 'john_doe' },
-    { id: '2', username: 'jane_doe' },
-    { id: '3', username: 'peter_jones' },
-  ]);
   const [interactions, setInteractions] = useState([]);
   const [searchedUser, setSearchedUser] = useState(null);
   const isFocused = useIsFocused();
+
+  const getAvatarUri = (avatarUrl, forUsername) => {
+    if (!avatarUrl) {
+      return `https://i.pravatar.cc/150?u=${forUsername}`;
+    }
+    if (avatarUrl.startsWith('http')) {
+      if (avatarUrl.includes('localhost')) {
+        return avatarUrl.replace('http://localhost:3001', serverUrl);
+      }
+      return avatarUrl;
+    }
+    return `${serverUrl}${avatarUrl}`;
+  };
 
   useEffect(() => {
     const fetchInteractions = async () => {
@@ -56,9 +66,6 @@ const SearchScreen = () => {
       return;
     }
     Keyboard.dismiss();
-    if (searchUsername && !recentSearches.find(item => item.username === searchUsername)) {
-      setRecentSearches(prev => [{ id: Date.now().toString(), username: searchUsername }, ...prev]);
-    }
 
     try {
       const response = await apiRequest(`${serverUrl}/api/users/username/${searchUsername.trim()}`, {
@@ -94,106 +101,103 @@ const SearchScreen = () => {
 
     if (searchedUser.notFound) {
       return (
-        <View style={styles.userDetailsContainer}>
+        <View style={styles.resultCard}>
           <TouchableOpacity onPress={() => setSearchedUser(null)} style={styles.closeButton}>
-<FontAwesome name="close" size={24} color="gray" />
+            <Ionicons name="close" size={24} color="#999" />
           </TouchableOpacity>
-          <Text style={styles.notFoundText}>User not found.</Text>
+          <Ionicons name="person-outline" size={40} color="#ccc" style={styles.notFoundIcon} />
+          <Text style={styles.notFoundText}>No user found with that username.</Text>
         </View>
       );
     }
 
-    const getAvatarUri = (avatarUrl, username) => {
-      if (!avatarUrl) {
-        return `https://i.pravatar.cc/150?u=${username}`;
-      }
-      
-      // If it's already a full URL but contains localhost, replace it with serverUrl
-      if (avatarUrl.startsWith('http')) {
-        if (avatarUrl.includes('localhost')) {
-          return avatarUrl.replace('http://localhost:3001', serverUrl);
-        }
-        return avatarUrl;
-      }
-
-      // If it's a relative path, prepend serverUrl
-      return `${serverUrl}${avatarUrl}`;
-    };
-
     return (
-      <View style={styles.userDetailsContainer}>
+      <View style={styles.resultCard}>
         <TouchableOpacity onPress={() => setSearchedUser(null)} style={styles.closeButton}>
-          <FontAwesome name="close" size={24} color="gray" />
+          <Ionicons name="close" size={24} color="#999" />
         </TouchableOpacity>
-        <Image source={{ uri: getAvatarUri(searchedUser.avatar_url, searchedUser.username) }} style={styles.avatar} />
-        <Text style={styles.userUsername}>{searchedUser.username}</Text>
-        <Text>Member since: {new Date(searchedUser.created_at).toLocaleDateString()}</Text>
-        <Text>Average Rating: {parseFloat(searchedUser.average_rating).toFixed(2) || 'Not rated yet'}</Text>
-        <Text>Rank: Top {searchedUser.rank}%</Text>
-        <Text>Car Type: {searchedUser.car_type}</Text>
-        <Text>Spots Declared: {searchedUser.spots_declared}</Text>
-        <Text>Spots Taken: {searchedUser.spots_taken}</Text>
+        <Image source={{ uri: getAvatarUri(searchedUser.avatar_url, searchedUser.username) }} style={styles.resultAvatar} />
+        <Text style={styles.resultUsername}>{searchedUser.username}</Text>
+        <Text style={styles.resultSubtitle}>Member since {new Date(searchedUser.created_at).toLocaleDateString()}</Text>
+
+        <View style={styles.statsStrip}>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{searchedUser.average_rating ? parseFloat(searchedUser.average_rating).toFixed(1) : '—'}</Text>
+            <Text style={styles.statLabel}>Rating</Text>
+          </View>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{searchedUser.rank != null ? `${searchedUser.rank}%` : '—'}</Text>
+            <Text style={styles.statLabel}>Rank</Text>
+          </View>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{searchedUser.spots_declared}</Text>
+            <Text style={styles.statLabel}>Declared</Text>
+          </View>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{searchedUser.spots_taken}</Text>
+            <Text style={styles.statLabel}>Taken</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.messageButton} onPress={() => handleOpenChat(navigation, searchedUser)}>
+          <Ionicons name="chatbubble" size={16} color="#fff" style={styles.messageButtonIcon} />
+          <Text style={styles.messageButtonText}>Message</Text>
+        </TouchableOpacity>
       </View>
     );
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
+      <Text style={styles.title}>Search for users</Text>
+
       <View style={styles.inner}>
-        <Text style={styles.title}>Search for a User</Text>
         <View style={styles.searchContainer}>
+          <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
           <TextInput
             style={styles.input}
-            placeholder="enter username"
+            placeholder="Enter a username"
+            placeholderTextColor="#999"
             value={username}
             onChangeText={setUsername}
+            onSubmitEditing={handleSearch}
             autoCapitalize="none"
+            returnKeyType="search"
           />
           <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-            <FontAwesome name="search" size={20} color="white" />
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
 
         {searchedUser ? renderUserDetails() : (
-          <>
-            <View style={styles.recentSearchesContainer}>
-              <Text style={styles.recentSearchesTitle}>Recent searches</Text>
-              <FlatList
-                data={recentSearches}
-                keyExtractor={item => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => {
-                    setUsername(item.username);
-                    performSearch(item.username);
-                  }}>
-                    <Text style={styles.recentSearchItem}>{item.username}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-              <View style={styles.horizontalLine} />
-            </View>
-
-            <View style={styles.interactionsContainer}>
-              <Text style={styles.interactionsTitle}>Interactions</Text>
+          <View style={styles.recentContainer}>
+            <Text style={styles.sectionHeader}>RECENT</Text>
+            {interactions.length > 0 ? (
               <FlatList
                 data={interactions}
                 keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => {
-                    setUsername(item.username);
-                    performSearch(item.username);
-                  }}>
-                    <Text style={styles.interactionItem}>{item.username}</Text>
+                  <TouchableOpacity
+                    style={styles.recentRow}
+                    onPress={() => {
+                      setUsername(item.username);
+                      performSearch(item.username);
+                    }}
+                  >
+                    <Image source={{ uri: getAvatarUri(item.avatar_url, item.username) }} style={styles.recentAvatar} />
+                    <Text style={styles.recentUsername}>{item.username}</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
                   </TouchableOpacity>
                 )}
               />
-            </View>
-          </>
+            ) : (
+              <Text style={styles.emptyText}>No recent interactions yet.</Text>
+            )}
+          </View>
         )}
-        <View style={{ flex : 1 }} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -202,101 +206,164 @@ const SearchScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
-    paddingTop: 110, // clears the now-floating header (RootNavigator.js)
+    backgroundColor: '#fff',
+    paddingTop: 110, // clears the floating header (RootNavigator.js)
+  },
+  title: {
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#222',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   inner: {
     flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
+    paddingHorizontal: 20,
   },
   searchContainer: {
     flexDirection: 'row',
-    width: '100%',
     alignItems: 'center',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 14,
+    zIndex: 1,
   },
   input: {
     flex: 1,
-    height: 50,
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    backgroundColor: '#fefefe',
+    height: 44,
+    backgroundColor: '#f0f0f4',
+    borderRadius: 22,
+    paddingHorizontal: 40,
+    fontSize: 15.5,
+    color: '#222',
+  },
+  searchButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginLeft: 8,
+    backgroundColor: '#512da8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 28,
+    marginBottom: 6,
+  },
+  recentContainer: {
+    flex: 1,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e2e6',
+  },
+  recentAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  recentUsername: {
+    flex: 1,
     fontSize: 16,
     color: '#333',
   },
-  searchButton: {
-    backgroundColor: '#007bff',
-    padding: 15,
-    borderRadius: 8,
-    marginLeft: 10,
+  emptyText: {
+    fontSize: 15,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 40,
   },
-  recentSearchesContainer: {
-    width: '100%',
+  resultCard: {
     marginTop: 20,
-  },
-  recentSearchesTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  recentSearchItem: {
-    fontSize: 16,
-    paddingVertical: 13,
-  },
-  horizontalLine: {
-    borderBottomColor: '#ddd',
-    borderBottomWidth: 1,
-    marginVertical: 10,
-  },
-  interactionsContainer: {
-    width: '100%',
-    marginTop: 20,
-  },
-  interactionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  interactionItem: {
-    fontSize: 16,
-    paddingVertical: 13,
-  },
-  userDetailsContainer: {
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    width: '100%',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  avatar: {
+  resultAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    marginBottom: 10,
   },
-  userUsername: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  resultUsername: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    marginTop: 12,
+  },
+  resultSubtitle: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
+  },
+  statsStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingVertical: 16,
+    marginTop: 20,
+    backgroundColor: '#f7f6fa',
+    borderRadius: 16,
+  },
+  statChip: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#512da8',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  messageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#512da8',
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 22,
+    marginTop: 20,
+  },
+  messageButtonIcon: {
+    marginRight: 8,
+  },
+  messageButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  notFoundIcon: {
+    marginTop: 10,
   },
   notFoundText: {
-    marginTop: 20,
-    fontSize: 18,
-    color: 'red',
+    marginTop: 12,
+    fontSize: 15,
+    color: '#888',
   },
   closeButton: {
     position: 'absolute',
-    top: 10,
-    right: 10,
+    top: 12,
+    right: 12,
   },
 });
 

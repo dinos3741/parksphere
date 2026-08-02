@@ -8,7 +8,7 @@ import { useSpots } from '../context/SpotContext';
 import { useChat } from '../context/ChatContext';
 import { apiRequest } from '../utils/apiService';
 
-const RequestsScreen = () => {
+const RequestsScreen = ({ navigation }) => {
   const { token, serverUrl } = useAuth();
   const { spotRequests, handleAcceptRequest, handleDeclineRequest } = useSpots();
   const { handleOpenChat } = useChat();
@@ -79,27 +79,28 @@ const RequestsScreen = () => {
 
   return (
     <View style={styles.container}>
-      {isRequestAccepted && (
-        <Text style={styles.text}>Request accepted</Text>
-      )}
-      {spotRequests.length > 0 ? (
-        <FlatList
-          data={spotRequests}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.requestId.toString()}
-          // Only when there's no heading text above it (that text already carries its own
-          // clearance) — avoids double-spacing when both render together.
-          contentContainerStyle={!isRequestAccepted && styles.listContent}
-        />
-      ) : (
-        <Text style={styles.text}>No pending requests</Text>
-      )}
+      <FlatList
+        data={spotRequests}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.requestId.toString()}
+        // "Requests" lives here (not as a fixed sibling above the list) so the FlatList's own box
+        // spans the full screen, including behind the floating header — matches the same pattern
+        // used for "Messages" in ConversationsList.js.
+        ListHeaderComponent={
+          <>
+            <Text style={styles.title}>Requests</Text>
+            {isRequestAccepted && <Text style={styles.acceptedText}>Request accepted</Text>}
+          </>
+        }
+        ListEmptyComponent={<Text style={styles.emptyText}>No pending requests</Text>}
+        contentContainerStyle={styles.listContent}
+      />
       {selectedUser && (
         <RequesterProfileModal
           user={selectedUser}
           visible={modalVisible}
           onClose={() => setModalVisible(false)}
-          onOpenChat={onOpenChat}
+          onOpenChat={(user) => handleOpenChat(navigation, user)}
         />
       )}
     </View>
@@ -115,10 +116,26 @@ const styles = StyleSheet.create({
     // underneath the floating header and actually show through the blur, the way Home's map does.
     // Padding on this non-scrolling container would just be permanent dead space instead.
   },
-  text: {
-    fontSize: 20,
+  title: {
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#222',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 12,
+  },
+  acceptedText: {
+    fontSize: 15,
+    color: '#666',
     textAlign: 'center',
-    marginTop: 110, // clears the floating header — this text doesn't scroll, so it's fixed here
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 40,
   },
   listContent: {
     paddingTop: 110, // lets the list scroll up underneath the floating header
