@@ -25,6 +25,10 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   // launch while the first fetch is in flight, and without this the "no spot found for me" branch
   // would fire immediately and wipe a real cached marker before the server had even been asked.
   const [spotsLoaded, setSpotsLoaded] = useState(false);
+  // How far (km) around the user's current position "available" spots from other users are shown
+  // on the map — a personal display preference, not synced to the server. Own/accepted spots are
+  // never filtered by this (see Map.js) — only other users' unaccepted spots.
+  const [spotRadiusKm, setSpotRadiusKmState] = useState(5);
 
   const setAcceptedSpot = useCallback(async (spot) => {
     setAcceptedSpotState(spot);
@@ -40,17 +44,26 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     await AsyncStorage.setItem('arrivalConfirmed', JSON.stringify(confirmed));
   }, []);
 
+  const setSpotRadiusKm = useCallback(async (km) => {
+    setSpotRadiusKmState(km);
+    await AsyncStorage.setItem('spotRadiusKm', String(km));
+  }, []);
+
   useEffect(() => {
     const loadPersistedState = async () => {
       try {
         const savedSpot = await AsyncStorage.getItem('acceptedSpot');
         const savedArrival = await AsyncStorage.getItem('arrivalConfirmed');
-        
+        const savedRadius = await AsyncStorage.getItem('spotRadiusKm');
+
         if (savedSpot) {
           setAcceptedSpotState(JSON.parse(savedSpot));
         }
         if (savedArrival) {
           setArrivalConfirmedState(JSON.parse(savedArrival));
+        }
+        if (savedRadius) {
+          setSpotRadiusKmState(Number(savedRadius));
         }
       } catch (e) {
         console.error('[SpotContext] Failed to load persisted state:', e);
@@ -365,6 +378,8 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     setSpotRequests,
     hasNewRequests,
     setHasNewRequests,
+    spotRadiusKm,
+    setSpotRadiusKm,
     fetchParkingSpots,
     handleRequestSpot,
     handleDeleteSpot,

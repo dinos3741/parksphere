@@ -21,6 +21,8 @@ const Map = memo(({
   setShowTimeOptionsModal,
   acceptedSpot,
   parkedLocation,
+  getDistance,
+  spotRadiusKm,
 }) => {
   const { userId } = useAuth();
 
@@ -48,11 +50,11 @@ const Map = memo(({
           showsUserLocation={locationPermissionGranted}
           // Measured from a device screenshot: the compass's native (unoffset) position sits with
           // its top ~17pt above the header's bottom edge (110pt), so a 10pt nudge still left it
-          // clipped. y:28 clears the header with a small 10pt gap below it. x:-3 is a fine nudge —
-          // the compass's default X already lands within ~3pt of the header "+" / center-map
-          // button's shared center (both computed to sit 41.5pt from the screen edge) — to land
-          // exactly on it.
-          compassOffset={{ x: -3, y: 28 }}
+          // clipped. y:38 clears the header with a 20pt gap below it (28 + a further 10pt nudge
+          // down). x:-3 is a fine nudge — the compass's default X already lands within ~3pt of the
+          // header "+" / center-map button's shared center (both computed to sit 41.5pt from the
+          // screen edge) — to land exactly on it.
+          compassOffset={{ x: -3, y: 38 }}
           onPress={(e) => {
             if (isAddingSpot) {
               const { coordinate } = e.nativeEvent;
@@ -105,10 +107,22 @@ const Map = memo(({
             };
 
             const statusColor = getStatusColor(displaySpot.status);
+            const isOwnOrAccepted = spot.user_id === userId || isAccepted;
+
+            // Radius filter only applies to other users' unaccepted spots — you should always see
+            // your own declared spot, and any spot you've already committed to, regardless of
+            // distance.
+            if (!isOwnOrAccepted && userLocation && getDistance && spotRadiusKm != null) {
+              const distanceMeters = getDistance(
+                userLocation.latitude, userLocation.longitude,
+                parseFloat(spot.latitude), parseFloat(spot.longitude)
+              );
+              if (distanceMeters > spotRadiusKm * 1000) return null;
+            }
 
             return (
               <React.Fragment key={spot.id}>
-                {spot.user_id === userId || isAccepted ? (
+                {isOwnOrAccepted ? (
                   <Marker
                     coordinate={{ latitude: parseFloat(displaySpot.latitude), longitude: parseFloat(displaySpot.longitude) }}
                     onPress={() => handleSpotPress(displaySpot)}
@@ -172,11 +186,14 @@ const styles = StyleSheet.create({
   },
   mapControls: {
     position: 'absolute',
-    top: 172, // clears the floating header and the now-lower compass (compassOffset y:28 below), with a 10pt gap under it
-    // Horizontally centered on the header's "+" button: that button is a 31pt icon + 6pt padding
-    // (43pt wide) flush against the header's own 20pt edge inset, centering it 41.5pt from the
-    // screen edge. This 44pt-wide button matches that same center: 41.5 - 44/2 = 19.5.
-    right: 19.5,
+    // Row-aligned with the native compass (measured from a device screenshot at ~111pt from the
+    // top, with compassOffset y:38 applied above, +10pt to match) — both are ~44pt, so matching
+    // tops matches centers too.
+    top: 121,
+    // Column-aligned with the Venio logo: header's paddingHorizontal is 20, and the 44pt logo's
+    // center sits at 20 + 44/2 = 42pt from the screen edge. This 44pt-wide button matches that
+    // same center: 42 - 44/2 = 20.
+    left: 20,
     flexDirection: 'column',
   },
   centerButton: {

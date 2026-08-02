@@ -47,12 +47,12 @@ export default function RootNavigator({
         <View style={styles.header}>
           <View style={StyleSheet.absoluteFill}>
             <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
-            {/* Fading the tint out over the bottom ~30% (instead of a flat fill) is what sells the
-                merge with the map below — the solid color stops abruptly, but a tint trailing off
-                to fully transparent reads as a soft blend instead of a hard edge. */}
+            {/* Full-height fade, darker at top tapering to fully transparent at the bottom — richer
+                contrast for the logo/title near the status bar, while still ending at the same
+                transparent tint the bottom used to fade to, for the same soft blend with the map. */}
             <LinearGradient
-              colors={['rgba(81, 45, 168, 0.3)', 'rgba(81, 45, 168, 0)']}
-              locations={[0.7, 1]}
+              colors={['rgba(81, 45, 168, 0.5)', 'rgba(81, 45, 168, 0)']}
+              locations={[0, 1]}
               style={StyleSheet.absoluteFill}
             />
           </View>

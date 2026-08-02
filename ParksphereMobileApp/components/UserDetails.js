@@ -8,7 +8,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useAuth } from '../context/AuthContext';
+import { useSpots } from '../context/SpotContext';
 import { apiRequest } from '../utils/apiService';
+import RangeSlider from './RangeSlider';
 
 const carTypes = [
   'motorcycle',
@@ -23,6 +25,7 @@ const carTypes = [
 
 const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const { currentUser: user, token, logout: onLogout, serverUrl, updateToken } = useAuth();
+  const { spotRadiusKm, setSpotRadiusKm } = useSpots();
   const [avatarError, setAvatarError] = useState(false); // fall back to a placeholder if the avatar URL won't load
   const [carType, setCarType] = useState(user ? user.car_type : '');
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
@@ -30,6 +33,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -174,7 +178,17 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     );
   };
 
-  const handleUpdate = async () => {
+  // Shared by the vehicle-edit sheet's Save button and the auto-detect switch — both PUT the same
+  // endpoint, just with different fields changing. Overrides let a caller update one field without
+  // having to know about the others.
+  const saveCarDetails = async (overrides = {}) => {
+    const body = {
+      car_type: carType,
+      car_color: carColor,
+      plate_number: plateNumber,
+      auto_detect: autoDetectionEnabled,
+      ...overrides,
+    };
     try {
       const response = await apiRequest(`${serverUrl}/api/users/${user.id}/car-details`, {
         method: 'PUT',
@@ -182,27 +196,48 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          car_type: carType,
-          car_color: carColor,
-          plate_number: plateNumber,
-          auto_detect: autoDetectionEnabled,
-        }),
+        body: JSON.stringify(body),
       });
-
       const data = await response.json();
-
       if (response.ok) {
         if (onProfileUpdate) {
           onProfileUpdate();
         }
-        Alert.alert('Success', 'Profile updated successfully.');
-      } else {
-        Alert.alert('Error', data.message || 'Failed to update profile.');
+        return true;
       }
+      Alert.alert('Error', data.message || 'Failed to update profile.');
+      return false;
     } catch (error) {
       console.error('Error updating profile:', error);
       Alert.alert('Error', 'Could not connect to the server to update profile.');
+      return false;
+    }
+  };
+
+  const handleToggleAutoDetect = async (value) => {
+    setAutoDetectionEnabled(value);
+    const ok = await saveCarDetails({ auto_detect: value });
+    if (!ok) setAutoDetectionEnabled(!value); // revert the optimistic flip on failure
+  };
+
+  const openVehicleModal = () => {
+    setPlateNumber(user.plate_number);
+    setCarColor(user.car_color);
+    setCarType(user.car_type);
+    setShowVehicleModal(true);
+  };
+
+  const cancelVehicleModal = () => {
+    setPlateNumber(user.plate_number);
+    setCarColor(user.car_color);
+    setCarType(user.car_type);
+    setShowVehicleModal(false);
+  };
+
+  const handleSaveVehicle = async () => {
+    const ok = await saveCarDetails();
+    if (ok) {
+      setShowVehicleModal(false);
     }
   };
 
@@ -295,6 +330,10 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     }
   };
 
+  const averageArrivalTime = user.completed_transactions_count > 0
+    ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
+    : 'N/A';
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -307,161 +346,186 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.profileDetailsTwoColumn}>
-          <View style={styles.profileLeftColumn}>
-            <TouchableOpacity onPress={pickImage}>
-              <Image
-                source={{ uri: avatarError ? `https://i.pravatar.cc/150?u=${user.username}` : getAvatarUri() }}
-                style={styles.avatar}
-                onError={(e) => {
-                  console.log('[Avatar] load FAILED for', getAvatarUri(), '→', e?.nativeEvent?.error);
-                  setAvatarError(true);
-                }}
+        <View style={styles.hero}>
+          <TouchableOpacity onPress={pickImage}>
+            <Image
+              source={{ uri: avatarError ? `https://i.pravatar.cc/150?u=${user.username}` : getAvatarUri() }}
+              style={styles.avatar}
+              onError={(e) => {
+                console.log('[Avatar] load FAILED for', getAvatarUri(), '→', e?.nativeEvent?.error);
+                setAvatarError(true);
+              }}
+            />
+          </TouchableOpacity>
+          {isEditingUsername ? (
+            <View style={styles.usernameEditRow}>
+              <TextInput
+                style={styles.usernameInput}
+                value={usernameDraft}
+                onChangeText={setUsernameDraft}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
               />
-            </TouchableOpacity>
-            {isEditingUsername ? (
-              <View style={styles.usernameEditRow}>
-                <TextInput
-                  style={styles.usernameInput}
-                  value={usernameDraft}
-                  onChangeText={setUsernameDraft}
-                  autoFocus
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity onPress={confirmEditingUsername} style={styles.usernameIconButton}>
-                  <Ionicons name="checkmark" size={22} color="#2e7d32" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={cancelEditingUsername} style={styles.usernameIconButton}>
-                  <Ionicons name="close" size={22} color="#c62828" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={startEditingUsername}>
-                <Text style={styles.username}>{user.username}</Text>
+              <TouchableOpacity onPress={confirmEditingUsername} style={styles.usernameIconButton}>
+                <Ionicons name="checkmark" size={22} color="#2e7d32" />
               </TouchableOpacity>
-            )}
-          </View>
-          <View style={styles.profileRightColumn}>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Plate number:</Text>
-              <Text style={styles.profileValue}>{(user.plate_number || '').toUpperCase()}</Text>
+              <TouchableOpacity onPress={cancelEditingUsername} style={styles.usernameIconButton}>
+                <Ionicons name="close" size={22} color="#c62828" />
+              </TouchableOpacity>
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Car color:</Text>
-              <Text style={styles.profileValue}>{user.car_color}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Car type:</Text>
-              <Text style={styles.profileValue}>{user.car_type}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Credits:</Text>
-              <Text style={styles.profileValue}>{user.credits}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.profileLabel}>Account created:</Text>
-              <Text style={styles.profileValue}>{new Date(user.created_at).toLocaleDateString()}</Text>
-            </View>
-          </View>
+          ) : (
+            <TouchableOpacity onPress={startEditingUsername}>
+              <Text style={styles.username}>{user.username}</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.memberSince}>Member since {new Date(user.created_at).toLocaleDateString()}</Text>
         </View>
-        <View style={styles.myStatsSection}>
-          <Text style={styles.myStatsLabel}>My Stats</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Spots declared:</Text>
-            <Text style={styles.profileValue}>{user.spots_declared}</Text>
+
+        <View style={styles.statsStrip}>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{user.spots_declared}</Text>
+            <Text style={styles.statLabel}>Declared</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Spots taken:</Text>
-            <Text style={styles.profileValue}>{user.spots_taken}</Text>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{user.spots_taken}</Text>
+            <Text style={styles.statLabel}>Taken</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Average arrival time:</Text>
-            <Text style={styles.profileValue}>
-              {user.completed_transactions_count > 0
-                ? (user.total_arrival_time / user.completed_transactions_count).toFixed(2) + ' min'
-                : 'N/A'}
-            </Text>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{user.rating !== null ? parseFloat(user.rating).toFixed(1) : '—'}</Text>
+            <Text style={styles.statLabel}>Rating</Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Rating:</Text>
-            <Text style={styles.profileValue}>
-              {user.rating !== null ? parseFloat(user.rating).toFixed(1) + '/5 (' + user.rating_count + ' ratings)' : 'N/A'}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.profileLabel}>Rank:</Text>
-            <Text style={styles.profileValue}>{user.rank !== null && !isNaN(user.rank) ? 'top ' + user.rank + '%' : 'N/A'}</Text>
+          <View style={styles.statChip}>
+            <Text style={styles.statNumber}>{user.rank !== null && !isNaN(user.rank) ? `${user.rank}%` : '—'}</Text>
+            <Text style={styles.statLabel}>Rank</Text>
           </View>
         </View>
 
-        <View style={styles.divider} />
-
-        <View style={styles.editSection}>
-          <Text style={styles.sectionTitle}>Edit Your Car Details</Text>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Plate Number</Text>
-            <TextInput
-              style={styles.input}
-              value={plateNumber}
-              onChangeText={setPlateNumber}
-              placeholder="e.g., ABC-1234"
-              autoCapitalize="characters"
-            />
+        <Text style={styles.sectionHeader}>VEHICLE</Text>
+        <TouchableOpacity style={styles.row} onPress={openVehicleModal}>
+          <Text style={styles.rowLabel}>Plate number</Text>
+          <View style={styles.rowRight}>
+            <Text style={styles.rowValue}>{(user.plate_number || '—').toUpperCase()}</Text>
+            <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
           </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Car Color</Text>
-            <TextInput
-              style={styles.input}
-              value={carColor}
-              onChangeText={setCarColor}
-              placeholder="e.g., Blue"
-            />
+        </TouchableOpacity>
+        <View style={styles.rowDivider} />
+        <TouchableOpacity style={styles.row} onPress={openVehicleModal}>
+          <Text style={styles.rowLabel}>Car color</Text>
+          <View style={styles.rowRight}>
+            <Text style={styles.rowValue}>{user.car_color || '—'}</Text>
+            <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
           </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Car Type</Text>
-            <View style={styles.pickerWrapper}>
-              <Picker
-                selectedValue={carType}
-                style={styles.picker}
-                onValueChange={(itemValue) => setCarType(itemValue)}
-              >
-                {carTypes.map((type) => (
-                  <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
-                ))}
-              </Picker>
-            </View>
+        </TouchableOpacity>
+        <View style={styles.rowDivider} />
+        <TouchableOpacity style={styles.row} onPress={openVehicleModal}>
+          <Text style={styles.rowLabel}>Car type</Text>
+          <View style={styles.rowRight}>
+            <Text style={styles.rowValue}>{user.car_type || '—'}</Text>
+            <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
           </View>
+        </TouchableOpacity>
 
-          <View style={styles.settingRow}>
-            <View style={styles.settingTextContainer}>
-              <Text style={styles.settingLabel}>Auto spot detection</Text>
-              <Text style={styles.settingDescription}>Automatically detect when you park or leave a spot.</Text>
-            </View>
-            <Switch
-              trackColor={{ false: '#767577', true: '#512da8' }}
-              thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
-              onValueChange={setAutoDetectionEnabled}
-              value={autoDetectionEnabled}
-            />
+        <Text style={styles.sectionHeader}>PREFERENCES</Text>
+        <View style={styles.row}>
+          <View style={styles.rowTextContainer}>
+            <Text style={styles.rowLabel}>Auto spot detection</Text>
+            <Text style={styles.rowDescription}>Automatically detect when you park or leave a spot.</Text>
           </View>
-
-          <TouchableOpacity style={styles.button} onPress={handleUpdate}>
-            <Text style={styles.buttonText}>Save Changes</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.changePasswordButton} onPress={openPasswordModal}>
-            <Text style={styles.changePasswordButtonText}>Change Password</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>Logout</Text>
-          </TouchableOpacity>
+          <Switch
+            trackColor={{ false: '#767577', true: '#512da8' }}
+            thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
+            onValueChange={handleToggleAutoDetect}
+            value={autoDetectionEnabled}
+          />
         </View>
+        <View style={styles.rowDivider} />
+        <View style={styles.radiusRow}>
+          <Text style={styles.rowLabel}>Spot search radius</Text>
+          <Text style={styles.rowDescription}>
+            How far around your current position to show available spots from other users.
+          </Text>
+          <View style={styles.radiusSliderWrapper}>
+            <RangeSlider min={1} max={10} step={1} value={spotRadiusKm} onValueChange={setSpotRadiusKm} />
+          </View>
+        </View>
+
+        <Text style={styles.sectionHeader}>ACCOUNT</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Credits</Text>
+          <Text style={styles.rowValue}>{user.credits}</Text>
+        </View>
+        <View style={styles.rowDivider} />
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Average arrival time</Text>
+          <Text style={styles.rowValue}>{averageArrivalTime}</Text>
+        </View>
+        <View style={styles.rowDivider} />
+        <TouchableOpacity style={styles.row} onPress={openPasswordModal}>
+          <Text style={styles.rowLabel}>Change password</Text>
+          <Ionicons name="chevron-forward" size={18} color="#c7c7cc" />
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.logoutRow} onPress={handleLogout}>
+          <Text style={styles.logoutText}>Log out</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      <Modal
+        visible={showVehicleModal}
+        animationType="fade"
+        transparent
+        onRequestClose={cancelVehicleModal}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.sectionTitle}>Edit Vehicle Details</Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Plate Number</Text>
+              <TextInput
+                style={styles.input}
+                value={plateNumber}
+                onChangeText={setPlateNumber}
+                placeholder="e.g., ABC-1234"
+                autoCapitalize="characters"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Car Color</Text>
+              <TextInput
+                style={styles.input}
+                value={carColor}
+                onChangeText={setCarColor}
+                placeholder="e.g., Blue"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.label}>Car Type</Text>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={carType}
+                  style={styles.picker}
+                  onValueChange={(itemValue) => setCarType(itemValue)}
+                >
+                  {carTypes.map((type) => (
+                    <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.button} onPress={handleSaveVehicle}>
+              <Text style={styles.buttonText}>Save</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalCancelLink} onPress={cancelVehicleModal}>
+              <Text style={styles.modalCancelLinkText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={showPasswordModal}
@@ -515,22 +579,33 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 110, // lets the content scroll up underneath the floating header
+    paddingBottom: 120, // clears the floating tab bar, since Log out is now the last item in-flow
+  },
+  hero: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
   },
   username: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginTop: 10,
-    color: '#512da8',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+    color: '#222',
+  },
+  memberSince: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 4,
   },
   usernameEditRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
   usernameInput: {
     fontSize: 18,
@@ -544,58 +619,92 @@ const styles = StyleSheet.create({
   usernameIconButton: {
     marginLeft: 6,
   },
-  profileDetailsTwoColumn: {
+  statsStrip: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    alignItems: 'flex-start',
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    paddingVertical: 16,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    backgroundColor: '#f7f6fa',
+    borderRadius: 16,
   },
-  profileLeftColumn: {
-    flexDirection: 'column',
+  statChip: {
     alignItems: 'center',
-    marginLeft: -10, // Shifted another 5px left
   },
-  profileRightColumn: {
-    flexDirection: 'column',
-    width: '60%',
-    marginLeft: -15, // Shifted another 5px left
-  },
-  profileLabel: {
-    fontWeight: 'bold',
-    marginRight: 5,
-  },
-  profileValue: {
-    // No specific style for now, will inherit from Text
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 5,
-  },
-  myStatsSection: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  myStatsLabel: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  statNumber: {
+    fontSize: 18,
+    fontWeight: '700',
     color: '#512da8',
   },
-  divider: {
-    height: 8,
-    backgroundColor: '#f4f4f8',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#ddd',
+  statLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
   },
-  editSection: {
-    padding: 20,
-    paddingBottom: 120, // clears the floating tab bar, since Logout is now the last item in-flow
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 28,
+    marginBottom: 6,
+    paddingHorizontal: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    minHeight: 48,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowTextContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  rowLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  rowValue: {
+    fontSize: 15,
+    color: '#888',
+    marginRight: 6,
+  },
+  rowDescription: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e2e2e6',
+    marginLeft: 20,
+  },
+  radiusRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+  },
+  radiusSliderWrapper: {
+    marginTop: 16,
+    paddingHorizontal: 6,
+  },
+  logoutRow: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    marginTop: 28,
+  },
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ff3b30',
   },
   sectionTitle: {
     fontSize: 20,
@@ -635,34 +744,7 @@ const styles = StyleSheet.create({
     height: 180, // Standard height for picker
     color: '#333',
   },
-  settingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  settingTextContainer: {
-    flex: 1,
-    marginRight: 10,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  settingDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  // Pill-shaped, 80% width (20% narrower) and 49pt tall (~10% less than the old ~54pt
-  // padding-derived height) — matches the floating tab bar's rounded aesthetic instead of the
-  // previous slightly-rounded rectangles.
+  // Pill-shaped, 80% width and 49pt tall — matches the floating tab bar's rounded aesthetic.
   button: {
     backgroundColor: '#512da8',
     width: '80%',
@@ -681,37 +763,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: 'white',
     fontSize: 18,
-    fontWeight: '600',
-  },
-  logoutButton: {
-    width: '80%',
-    height: 49,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 12,
-    backgroundColor: '#ff3b30',
-    borderRadius: 24.5,
-  },
-  logoutButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  changePasswordButton: {
-    width: '80%',
-    height: 49,
-    justifyContent: 'center',
-    borderRadius: 24.5,
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#512da8',
-  },
-  changePasswordButtonText: {
-    color: '#512da8',
-    fontSize: 16,
     fontWeight: '600',
   },
   modalBackdrop: {
