@@ -62,7 +62,7 @@ const ConversationsList = ({ onSelectConversation }) => {
     <TouchableOpacity 
       style={styles.conversationItem} 
       onPress={() => {
-        onSelectConversation(item.other_user_id, item.other_username);
+        onSelectConversation(item.other_user_id, item.other_username, item.other_avatar_url);
         handleMarkAsRead(item.other_user_id); // Mark as read when selected
       }}
     >
@@ -103,19 +103,21 @@ const styles = StyleSheet.create({
     paddingTop: 110, // clears the floating header at rest; scrolling moves content up under it
   },
   title: {
-    fontSize: 19.2,
-    fontWeight: 'bold',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#222',
+    paddingHorizontal: 20,
+    paddingTop: 15,
+    paddingBottom: 12,
   },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#fff', // Added background for clarity
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e2e6',
   },
   avatar: {
     width: 50,

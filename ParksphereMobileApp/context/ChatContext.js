@@ -56,6 +56,18 @@ export const ChatProvider = ({ children, socket, userId, triggerNotification }) 
     });
   }, []);
 
+  // Opens a conversation with `user` from anywhere in the app — navigates to the Chat tab with
+  // `route.params.recipient`, which ChatTab.js already watches for and opens directly. Takes the
+  // caller's own `navigation` prop rather than holding one itself, since this context is mounted
+  // above the navigator and has no navigation object of its own.
+  const handleOpenChat = useCallback((navigation, user) => {
+    if (!navigation || !user) return;
+    handleMarkAsRead(user.id);
+    navigation.navigate('Chat', {
+      recipient: { id: user.id, username: user.username, avatar_url: user.avatar_url },
+    });
+  }, [handleMarkAsRead]);
+
   const value = {
     unreadConversations,
     setUnreadConversations,
@@ -64,6 +76,7 @@ export const ChatProvider = ({ children, socket, userId, triggerNotification }) 
     activeChatPartnerRef,
     handleMarkAsRead,
     handleMarkAsUnread,
+    handleOpenChat,
   };
 
   return (
