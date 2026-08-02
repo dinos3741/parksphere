@@ -27,10 +27,11 @@ export default function HomeScreen({
   const { userLocation, getDistance, locationPermissionGranted, parkedLocation } = useLocation();
   const { notifications, addNotification, triggerNotification } = useNotifications();
   const { setHeaderAction } = useHeaderAction();
-  const { 
-    parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot, 
-    handleRequestSpot, handleDeleteSpot, handleSaveEditedSpot, handleCreateSpot, 
-    setSpotRequests, setHasNewRequests, arrivalConfirmed, setArrivalConfirmed, hasActiveSpot 
+  const {
+    parkingSpots, setParkingSpots, acceptedSpot, setAcceptedSpot,
+    handleRequestSpot, handleDeleteSpot, handleSaveEditedSpot, handleCreateSpot,
+    setSpotRequests, setHasNewRequests, arrivalConfirmed, setArrivalConfirmed, hasActiveSpot,
+    spotRadiusKm,
   } = useSpots();
   const { handleOpenChat } = useChat();
 
@@ -213,6 +214,8 @@ export default function HomeScreen({
           setShowTimeOptionsModal={setShowTimeOptionsModal}
           acceptedSpot={acceptedSpot}
           parkedLocation={parkedLocation}
+          getDistance={getDistance}
+          spotRadiusKm={spotRadiusKm}
         />
       </View>
       {currentUser?.role === 'admin' && <Notifications notifications={notifications} />}
