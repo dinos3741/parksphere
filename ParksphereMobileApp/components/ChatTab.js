@@ -15,6 +15,7 @@ const ChatTab = ({ socket, onBack, route }) => {
   } = useChat();
   const [selectedOtherUserId, setSelectedOtherUserId] = useState(null);
   const [selectedOtherUsername, setSelectedOtherUsername] = useState(null);
+  const [selectedOtherAvatarUrl, setSelectedOtherAvatarUrl] = useState(null);
 
   // Sync the active chat partner ref whenever selectedOtherUserId changes
   useEffect(() => {
@@ -25,19 +26,22 @@ const ChatTab = ({ socket, onBack, route }) => {
     if (route.params?.recipient) {
       setSelectedOtherUserId(route.params.recipient.id);
       setSelectedOtherUsername(route.params.recipient.username);
+      setSelectedOtherAvatarUrl(route.params.recipient.avatar_url || null);
       handleMarkAsRead(route.params.recipient.id);
     }
   }, [route.params?.recipient, handleMarkAsRead]);
 
-  const handleSelectConversation = useCallback((otherUserId, otherUsername) => {
+  const handleSelectConversation = useCallback((otherUserId, otherUsername, otherAvatarUrl) => {
     handleMarkAsRead(otherUserId);
     setSelectedOtherUserId(otherUserId);
     setSelectedOtherUsername(otherUsername);
+    setSelectedOtherAvatarUrl(otherAvatarUrl || null);
   }, [handleMarkAsRead]);
 
   const handleBackToConversations = useCallback(() => {
     setSelectedOtherUserId(null);
     setSelectedOtherUsername(null);
+    setSelectedOtherAvatarUrl(null);
   }, []);
 
   const handleNewMessageReceived = useCallback((fromUserId) => { 
@@ -53,6 +57,7 @@ const ChatTab = ({ socket, onBack, route }) => {
           otherUserId={selectedOtherUserId}
           socket={socket}
           otherUsername={selectedOtherUsername}
+          otherUserAvatarUrl={selectedOtherAvatarUrl}
           onNewMessageReceived={handleNewMessageReceived}
         />
       ) : (

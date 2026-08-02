@@ -1,13 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, KeyboardAvoidingView, Platform, Keyboard, Image } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../utils/apiService';
 
-const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewMessageReceived }) => { 
+// Top of the floating tab bar sits at bottom:20 + height:58 = 78pt from the screen edge (see
+// RootNavigator.js) — the input bar needs at least that much clearance when the keyboard is
+// closed, or the tab bar covers it. Only applied while the keyboard is hidden (tracked below),
+// since KeyboardAvoidingView's own padding already lifts the bar clear of an open keyboard, and
+// stacking both would leave an ugly gap above the keyboard.
+const TAB_BAR_CLEARANCE = 90;
+
+const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, otherUserAvatarUrl, onNewMessageReceived }) => {
   const { userId, token, serverUrl, currentUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const flatListRef = useRef(null);
 
   const getAvatarUri = (avatarUrl, username) => {
@@ -18,6 +27,12 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
     }
     return `${serverUrl}${avatarUrl}`;
   };
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -54,7 +69,7 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
             text: message.message,
             senderId: message.from,
             senderUsername: otherUsername,
-            avatar: getAvatarUri(null, otherUsername), // Avatar will be fetched via helper
+            avatar: getAvatarUri(otherUserAvatarUrl, otherUsername),
             createdAt: new Date(),
           }]);
         }
@@ -65,7 +80,7 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
         socket.current.off('privateMessage', handleIncomingMessage);
       };
     }
-  }, [socket, otherUserId, userId, otherUsername]);
+  }, [socket, otherUserId, userId, otherUsername, otherUserAvatarUrl]);
 
   const onSend = () => {
     if (!inputText.trim()) return;
@@ -97,13 +112,22 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.fullContainer} 
+    <KeyboardAvoidingView
+      style={styles.fullContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 105 : 125}
+      // This screen's own container actually starts at the true top of the screen — the floating
+      // Venio header (RootNavigator.js) is a pure position:'absolute' overlay, not an in-flow
+      // header pushing this content down (Tab.Navigator has headerShown:false, no
+      // sceneContainerStyle offset). A nonzero offset here was telling KeyboardAvoidingView there
+      // was space above it that didn't need padding, which overcompensated and left a gap between
+      // the input bar and the keyboard.
+      keyboardVerticalOffset={0}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}><Text style={styles.backButtonText}>{'< Back'}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Ionicons name="chevron-back" size={26} color="#512da8" />
+        </TouchableOpacity>
+        <Image source={{ uri: getAvatarUri(otherUserAvatarUrl, otherUsername) }} style={styles.headerAvatar} />
         <Text style={styles.headerTitle}>{otherUsername}</Text>
       </View>
       <FlatList
@@ -113,41 +137,106 @@ const ConversationScreen = ({ onBack, otherUserId, socket, otherUsername, onNewM
         keyExtractor={(item) => item.id}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })} // Added animated for smoother scrolling
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })} // Ensure scroll on initial layout
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={styles.messageListContent}
       />
-      <View style={styles.inputContainer}>
+      <View style={[styles.inputContainer, !isKeyboardVisible && { marginBottom: TAB_BAR_CLEARANCE }]}>
         <TextInput
           style={styles.input}
           value={inputText}
           onChangeText={setInputText}
           placeholder="Type a message..."
+          placeholderTextColor="#999"
         />
-        <TouchableOpacity style={styles.sendButton} onPress={onSend}><Text style={styles.sendButtonText}>Send</Text></TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+          onPress={onSend}
+          disabled={!inputText.trim()}
+        >
+          <Ionicons name="arrow-up" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  fullContainer: { flex: 1, backgroundColor: '#f0f0f0' },
+  fullContainer: { flex: 1, backgroundColor: '#f7f6fa' },
   // marginTop clears the app-wide floating header (RootNavigator.js) — this screen has its own
-  // solid in-thread header underneath it, so unlike a plain list, there's no sense in trying to
+  // in-thread header underneath it, so unlike a plain list, there's no sense in trying to
   // scroll messages through both header layers; this one just needs to sit below the outer one.
-  header: { flexDirection: 'row', alignItems: 'center', padding: 15, paddingTop: 10, marginTop: 110, backgroundColor: '#512da8' },
-  backButtonText: { color: 'white', fontSize: 18 },
-  headerTitle: { flex: 1, textAlign: 'center', color: 'white', fontSize: 20, fontWeight: 'bold' },
-  messageRow: { flexDirection: 'row', margin: 10, alignItems: 'flex-end' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    marginTop: 110,
+    backgroundColor: '#fff',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e2e2e6',
+  },
+  backButton: {
+    width: 34,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginLeft: 2,
+    marginRight: 8,
+  },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#222' },
+  messageListContent: { flexGrow: 1, paddingVertical: 8 },
+  messageRow: { flexDirection: 'row', marginHorizontal: 12, marginVertical: 4, alignItems: 'flex-end' },
   myMessageRow: { justifyContent: 'flex-end' },
-  avatar: { width: 35, height: 35, borderRadius: 17.5, marginRight: 5 },
-  bubble: { padding: 10, borderRadius: 15, maxWidth: '75%' },
-  myBubble: { backgroundColor: '#512da8' },
-  otherBubble: { backgroundColor: '#fff' },
-  myText: { color: 'white' },
-  otherText: { color: 'black' },
-  inputContainer: { flexDirection: 'row', padding: 10, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#ddd' },
-  input: { flex: 1, height: 40, borderWidth: 1, borderColor: '#ddd', borderRadius: 20, paddingHorizontal: 15 },
-  sendButton: { marginLeft: 10, justifyContent: 'center', paddingHorizontal: 15, backgroundColor: '#512da8', borderRadius: 20 },
-  sendButtonText: { color: 'white', fontWeight: 'bold' }
+  avatar: { width: 30, height: 30, borderRadius: 15, marginRight: 6 },
+  bubble: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    maxWidth: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  myBubble: { backgroundColor: '#512da8', borderBottomRightRadius: 6 },
+  otherBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 6 },
+  myText: { color: 'white', fontSize: 15.5 },
+  otherText: { color: '#222', fontSize: 15.5 },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#e2e2e6',
+  },
+  input: {
+    flex: 1,
+    height: 42,
+    backgroundColor: '#f0f0f4',
+    borderRadius: 21,
+    paddingHorizontal: 16,
+    fontSize: 15.5,
+    color: '#222',
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginLeft: 8,
+    backgroundColor: '#512da8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#c7bfe0',
+  },
 });
 
 export default ConversationScreen;
