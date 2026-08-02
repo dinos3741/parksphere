@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, TouchableOpacity, Platform, Keyboard, FlatList, Alert, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -7,11 +8,15 @@ import { useAuth } from '../context/AuthContext';
 import { useChat } from '../context/ChatContext';
 import { apiRequest } from '../utils/apiService';
 
+const RECENT_SEARCHES_KEY = 'recentSearchedUsers';
+const MAX_RECENT_SEARCHES = 15;
+
 const SearchScreen = ({ navigation }) => {
   const { token, serverUrl } = useAuth();
   const { handleOpenChat } = useChat();
   const [username, setUsername] = useState('');
   const [interactions, setInteractions] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [searchedUser, setSearchedUser] = useState(null);
   const isFocused = useIsFocused();
 
@@ -26,6 +31,31 @@ const SearchScreen = ({ navigation }) => {
       return avatarUrl;
     }
     return `${serverUrl}${avatarUrl}`;
+  };
+
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+        if (saved) setRecentSearches(JSON.parse(saved));
+      } catch (e) {
+        console.error('[SearchScreen] Failed to load recent searches:', e);
+      }
+    };
+    loadRecentSearches();
+  }, []);
+
+  const recordRecentSearch = async (user) => {
+    setRecentSearches((prev) => {
+      const next = [
+        { id: user.id, username: user.username, avatar_url: user.avatar_url },
+        ...prev.filter((u) => u.id !== user.id),
+      ].slice(0, MAX_RECENT_SEARCHES);
+      AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next)).catch((e) =>
+        console.error('[SearchScreen] Failed to persist recent searches:', e)
+      );
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -77,6 +107,7 @@ const SearchScreen = ({ navigation }) => {
       if (response.ok) {
         const data = await response.json();
         setSearchedUser(data);
+        recordRecentSearch(data);
       } else if (response.status === 404) {
         setSearchedUser({ notFound: true });
       } else {
@@ -95,6 +126,11 @@ const SearchScreen = ({ navigation }) => {
   const handleSearch = () => {
     performSearch(username);
   };
+
+  // Explicit searches are a stronger recency signal than passive interaction history, so they lead
+  // the list; interaction-history entries fill in after, skipping anyone already covered above.
+  const recentSearchIds = new Set(recentSearches.map((u) => u.id));
+  const recentList = [...recentSearches, ...interactions.filter((u) => !recentSearchIds.has(u.id))];
 
   const renderUserDetails = () => {
     if (!searchedUser) return null;
@@ -175,9 +211,9 @@ const SearchScreen = ({ navigation }) => {
         {searchedUser ? renderUserDetails() : (
           <View style={styles.recentContainer}>
             <Text style={styles.sectionHeader}>RECENT</Text>
-            {interactions.length > 0 ? (
+            {recentList.length > 0 ? (
               <FlatList
-                data={interactions}
+                data={recentList}
                 keyExtractor={item => item.id.toString()}
                 renderItem={({ item }) => (
                   <TouchableOpacity
@@ -194,7 +230,7 @@ const SearchScreen = ({ navigation }) => {
                 )}
               />
             ) : (
-              <Text style={styles.emptyText}>No recent interactions yet.</Text>
+              <Text style={styles.emptyText}>No recent searches yet.</Text>
             )}
           </View>
         )}
