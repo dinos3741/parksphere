@@ -378,4 +378,31 @@ async function createMessagesTable() {
   }
 }
 
-module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable };
+// Postgres auto-indexes PRIMARY KEY/UNIQUE columns only — every foreign key below needed its own
+// index for two reasons: (1) every query in index.js that filters or joins on these columns was
+// doing a sequential scan, worst of all user_ratings.rated_user_id, hit as a correlated subquery
+// on every row of several listing/profile endpoints; (2) every one of these tables has an
+// ON DELETE CASCADE back to users, and without an index on the referencing column, deleting a
+// single user means a full scan of each dependent table to find the rows to cascade.
+// status columns included too — filtered directly in several parking_spots/requests queries.
+async function createIndexes() {
+  try {
+    const client = await pool.connect();
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_parking_spots_user_id ON parking_spots(user_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_parking_spots_status ON parking_spots(status);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_requests_spot_id ON requests(spot_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_requests_requester_id ON requests(requester_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_requests_owner_id ON requests(owner_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_ratings_rater_id ON user_ratings(rater_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_user_ratings_rated_user_id ON user_ratings(rated_user_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_messages_receiver_id ON messages(receiver_id);`);
+    client.release();
+    console.log('Indexes ensured to exist.');
+  } catch (err) {
+    console.error('Error creating indexes:', err);
+  }
+}
+
+module.exports = { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable, createIndexes };

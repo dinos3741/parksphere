@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
 const { OAuth2Client } = require('google-auth-library');
-const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable } = require('./db');
+const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable, createIndexes } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const path = require('path');
 const fs = require('fs');
@@ -460,12 +460,17 @@ app.post('/api/users/avatar', authenticateToken, upload.single('avatar'), async 
   }
 });
 
-// Ensure tables exist on server start
-createUsersTable();
-createParkingSpotsTable();
-createRequestsTable(); // Ensure requests table exists
-createUserRatingsTable();
-createMessagesTable();
+// Ensure tables exist on server start, then indexes — Promise.all + then (not five independent
+// fire-and-forget calls, which is what this was: each is async and none were awaited, so they were
+// actually running interleaved, not sequentially). createIndexes references all five tables by
+// name, so it needs them to have genuinely finished first, not just been kicked off.
+Promise.all([
+  createUsersTable(),
+  createParkingSpotsTable(),
+  createRequestsTable(),
+  createUserRatingsTable(),
+  createMessagesTable(),
+]).then(() => createIndexes());
 
 const jwtCheck = auth({
   audience: ['parksphere-client', 'account'],
