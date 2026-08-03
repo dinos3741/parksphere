@@ -478,17 +478,22 @@ app.post('/api/users/avatar', authenticateToken, upload.single('avatar'), async 
   }
 });
 
-// Ensure tables exist on server start, then indexes — Promise.all + then (not five independent
-// fire-and-forget calls, which is what this was: each is async and none were awaited, so they were
-// actually running interleaved, not sequentially). createIndexes references all five tables by
-// name, so it needs them to have genuinely finished first, not just been kicked off.
-Promise.all([
-  createUsersTable(),
-  createParkingSpotsTable(),
-  createRequestsTable(),
-  createUserRatingsTable(),
-  createMessagesTable(),
-]).then(() => createIndexes());
+// Ensure tables exist on server start, respecting FK dependency order, then indexes. This used to
+// be five independent fire-and-forget calls (none awaited, so actually running interleaved) and
+// briefly a Promise.all (which still just invokes all five immediately/concurrently — Promise.all
+// only sequences the AWAITING, not the calls themselves). Neither ever surfaced as a bug against
+// the live database, because CREATE TABLE IF NOT EXISTS short-circuits before evaluating a table's
+// body (including its FK references) once that table already exists — but a genuinely fresh
+// database exposed it immediately in testing: parking_spots/requests/user_ratings/messages all
+// reference users, and requests also references parking_spots, so creating them out of order
+// fails outright. users -> parking_spots -> (requests, user_ratings, messages in parallel, since
+// none of those three depend on each other) -> indexes.
+(async () => {
+  await createUsersTable();
+  await createParkingSpotsTable();
+  await Promise.all([createRequestsTable(), createUserRatingsTable(), createMessagesTable()]);
+  await createIndexes();
+})();
 
 const jwtCheck = auth({
   audience: ['parksphere-client', 'account'],

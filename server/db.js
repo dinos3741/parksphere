@@ -21,6 +21,19 @@ pool.on('error', (err, client) => {
   process.exit(-1);
 });
 
+// 2026-08-03: consolidated from ~20 accumulated ALTER TABLE migrations (column additions, two
+// type conversions, one rename, one drop) into the direct target schema — safe because
+// CREATE TABLE IF NOT EXISTS is a complete no-op against a database that already has the table
+// (Postgres doesn't diff columns), so this only changes what a genuinely FRESH database gets;
+// the live database's actual shape was already reconciled by that whole migration history having
+// already run. Verified by creating a fresh scratch database from this file and comparing its
+// resulting schema (\d) directly against live's before this landed.
+//
+// Also dropped 7 columns confirmed unused by any app code across server/mobile/web
+// (users.rating, rating_count, expo_push_token, facebook_id, instagram_id;
+// requests.latitude, requests.longitude) — superseded by average_rating (rating/rating_count),
+// never-implemented features (expo_push_token/facebook_id/instagram_id), or by distance
+// (requests.latitude/longitude). Confirmed empty/stale in the live data before dropping.
 async function createUsersTable() {
   try {
     const client = await pool.connect();
@@ -28,164 +41,26 @@ async function createUsersTable() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username VARCHAR(255) UNIQUE NOT NULL,
-        keycloak_id VARCHAR(255) UNIQUE, -- New column for Keycloak linking
-        email VARCHAR(255) UNIQUE, -- Added for OAuth and general use
-        google_id VARCHAR(255) UNIQUE, -- Legacy column
-        plate_number VARCHAR(255), -- Made nullable for OAuth users
-        car_color VARCHAR(255), -- Made nullable for OAuth users
-        car_type VARCHAR(255), -- New column for car type
-        avatar_url VARCHAR(255), -- New column for avatar URL
+        email VARCHAR(255) UNIQUE,
+        google_id VARCHAR(255) UNIQUE,
+        keycloak_id VARCHAR(255) UNIQUE,
+        plate_number VARCHAR(255),
+        car_color VARCHAR(255),
+        car_type VARCHAR(255),
+        avatar_url VARCHAR(255),
+        credits INTEGER DEFAULT 0,
+        reserved_amount INTEGER DEFAULT 0,
+        spots_declared INTEGER DEFAULT 0,
+        spots_taken INTEGER DEFAULT 0,
+        total_arrival_time DECIMAL(10, 2) DEFAULT 0.00,
+        completed_transactions_count INTEGER DEFAULT 0,
+        average_rating NUMERIC(3, 2) DEFAULT 0.00,
+        auto_detect BOOLEAN DEFAULT FALSE,
+        notifications_enabled BOOLEAN DEFAULT TRUE,
+        role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'demo')),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-
-    // Drop the password column if it exists
-    await client.query(`
-      ALTER TABLE users DROP COLUMN IF EXISTS password;
-    `);
-
-    // Add keycloak_id column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS keycloak_id VARCHAR(255) UNIQUE;
-    `);
-
-    // Alter plate_number and car_color to be nullable
-    await client.query(`
-      ALTER TABLE users ALTER COLUMN plate_number DROP NOT NULL;
-      ALTER TABLE users ALTER COLUMN car_color DROP NOT NULL;
-    `);
-
-    // Add email column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
-    `);
-
-    // Add google_id column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
-    `);
-
-    // Add car_type column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS car_type VARCHAR(255);
-    `);
-
-    // Add avatar_url column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(255);
-    `);
-
-    // Add credits column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 0;
-    `);
-
-    // Add reserved_amount column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS reserved_amount INTEGER DEFAULT 0;
-    `);
-
-    // Add spots_declared column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS spots_declared INTEGER DEFAULT 0;
-    `);
-
-    // Add spots_taken column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS spots_taken INTEGER DEFAULT 0;
-    `);
-
-    // Add total_arrival_time and completed_transactions_count to users table
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS total_arrival_time DECIMAL(10, 2) DEFAULT 0.00;
-    `);
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS completed_transactions_count INTEGER DEFAULT 0;
-    `);
-
-    // Add average_rating column if it doesn't exist
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3, 2) DEFAULT 0.00;
-    `);
-
-    // Add role column if it doesn't exist — account levels: 'user' (default), 'admin', 'demo'
-    await client.query(`
-      ALTER TABLE users
-      ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'demo'));
-    `);
-
-    // Migration: Handle auto_detection_enabled -> auto_detect
-    const checkColumns = await client.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'users' AND column_name IN ('auto_detection_enabled', 'auto_detect', 'notifications_enabled');
-    `);
-    
-    const columns = checkColumns.rows.map(r => r.column_name);
-
-    // Add auto_detect column if it doesn't exist
-    if (columns.includes('auto_detection_enabled') && !columns.includes('auto_detect')) {
-      console.log('Renaming auto_detection_enabled to auto_detect...');
-      await client.query(`ALTER TABLE users RENAME COLUMN auto_detection_enabled TO auto_detect;`);
-    } else if (!columns.includes('auto_detect')) {
-      console.log('Adding auto_detect column...');
-      await client.query(`ALTER TABLE users ADD COLUMN auto_detect BOOLEAN DEFAULT FALSE;`);
-    }
-
-    // Add notifications_enabled column if it doesn't exist
-    if (!columns.includes('notifications_enabled')) {
-      console.log('Adding notifications_enabled column...');
-      await client.query(`ALTER TABLE users ADD COLUMN notifications_enabled BOOLEAN DEFAULT TRUE;`);
-    }
-
-    // If auto_detect already exists, we do nothing.
-    // If both exist (shouldn't happen with this logic), we might want to drop the old one, 
-    // but better to be safe and just leave it or handle it if we really want to clean up.
-    if (columns.includes('auto_detection_enabled') && columns.includes('auto_detect')) {
-       console.log('Both auto_detection_enabled and auto_detect exist. Dropping the old one...');
-       await client.query(`ALTER TABLE users DROP COLUMN auto_detection_enabled;`);
-    }
-
-    // Check and alter credits column type if it's not INTEGER
-    const creditsColumnTypeResult = await client.query(`
-      SELECT data_type FROM information_schema.columns
-      WHERE table_name = 'users' AND column_name = 'credits';
-    `);
-
-    if (creditsColumnTypeResult.rows.length > 0 && creditsColumnTypeResult.rows[0].data_type !== 'integer') {
-      console.log('credits column is not INTEGER, attempting to alter to INTEGER...');
-      await client.query(`
-        ALTER TABLE users ALTER COLUMN credits TYPE INTEGER USING credits::integer;
-      `);
-      console.log('credits column successfully altered to INTEGER.');
-    }
-
-    // Check and alter reserved_amount column type if it's not INTEGER
-    const reservedAmountColumnTypeResult = await client.query(`
-      SELECT data_type FROM information_schema.columns
-      WHERE table_name = 'users' AND column_name = 'reserved_amount';
-    `);
-
-    if (reservedAmountColumnTypeResult.rows.length > 0 && reservedAmountColumnTypeResult.rows[0].data_type !== 'integer') {
-      console.log('reserved_amount column is not INTEGER, attempting to alter to INTEGER...');
-      await client.query(`
-        ALTER TABLE users ALTER COLUMN reserved_amount TYPE INTEGER USING reserved_amount::integer;
-      `);
-      console.log('reserved_amount column successfully altered to INTEGER.');
-    }
-
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {
@@ -202,85 +77,18 @@ async function createParkingSpotsTable() {
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         latitude DECIMAL(10, 8) NOT NULL,
         longitude DECIMAL(11, 8) NOT NULL,
-        time_to_leave INTEGER NOT NULL, -- Time in minutes
-        cost_type VARCHAR(255) NOT NULL, -- Changed from is_free
+        fuzzed_latitude DECIMAL(10, 8),
+        fuzzed_longitude DECIMAL(11, 8),
+        time_to_leave INTEGER NOT NULL, -- minutes
+        cost_type VARCHAR(255) NOT NULL DEFAULT 'Paid',
         price INTEGER DEFAULT 0,
-        comments TEXT, -- New column for comments
-        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied', 'soon_free' (yellow), 'committed' (green), 'vacating' (red), 'free'
+        declared_car_type VARCHAR(255),
+        comments TEXT,
+        status VARCHAR(50) DEFAULT 'occupied', -- 'occupied' | 'soon_free' (yellow) | 'committed' (green) | 'vacating' (red) | 'free'
+        is_auto_detected BOOLEAN DEFAULT FALSE,
         declared_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
-
-    // Check and alter cost_type column type if it's BOOLEAN
-    const columnTypeResult = await client.query(`
-      SELECT data_type FROM information_schema.columns
-      WHERE table_name = 'parking_spots' AND column_name = 'cost_type';
-    `);
-
-    if (columnTypeResult.rows.length > 0 && columnTypeResult.rows[0].data_type === 'boolean') {
-      console.log('cost_type column is BOOLEAN, attempting to alter to VARCHAR(255)...');
-      await client.query(`
-        ALTER TABLE parking_spots ALTER COLUMN cost_type TYPE VARCHAR(255) USING CASE
-          WHEN cost_type = TRUE THEN 'Free'
-          WHEN cost_type = FALSE THEN 'Paid'
-          ELSE 'Paid' -- Default for any other unexpected boolean value
-        END;
-      `);
-      await client.query(`ALTER TABLE parking_spots ALTER COLUMN cost_type SET DEFAULT 'Paid';`);
-      await client.query(`ALTER TABLE parking_spots ALTER COLUMN cost_type SET NOT NULL;`);
-      console.log('cost_type column successfully altered to VARCHAR(255).');
-    } else if (columnTypeResult.rows.length === 0) {
-      console.log('cost_type column does not exist, it will be created by CREATE TABLE IF NOT EXISTS.');
-    }
-
-    // Add declared_car_type column if it doesn't exist
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS declared_car_type VARCHAR(255);
-    `);
-
-    // Add comments column if it doesn't exist
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS comments TEXT;
-    `);
-
-    // Add status column if it doesn't exist
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'occupied';
-    `);
-
-    // Add fuzzed location columns if they don't exist
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS fuzzed_latitude DECIMAL(10, 8);
-    `);
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS fuzzed_longitude DECIMAL(11, 8);
-    `);
-
-    // Add is_auto_detected column if it doesn't exist
-    await client.query(`
-      ALTER TABLE parking_spots
-      ADD COLUMN IF NOT EXISTS is_auto_detected BOOLEAN DEFAULT FALSE;
-    `);
-
-    // Check and alter price column type if it's not INTEGER
-    const priceColumnTypeResult = await client.query(`
-      SELECT data_type FROM information_schema.columns
-      WHERE table_name = 'parking_spots' AND column_name = 'price';
-    `);
-
-    if (priceColumnTypeResult.rows.length > 0 && priceColumnTypeResult.rows[0].data_type !== 'integer') {
-      console.log('price column is not INTEGER, attempting to alter to INTEGER...');
-      await client.query(`
-        ALTER TABLE parking_spots ALTER COLUMN price TYPE INTEGER USING price::integer;
-      `);
-      console.log('price column successfully altered to INTEGER.');
-    }
-
     client.release();
     console.log('Parking spots table ensured to exist.');
   } catch (err) {
@@ -291,55 +99,22 @@ async function createParkingSpotsTable() {
 async function createRequestsTable() {
   try {
     const client = await pool.connect();
-    // Drop the old accepted_requests table if it exists
-    await client.query(`DROP TABLE IF EXISTS accepted_requests CASCADE;`);
+    await client.query(`DROP TABLE IF EXISTS accepted_requests CASCADE;`); // superseded by this table, long ago
     await client.query(`
       CREATE TABLE IF NOT EXISTS requests (
         id SERIAL PRIMARY KEY,
-        spot_id INTEGER REFERENCES parking_spots(id),
+        spot_id INTEGER REFERENCES parking_spots(id) ON DELETE SET NULL,
         requester_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'rejected', 'cancelled', 'fulfilled', 'expired'
+        status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'fulfilled' | 'expired'
+        distance DECIMAL(10, 2),
+        message TEXT, -- optional, from requester
+        response_message TEXT, -- optional, from owner
         requested_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        responded_at TIMESTAMP WITH TIME ZONE, -- When owner accepted/rejected
-        accepted_at TIMESTAMP WITH TIME ZONE, -- When the request was accepted
-        arrived_at TIMESTAMP WITH TIME ZONE, -- When the requester confirmed arrival
-        message TEXT, -- Optional message from requester
-        response_message TEXT -- Optional message from owner
+        responded_at TIMESTAMP WITH TIME ZONE, -- owner accepted/rejected
+        accepted_at TIMESTAMP WITH TIME ZONE,
+        arrived_at TIMESTAMP WITH TIME ZONE -- requester confirmed arrival
       );
-    `);
-
-    // Drop the existing foreign key constraint if it exists
-    await client.query(`
-      ALTER TABLE requests
-      DROP CONSTRAINT IF EXISTS requests_spot_id_fkey;
-    `);
-
-    // Add the foreign key constraint without ON DELETE CASCADE
-    await client.query(`
-      ALTER TABLE requests
-      ADD CONSTRAINT requests_spot_id_fkey
-      FOREIGN KEY (spot_id)
-      REFERENCES parking_spots(id)
-      ON DELETE SET NULL;
-    `);
-
-    // Add distance column if it doesn't exist
-    await client.query(`
-      ALTER TABLE requests
-      ADD COLUMN IF NOT EXISTS distance DECIMAL(10, 2);
-    `);
-
-    // Add accepted_at column if it doesn't exist
-    await client.query(`
-      ALTER TABLE requests
-      ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMP WITH TIME ZONE;
-    `);
-
-    // Add arrived_at column if it doesn't exist
-    await client.query(`
-      ALTER TABLE requests
-      ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMP WITH TIME ZONE;
     `);
     client.release();
     console.log('Requests table ensured to exist.');
