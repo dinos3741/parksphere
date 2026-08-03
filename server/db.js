@@ -1,11 +1,19 @@
 const { Pool } = require('pg');
 
+// index.js loads dotenv before requiring this file, so process.env is already populated here.
+// DB_PASSWORD has no fallback — a missing password should fail loudly at startup, not silently
+// connect with a hardcoded credential. The other fields default to this project's own local dev
+// values so a fresh checkout with a matching local Postgres setup still works with zero config.
+if (!process.env.DB_PASSWORD) {
+  throw new Error('DB_PASSWORD is not set. Add it to server/.env — see server/.env.example.');
+}
+
 const pool = new Pool({
-  user: 'konstantinos', // Replace with your PostgreSQL username
-  host: 'localhost',
-  database: 'parksphere_db', // Replace with your database name
-  password: 'dinos1234', // Replace with your PostgreSQL password
-  port: 5432,
+  user: process.env.DB_USER || 'konstantinos',
+  host: process.env.DB_HOST || 'localhost',
+  database: process.env.DB_NAME || 'parksphere_db',
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : 5432,
 });
 
 pool.on('error', (err, client) => {
