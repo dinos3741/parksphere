@@ -164,9 +164,10 @@ const ProfileModal = ({ onClose, userData, currentUserId, addNotification, onCar
         </div>
       </div>
       {showUpdateCredentialsModal && <UpdateCredentialsModal onClose={handleCloseUpdateCredentialsModal} />}
-      {showChangeCarTypeModal && <ChangeCarTypeModal 
+      {showChangeCarTypeModal && <ChangeCarTypeModal
         onClose={handleCloseChangeCarTypeModal}
         currentUserId={currentUserId}
+        userData={userData}
         addNotification={addNotification}
         onCarDetailsUpdated={onCarDetailsUpdated}
       />}

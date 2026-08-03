@@ -57,10 +57,16 @@ async function createUsersTable() {
         average_rating NUMERIC(3, 2) DEFAULT 0.00,
         auto_detect BOOLEAN DEFAULT FALSE,
         notifications_enabled BOOLEAN DEFAULT TRUE,
+        share_plate_number BOOLEAN DEFAULT TRUE, -- opt-out: plate is still hidden from anyone without an accepted-spot relationship regardless of this flag; this only controls whether an accepted requester specifically sees it
         role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'demo')),
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    // 2026-08-03: one genuinely new column added after the consolidation above — exactly the
+    // narrow, one-off ADD COLUMN this pattern is meant for going forward, not a return to the old
+    // sprawling migration list. Needed because CREATE TABLE IF NOT EXISTS is a no-op against the
+    // already-existing live table.
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS share_plate_number BOOLEAN DEFAULT TRUE;`);
     client.release();
     console.log('Users table ensured to exist.');
   } catch (err) {

@@ -675,26 +675,27 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT 
-        u.id, 
-        u.username, 
-        u.plate_number, 
-        u.car_color, 
-        u.car_type, 
-        u.created_at, 
-        u.credits, 
-        u.spots_declared, 
-        u.spots_taken, 
-        u.total_arrival_time, 
+      `SELECT
+        u.id,
+        u.username,
+        u.plate_number,
+        u.car_color,
+        u.car_type,
+        u.created_at,
+        u.credits,
+        u.spots_declared,
+        u.spots_taken,
+        u.total_arrival_time,
         u.completed_transactions_count,
         u.avatar_url,
         u.auto_detect,
         u.notifications_enabled,
         u.role,
+        u.share_plate_number,
         (SELECT AVG(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating,
 
         (SELECT COUNT(rating) FROM user_ratings WHERE rated_user_id = u.id) as rating_count
-      FROM users u 
+      FROM users u
       WHERE u.id = $1`,
       [userId]
     );
@@ -703,6 +704,29 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
     if (!user) {
       return res.status(404).send('User not found.');
     }
+
+    // 2026-08-03: this endpoint had no access restriction beyond "is authenticated" — any logged-in
+    // user could pass any (sequential, easily-enumerable) user id and get back that person's plate
+    // number and car color, regardless of any actual relationship between them. Every legitimate
+    // caller across both clients either fetches their own id, or fetches an owner's details only
+    // after that owner has accepted their spot request — so gating on exactly that relationship
+    // doesn't break anything real.
+    const isSelf = req.user.userId === parseInt(userId);
+    let isAcceptedByOwner = false;
+    if (!isSelf) {
+      const acceptedCheck = await pool.query(
+        `SELECT 1 FROM requests WHERE owner_id = $1 AND requester_id = $2 AND status = 'accepted' LIMIT 1`,
+        [userId, req.user.userId]
+      );
+      isAcceptedByOwner = acceptedCheck.rows.length > 0;
+    }
+    if (!isSelf) {
+      user.car_color = isAcceptedByOwner ? user.car_color : null;
+      user.plate_number = (isAcceptedByOwner && user.share_plate_number) ? user.plate_number : null;
+      delete user.share_plate_number; // internal-only for other users' records, not needed by the client
+    }
+    // For a self-fetch, share_plate_number is kept — it's the user's own preference value, needed
+    // by both clients' toggle UI to reflect the saved state after a profile refresh.
 
     const scores = await calculateAllUserScores();
     const sortedScores = scores.sort((a, b) => b.score - a.score);
@@ -897,7 +921,7 @@ app.get('/api/user/spot-requests', authenticateToken, async (req, res) => {
 app.get('/api/parkingspots', authenticateToken, async (req, res) => {
   const filter = req.query.filter;
   const userCarType = req.query.userCarType; // Get user's car type from query
-  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status, ps.is_auto_detected FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
+  let query = 'SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color, u.share_plate_number, ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price, ps.declared_at, ps.declared_car_type, ps.comments, ps.fuzzed_latitude, ps.fuzzed_longitude, ps.status, ps.is_auto_detected FROM parking_spots ps JOIN users u ON ps.user_id = u.id'; // Changed is_free to cost_type
   const queryParams = [];
   const conditions = [];
 
@@ -953,6 +977,22 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
 
     const spotsToSend = result.rows.map(spot => {
       const shouldBeExactLocation = Boolean(spot.user_id == currentUserId || acceptedRequests[spot.id] || spot.is_auto_detected);
+      // Deliberately narrower than shouldBeExactLocation above (no is_auto_detected clause) — an
+      // auto-detected spot's exact location is shown to anyone per that logic, but its owner's
+      // plate/car_color should still only reach the owner themselves or someone they've actually
+      // accepted, not just anyone who happens to be looking at an auto-detected spot.
+      const isOwnerOrAccepted = Boolean(spot.user_id == currentUserId || acceptedRequests[spot.id]);
+      const isSelf = spot.user_id == currentUserId;
+      // Was already unconditionally in the SELECT above and sent to every viewer for every spot —
+      // the client only chose not to render it for non-accepted viewers, which isn't the same as
+      // the server not sending it. Now: hidden entirely unless owner/self or accepted, and further
+      // gated by the owner's own share_plate_number preference (unless it's the owner's own view).
+      spot = {
+        ...spot,
+        car_color: isOwnerOrAccepted ? spot.car_color : null,
+        plate_number: (isOwnerOrAccepted && (isSelf || spot.share_plate_number)) ? spot.plate_number : null,
+      };
+      delete spot.share_plate_number; // internal-only, not needed by the client
 
       if (shouldBeExactLocation) {
         return { ...spot, isExactLocation: true };
@@ -1772,7 +1812,7 @@ app.post('/api/auth/google', async (req, res) => {
 
 app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   const userId = req.params.id;
-  const { car_type, car_color, plate_number, auto_detect, notifications_enabled } = req.body;
+  const { car_type, car_color, plate_number, auto_detect, notifications_enabled, share_plate_number } = req.body;
 
   // Ensure the authenticated user is updating their own details
   if (req.user.userId !== parseInt(userId)) {
@@ -1780,11 +1820,12 @@ app.put('/api/users/:id/car-details', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Update car_type, car_color, plate_number, auto_detect, and notifications_enabled in the database
-    // We use COALESCE to keep existing values if some are not provided
+    // Update car_type, car_color, plate_number, auto_detect, notifications_enabled, and
+    // share_plate_number in the database. We use COALESCE to keep existing values if some are not
+    // provided.
     await pool.query(
-      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detect = COALESCE($4, auto_detect), notifications_enabled = COALESCE($5, notifications_enabled) WHERE id = $6',
-      [car_type, car_color, plate_number, auto_detect, notifications_enabled, userId]
+      'UPDATE users SET car_type = COALESCE($1, car_type), car_color = COALESCE($2, car_color), plate_number = COALESCE($3, plate_number), auto_detect = COALESCE($4, auto_detect), notifications_enabled = COALESCE($5, notifications_enabled), share_plate_number = COALESCE($6, share_plate_number) WHERE id = $7',
+      [car_type, car_color, plate_number, auto_detect, notifications_enabled, share_plate_number, userId]
     );
 
     // Fetch the updated user data to create a new JWT

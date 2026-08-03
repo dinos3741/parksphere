@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './ChangeCarTypeModal.css';
 
-const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDetailsUpdated }) => {
+const ChangeCarTypeModal = ({ onClose, currentUserId, userData, addNotification, onCarDetailsUpdated }) => {
   const [carType, setCarType] = useState('');
   const [carColor, setCarColor] = useState('');
   const [availableCarTypes, setAvailableCarTypes] = useState([]);
+  // Opt-out default (true) matches the users.share_plate_number DB default — a spot owner's plate
+  // is already hidden from anyone without an accepted-spot relationship regardless of this flag;
+  // it only controls whether an accepted requester specifically sees it.
+  const [sharePlateNumber, setSharePlateNumber] = useState(userData ? userData.share_plate_number !== false : true);
 
   useEffect(() => {
     const fetchCarTypes = async () => {
@@ -42,7 +46,7 @@ const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDeta
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ car_type: carType, car_color: carColor }),
+        body: JSON.stringify({ car_type: carType, car_color: carColor, share_plate_number: sharePlateNumber }),
       });
 
       if (response.ok) {
@@ -95,6 +99,22 @@ const ChangeCarTypeModal = ({ onClose, currentUserId, addNotification, onCarDeta
                 onChange={(e) => setCarColor(e.target.value)}
                 placeholder="e.g., Red, Blue, Black"
               />
+            </div>
+            <div className="form-group form-group-toggle">
+              <label className="toggle-label">
+                <span>
+                  Share plate number
+                  <span className="toggle-description">Let an accepted requester see your plate number. Car color stays visible either way.</span>
+                </span>
+                <span className="toggle-switch">
+                  <input
+                    type="checkbox"
+                    checked={sharePlateNumber}
+                    onChange={(e) => setSharePlateNumber(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                </span>
+              </label>
             </div>
             <div className="form-actions">
               <button type="submit" className="update-button">Update</button>

@@ -38,6 +38,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
   const [carColor, setCarColor] = useState(user ? user.car_color : '');
   const [plateNumber, setPlateNumber] = useState(user ? user.plate_number : '');
   const [autoDetectionEnabled, setAutoDetectionEnabled] = useState(user ? user.auto_detect : false);
+  const [sharePlateNumber, setSharePlateNumberState] = useState(user ? user.share_plate_number : true);
   const [isEditingUsername, setIsEditingUsername] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState(user ? user.username : '');
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -53,6 +54,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
       setCarColor(user.car_color);
       setPlateNumber(user.plate_number);
       setAutoDetectionEnabled(user.auto_detect);
+      setSharePlateNumberState(user.share_plate_number);
     }
   }, [user]);
 
@@ -195,6 +197,7 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
       car_color: carColor,
       plate_number: plateNumber,
       auto_detect: autoDetectionEnabled,
+      share_plate_number: sharePlateNumber,
       ...overrides,
     };
     try {
@@ -226,6 +229,12 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
     setAutoDetectionEnabled(value);
     const ok = await saveCarDetails({ auto_detect: value });
     if (!ok) setAutoDetectionEnabled(!value); // revert the optimistic flip on failure
+  };
+
+  const handleToggleSharePlateNumber = async (value) => {
+    setSharePlateNumberState(value);
+    const ok = await saveCarDetails({ share_plate_number: value });
+    if (!ok) setSharePlateNumberState(!value); // revert the optimistic flip on failure
   };
 
   const openVehicleModal = () => {
@@ -445,6 +454,22 @@ const UserDetails = ({ onRefresh, refreshing, onProfileUpdate }) => {
             thumbColor={autoDetectionEnabled ? '#fff' : '#f4f3f4'}
             onValueChange={handleToggleAutoDetect}
             value={autoDetectionEnabled}
+          />
+        </View>
+        <View style={styles.rowDivider} />
+        <View style={styles.row}>
+          <View style={styles.rowTextContainer}>
+            <Text style={styles.rowLabel}>Share plate number</Text>
+            <Text style={styles.rowDescription}>
+              Let an accepted requester see your plate number. Car color stays visible either way
+              so they can still find your car.
+            </Text>
+          </View>
+          <Switch
+            trackColor={{ false: '#767577', true: '#512da8' }}
+            thumbColor={sharePlateNumber ? '#fff' : '#f4f3f4'}
+            onValueChange={handleToggleSharePlateNumber}
+            value={sharePlateNumber}
           />
         </View>
         <View style={styles.rowDivider} />
