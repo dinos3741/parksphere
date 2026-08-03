@@ -9,7 +9,7 @@ const jwt = require('jsonwebtoken');
 const http = require('http'); // Import http module
 const { Server } = require('socket.io'); // Import Server from socket.io
 const { OAuth2Client } = require('google-auth-library');
-const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable } = require('./db');
+const { pool, createUsersTable, createParkingSpotsTable, createRequestsTable, createUserRatingsTable, createMessagesTable, createIndexes } = require('./db');
 const { getRandomPointInCircle, getDistance } = require('./utils/geoutils'); // Import geoutils
 const path = require('path');
 const fs = require('fs');
@@ -432,7 +432,25 @@ io.on('connection', (socket) => {
 });
 const PORT = process.env.PORT || 3001;
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
+// No fallback — every locally-issued JWT is signed with this. A silent insecure default here means
+// anyone with the source (or a stale copy of it) could forge valid tokens for any deployment that
+// forgot to set it. Fail loudly at startup instead.
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET is not set. Add it to server/.env — see server/.env.example.');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
+
+// Keycloak connection config — was hardcoded to http://localhost:8080/realms/Parksphere in ~13
+// places, meaning this could never point anywhere but a local dev Keycloak without a find-and-
+// replace. Realm/base URL aren't secrets, so they default to this project's current values; the
+// admin password is, so it has no fallback.
+const KEYCLOAK_BASE_URL = process.env.KEYCLOAK_BASE_URL || 'http://localhost:8080';
+const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM || 'Parksphere';
+const KEYCLOAK_ADMIN_USERNAME = process.env.KEYCLOAK_ADMIN_USERNAME || 'admin';
+if (!process.env.KEYCLOAK_ADMIN_PASSWORD) {
+  throw new Error('KEYCLOAK_ADMIN_PASSWORD is not set. Add it to server/.env — see server/.env.example.');
+}
+const KEYCLOAK_ADMIN_PASSWORD = process.env.KEYCLOAK_ADMIN_PASSWORD;
 
 const { CAR_SIZE_HIERARCHY } = require('./utils/carTypes');
 
@@ -460,16 +478,26 @@ app.post('/api/users/avatar', authenticateToken, upload.single('avatar'), async 
   }
 });
 
-// Ensure tables exist on server start
-createUsersTable();
-createParkingSpotsTable();
-createRequestsTable(); // Ensure requests table exists
-createUserRatingsTable();
-createMessagesTable();
+// Ensure tables exist on server start, respecting FK dependency order, then indexes. This used to
+// be five independent fire-and-forget calls (none awaited, so actually running interleaved) and
+// briefly a Promise.all (which still just invokes all five immediately/concurrently — Promise.all
+// only sequences the AWAITING, not the calls themselves). Neither ever surfaced as a bug against
+// the live database, because CREATE TABLE IF NOT EXISTS short-circuits before evaluating a table's
+// body (including its FK references) once that table already exists — but a genuinely fresh
+// database exposed it immediately in testing: parking_spots/requests/user_ratings/messages all
+// reference users, and requests also references parking_spots, so creating them out of order
+// fails outright. users -> parking_spots -> (requests, user_ratings, messages in parallel, since
+// none of those three depend on each other) -> indexes.
+(async () => {
+  await createUsersTable();
+  await createParkingSpotsTable();
+  await Promise.all([createRequestsTable(), createUserRatingsTable(), createMessagesTable()]);
+  await createIndexes();
+})();
 
 const jwtCheck = auth({
   audience: ['parksphere-client', 'account'],
-  issuerBaseURL: 'http://localhost:8080/realms/Parksphere',
+  issuerBaseURL: `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}`,
   tokenSigningAlg: 'RS256'
 });
 
@@ -523,8 +551,15 @@ async function authenticateToken(req, res, next) {
 
     try {
       // 1. First, check if a user already exists with this Keycloak ID
-      let result = await pool.query('SELECT id, username, car_type, credits, role FROM users WHERE keycloak_id = $1', [keycloakId]);
+      let result = await pool.query('SELECT id, username, car_type, credits, role, email FROM users WHERE keycloak_id = $1', [keycloakId]);
       let user = result.rows[0];
+
+      if (user && !user.email && email) {
+        // Same email-sync gap as /api/login — backfill it here too, since this fallback path is
+        // another way a Keycloak-authenticated user's record gets touched.
+        await pool.query('UPDATE users SET email = $1 WHERE id = $2', [email, user.id]);
+        user.email = email;
+      }
 
       if (!user) {
         // 2. If not, check if a user with the SAME USERNAME exists from the old database
@@ -1390,31 +1425,103 @@ app.post('/api/confirm-arrival', authenticateToken, async (req, res) => {
   }
 });
 
+// Shared by every endpoint below that needs to call the Keycloak Admin API — was previously
+// copy-pasted (with the same hardcoded 'admin'/'admin' master-realm credentials) in four separate
+// places.
+async function getKeycloakAdminToken() {
+  const tokenResponse = await fetch(`${KEYCLOAK_BASE_URL}/realms/master/protocol/openid-connect/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password',
+      client_id: 'admin-cli',
+      username: KEYCLOAK_ADMIN_USERNAME,
+      password: KEYCLOAK_ADMIN_PASSWORD
+    })
+  });
+  if (!tokenResponse.ok) {
+    throw new Error('Failed to get Keycloak admin token');
+  }
+  const { access_token } = await tokenResponse.json();
+  return access_token;
+}
+
+// Google sign-in used to be a fully separate identity system (its own `google_id` column, never
+// touching Keycloak). This ensures every Google-authenticated user also has a real Keycloak
+// account, linked via Keycloak's federated-identity mechanism — same "sign in with Google" button
+// and client flow as before, but Keycloak becomes the actual source of truth, and keycloak_id
+// being populated means the username/password-change endpoints start working for these accounts
+// too. Idempotent: searches for an existing Keycloak user before creating one, and re-running it
+// for an already-linked account just re-links (harmless).
+async function linkGoogleUserToKeycloak({ id: localUserId, username, email }, googleId) {
+  const adminToken = await getKeycloakAdminToken();
+
+  // Search by email first, not username: Keycloak enforces email uniqueness realm-wide, so this
+  // is the reliable signal for "does this person already have a Keycloak account" — e.g. someone
+  // who registered normally (username/password) and later tries "Sign in with Google" with the
+  // same address. Searching by username first would miss that and attempt to create a second
+  // Keycloak user with a duplicate email, which Keycloak rejects.
+  const searchUrl = email
+    ? `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users?email=${encodeURIComponent(email)}&exact=true`
+    : `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users?username=${encodeURIComponent(username)}&exact=true`;
+  const searchResponse = await fetch(searchUrl, { headers: { 'Authorization': `Bearer ${adminToken}` } });
+  if (!searchResponse.ok) {
+    throw new Error('Failed to search for existing Keycloak user');
+  }
+  const searchResults = await searchResponse.json();
+
+  let keycloakUserId;
+  if (searchResults.length > 0) {
+    keycloakUserId = searchResults[0].id;
+  } else {
+    // No password is set — this account is purely federated (Google-authenticated), matching how
+    // Keycloak itself models broker-only users.
+    const createResponse = await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        email,
+        firstName: username,
+        lastName: 'User',
+        enabled: true,
+        emailVerified: true,
+        requiredActions: []
+      })
+    });
+    if (!createResponse.ok) {
+      throw new Error(`Failed to create Keycloak user for Google account: ${await createResponse.text()}`);
+    }
+    keycloakUserId = createResponse.headers.get('Location').split('/').pop();
+  }
+
+  const linkResponse = await fetch(
+    `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${keycloakUserId}/federated-identity/google`,
+    {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identityProvider: 'google', userId: googleId, userName: email })
+    }
+  );
+  // 409 means it's already linked — fine, not an error.
+  if (!linkResponse.ok && linkResponse.status !== 409) {
+    throw new Error(`Failed to link federated identity: ${await linkResponse.text()}`);
+  }
+
+  await pool.query('UPDATE users SET keycloak_id = $1 WHERE id = $2', [keycloakUserId, localUserId]);
+  return keycloakUserId;
+}
+
 app.post('/api/register', async (req, res) => {
   const { username, email, password, plateNumber, carColor, carType } = req.body;
   const avatarUrl = `https://i.pravatar.cc/80?u=${username}`;
 
   try {
     // 1. Get an Admin Token from Keycloak
-    const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'password',
-        client_id: 'admin-cli',
-        username: 'admin',
-        password: 'admin'
-      })
-    });
-
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to get Keycloak admin token');
-    }
-    const tokenData = await tokenResponse.json();
-    const adminToken = tokenData.access_token;
+    const adminToken = await getKeycloakAdminToken();
 
     // 2. Create the User in Keycloak (Base Info)
-    const createUserResponse = await fetch('http://localhost:8080/admin/realms/Parksphere/users', {
+    const createUserResponse = await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${adminToken}`,
@@ -1444,7 +1551,7 @@ app.post('/api/register', async (req, res) => {
     const keycloakId = locationHeader.split('/').pop();
 
     // 4. Set the Password explicitly
-    const setPasswordResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${keycloakId}/reset-password`, {
+    const setPasswordResponse = await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${keycloakId}/reset-password`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${adminToken}`,
@@ -1462,7 +1569,7 @@ app.post('/api/register', async (req, res) => {
     }
 
     // 5. FINAL AGGRESSIVE SYNC: Force-clear everything again
-    await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${keycloakId}`, {
+    await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${keycloakId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${adminToken}`,
@@ -1506,7 +1613,7 @@ app.post('/api/login', async (req, res) => {
 
     const formBody = Object.keys(details).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(details[key])).join('&');
 
-    const kcResponse = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
+    const kcResponse = await fetch(`${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
@@ -1528,19 +1635,25 @@ app.post('/api/login', async (req, res) => {
     let user = result.rows[0];
     console.log('DEBUG: Login lookup for user:', username, 'result:', user);
 
+    // Decode (not verify — already have a valid access token from the ROPC grant above) the ID
+    // token for email/sub, needed whether this is a brand-new local record or an existing one
+    // whose email never got synced (see the linkGoogleUserToKeycloak comment on /api/auth/google —
+    // this is the same class of drift, just hit via the password-login path instead).
+    const decodedIdToken = jwt.decode(kcData.id_token);
+
     if (!user) {
       // If user exists in Keycloak but not locally (e.g. manual Keycloak entry), create local record
-      // We can decode the ID token to get email and keycloak_id (sub)
-      const decodedIdToken = jwt.decode(kcData.id_token);
-      const email = decodedIdToken.email;
-      const keycloakId = decodedIdToken.sub;
-      
       console.log(`Server: Creating local record for Keycloak user ${username}`);
       const newUserResult = await pool.query(
-        'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username, car_type, role',
-        [username, email, keycloakId, `https://i.pravatar.cc/80?u=${username}`]
+        'INSERT INTO users (username, email, keycloak_id, avatar_url) VALUES ($1, $2, $3, $4) RETURNING id, username, car_type, role, email',
+        [username, decodedIdToken.email, decodedIdToken.sub, `https://i.pravatar.cc/80?u=${username}`]
       );
       user = newUserResult.rows[0];
+    } else if (!user.email && decodedIdToken?.email) {
+      // Existing local user whose email was never synced from Keycloak — backfill it so
+      // email-based account matching (e.g. Google sign-in linking) works reliably going forward.
+      await pool.query('UPDATE users SET email = $1 WHERE id = $2', [decodedIdToken.email, user.id]);
+      user.email = decodedIdToken.email;
     }
 
     // 3. Issue our Local JWT (HS256) for the app to use
@@ -1622,6 +1735,18 @@ app.post('/api/auth/google', async (req, res) => {
         [username, email, googleId, picture, plateNumber, carColor, carType]
       );
       user = newUserResult.rows[0];
+    }
+
+    // Consolidation with Keycloak: ensure this Google-authenticated user also has a real Keycloak
+    // account, linked via federated identity (see linkGoogleUserToKeycloak above). Best-effort —
+    // a Keycloak hiccup here shouldn't block someone from actually logging in, so it's logged and
+    // swallowed rather than failing the request. Self-heals on the next Google sign-in if it fails.
+    if (!user.keycloak_id) {
+      try {
+        user.keycloak_id = await linkGoogleUserToKeycloak(user, googleId);
+      } catch (linkError) {
+        console.error('[auth/google] Failed to link Keycloak account (non-fatal):', linkError);
+      }
     }
 
     const accessToken = jwt.sign(
@@ -1728,24 +1853,11 @@ app.put('/api/users/:id/username', authenticateToken, async (req, res) => {
 
     if (user.keycloak_id) {
       // 1. Get an admin token (same pattern as /api/register).
-      const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'password',
-          client_id: 'admin-cli',
-          username: 'admin',
-          password: 'admin'
-        })
-      });
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to get Keycloak admin token');
-      }
-      const { access_token: adminToken } = await tokenResponse.json();
+      const adminToken = await getKeycloakAdminToken();
 
       // 2. Update the username in Keycloak first — if this fails, we bail before touching Postgres,
       // so the two stores can't end up disagreeing about who the local user actually is.
-      const updateResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${user.keycloak_id}`, {
+      const updateResponse = await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${user.keycloak_id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${adminToken}`,
@@ -1807,7 +1919,7 @@ app.put('/api/users/:id/password', authenticateToken, async (req, res) => {
     // 1. Verify the current password by attempting a real ROPC grant with it (the same mechanism
     // /api/login uses) — proves it's correct without the server ever needing to store or compare
     // passwords itself.
-    const verifyResponse = await fetch('http://localhost:8080/realms/Parksphere/protocol/openid-connect/token', {
+    const verifyResponse = await fetch(`${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
       body: new URLSearchParams({
@@ -1824,22 +1936,9 @@ app.put('/api/users/:id/password', authenticateToken, async (req, res) => {
 
     // 2. Get an admin token, then set the new password (same pattern as /api/register's initial
     // password set).
-    const tokenResponse = await fetch('http://localhost:8080/realms/master/protocol/openid-connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'password',
-        client_id: 'admin-cli',
-        username: 'admin',
-        password: 'admin'
-      })
-    });
-    if (!tokenResponse.ok) {
-      throw new Error('Failed to get Keycloak admin token');
-    }
-    const { access_token: adminToken } = await tokenResponse.json();
+    const adminToken = await getKeycloakAdminToken();
 
-    const setPasswordResponse = await fetch(`http://localhost:8080/admin/realms/Parksphere/users/${user.keycloak_id}/reset-password`, {
+    const setPasswordResponse = await fetch(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${user.keycloak_id}/reset-password`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${adminToken}`,

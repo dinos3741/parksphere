@@ -152,7 +152,6 @@ function AppLayout({
   console.log(`[App.js] AppLayout rendering. isLoggedIn: ${isLoggedIn}`);
   const { fetchParkingSpots } = useSpots();
   const { userId, token, fetchUserData } = useAuth();
-  const { userLocation } = useLocation();
   const { showHmmEngine, showFlightRecorder, showFixesWindow } = useDebugTools();
 
   useEffect(() => {
@@ -185,7 +184,7 @@ function AppLayout({
            <HMMOverlay
              isVisible={navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showHmmEngine}
            />
-           {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFlightRecorder && <DebugSimulator userLocation={userLocation} />}
+           {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFlightRecorder && <DebugSimulator />}
            {__DEV__ && navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFixesWindow && <StreamMonitor />}
         </View>
       )}

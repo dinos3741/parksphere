@@ -8,15 +8,19 @@ const HMMOverlay = ({ isVisible }) => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
   const zIndex = activeOverlay === 'HMM' ? 11 : 10;
 
+  // NO_DATA is a placeholder meaning "no parkDetectionDetailedUpdate has arrived yet" — deliberately
+  // not a real HMM state name (IDLE/STOPPED/DRIVING/WALKING/RETURNING are all states native can
+  // genuinely report), so the fallback below can tell "nothing has arrived" apart from "native
+  // genuinely reported IDLE" instead of treating them as the same thing.
   const [hmmStatus, setHmmStatus] = useState({
-    state: 'INITIALIZING',
+    state: 'NO_DATA',
     bestState: '...',
     confidence: 0,
     metrics: {}
   });
 
   // R3: native's authoritative current-state (persisted in the background), read on foreground. Shown
-  // until the live HMM produces a real (non-INITIALIZING) state, so foreground is in sync instantly.
+  // until the live HMM produces a real (non-placeholder) state, so foreground is in sync instantly.
   const [nativeState, setNativeState] = useState(null);
 
   const [isRecording, setIsRecording] = useState(false);
@@ -77,9 +81,10 @@ const HMMOverlay = ({ isVisible }) => {
 
   // Show the live HMM state once it's real; until then (foreground resume / cold HMM) show native's
   // authoritative state so the user always sees the TRUE current state, in sync with the background.
-  const displayState = (hmmStatus.state && hmmStatus.state !== 'INITIALIZING')
+  // If NEITHER has arrived yet, say so plainly rather than showing the internal NO_DATA sentinel.
+  const displayState = (hmmStatus.state && hmmStatus.state !== 'NO_DATA')
     ? hmmStatus.state
-    : (nativeState || hmmStatus.state);
+    : (nativeState || 'Waiting for GPS…');
 
   const getZoneColor = (zone) => {
     switch (zone) {

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TextInput, ImageBackground, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, TouchableWithoutFeedback, Keyboard, Alert, Image, ImageBackground, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { Picker } from '@react-native-picker/picker';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../utils/apiService';
 import logo from '../assets/images/logo.png'; // Import the logo image
@@ -152,211 +153,225 @@ const Login = ({ onRegister }) => {
   return (
     <ImageBackground
       source={require('../assets/images/parking_background.png')}
-      style={styles.backgroundImage}
-      imageStyle={styles.imageStyle}
+      style={styles.container}
+      blurRadius={15}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.loginOverlay}>
-          <View style={styles.logoContainer}>
-            <Image source={logo} style={styles.logoImage} />
-            <Text style={styles.venioTitle}>VENIO</Text>
-            <Text style={styles.tagline}>The intelligent way to <Text style={styles.highlight}>arrive and park</Text></Text>
-          </View>
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginTitle}>{showCarDetailsFields ? 'Enter Car Details' : 'Login'}</Text>
-            {showCarDetailsFields ? (
-              <View style={{ width: '100%' }}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Plate Number"
-                  placeholderTextColor="#888"
-                  value={plateNumber}
-                  onChangeText={setPlateNumber}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Car Color"
-                  placeholderTextColor="#888"
-                  value={carColor}
-                  onChangeText={setCarColor}
-                />
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={carType}
-                    onValueChange={(itemValue) => setCarType(itemValue)}
-                    style={styles.picker}
-                  >
-                    {carTypes.map((type) => (
-                      <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
-                    ))}
-                  </Picker>
-                </View>
-                <TouchableOpacity style={styles.loginButton} onPress={handleCarDetailsSubmit}>
-                  <Text style={styles.loginButtonText}>Complete Google Login</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.loginButton, { backgroundColor: '#6c757d', marginTop: 10 }]} 
-                  onPress={() => setShowCarDetailsFields(false)}
-                >
-                  <Text style={styles.loginButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Username"
-                  placeholderTextColor="#888"
-                  value={username}
-                  onChangeText={setUsername}
-                  autoCapitalize="none"
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="#888"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
-                <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                  <Text style={styles.loginButtonText}>Login</Text>
-                </TouchableOpacity>
+      <View style={styles.backgroundWash} />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View>
+            <View style={styles.logoContainer}>
+              <Image source={logo} style={styles.logoImage} />
+              <Text style={styles.venioTitle}>VENIO</Text>
+              <Text style={styles.tagline}>The intelligent way to <Text style={styles.highlight}>arrive and park</Text></Text>
+            </View>
 
-                {showOfflineModeButton && (
-                  <TouchableOpacity
-                    style={[styles.loginButton, { backgroundColor: '#6c757d', marginTop: 10 }]}
-                    onPress={handleOfflineMode}
-                  >
-                    <Text style={styles.loginButtonText}>Offline Mode</Text>
-                  </TouchableOpacity>
-                )}
-
-                <View style={styles.separatorContainer}>
-                  <View style={styles.separatorLine} />
-                  <Text style={styles.separatorText}>OR</Text>
-                  <View style={styles.separatorLine} />
-                </View>
-
-                <TouchableOpacity 
-                  style={styles.googleButton} 
-                  onPress={() => promptAsync()}
-                  disabled={!request}
-                >
-                  <Image 
-                    source={{ uri: 'https://img.icons8.com/color/48/000000/google-logo.png' }} 
-                    style={styles.googleIcon} 
+            <View style={styles.formContainer}>
+              <Text style={styles.loginTitle}>{showCarDetailsFields ? 'Enter Car Details' : 'Login'}</Text>
+              {showCarDetailsFields ? (
+                <View style={{ width: '100%' }}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Plate Number"
+                    placeholderTextColor="#999"
+                    value={plateNumber}
+                    onChangeText={setPlateNumber}
                   />
-                  <Text style={styles.googleButtonText}>Sign in with Google</Text>
-                </TouchableOpacity>
-
-                <View style={styles.registerPrompt}>
-                  <Text style={styles.registerText}>Don't have an account?</Text>
-                  <TouchableOpacity onPress={onRegister}>
-                    <Text style={styles.registerLink}>Register here</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Car Color"
+                    placeholderTextColor="#999"
+                    value={carColor}
+                    onChangeText={setCarColor}
+                  />
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={carType}
+                      onValueChange={(itemValue) => setCarType(itemValue)}
+                      style={styles.picker}
+                    >
+                      {carTypes.map((type) => (
+                        <Picker.Item key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} value={type} />
+                      ))}
+                    </Picker>
+                  </View>
+                  <TouchableOpacity style={styles.loginButton} onPress={handleCarDetailsSubmit}>
+                    <Text style={styles.loginButtonText}>Complete Google Login</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={() => setShowCarDetailsFields(false)}
+                  >
+                    <Text style={styles.secondaryButtonText}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
-              </>
-            )}
+              ) : (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Username"
+                    placeholderTextColor="#999"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                  />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Password"
+                    placeholderTextColor="#999"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                  />
+                  <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+                    <Text style={styles.loginButtonText}>Login</Text>
+                  </TouchableOpacity>
+
+                  {showOfflineModeButton && (
+                    <TouchableOpacity
+                      style={styles.secondaryButton}
+                      onPress={handleOfflineMode}
+                    >
+                      <Text style={styles.secondaryButtonText}>Offline Mode</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <View style={styles.separatorContainer}>
+                    <View style={styles.separatorLine} />
+                    <Text style={styles.separatorText}>OR</Text>
+                    <View style={styles.separatorLine} />
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.googleButton}
+                    onPress={() => promptAsync()}
+                    disabled={!request}
+                  >
+                    <Ionicons name="logo-google" size={18} color="#555" style={styles.googleIcon} />
+                    <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.registerPrompt}>
+                    <Text style={styles.registerText}>Don't have an account?</Text>
+                    <TouchableOpacity onPress={onRegister}>
+                      <Text style={styles.registerLink}>Register here</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </TouchableWithoutFeedback>
+        </TouchableWithoutFeedback>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  backgroundImage: {
+  container: {
     flex: 1,
-    width: '100%',
-    height: '100%',
   },
-  imageStyle: {
-    opacity: 0.6,
+  // Sits between the blurred photo and the content — a light wash rather than a near-opaque one,
+  // so the blur still reads as a soft backdrop instead of disappearing under solid white.
+  backgroundWash: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
-  loginOverlay: {
-    flex: 1,
-    width: '100%',
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 70,
+    marginBottom: 36,
   },
   logoImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     marginBottom: 10,
   },
   venioTitle: {
     fontFamily: 'AdventPro-SemiBold',
-    fontSize: 32,
-    color: 'white',
-    letterSpacing: 2,
+    fontSize: 28,
+    color: '#2f276a',
+    letterSpacing: 1,
   },
   tagline: {
-    fontSize: 16,
-    color: 'white',
-    marginTop: 5,
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
   },
   highlight: {
-    color: '#4dd0e1',
-    fontWeight: 'bold',
+    color: '#512da8',
+    fontWeight: '700',
   },
-  loginContainer: {
-    width: '80%',
-    maxWidth: 300,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 8,
+  formContainer: {
+    width: '100%',
     alignItems: 'center',
   },
   loginTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
     marginBottom: 20,
   },
   input: {
     width: '100%',
-    height: 45,
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginBottom: 10,
-    backgroundColor: '#fefefe',
-    fontSize: 16,
-    color: '#333',
+    height: 48,
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    marginBottom: 12,
+    backgroundColor: '#f0f0f4',
+    fontSize: 15.5,
+    color: '#222',
   },
   loginButton: {
     width: '100%',
-    backgroundColor: '#007bff',
-    paddingVertical: 12,
-    borderRadius: 8,
+    height: 49,
+    backgroundColor: '#512da8',
+    borderRadius: 24.5,
     alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 8,
-    shadowColor: '#007bff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     elevation: 5,
   },
   loginButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    width: '100%',
+    height: 49,
+    borderRadius: 24.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#512da8',
+  },
+  secondaryButtonText: {
+    color: '#512da8',
+    fontSize: 15,
+    fontWeight: '600',
   },
   registerPrompt: {
-    marginTop: 15,
+    marginTop: 20,
     width: '100%',
     alignItems: 'center',
     flexDirection: 'row',
@@ -364,69 +379,61 @@ const styles = StyleSheet.create({
   },
   registerText: {
     fontSize: 14,
-    color: '#555',
+    color: '#666',
   },
   registerLink: {
     fontSize: 14,
-    color: '#007bff',
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
+    color: '#512da8',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   separatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 15,
+    marginVertical: 18,
     width: '100%',
   },
   separatorLine: {
     flex: 1,
-    height: 1,
-    backgroundColor: '#ddd',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#e2e2e6',
   },
   separatorText: {
     marginHorizontal: 10,
-    color: '#888',
-    fontSize: 14,
+    color: '#999',
+    fontSize: 13,
   },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    backgroundColor: 'white',
-    paddingVertical: 10,
-    borderRadius: 8,
+    height: 49,
+    backgroundColor: '#fff',
+    borderRadius: 24.5,
     borderWidth: 1,
-    borderColor: '#ddd',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    borderColor: '#e2e2e6',
   },
   googleIcon: {
-    width: 20,
-    height: 20,
     marginRight: 10,
   },
   googleButtonText: {
-    color: '#555',
-    fontSize: 16,
+    color: '#333',
+    fontSize: 15,
     fontWeight: '600',
   },
   pickerContainer: {
     width: '100%',
-    height: 45,
-    borderColor: '#ddd',
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 10,
-    backgroundColor: '#fefefe',
+    height: 48,
+    borderRadius: 24,
+    marginBottom: 12,
+    backgroundColor: '#f0f0f4',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   picker: {
     width: '100%',
-    height: 45,
+    height: 48,
   },
 });
 

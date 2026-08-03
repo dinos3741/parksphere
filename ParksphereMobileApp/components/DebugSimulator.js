@@ -1,30 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
-import { handleLocationUpdate, simulateMotionActivity, startParkDetection, stopParkDetection, resetParkDetection, isDetectionEngineRunning } from '../utils/parkDetectionService';
 import { shareHeartbeatLog, setManualLabel } from '../utils/telemetryService';
-import { resetAllAppData } from '../utils/dataReset';
 import { useOverlay } from '../context/OverlayContext';
-import { useAuth } from '../context/AuthContext';
 
 const pan = new Animated.ValueXY({ x: 10, y: 400 });
 
-const DebugSimulator = ({ userLocation }) => {
+// "Flight Recorder" — was also a control panel for a legacy JS detection engine (start/stop,
+// simulated drive/walk/park, ground-truth-fed simulation), superseded entirely by the native
+// (Swift) engine which now owns detection on iOS for both foreground and background. Those
+// controls were removed 2026-08-03 after one of them (Start Engine) got tapped during a field
+// test, started that legacy engine running alongside native, and suppressed real detection for
+// the rest of the drive — dead weight that was actively dangerous to leave around. What's left
+// (heartbeat export, ground-truth labeling) is independent of that engine and still genuinely
+// useful for field-test analysis.
+const DebugSimulator = () => {
   const { activeOverlay, setActiveOverlay } = useOverlay();
-  const { logout } = useAuth();
   const zIndex = activeOverlay === 'Debug' ? 11 : 10;
-  
-  const [offsetLat, setOffsetLat] = useState(0);
-  const [offsetLon, setOffsetLon] = useState(0);
-  const [isEngineRunning, setIsEngineRunning] = useState(false);
-  const [groundTruth, setGroundTruth] = useState(null); 
-  const autoTriggerRef = useRef(null);
 
-  useEffect(() => {
-    return () => {
-      if (autoTriggerRef.current) clearTimeout(autoTriggerRef.current);
-    };
-  }, []);
-  
+  const [groundTruth, setGroundTruth] = useState(null);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -43,117 +37,10 @@ const DebugSimulator = ({ userLocation }) => {
     })
   ).current;
 
-  const toggleEngine = async () => {
-    if (isEngineRunning) {
-      await stopParkDetection();
-      setIsEngineRunning(false);
-    } else {
-      await startParkDetection();
-      setIsEngineRunning(true);
-    }
-  };
-
-  const [isBluetoothSimulated, setIsBluetoothSimulated] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-        setIsEngineRunning(isDetectionEngineRunning());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const toggleBluetooth = () => {
-    const newState = !isBluetoothSimulated;
-    setIsBluetoothSimulated(newState);
-    handleLocationUpdate({ bluetoothConnected: newState }, null, true);
-  };
-
   const updateGroundTruth = (label) => {
     const nextLabel = groundTruth === label ? null : label;
     setGroundTruth(nextLabel);
     setManualLabel(nextLabel);
-  };
-
-  const simulate = async (type) => {
-    if (autoTriggerRef.current) {
-      clearTimeout(autoTriggerRef.current);
-      autoTriggerRef.current = null;
-    }
-    if (type === 'RESET') {
-      setOffsetLat(0);
-      setOffsetLon(0);
-      await resetParkDetection();
-      setIsEngineRunning(isDetectionEngineRunning());
-      setIsBluetoothSimulated(false);
-      setGroundTruth(null);
-      setManualLabel(null);
-      return;
-    }
-
-    if (!userLocation) return;
-    
-    const getMockLocation = (speed = 0, latOff = offsetLat, lonOff = offsetLon) => ({
-      coords: {
-        latitude: userLocation.latitude + latOff,
-        longitude: userLocation.longitude + lonOff,
-        speed: speed / 3.6,
-        accuracy: 5,
-      },
-      isFromSimulator: true,
-      timestamp: Date.now(),
-    });
-
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    let currentLatOff = offsetLat;
-    let currentLonOff = offsetLon;
-
-    switch (type) {
-      case 'DRIVING':
-        simulateMotionActivity('AUTOMOTIVE', 'HIGH');
-        for (let i = 0; i < 20; i++) {
-          currentLatOff += 0.0001;
-          await handleLocationUpdate(getMockLocation(40, currentLatOff, currentLonOff));
-          await sleep(500);
-        }
-        setOffsetLat(currentLatOff);
-        // 🚀 AUTO-STOP: Cool down to stationary after driving
-        await sleep(500);
-        simulateMotionActivity('STATIONARY', 'HIGH');
-        await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
-        return;
-
-      case 'WALKING':
-        simulateMotionActivity('WALKING', 'HIGH');
-        for (let i = 0; i < 15; i++) {
-          currentLatOff += 0.00005;
-          await handleLocationUpdate(getMockLocation(1.5, currentLatOff, currentLonOff));
-          await sleep(500);
-        }
-        setOffsetLat(currentLatOff);
-        // 🚀 AUTO-STOP: Cool down to stationary after walking
-        await sleep(500);
-        simulateMotionActivity('STATIONARY', 'HIGH');
-        await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
-        return;
-
-      case 'STATIONARY':
-        simulateMotionActivity('STATIONARY', 'HIGH');
-        for (let i = 0; i < 4; i++) {
-          await handleLocationUpdate(getMockLocation(0, currentLatOff, currentLonOff));
-          await sleep(500);
-        }
-        return;
-      case 'FORCE_PARK':
-        if (userLocation) {
-           await handleLocationUpdate({
-              coords: { ...userLocation, speed: 0, accuracy: 5 },
-              forcePark: true,
-              isFromSimulator: true,
-              timestamp: Date.now()
-           });
-        }
-        return;
-    }
   };
 
   return (
@@ -177,53 +64,20 @@ const DebugSimulator = ({ userLocation }) => {
 
       <View style={styles.divider} />
       <Text style={styles.headerTitle}>GROUND TRUTH</Text>
-      
+
       <View style={styles.grid}>
         {['DRIVING', 'WALKING', 'STOPPED', 'RETURNING'].map(state => (
-          <TouchableOpacity 
+          <TouchableOpacity
             key={state}
             style={[
-              styles.gridBtn, 
+              styles.gridBtn,
               { backgroundColor: groundTruth === state ? '#22c55e' : '#333' }
-            ]} 
+            ]}
             onPress={() => updateGroundTruth(state)}
           >
             <Text style={[styles.btnText, { fontSize: 8 }]}>{state}</Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      <View style={styles.divider} />
-      <Text style={styles.headerTitle}>ENGINE & SIMULATION</Text>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: isEngineRunning ? '#ef4444' : '#22c55e', width: '100%' }]} onPress={toggleEngine}>
-          <Text style={styles.btnText}>{isEngineRunning ? '⏹ STOP ENGINE' : '▶ START ENGINE'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('DRIVING')}>
-          <Text style={styles.btnText}>🚗 DRIVE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('WALKING')}>
-          <Text style={styles.btnText}>🏃 WALK</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={styles.btn} onPress={() => simulate('STATIONARY')}>
-          <Text style={styles.btnText}>🛑 STILL</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: '#f59e0b' }]} onPress={() => simulate('FORCE_PARK')}>
-          <Text style={styles.btnText}>🅿️ PARK</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.row}>
-        <TouchableOpacity style={[styles.btn, {width: '100%', backgroundColor: '#f59e0b', marginTop: 5}]} onPress={() => simulate('RESET')}>
-          <Text style={styles.btnText}>🧹 RESET ENGINE</Text>
-        </TouchableOpacity>
       </View>
     </Animated.View>
   );

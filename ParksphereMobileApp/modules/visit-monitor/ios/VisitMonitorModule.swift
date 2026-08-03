@@ -661,16 +661,28 @@ public class VisitMonitorModule: Module {
   private func postReturnConfirmNotification(dist: Int) {
     // Wait for the category to be registered before posting — posting first races
     // setNotificationCategories and iOS silently drops the action buttons if it loses.
-    withNotifCategoryRegistered {
+    withNotifCategoryRegistered { [weak self] in
+      guard let self = self else { return }
       let center = UNUserNotificationCenter.current()
-      center.requestAuthorization(options: [.alert, .sound]) { _, _ in
+      center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, authError in
+        guard let self = self else { return }
         let content = UNMutableNotificationContent()
         content.title = "Are you returning to your car?"
         content.body = "You appear to be heading back (~\(dist)m away). Confirm to alert nearby drivers."
         content.sound = .default
         content.categoryIdentifier = VisitMonitorModule.notifCategoryReturn
         let req = UNNotificationRequest(identifier: "return-confirm-\(Int(Date().timeIntervalSince1970))", content: content, trigger: nil)
-        center.add(req, withCompletionHandler: nil)
+        // 2026-08-03: a field test detected the SOFT return correctly but the notification never
+        // visibly arrived — requestAuthorization's and add()'s results were previously discarded
+        // entirely, so there was no way to tell whether that was a permissions issue, an add()
+        // failure, or the notification firing fine but going unnoticed. Logged here so the next
+        // field test is conclusive instead of requiring a guess.
+        center.add(req) { [weak self] addError in
+          self?.logNativeFix(self?.lastLiveFix ?? CLLocation(), tag: "return-confirm-post", force: true, extra: [
+            "granted": granted, "authErr": authError?.localizedDescription ?? "",
+            "addErr": addError?.localizedDescription ?? ""
+          ])
+        }
       }
     }
   }
@@ -1393,6 +1405,15 @@ public class VisitMonitorModule: Module {
   }
 
   private func processFullHMM(_ loc: CLLocation) async {
+    // Belt-and-suspenders alongside the "start" AsyncFunction's call: that one only runs once JS has
+    // booted and called VM.start(), but a background wake from a CLVisit/location event can reach
+    // this function before JS gets that far. postReturnConfirmNotification's category-registration
+    // chain (several async hops: main-thread dispatch -> getNotificationCategories ->
+    // setNotificationCategories -> main-thread dispatch again) can then race iOS's background
+    // execution budget and lose — the notification silently never gets to center.add(). Calling this
+    // here too means registration has had every location fix in this session to complete before a
+    // SOFT return can actually fire (no-op once already registered).
+    ensureNotifCategoryRegistered()
     retryPendingDeleteIfNeeded(loc) // catch up any server-delete that failed for lack of connectivity
     maybeQueryActivityHistory() // periodic historical correction of currentActivityDetail (see above)
 
