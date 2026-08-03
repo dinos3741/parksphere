@@ -250,6 +250,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#222',
     paddingHorizontal: 20,
+    paddingTop: 15,
     paddingBottom: 12,
   },
   inner: {

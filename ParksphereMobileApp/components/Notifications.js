@@ -17,11 +17,14 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const HANDLE_HIDE_OFFSET = 60; // > collapsedHandle's 40pt width, so it fully clears the right edge
 
 const Notifications = ({ notifications, onHeightChange }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Starts collapsed — an admin logging in shouldn't be greeted with the log panel already open;
+  // it's a diagnostic tool they opt into via the collapsed handle, not a default-on display.
+  const [isExpanded, setIsExpanded] = useState(false);
   const animatedHeight = useRef(new Animated.Value(DEFAULT_EXPANDED_HEIGHT)).current;
   const startDragHeight = useRef(DEFAULT_EXPANDED_HEIGHT);
-  const panelSlide = useRef(new Animated.Value(0)).current; // 0 = docked, SCREEN_WIDTH = off-screen right
-  const handleSlide = useRef(new Animated.Value(HANDLE_HIDE_OFFSET)).current; // 0 = docked, HANDLE_HIDE_OFFSET = off-screen right
+  // Initial positions match isExpanded's starting value (false): panel off-screen, handle docked.
+  const panelSlide = useRef(new Animated.Value(SCREEN_WIDTH)).current; // 0 = docked, SCREEN_WIDTH = off-screen right
+  const handleSlide = useRef(new Animated.Value(0)).current; // 0 = docked, HANDLE_HIDE_OFFSET = off-screen right
   const scrollViewRef = useRef(null);
 
   // Unread indicator for the collapsed handle: while expanded, "seen" tracks the live count (every

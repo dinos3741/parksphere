@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { memo, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Easing } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
 import HMMOverlay from './HMMOverlay';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -25,6 +25,30 @@ const Map = memo(({
   spotRadiusKm,
 }) => {
   const { userId } = useAuth();
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  // Radar-ping loop while the user is aiming a manual spot placement — gives the crosshair a
+  // continuous "drop it here" affordance instead of a static mark. Stops (and resets, so it
+  // doesn't resume mid-cycle) as soon as adding-spot mode ends.
+  useEffect(() => {
+    if (!isAddingSpot) {
+      pulseAnim.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isAddingSpot, pulseAnim]);
+
+  const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 2] });
+  const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 0] });
 
   return (
     <View style={styles.mapScreenContainer}>
@@ -154,10 +178,23 @@ const Map = memo(({
         <Text style={styles.messageText}>Getting your location...</Text>
       )}
       {isAddingSpot && (
-        <View style={styles.crosshairContainer}>
-          <View style={styles.crosshairHorizontal} />
-          <View style={styles.crosshairVertical} />
-        </View>
+        <>
+          <View style={styles.addingSpotHint} pointerEvents="none">
+            <Text style={styles.addingSpotHintText}>Locate the crosshair at your parked spot, then tap</Text>
+          </View>
+          <View style={styles.crosshairContainer} pointerEvents="none">
+            <Animated.View
+              style={[
+                styles.crosshairPulse,
+                { opacity: pulseOpacity, transform: [{ scale: pulseScale }] },
+              ]}
+            />
+            <View style={styles.crosshairPlus}>
+              <View style={styles.crosshairHorizontal} />
+              <View style={styles.crosshairVertical} />
+            </View>
+          </View>
+        </>
       )}
 
       <View style={styles.mapControls}>
@@ -216,29 +253,64 @@ const styles = StyleSheet.create({
     marginLeft: -2,
     marginTop: 2,
   },
+  addingSpotHint: {
+    position: 'absolute',
+    // Sits right above the crosshair (whose container is top:'50%', height 60, marginTop:-30, so
+    // its top edge is at 50%-30) with a ~12pt gap above it — no card/background, just a quiet
+    // caption floating over the map, kept legible via a soft white text-shadow instead of a solid
+    // backing. Constrained + wrapping rather than one long line, so it folds to two lines instead
+    // of overflowing off the sides of narrower screens.
+    top: '50%',
+    marginTop: -80,
+    alignSelf: 'center',
+    maxWidth: '68%',
+  },
+  addingSpotHintText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: 'rgba(60,60,67,0.7)',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    textShadowColor: 'rgba(255,255,255,0.9)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
   crosshairContainer: {
     position: 'absolute',
     top: '50%',
     left: '50%',
-    width: 30,
-    height: 30,
-    marginLeft: -15,
-    marginTop: -15,
+    width: 60,
+    height: 60,
+    marginLeft: -30,
+    marginTop: -30,
     justifyContent: 'center',
     alignItems: 'center',
-    pointerEvents: 'none',
+  },
+  // Expanding, fading ring behind the plus sign — loops via pulseAnim while isAddingSpot is true.
+  crosshairPulse: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E53935', // matches parkedMarkerBubble's red, not the plain 'red' used before
+  },
+  crosshairPlus: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   crosshairHorizontal: {
     position: 'absolute',
-    width: 30,
+    width: 40,
     height: 2,
-    backgroundColor: 'red',
+    backgroundColor: '#E53935',
   },
   crosshairVertical: {
     position: 'absolute',
     width: 2,
-    height: 30,
-    backgroundColor: 'red',
+    height: 40,
+    backgroundColor: '#E53935',
   },
   parkedMarkerContainer: {
     alignItems: 'center',
