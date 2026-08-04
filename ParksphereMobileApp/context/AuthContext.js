@@ -1,7 +1,7 @@
-import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiRequest } from '../utils/apiService';
-import { resetAllAppData } from '../utils/dataReset';
+import { resetParkDetectionState, clearAuthKeys } from '../utils/dataReset';
 
 // 1. Create the Context
 const AuthContext = createContext({});
@@ -14,6 +14,12 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // To show a spinner while checking storage
+
+  // Kept in sync via the effect below, read from logout() — a ref (not a `userId` closure/dep) so
+  // logout() itself can stay referentially stable (empty deps array; see its own comment for why
+  // that stability matters — a 2026-08-02 infinite-fetch-loop bug from `logout` being recreated).
+  const userIdRef = useRef(userId);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
 
   const serverUrl = `http://${process.env.EXPO_PUBLIC_EXPO_SERVER_IP}:3001`;
 
@@ -127,7 +133,22 @@ export const AuthProvider = ({ children }) => {
   // re-render, recreating `logout` again: an infinite fetch loop (2026-08-02 field report — the
   // console log showed "Fetching user data and spots..." repeating continuously). Both only close
   // over stable setters + module-level imports, so an empty dependency array is correct.
+  // 2026-08-04: the park-detection wipe used to run unconditionally on every logout (see logout()
+  // below), including a routine session hiccup with no real account change — e.g. a lost/stale
+  // token after a force-quit relaunch — destroying a live, legitimate parked-car geofence and
+  // return-tracking state for no reason, even though the very next thing that happened was logging
+  // right back into the SAME account. The wipe's actual purpose (2026-07-26: stop a Demo Login
+  // session's native-owned spot from leaking into a real user's next session) only requires wiping
+  // when the account is actually CHANGING — so that decision moves here, compared against whoever
+  // logout() last recorded leaving. No recorded marker (e.g. this device's first-ever login) still
+  // wipes, preserving the original safety net; only a confirmed SAME account skips it.
   const login = useCallback(async (data) => {
+    const lastLoggedOutUserId = await AsyncStorage.getItem('lastLoggedOutUserId');
+    if (lastLoggedOutUserId !== String(data.userId)) {
+      await resetParkDetectionState();
+    }
+    await AsyncStorage.removeItem('lastLoggedOutUserId');
+
     setToken(data.token);
     setUserId(data.userId);
     setCurrentUsername(data.username);
@@ -137,17 +158,19 @@ export const AuthProvider = ({ children }) => {
     await AsyncStorage.setItem('username', data.username);
   }, []);
 
-  // Uses resetAllAppData() (not a plain AsyncStorage.multiRemove of just the auth keys) so a full
-  // logout also clears park-detection state — otherwise a stale spot/geofence/parkedLocation from
-  // THIS account survives into whoever logs in next (2026-07-26 incident: a Demo Login session's
-  // native-owned spot leaked onto a real user's map as their own parked car).
+  // Only clears auth/app-preference keys now — the park-detection wipe is decided in login() above
+  // (see its comment), based on whether the NEXT login is actually a different account from the
+  // userId recorded here.
   const logout = useCallback(async () => {
+    if (userIdRef.current != null) {
+      await AsyncStorage.setItem('lastLoggedOutUserId', String(userIdRef.current));
+    }
     setToken(null);
     setUserId(null);
     setCurrentUsername(null);
     setCurrentUser(null);
     setIsLoggedIn(false);
-    await resetAllAppData();
+    await clearAuthKeys();
   }, []);
 
   // A username change re-issues a JWT (its payload includes `username`), and the client needs to
