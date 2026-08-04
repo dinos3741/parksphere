@@ -1457,7 +1457,22 @@ public class VisitMonitorModule: Module {
       // threshold, deliberately independent of the HMM's own classification — the fast-path's whole
       // point is to declare a park immediately on BT disconnect, not wait for isExitEvent's confirmed-
       // walking + trip-time/distance thresholds).
-      if loc.speed >= VisitMonitorModule.parkDriveSpeedMS { parkDriveSeen = true }
+      //
+      // 2026-08-04: field test showed loc.speed reporting -1 (invalid/unknown) for an ENTIRE real trip
+      // (confirmed via telemetry — every single fix, both legs), so this speed-only check silently
+      // never fired and BOTH real parks (gym, home) missed the fast path — btDisconnect logged
+      // parkDriveSeen:false, declared:false at both. Raw GPS speed can't be the only source: it's not
+      // always populated. currentActivity ("automotive", from Core Motion — confirmed correctly "auto:
+      // true" throughout that same failed trip, independent of GPS) and result.drivingConfirmed (the
+      // full-HMM engine's own richer, multi-signal confidence — confirmed true 15s after the missed BT
+      // disconnect in that trip) are two more independent ways to know a real drive happened. Any ONE
+      // of the three being true is enough — deliberately a union, not a replacement, so a gap in any
+      // single signal (as happened here with GPS) doesn't silently disable the whole gate again.
+      if loc.speed >= VisitMonitorModule.parkDriveSpeedMS
+          || currentActivity == "automotive"
+          || result.drivingConfirmed {
+        parkDriveSeen = true
+      }
       if result.state == .stopped {
         if let cand = hmmStopCandidate, loc.distance(from: cand) > VisitMonitorModule.parkStopRadiusM {
           hmmStopCandidate = loc // moved off the old candidate — it was a different stop, start over

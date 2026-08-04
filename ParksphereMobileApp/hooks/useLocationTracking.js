@@ -24,29 +24,45 @@ export const useLocationTracking = (acceptedSpot, arrivalConfirmed, onProximityA
   };
 
   useEffect(() => {
+    let subscription = null;
+    let cancelled = false;
+
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Permission to access location was denied. Map will show a default location.');
         setLocationPermissionGranted(false);
-        setUserLocation({
-          latitude: 51.505,
-          longitude: -0.09,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
+        // Leave userLocation null rather than a hardcoded fallback (previously London,
+        // 51.505/-0.09) — callers (Map.js's initialRegion, its radius filter) already treat a null
+        // userLocation as "unknown" and degrade gracefully, instead of silently computing distances
+        // against a fake location thousands of km away.
         return;
       }
 
       setLocationPermissionGranted(true);
-      let location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
+      // Continuous watch instead of one getCurrentPositionAsync() call on mount — a single fetch can
+      // return a stale/cached or low-accuracy fix (common on a cold GPS lock indoors), and userLocation
+      // would then silently stay wrong for the rest of the session — e.g. quietly filtering every
+      // nearby spot out of the map's radius check with no visible sign anything was wrong.
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 20 },
+        (location) => {
+          if (cancelled) return;
+          setUserLocation({
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          });
+        }
+      );
     })();
+
+    return () => {
+      cancelled = true;
+      if (subscription) subscription.remove();
+    };
   }, []);
 
   useEffect(() => {

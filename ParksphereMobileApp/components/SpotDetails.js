@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, Image } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, Image, Alert } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -13,6 +13,16 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, onDeleteSpot,
   const handleUsernameClick = () => {
     onClose();
     onOpenChat({ id: spot.user_id, username: spot.username });
+  };
+
+  // userLocation can genuinely be null now (permission denied, or not acquired yet) — previously it
+  // was always a real or hardcoded-fallback object, so this call site never needed to check.
+  const handleRequestSpot = () => {
+    if (!userLocation) {
+      Alert.alert('Error', 'Could not determine your location. Please check your location settings.');
+      return;
+    }
+    onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude);
   };
 
   return (
@@ -48,7 +58,7 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, onDeleteSpot,
           {!isOwner && !isAccepted && ( // Only show Request Spot button if not the owner and not accepted
             <TouchableOpacity
               style={{ ...styles.openButton, backgroundColor: '#2196F3' }}
-              onPress={() => onRequestSpot(spot.id, userLocation.latitude, userLocation.longitude)}
+              onPress={handleRequestSpot}
             >
               <Text style={styles.textStyle}>Request Spot</Text>
             </TouchableOpacity>
