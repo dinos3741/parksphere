@@ -12,6 +12,9 @@ import Login from './components/Login';
 import Register from './components/Register';
 import SplashScreen from './components/SplashScreen';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
+import OpsMap from './components/ops/OpsMap';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import EditSpotModal from './components/EditSpotModal';
 import LeavingFab from './components/LeavingFab';
 import backgroundImage from './assets/images/parking_background.png';
@@ -82,6 +85,7 @@ function MainAppContent({ serverUrl }) {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [spotRequests, setSpotRequests] = useState([]);
   const [isLogoAnimating, setIsLogoAnimating] = useState(false);
   const [hasDeclaredSpot, setHasDeclaredSpot] = useState(false);
@@ -922,6 +926,19 @@ function MainAppContent({ serverUrl }) {
               </span>
               <span className="hamburger-menu-item__label">Settings</span>
             </button>
+            {role === 'admin' && (
+              <button
+                type="button"
+                className="hamburger-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); navigate('/ops'); }}
+              >
+                <span className="hamburger-menu-item__icon" aria-hidden>
+                  <i className="fas fa-satellite-dish" />
+                </span>
+                <span className="hamburger-menu-item__label">Ops Center</span>
+              </button>
+            )}
             <button type="button" className="hamburger-menu-item hamburger-menu-item--danger" role="menuitem" onClick={handleLogout}>
               <span className="hamburger-menu-item__icon" aria-hidden>
                 <i className="fas fa-right-from-bracket" />
@@ -1102,19 +1119,29 @@ function App() {
   }, []);
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<SplashScreen />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <MainAppContent serverUrl="http://localhost:3001" />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<SplashScreen />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <MainAppContent serverUrl="http://localhost:3001" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ops"
+            element={
+              <AdminRoute>
+                <OpsMap serverUrl="http://localhost:3001" />
+              </AdminRoute>
+            }
+          />
+        </Routes>
+      </AuthProvider>
     </Router>
   );
 }

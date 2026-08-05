@@ -592,6 +592,16 @@ async function authenticateToken(req, res, next) {
   });
 }
 
+// Composes with authenticateToken (must run after it, so req.user is populated) — gates the
+// web client's Ops Center endpoints. req.user.role is always present by this point: every path
+// that sets req.user (mock bypass, local JWT, Keycloak fallback) includes it.
+function requireAdmin(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required.' });
+  }
+  next();
+}
+
 app.get('/api/me', authenticateToken, async (req, res) => {
   console.log('DEBUG: /api/me called for user:', req.user.userId);
   try {
@@ -1009,6 +1019,25 @@ app.get('/api/parkingspots', authenticateToken, async (req, res) => {
     res.status(200).json(spotsToSend);
   } catch (error) {
     console.error('Error fetching parking spots:', error);
+    res.status(500).send('Server error fetching parking spots.');
+  }
+});
+
+// Ops Center (web client, admin-only): every spot, exact coordinates, no privacy fuzzing/status
+// filtering — unlike GET /api/parkingspots above, this isn't a marketplace listing for a
+// requester, it's operational visibility for whoever runs the platform.
+app.get('/api/admin/parkingspots', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ps.id, ps.user_id, u.username, u.car_type, u.plate_number, u.car_color,
+              ps.latitude, ps.longitude, ps.time_to_leave, ps.cost_type, ps.price,
+              ps.declared_at, ps.declared_car_type, ps.comments, ps.status, ps.is_auto_detected
+       FROM parking_spots ps JOIN users u ON ps.user_id = u.id
+       ORDER BY ps.declared_at DESC`
+    );
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error('Error fetching admin parking spots:', error);
     res.status(500).send('Server error fetching parking spots.');
   }
 });
