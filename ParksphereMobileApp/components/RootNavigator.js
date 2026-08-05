@@ -75,7 +75,9 @@ export default function RootNavigator({
                 <Ionicons
                   name={headerAction.mode === 'cancel' ? 'close' : 'add'}
                   size={31}
-                  color="#2f276a"
+                  // Red while placing a spot (mode 'cancel', the X) — matches the crosshair's color
+                  // (#E53935, Map.js) so the whole placement flow reads as one consistent action.
+                  color={headerAction.mode === 'cancel' ? '#E53935' : '#2f276a'}
                   // Ionicons glyphs don't have a bold variant to switch to — this shadow trick
                   // thickens the stroke a bit as an approximation of real boldness.
                   style={styles.headerActionIcon}

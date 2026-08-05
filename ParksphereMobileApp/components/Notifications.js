@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, PanResponder, Animated, TouchableOpacity, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, PanResponder, Animated, TouchableOpacity, Dimensions, DeviceEventEmitter } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-// Collapsible admin log panel, styled after iOS Find My's item card: rounded, frosted/translucent,
+// Collapsible activity log panel (all users, since 2026-08-05 — see HomeScreen.js), styled after
+// iOS Find My's item card: rounded, frosted/translucent,
 // a centered drag handle to resize while open, and an X in the top-right to collapse. Collapsed
 // state is a separate small handle tab docked to the right edge (not a shrunk version of the same
 // panel — its shape changes too much between the two states to animate as one continuous box).
@@ -12,13 +13,13 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 const DEFAULT_EXPANDED_HEIGHT = 260;
 const MIN_EXPANDED_HEIGHT = 120;
 const MAX_EXPANDED_HEIGHT = 500;
-const SLIDE_DURATION_MS = 250;
+const SLIDE_DURATION_MS = 150; // was 250 — snappier collapse-on-map-tap
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HANDLE_HIDE_OFFSET = 60; // > collapsedHandle's 40pt width, so it fully clears the right edge
 
 const Notifications = ({ notifications, onHeightChange }) => {
-  // Starts collapsed — an admin logging in shouldn't be greeted with the log panel already open;
-  // it's a diagnostic tool they opt into via the collapsed handle, not a default-on display.
+  // Starts collapsed — a user shouldn't be greeted with the log panel already open; it's opted
+  // into via the collapsed handle, not a default-on display.
   const [isExpanded, setIsExpanded] = useState(false);
   const animatedHeight = useRef(new Animated.Value(DEFAULT_EXPANDED_HEIGHT)).current;
   const startDragHeight = useRef(DEFAULT_EXPANDED_HEIGHT);
@@ -77,6 +78,16 @@ const Notifications = ({ notifications, onHeightChange }) => {
   const collapse = () => animateTo(false);
   const expand = () => animateTo(true);
 
+  // Tapping the map should get this panel out of the way — Map.js emits this on every tap (see its
+  // onPress comment for why a plain event beats wiring shared state: no race risk, and this stays a
+  // one-way "get out of the way" signal a sibling component can't otherwise reach).
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('collapseNotifications', () => {
+      if (isExpanded) collapse();
+    });
+    return () => sub.remove();
+  }, [isExpanded]);
+
   return (
     <>
       <Animated.View
@@ -103,9 +114,6 @@ const Notifications = ({ notifications, onHeightChange }) => {
         <View style={styles.resizeHandle} {...panResponder.panHandlers}>
           <View style={styles.handleIndicator} />
         </View>
-        <TouchableOpacity onPress={collapse} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color="#333" />
-        </TouchableOpacity>
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollViewContent}
@@ -127,10 +135,13 @@ const styles = StyleSheet.create({
   notificationArea: {
     // Floating overlay, not a flex sibling of the map — otherwise resizing this via the drag
     // handle would shrink/grow the map's own flex:1 box to compensate. This way the map always
-    // fills the full screen (even behind the tab bar) and this panel just floats on top of it,
-    // reaching the true screen bottom on purpose so it extends behind the translucent tab bar too.
+    // fills the full screen (even behind the tab bar) and this panel just floats on top of it.
+    // 2026-08-05: used to reach bottom:0 (behind the tab bar) on purpose, but the tab bar's
+    // translucent background made the last couple of log lines unreadable underneath it — bottom
+    // is now the tab bar's own top edge (bottom:20 + height:58, RootNavigator.js) plus a small gap,
+    // so the panel stops right above it instead.
     position: 'absolute',
-    bottom: 0,
+    bottom: 88,
     left: 10,
     right: 10,
     borderRadius: 20,
@@ -156,24 +167,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: 'rgba(51, 51, 51, 0.4)',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 5,
-    right: 7,
-    zIndex: 1,
-    width: 29, // 10% bigger than the original 26
-    height: 29,
-    borderRadius: 14.5,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   // Right-edge handle tab shown while collapsed — flush with the screen edge (only the left side is
   // rounded, so it reads as a tab docked to the edge rather than a floating pill).
   collapsedHandle: {
     position: 'absolute',
     right: 0,
-    bottom: 100, // clears the floating tab bar with room to spare
+    bottom: 130, // was 100 — 30pt higher
     width: 40,
     height: 70,
     borderTopLeftRadius: 20,
@@ -208,9 +207,9 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   notificationText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#000000', // From park-detection
-    fontWeight: '600', // From park-detection
+    fontWeight: '400',
     marginBottom: 4,
   },
 });
