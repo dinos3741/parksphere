@@ -625,9 +625,16 @@ public class VisitMonitorModule: Module {
     return true
   }
 
+  // Auto-detected parks have no user-declared duration (unlike the manual "+drop a pin" flow, which
+  // asks how long you'll be gone) — there's nothing to count down to, so this shouldn't behave like
+  // a real expiration. 1000 hours (server's checkAndRemoveExpiredSpots, index.js, does a real DELETE
+  // once time_to_leave elapses) is effectively "doesn't expire" without touching the NOT NULL/minutes
+  // column itself.
+  private static let autoDetectedTimeToLeaveMinutes = 60000
+
   private func declareServerSpot(_ loc: CLLocation) {
     let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
-    let timeToLeave = 60
+    let timeToLeave = VisitMonitorModule.autoDetectedTimeToLeaveMinutes
     Task { [weak self] in
       guard let self = self else { return }
       if self.serverSpotId > 0 {
