@@ -39,6 +39,31 @@ public class VisitMonitorModule: Module {
   }
   private var lastDeleteRetryAt: TimeInterval = 0
   private static let deleteRetryThrottleSec: TimeInterval = 30.0
+  // 2026-08-05: declareServerSpot's fire-and-forget POST had no retry if it failed (no connectivity
+  // at the moment of park) — unlike deleteServerSpot's pendingDeleteSpotId above, a failed declare
+  // was just dropped silently: a real, locally-detected park with a live geofence/return-tracking
+  // session, but no record in the server's parking_spots table at all — invisible to every other
+  // user until the next park cycle happened to succeed. Mirrors pendingDeleteSpotId's
+  // persisted-across-relaunch pattern; a declare needs lat/lon/timeToLeave (not a single Int like a
+  // spot id), so a separate "active" flag distinguishes "nothing pending" from valid 0.0 coordinates.
+  private var pendingDeclareActive: Bool {
+    get { UserDefaults.standard.bool(forKey: "psPendingDeclareActive") }
+    set { UserDefaults.standard.set(newValue, forKey: "psPendingDeclareActive") }
+  }
+  private var pendingDeclareLat: Double {
+    get { UserDefaults.standard.double(forKey: "psPendingDeclareLat") }
+    set { UserDefaults.standard.set(newValue, forKey: "psPendingDeclareLat") }
+  }
+  private var pendingDeclareLon: Double {
+    get { UserDefaults.standard.double(forKey: "psPendingDeclareLon") }
+    set { UserDefaults.standard.set(newValue, forKey: "psPendingDeclareLon") }
+  }
+  private var pendingDeclareTimeToLeave: Int {
+    get { UserDefaults.standard.integer(forKey: "psPendingDeclareTimeToLeave") }
+    set { UserDefaults.standard.set(newValue, forKey: "psPendingDeclareTimeToLeave") }
+  }
+  private var lastDeclareRetryAt: TimeInterval = 0
+  private static let declareRetryThrottleSec: TimeInterval = 30.0
   private static let regionId = "parkedSpot"
   // ── Idle/rest geofence (2026-07-29) ───────────────────────────────────────────
   // SLC (~hundreds of meters, real latency) and CLVisit (needs a sustained dwell before it registers
@@ -589,8 +614,20 @@ public class VisitMonitorModule: Module {
     return ok
   }
 
+  // Shared by declareServerSpot and the pending-retry path (retryPendingDeclareIfNeeded), same
+  // reasoning as attemptServerDelete: one place that calls the API, logs it, and decides success.
+  @discardableResult
+  private func attemptServerDeclare(lat: Double, lon: Double, timeToLeave: Int, loc: CLLocation, via: String) async -> Bool {
+    let (id, code) = await backend.declareSpot(lat: lat, lon: lon, timeToLeave: timeToLeave)
+    logNativeFix(loc, tag: "server-declare", force: true, extra: ["ok": id > 0, "code": code, "spotId": id, "via": via])
+    guard id > 0 else { return false }
+    serverSpotId = id
+    return true
+  }
+
   private func declareServerSpot(_ loc: CLLocation) {
     let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude
+    let timeToLeave = 60
     Task { [weak self] in
       guard let self = self else { return }
       if self.serverSpotId > 0 {
@@ -600,9 +637,32 @@ public class VisitMonitorModule: Module {
           self.pendingDeleteSpotId = priorId // backend 409s a 2nd spot for this user — must keep retrying
         }
       }
-      let (id, code) = await self.backend.declareSpot(lat: lat, lon: lon, timeToLeave: 60)
-      self.logNativeFix(loc, tag: "server-declare", force: true, extra: ["ok": id > 0, "code": code, "spotId": id])
-      if id > 0 { self.serverSpotId = id }
+      if !(await self.attemptServerDeclare(lat: lat, lon: lon, timeToLeave: timeToLeave, loc: loc, via: "live")) {
+        self.pendingDeclareActive = true
+        self.pendingDeclareLat = lat
+        self.pendingDeclareLon = lon
+        self.pendingDeclareTimeToLeave = timeToLeave
+      }
+    }
+  }
+
+  // Opportunistic retry for a declare that failed earlier (no connectivity when the park was first
+  // detected) — same "piggyback off whatever live fix arrives next" philosophy as
+  // retryPendingDeleteIfNeeded: attempting the real call periodically is simpler and more accurate
+  // than a dedicated reachability observer (internet-but-not-server is exactly the case a generic
+  // reachability check would get wrong). Throttled so a long outage doesn't hammer the backend once
+  // fixes resume.
+  private func retryPendingDeclareIfNeeded(_ loc: CLLocation) {
+    guard pendingDeclareActive else { return }
+    let now = Date().timeIntervalSince1970
+    guard now - lastDeclareRetryAt > VisitMonitorModule.declareRetryThrottleSec else { return }
+    lastDeclareRetryAt = now
+    let lat = pendingDeclareLat, lon = pendingDeclareLon, ttl = pendingDeclareTimeToLeave
+    Task { [weak self] in
+      guard let self = self else { return }
+      if await self.attemptServerDeclare(lat: lat, lon: lon, timeToLeave: ttl, loc: loc, via: "retry") {
+        self.pendingDeclareActive = false
+      }
     }
   }
   private func updateServerStatus(_ status: String) {
@@ -1165,6 +1225,11 @@ public class VisitMonitorModule: Module {
     // the whole day's telemetry from the rolling log.
     let hadCar = carLocation != nil
     deleteServerSpot() // R5.2: owner drove off / new trip → the spot is freed (delete on the server)
+    // Abandon (don't retry) a declare that never succeeded for the OUTGOING park — the car isn't
+    // there anymore, so a late-succeeding retry would create a phantom spot at a location the user
+    // no longer occupies, with nothing left to ever clean it up (it was never in serverSpotId, so
+    // deleteServerSpot() just above can't touch it).
+    pendingDeclareActive = false
     carLocation = nil
     returningNotified = false
     parkDriveSeen = false
@@ -1415,6 +1480,7 @@ public class VisitMonitorModule: Module {
     // SOFT return can actually fire (no-op once already registered).
     ensureNotifCategoryRegistered()
     retryPendingDeleteIfNeeded(loc) // catch up any server-delete that failed for lack of connectivity
+    retryPendingDeclareIfNeeded(loc) // catch up any server-declare that failed for lack of connectivity
     maybeQueryActivityHistory() // periodic historical correction of currentActivityDetail (see above)
 
     await stepRateProvider.refreshCurrentStepRate()

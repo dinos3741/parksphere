@@ -1153,8 +1153,10 @@ app.put('/api/parkingspots/:id', authenticateToken, async (req, res) => {
       return res.status(403).send('You are not authorized to update this parking spot.');
     }
 
+    // COALESCE so a partial update (e.g. just timeToLeave from the inline-edit UI) doesn't null out
+    // every other field — this used to SET all five unconditionally regardless of which were sent.
     await pool.query(
-      'UPDATE parking_spots SET time_to_leave = $1, cost_type = $2, price = $3, comments = $4, declared_car_type = $5 WHERE id = $6',
+      'UPDATE parking_spots SET time_to_leave = COALESCE($1, time_to_leave), cost_type = COALESCE($2, cost_type), price = COALESCE($3, price), comments = COALESCE($4, comments), declared_car_type = COALESCE($5, declared_car_type) WHERE id = $6',
       [timeToLeave, costType, price, comments, declaredCarType, spotId]
     );
 

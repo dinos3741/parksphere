@@ -15,7 +15,7 @@ export const useSpots = () => {
 };
 
 export const SpotProvider = ({ children, addNotification, socket, userId, currentUsername, triggerNotification, setParkedLocation, parkedLocation }) => {
-  const { token, isLoggedIn, serverUrl, logout } = useAuth();
+  const { token, isLoggedIn, serverUrl, logout, currentUser } = useAuth();
   const [parkingSpots, setParkingSpots] = useState([]);
   const [acceptedSpot, setAcceptedSpotState] = useState(null);
   const [spotRequests, setSpotRequests] = useState([]);
@@ -136,7 +136,11 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     }
   }, [socket, triggerNotification, setAcceptedSpot, setArrivalConfirmed]);
 
-  // Expiration logic
+  // Expiration logic — this used to only remove the spot from local display state, never actually
+  // deleting the server row or clearing parkedLocation. For the CURRENT USER'S own spot that meant
+  // it didn't really disappear: it fell out of parkingSpots, and (combined with Map.js's "no real
+  // spot listed" check) the map just reverted to the plain, non-editable "Your Car" fallback marker
+  // forever instead of the spot actually vanishing. Now a real delete for your own expired spot.
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date().getTime();
@@ -146,22 +150,26 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
           const expirationTime = new Date(spot.declared_at).getTime() + spot.time_to_leave * 60 * 1000;
           if (now > expirationTime) {
             changed = true;
+            if (spot.user_id === userId) {
+              handleDeleteSpot(spot.id);
+              if (setParkedLocation) setParkedLocation(null);
+            }
             return false;
           }
           return true;
         });
-        
+
         if (changed) {
           // Also cleanup requests for expired spots
           const spotIds = filtered.map(s => s.id);
           setSpotRequests(prevRequests => prevRequests.filter(req => spotIds.includes(req.spotId)));
         }
-        
+
         return changed ? filtered : prevSpots;
       });
     }, 10000); // 10s check instead of 1s for efficiency
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
   const fetchParkingSpots = useCallback(async () => {
     if (!isLoggedIn || !token) return;
@@ -189,10 +197,13 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
   // the AppState pattern already used in useReturnDetection.js.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') fetchParkingSpots();
+      if (s === 'active') {
+        fetchParkingSpots();
+        retryPendingManualDeclare();
+      }
     });
     return () => sub.remove();
-  }, [fetchParkingSpots]);
+  }, [fetchParkingSpots, retryPendingManualDeclare]);
 
   // R7 (2026-07-26): sync the map's "Your Car" marker FROM the server when it knows about a spot
   // the client doesn't have locally yet (e.g. an account switch that left a stale/empty local cache).
@@ -257,6 +268,13 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
       });
       if (response.ok) {
         addNotification(`Spot ${spotId} deleted successfully!`);
+        // Same gap as the expiry effect had (fixed 2026-08-04): removing a spot from parkingSpots
+        // alone left parkedLocation set, so Map.js's "no real spot listed" check made the plain
+        // "Your Car" fallback marker reappear instead of the marker actually disappearing.
+        const deletedSpot = parkingSpots.find((spot) => spot.id === spotId);
+        if (deletedSpot && deletedSpot.user_id === userId && setParkedLocation) {
+          setParkedLocation(null);
+        }
         setParkingSpots((prevSpots) => prevSpots.filter((spot) => spot.id !== spotId));
       } else if (response.status === 401 || response.status === 403) {
         await logout();
@@ -290,39 +308,92 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     }
   };
 
+  // Key + shape for a manual declare that failed for lack of connectivity — mirrors
+  // VisitMonitorModule.swift's pendingDeclareActive/retryPendingDeclareIfNeeded (2026-08-05), just
+  // for the manual "+drop a pin" flow instead of native's automatic detection path. Same body shape
+  // /api/declare-spot expects, so it can be replayed as-is.
+  const PENDING_MANUAL_DECLARE_KEY = 'pendingManualDeclare';
+
+  const attemptDeclareSpot = (body) => apiRequest(`${serverUrl}/api/declare-spot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+
   const handleCreateSpot = async (duration, coordinates) => {
     if (!token || !userId || !coordinates) return;
+    const body = {
+      userId: userId,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      timeToLeave: duration,
+      costType: 'free',
+      price: 0,
+      // Was hardcoded to 'sedan' regardless of the actual declaring user's car — declared_car_type
+      // drives the size-compatibility filter other users see (CAR_SIZE_HIERARCHY server-side), so a
+      // motorcycle owner's manually-declared spot was silently telling every requester it only fit
+      // a sedan-or-bigger. The native (auto-detect) path already used the real profile car type via
+      // configureBackend; this brings the manual path in line with it.
+      declaredCarType: currentUser?.car_type || 'sedan',
+      comments: '',
+    };
     try {
-      const response = await apiRequest(`${serverUrl}/api/declare-spot`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: userId,
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
-          timeToLeave: duration,
-          costType: 'free',
-          price: 0,
-          declaredCarType: 'sedan', 
-          comments: '',
-        }),
-      });
+      const response = await attemptDeclareSpot(body);
       if (response.ok) {
         const data = await response.json();
         addNotification(`Parking spot ${data.spotId} declared successfully!`);
         if (setParkedLocation) {
           setParkedLocation(coordinates);
         }
+        // Occupied (private) spots only socket-push to the owner, and that push isn't guaranteed to
+        // land before this function returns — without this, parkingSpots could stay stale for a
+        // while, which (combined with Map.js's "no real spot listed yet" check) left the map showing
+        // the plain non-editable "Your Car" marker instead of the real, editable one even after a
+        // fully successful declare. A direct re-fetch reflects our own just-confirmed action
+        // immediately instead of depending on the echo's timing.
+        fetchParkingSpots();
       } else if (response.status === 401 || response.status === 403) {
         await logout();
       }
+      // Any other non-ok response (e.g. 409 already-declared) is a real rejection from a server we
+      // DID reach — a retry wouldn't fix it, so deliberately not persisted as pending.
     } catch (error) {
-      console.error('[SpotContext] Error creating spot:', error);
+      // A thrown fetch means we couldn't reach the server at all (offline, or — as with the local
+      // dev server living on a laptop — no internet doesn't necessarily mean no server either way).
+      // Persist so the next foreground/login retries it automatically, same "piggyback on the next
+      // opportunity instead of a dedicated reachability check" approach as the native fix.
+      console.error('[SpotContext] Error creating spot (will retry once reconnected):', error);
+      await AsyncStorage.setItem(PENDING_MANUAL_DECLARE_KEY, JSON.stringify(body));
+      addNotification("No connection — your spot is saved and will sync automatically once you're back online.");
+      if (setParkedLocation) {
+        setParkedLocation(coordinates); // reflect reality locally regardless of server-sync status
+      }
     }
   };
+
+  // Opportunistic retry for a manual declare that failed earlier — called on login and on every
+  // foreground, alongside fetchParkingSpots (App.js / the effect below), so it gets picked up the
+  // moment connectivity actually returns rather than waiting on a dedicated observer.
+  const retryPendingManualDeclare = useCallback(async () => {
+    if (!token) return;
+    const raw = await AsyncStorage.getItem(PENDING_MANUAL_DECLARE_KEY);
+    if (!raw) return;
+    try {
+      const body = JSON.parse(raw);
+      const response = await attemptDeclareSpot(body);
+      if (response.ok) {
+        const data = await response.json();
+        await AsyncStorage.removeItem(PENDING_MANUAL_DECLARE_KEY);
+        addNotification(`Parking spot ${data.spotId} synced successfully!`);
+        fetchParkingSpots(); // same reasoning as handleCreateSpot — don't depend on the socket echo
+      }
+      // Any other outcome (still unreachable, or a real rejection) — leave it pending; a genuine
+      // rejection would just fail identically forever, but there's no safe way to tell that apart
+      // from a transient server error here, and retrying a no-op every foreground costs nothing.
+    } catch (error) {
+      console.error('[SpotContext] Retry of pending manual declare failed:', error);
+    }
+  }, [token, serverUrl, addNotification, fetchParkingSpots]);
 
   const handleAcceptRequest = (request) => {
     if (socket.current) {
@@ -381,6 +452,7 @@ export const SpotProvider = ({ children, addNotification, socket, userId, curren
     spotRadiusKm,
     setSpotRadiusKm,
     fetchParkingSpots,
+    retryPendingManualDeclare,
     handleRequestSpot,
     handleDeleteSpot,
     handleSaveEditedSpot,

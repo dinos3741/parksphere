@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, PanResponder, Alert } from 'react-native';
 import { shareHeartbeatLog, setManualLabel } from '../utils/telemetryService';
 import { useOverlay } from '../context/OverlayContext';
+import { resetParkDetectionState } from '../utils/dataReset';
 
 const pan = new Animated.ValueXY({ x: 10, y: 400 });
 
@@ -43,6 +44,29 @@ const DebugSimulator = () => {
     setManualLabel(nextLabel);
   };
 
+  // For an orphaned local park (parkedLocation set, geofence armed, but nothing to show it —
+  // e.g. a declare that failed offline before the retry fix existed, so there's nothing pending to
+  // retry either) with no real spot id to run the normal delete-spot flow against. Same function
+  // AuthContext.js's login()/logout() use for an actual account change — reused here as a manual
+  // escape hatch for field-test cleanup, not exposed anywhere a regular user could hit it.
+  const handleResetSpot = () => {
+    Alert.alert(
+      'Reset spot detection?',
+      'Clears your parked-car marker, geofence, and any pending spot state on this device. Does not touch other spots.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await resetParkDetectionState();
+            Alert.alert(ok ? 'Reset' : 'Error', ok ? 'Spot detection state cleared.' : 'Reset failed — check the console.');
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <Animated.View
       style={[
@@ -59,6 +83,11 @@ const DebugSimulator = () => {
       <View style={styles.row}>
         <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#8b5cf6' }]} onPress={shareHeartbeatLog}>
           <Text style={styles.btnText}>💓 EXPORT HEARTBEAT</Text>
+        </TouchableOpacity>
+      </View>
+      <View style={styles.row}>
+        <TouchableOpacity style={[styles.btn, { width: '100%', backgroundColor: '#dc2626' }]} onPress={handleResetSpot}>
+          <Text style={styles.btnText}>🗑️ RESET SPOT</Text>
         </TouchableOpacity>
       </View>
 

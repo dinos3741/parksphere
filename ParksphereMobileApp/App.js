@@ -150,7 +150,7 @@ function AppLayout({
   setShowRegister,
 }) {
   console.log(`[App.js] AppLayout rendering. isLoggedIn: ${isLoggedIn}`);
-  const { fetchParkingSpots } = useSpots();
+  const { fetchParkingSpots, retryPendingManualDeclare } = useSpots();
   const { userId, token, fetchUserData } = useAuth();
   const { showHmmEngine, showFlightRecorder, showFixesWindow } = useDebugTools();
 
@@ -159,8 +159,9 @@ function AppLayout({
       console.log('[App.js] AppLayout: Fetching user data and spots...');
       fetchUserData();
       fetchParkingSpots();
+      retryPendingManualDeclare(); // catch up a manual declare that failed for lack of connectivity
     }
-  }, [isLoggedIn, userId, token, fetchUserData, fetchParkingSpots]);
+  }, [isLoggedIn, userId, token, fetchUserData, fetchParkingSpots, retryPendingManualDeclare]);
   return (
     <>
       <StatusBar style="auto" />
