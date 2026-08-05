@@ -32,6 +32,7 @@ const MOCK_DATA = {
       status: 'active'
     }
   ],
+  nextSpotId: 102,
   carTypes: ['sedan', 'suv', 'truck', 'van', 'electric'],
   conversations: [],
   messages: []
@@ -69,10 +70,41 @@ export const apiRequest = async (endpoint, options = {}) => {
     }
 
     if (endpoint.includes('/api/declare-spot')) {
+      // Used to just return a fake success without touching MOCK_DATA.spots, so the spot you just
+      // placed never showed up on the map — the follow-up /api/parkingspots fetch (below) just
+      // replayed the original static seed spot. Build a real record from the request body and add
+      // it, mirroring the real server's shape (server/index.js's GET /api/parkingspots SELECT) so
+      // the map/SpotDetails render it the same way a real spot would.
+      const body = options.body ? JSON.parse(options.body) : {};
+      const newSpot = {
+        id: MOCK_DATA.nextSpotId++,
+        user_id: MOCK_DATA.user.id,
+        username: MOCK_DATA.user.username,
+        car_type: MOCK_DATA.user.car_type,
+        plate_number: MOCK_DATA.user.plate_number,
+        car_color: MOCK_DATA.user.car_color,
+        share_plate_number: true,
+        latitude: body.latitude,
+        longitude: body.longitude,
+        fuzzed_latitude: body.latitude,
+        fuzzed_longitude: body.longitude,
+        time_to_leave: body.timeToLeave,
+        cost_type: body.costType || 'free',
+        price: body.price || 0,
+        declared_at: new Date().toISOString(),
+        declared_car_type: body.declaredCarType || MOCK_DATA.user.car_type,
+        comments: body.comments || '',
+        status: 'free',
+        is_auto_detected: false,
+      };
+      // Real server rejects a second declare while one is already active (409) — mirror that by
+      // replacing rather than accumulating, so mock mode can't end up with two "own" spots either.
+      MOCK_DATA.spots = MOCK_DATA.spots.filter((s) => s.user_id !== MOCK_DATA.user.id);
+      MOCK_DATA.spots.push(newSpot);
       return {
         ok: true,
         status: 201,
-        json: () => Promise.resolve({ spotId: 999, message: 'Spot created (Mock)' })
+        json: () => Promise.resolve({ spotId: newSpot.id, message: 'Spot created (Mock)' })
       };
     }
 
@@ -93,6 +125,23 @@ export const apiRequest = async (endpoint, options = {}) => {
     }
 
     if (endpoint.includes('/api/parkingspots')) {
+        const method = options.method || 'GET';
+        // Used to ignore method entirely and always just echo the current list back — DELETE/PUT to
+        // /api/parkingspots/:id got an ok:true response, which made SpotContext.js's optimistic local
+        // state update (setParkingSpots filter/map) look like it worked, but MOCK_DATA.spots itself
+        // was never touched. The change looked fine until the next fetchParkingSpots() (foreground,
+        // pull-to-refresh) silently brought the "deleted"/unedited spot back.
+        if (method === 'DELETE') {
+          const spotId = parseInt(endpoint.split('/').pop(), 10);
+          MOCK_DATA.spots = MOCK_DATA.spots.filter((s) => s.id !== spotId);
+          return { ok: true, status: 200, json: () => Promise.resolve({ message: 'Spot deleted (Mock)' }) };
+        }
+        if (method === 'PUT') {
+          const spotId = parseInt(endpoint.split('/').pop(), 10);
+          const body = options.body ? JSON.parse(options.body) : {};
+          MOCK_DATA.spots = MOCK_DATA.spots.map((s) => (s.id === spotId ? { ...s, ...body } : s));
+          return { ok: true, status: 200, json: () => Promise.resolve({ message: 'Spot updated (Mock)' }) };
+        }
         return {
             ok: true,
             status: 200,
