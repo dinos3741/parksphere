@@ -8,7 +8,6 @@ import TimeOptionsModal from './TimeOptionsModal';
 import ArrivalConfirmationModal from './ArrivalConfirmationModal';
 import RatingModal from './RatingModal';
 import RequesterArrivalModal from './RequesterArrivalModal';
-import EditSpotMobileModal from './EditSpotMobileModal';
 import RequesterProfileModal from './RequesterProfileModal';
 import LeavingModal from './LeavingModal';
 
@@ -66,8 +65,6 @@ export default function HomeScreen({
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [userToRate, setUserToRate] = useState(null);
   const [isRequesterArrivalModalOpen, setRequesterArrivalModalOpen] = useState(false);
-  const [showEditSpotMobileModal, setShowEditSpotMobileModal] = useState(false);
-  const [spotToEdit, setSpotToEdit] = useState(null);
   const [showRequesterDetailsModal, setShowRequesterDetailsModal] = useState(false);
   const [selectedRequester, setSelectedRequester] = useState(null);
   const [newSpotCoordinates, setNewSpotCoordinates] = useState(null);
@@ -191,12 +188,6 @@ export default function HomeScreen({
     setArrivalConfirmationData(null);
   };
 
-  const handleEditSpot = (spot) => {
-    setSpotToEdit(spot);
-    setShowEditSpotMobileModal(true);
-    setSpotDetailsVisible(false); 
-  };
-
   return (
     <View style={{flex: 1}}>
       <View style={{...styles.mapBorderWrapper, flex: 1}}>
@@ -207,7 +198,6 @@ export default function HomeScreen({
           handleSpotPress={handleLocalSpotPress}
           handleCenterMap={handleCenterMap}
           mapViewRef={mapViewRef}
-          setSpotDetailsVisible={setSpotDetailsVisible}
           isAddingSpot={isAddingSpot}
           setIsAddingSpot={setIsAddingSpot}
           setNewSpotCoordinates={setNewSpotCoordinates}
@@ -218,7 +208,12 @@ export default function HomeScreen({
           spotRadiusKm={spotRadiusKm}
         />
       </View>
-      {currentUser?.role === 'admin' && <Notifications notifications={notifications} />}
+      {/* 2026-08-05: every message pushed into `notifications` (SpotContext.js, HomeScreen.js,
+          useParkDetectionEngine.js) is a normal user-facing event — spot declared/deleted/updated,
+          request received, rating submitted, arrival confirmed. None of it is admin-diagnostic
+          (that lives separately, in HMMOverlay/DebugSimulator, still admin-gated) — this panel was
+          just built admin-only by default and never opened up. All logged-in users get it now. */}
+      {currentUser && <Notifications notifications={notifications} />}
 
       <LeavingModal
         visible={isLeavingModalVisible}
@@ -236,7 +231,7 @@ export default function HomeScreen({
         onClose={() => setSpotDetailsVisible(false)}
         onRequestSpot={handleRequestSpot}
         onDeleteSpot={handleDeleteSpot}
-        onEditSpot={handleEditSpot}
+        onUpdateSpot={handleSaveEditedSpot}
         userLocation={userLocation}
         acceptedSpot={acceptedSpot}
         arrivalConfirmed={arrivalConfirmed}
@@ -251,13 +246,6 @@ export default function HomeScreen({
           handleCreateSpot(time, newSpotCoordinates || userLocation);
           setNewSpotCoordinates(null);
         }}
-      />
-
-      <EditSpotMobileModal
-        visible={showEditSpotMobileModal}
-        onClose={() => setShowEditSpotMobileModal(false)}
-        spotData={spotToEdit}
-        onSave={handleSaveEditedSpot}
       />
 
       <ArrivalConfirmationModal
