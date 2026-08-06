@@ -881,10 +881,12 @@ public class VisitMonitorModule: Module {
 
   // 2026-07-29: extracted from startDriveLiveUpdates so a died loop can relaunch itself without
   // waiting for JS to notice (see liveUpdatesWanted's declaration for why that matters). Self-healing:
-  // on any error ending the loop, retry with a short linear backoff (capped) as long as
-  // liveUpdatesWanted is still true — bounded so a persistent failure (e.g. revoked authorization)
-  // doesn't spin forever, but transient OS-level interruptions recover within seconds instead of
-  // silencing the app for the rest of the day.
+  // on any error ending the loop, retry with a linear backoff (capped at 5 minutes, see the catch
+  // block below) for as long as liveUpdatesWanted stays true — never gives up outright, since JS's
+  // mode controller can go a full night without ever re-calling startDriveLiveUpdates() itself (see
+  // the 2026-08-06 note below). Transient OS-level interruptions recover within seconds; a genuinely
+  // persistent failure (e.g. revoked authorization) just checks in every 5 minutes instead of either
+  // spinning tightly or silencing the app for good.
   @available(iOS 17.0, *)
   private func launchLiveUpdatesTask() {
     guard liveTask == nil else { return }
@@ -940,8 +942,17 @@ public class VisitMonitorModule: Module {
         self.liveTask = nil
         guard self.liveUpdatesWanted else { return }
         self.liveRestartAttempt += 1
-        guard self.liveRestartAttempt <= 5 else { return } // give up after 5 — a persistent failure (e.g. revoked auth) shouldn't spin forever
-        let delaySec = Double(min(self.liveRestartAttempt, 3)) * 2.0 // 2s, 4s, 6s, 6s, 6s
+        // 2026-08-06: used to give up entirely after 5 attempts (~24s) — fine for a transient
+        // hiccup, but a field test (overnight, parked) showed the loop can die during a long
+        // background idle with nothing on the JS side able to notice: the mode controller
+        // (useReturnDetection.js) only calls startDriveLiveUpdates() again on an actual
+        // 'off'<->'watching' TRANSITION, and while a spot stays armed all night, mode never
+        // changes — not even on foreground the next morning. A permanently-dead loop then stayed
+        // dead for the rest of the night, and (if it died mid-trip) could silently blackout an
+        // entire drive the same way the missed-first-parking field test showed. Never fully stop
+        // retrying while liveUpdatesWanted — just grow the backoff to a 5-minute ceiling so a truly
+        // persistent failure (e.g. revoked auth) checks in occasionally instead of spinning tightly.
+        let delaySec = min(Double(self.liveRestartAttempt) * 2.0, 300.0)
         try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
         DispatchQueue.main.async { self.launchLiveUpdatesTask() }
       }
