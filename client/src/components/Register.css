@@ -1,5 +1,5 @@
 .auth-page-wrapper {
-  background: linear-gradient(to right, #512da8, #1976d2); /* Same as splash screen */
+  background: var(--gradient-brand);
   min-height: 100vh; /* Ensure it covers the full viewport height */
   display: flex;
   flex-direction: column;
@@ -14,7 +14,7 @@
 }
 
 .register-header .logo {
-  font-family: 'Advent Pro', sans-serif; /* Consistent with SplashScreen */
+  font-family: var(--font-brand);
   font-size: 2.5rem;
   letter-spacing: 2.3px;
   margin: 0;
@@ -65,8 +65,8 @@
 .auth-container form {
   background-color: white;
   padding: 10px 20px; /* Reduced padding */
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
   gap: 4px; /* Even tighter gap */
@@ -82,7 +82,7 @@
 .auth-container label {
   margin-bottom: 0px;
   font-weight: bold;
-  color: #332294;
+  color: var(--color-brand);
   font-size: 0.85rem; /* Slightly smaller font */
 }
 
@@ -90,23 +90,23 @@
 .auth-container select {
   padding: 4px 8px; /* Tighter padding */
   border: 1px solid #ccc;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
 }
 
 .auth-container button {
   padding: 6px 15px;
-  background-color: #007bff;
+  background-color: var(--color-brand);
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 0.95rem;
   margin-top: 2px;
 }
 
 .auth-container button:hover {
-  background-color: #0056b3;
+  filter: brightness(0.9);
 }
 
 .social-login-separator {
@@ -135,7 +135,7 @@
   font-size: 0.8rem;
   position: relative;
   z-index: 2;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .google-login-container {
@@ -174,7 +174,7 @@
 }
 
 .auth-container a {
-  color: #007bff;
+  color: var(--color-brand);
   text-decoration: none;
 }
 
@@ -193,7 +193,7 @@
   }
 
   .tagline {
-    font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+    font-family: var(--font-body);
     font-weight: 440; /* Semi-bold */
     font-size: 1.4rem;
     margin-top: 35px;
@@ -223,10 +223,14 @@
 
 .App-footer {
   text-align: center;
-  font-size: 1rem;
-  color: blue;
-  background-color: #547abb; /* Blue Ciel */
-  width: 100%; /* Full width */
-  /* margin-top: 10px; */ /* Remove this line */
-  border-radius: 10px; /* Rounded corners */
+  font-size: 0.85rem;
+  color: rgba(0, 0, 0, 0.5);
+  background: transparent;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  width: 100%;
+  padding: 8px 0;
+}
+
+.App-footer p {
+  margin: 0;
 }

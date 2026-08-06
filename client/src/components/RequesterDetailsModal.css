@@ -15,9 +15,9 @@
   position: relative;
   background-color: white;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 300px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
 }
 
 .RequesterDetailsModal__close {
@@ -36,7 +36,7 @@
 
 .RequesterDetailsModal__content h2 {
   margin-top: 0;
-  color: #603aac;
+  color: var(--color-brand);
 }
 
 .RequesterDetailsModal__separator {
@@ -72,7 +72,7 @@
 .RequesterDetailsModal__left p {
   margin: 0;
   font-weight: bold;
-  color: #603aac;
+  color: var(--color-brand);
   font-size: 1.25em;
 }
 
@@ -81,7 +81,7 @@
 }
 
 .RequesterDetailsModal__right p {
-  color: #603aac;
+  color: var(--color-brand);
   text-align: left;
 }
 

@@ -18,16 +18,16 @@
 .modal-content {
   background: white;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   width: 300px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
   text-align: center;
   position: relative;
 }
 
 .title {
   font-size: 20px;
-  color: #252c7e;
+  color: var(--color-brand);
   margin-bottom: 12px;
 }
 
@@ -48,12 +48,12 @@
   margin: 5px;
   padding: 10px 15px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 14px;
 }
 
 .accept-button {
-  background-color: #4CAF50; /* Green */
+  background-color: var(--color-success);
   color: white;
 }

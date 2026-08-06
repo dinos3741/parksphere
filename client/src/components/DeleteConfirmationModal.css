@@ -12,12 +12,12 @@
 }
 
 .delete-modal-content {
-  background-color: rgb(229, 226, 236);
+  background-color: var(--color-surface-tint);
   padding: 20px;
-  border-radius: 15px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   position: relative;
   color: #333;
   text-align: center;
@@ -27,11 +27,11 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #603aac;
+  background-color: var(--color-brand);
   padding: 10px 20px;
   margin: -20px -20px 20px -20px; /* Adjust to cover the top corners */
-  border-top-left-radius: 15px;
-  border-top-right-radius: 15px;
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
 }
 
 .delete-modal-header h2 {
@@ -55,7 +55,7 @@
 .delete-modal-body p {
   margin-bottom: 20px;
   font-size: 1.1em;
-  color: #7A1BE0;
+  color: var(--color-brand);
 }
 
 .delete-modal-footer {
@@ -68,7 +68,7 @@
 .delete-confirm-button,
 .delete-cancel-button {
   padding: 10px 20px;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   border: none;
   cursor: pointer;
   font-weight: bold;
@@ -76,19 +76,19 @@
 }
 
 .delete-confirm-button {
-  background-color: #a5387b; /* Purple-red from SideDrawer.css .delete-button */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .delete-confirm-button:hover {
-  background-color: #8c2f68;
+  background-color: var(--color-danger-dark);
 }
 
 .delete-cancel-button {
-  background-color: #3454bd; /* Purple-blue from SideDrawer.css .edit-button */
+  background-color: var(--color-brand);
   color: white;
 }
 
 .delete-cancel-button:hover {
-  background-color: #2a429a;
+  filter: brightness(0.85);
 }

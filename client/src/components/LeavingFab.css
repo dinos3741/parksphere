@@ -3,18 +3,21 @@
   bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #9b59b6; /* Lighter Purple */
+  background: var(--gradient-brand);
   color: white;
   width: 96px;
   height: 96px;
-  border: 1px solid white;
+  border: none;
   border-radius: 50%;
   cursor: pointer;
+  font-family: var(--font-body);
   font-size: 20px; /* Increased by 15% and rounded */
   font-weight: bold;
-  box-shadow: 0 8px 16px rgba(0, 123, 255, 0.6);
+  /* Was a stray blue shadow (rgba(0,123,255,...)) that didn't match anything else in the app —
+     a plain brand-tinted shadow reads as "this button" instead of a leftover from an older palette. */
+  box-shadow: 0 8px 16px rgba(81, 45, 168, 0.45);
   z-index: 1000;
-  transition: background-color 0.3s, transform 0.2s;
+  transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -22,8 +25,9 @@
 }
 
 .leaving-fab:hover {
-  background-color: #8e44ad; /* Darker Lighter Purple */
+  filter: brightness(0.94);
   transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 10px 20px rgba(81, 45, 168, 0.55);
 }
 
 .leaving-fab:active {
@@ -46,8 +50,8 @@
 .leaving-overlay-content {
   background-color: white;
   padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   text-align: center;
   position: relative;
   max-width: 90%;
@@ -70,33 +74,42 @@
 }
 
 .chip {
-  background-color: #f0f0f0;
-  border: 1px solid #ddd;
-  border-radius: 10px;
+  background-color: #f0f0f4; /* Light lavender fill, matches the mobile app's pill chips */
+  border: none;
+  border-radius: var(--radius-pill);
   padding: 10px 20px;
   font-size: 1em;
+  font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-  color: #555;
+  transition: background-color 0.15s ease;
+  color: var(--color-brand);
 }
 
 .chip:hover {
-  background-color: #e0e0e0;
-  border-color: #ccc;
+  background-color: rgba(81, 45, 168, 0.12);
 }
 
 .close-overlay-button {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #f0f0f4;
   border: none;
-  font-size: 1.2em;
+  border-radius: 50%;
+  font-size: 1.1em;
+  line-height: 1;
   cursor: pointer;
-  color: #888;
+  color: #666;
+  transition: background-color 0.15s ease;
 }
 
 .close-overlay-button:hover {
+  background: #e4e4ec;
   color: #333;
 }
 

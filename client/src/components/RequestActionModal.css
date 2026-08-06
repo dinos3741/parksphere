@@ -12,12 +12,12 @@
 }
 
 .request-action-modal-content {
-  background-color: rgb(229, 226, 236);
+  background-color: var(--color-surface-tint);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
   color: #333;
 }
@@ -33,7 +33,7 @@
 
 .request-action-modal-header h2 {
   margin: 0;
-  color: #7A1BE0;
+  color: var(--color-brand);
 }
 
 .request-action-modal-close-button {
@@ -67,7 +67,7 @@
 
 .request-action-modal-footer button {
   padding: 10px 15px;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   border: none;
   cursor: pointer;
   font-weight: bold;
@@ -76,22 +76,19 @@
 }
 
 .confirm-button {
-  background-color: #3454bd; /* Purple-blue */
+  background-color: var(--color-brand);
   color: white;
 }
 
 .confirm-button:hover {
-  background-color: #2a43a0;
+  filter: brightness(0.85);
 }
 
 .reject-button {
-  background-color: #a5387b; /* Purple-red */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .reject-button:hover {
-  background-color: #8e2f68;
-}
-utton:hover {
-  background-color: #da190b;
+  background-color: var(--color-danger-dark);
 }

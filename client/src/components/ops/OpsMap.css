@@ -10,13 +10,17 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: #512da8;
+  background: var(--gradient-brand);
   color: white;
   flex-shrink: 0;
+  font-family: var(--font-body);
 }
 
 .ops-map-header h1 {
-  font-size: 18px;
+  font-family: var(--font-brand);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 1px;
   margin: 0;
 }
 
@@ -28,7 +32,7 @@
 .ops-map-error {
   padding: 8px 20px;
   background: #ffebee;
-  color: #c62828;
+  color: var(--color-danger-dark);
   font-size: 14px;
   flex-shrink: 0;
 }

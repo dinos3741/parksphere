@@ -1,8 +1,40 @@
+/* Single load point for both brand fonts — Advent Pro was previously @imported redundantly in
+   both Login.css and SplashScreen.css, and 'Inter' was referenced as font-family in ~10 files but
+   never actually loaded anywhere, silently falling back to the browser default the whole time. */
+@import url('https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;600&family=Inter:wght@400;500;600;700&display=swap');
+
+/* Design tokens — consolidates ~15 independently-picked "brand purple" shades and ~14
+   near-duplicate shadow values that had drifted across every component CSS file in this project
+   (see the modernize-webapp UI-consistency plan). --color-danger matches the red already
+   established on the mobile app (#E53935) for cross-platform brand consistency, not a new pick. */
+:root {
+  --color-brand: #512da8;
+  --color-brand-light: #1976d2;
+  --gradient-brand: linear-gradient(to right, var(--color-brand), var(--color-brand-light));
+
+  --color-danger: #e53935;
+  --color-danger-dark: #b71c1c;
+  --color-success: #4caf50;
+  --color-success-dark: #388e3c;
+  --color-surface-tint: rgb(229, 226, 236);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.22);
+
+  --font-brand: 'Advent Pro', sans-serif;
+  --font-body: 'Inter', sans-serif;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

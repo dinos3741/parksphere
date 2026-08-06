@@ -14,10 +14,10 @@
 .request-rejected-modal-content {
   background: white;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   text-align: center;
 }
 
@@ -26,20 +26,20 @@
 }
 
 .request-rejected-modal-content p {
-  color: #6a5acd; /* SlateBlue */
+  color: var(--color-brand);
 }
 
 .request-rejected-modal-content button {
   padding: 10px 15px;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   border: none;
   cursor: pointer;
   font-weight: bold;
-  background-color: #f44336; /* Red */
+  background-color: var(--color-danger);
   color: white;
   margin-top: 10px;
 }
 
 .request-rejected-modal-content button:hover {
-  background-color: #da190b;
+  background-color: var(--color-danger-dark);
 }

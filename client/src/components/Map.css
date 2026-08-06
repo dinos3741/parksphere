@@ -31,11 +31,11 @@
 
 .locate-me-button {
     position: absolute;
-    top: 40px; 
+    top: 40px;
     right: 10px;
-    z-index: 1000; 
+    z-index: 1000;
     background-color: white;
-    border: 2px solid #ccc;
+    border: none;
     border-radius: 50%;
     width: 40px;
     height: 40px;
@@ -43,7 +43,12 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s ease;
+}
+
+.locate-me-button:hover {
+    box-shadow: var(--shadow-md);
 }
 
 .crosshair-icon {
@@ -77,14 +82,33 @@
 }
 
 .leaflet-control-custom {
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.9);
     padding: 8px;
-    border-radius: 5px;
+    border-radius: var(--radius-sm);
     font-size: 14px;
     color: #333;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    box-shadow: var(--shadow-sm);
     text-align: center;
     min-width: 200px;
     position: relative;
     left: -40px;
+}
+
+/* Leaflet's own popup chrome — shared across every map in the app (this file loads globally
+   since it's a plain, unscoped CSS import), including the Ops Center's admin map. Replaces
+   Leaflet's boxy default with the same card language used everywhere else in this pass. */
+.leaflet-popup-content-wrapper {
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+}
+
+.leaflet-popup-content {
+    font-family: var(--font-body);
+    font-size: 14px;
+    margin: 12px 16px;
+    line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+    box-shadow: var(--shadow-sm);
 }

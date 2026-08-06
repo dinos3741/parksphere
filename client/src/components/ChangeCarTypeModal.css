@@ -12,12 +12,12 @@
 }
 
 .change-car-type-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0); /* Original lighter gradient */
+  background: var(--gradient-brand);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
   color: white;
 }
@@ -37,18 +37,26 @@
 }
 
 .change-car-type-modal-close-button {
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.25);
   border: none;
-  font-size: 2em;
+  border-radius: 50%;
+  font-size: 1.3em;
+  line-height: 1;
   cursor: pointer;
-  color: #aaa;
+  color: white;
   position: absolute;
   top: 10px;
   right: 10px;
+  transition: background-color 0.15s ease;
 }
 
 .change-car-type-modal-close-button:hover {
-  color: #333;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .change-car-type-modal-body form {
@@ -71,7 +79,7 @@
 .change-car-type-modal-body input[type="text"],
 .change-car-type-modal-body select {
   padding: 10px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   border: 1px solid #ccc;
   background-color: rgba(255, 255, 255, 0.8);
   color: #333;
@@ -138,7 +146,7 @@
 }
 
 .change-car-type-modal-body .toggle-switch input:checked + .toggle-slider {
-  background-color: #3454bd;
+  background-color: var(--color-brand);
 }
 
 .change-car-type-modal-body .toggle-switch input:checked + .toggle-slider::before {
@@ -155,7 +163,7 @@
 .change-car-type-modal-body .update-button,
 .change-car-type-modal-body .cancel-button {
   padding: 10px 20px; /* Increased horizontal padding for ~20% wider */
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   border: none;
   cursor: pointer;
   font-weight: bold;
@@ -163,19 +171,19 @@
 }
 
 .change-car-type-modal-body .update-button {
-  background-color: #3454bd; /* Purple-blue from SideDrawer.css .edit-button */
+  background-color: var(--color-brand);
   color: white;
 }
 
 .change-car-type-modal-body .update-button:hover {
-  background-color: #2a429a;
+  filter: brightness(0.9);
 }
 
 .change-car-type-modal-body .cancel-button {
-  background-color: #a5387b; /* Purple-red from SideDrawer.css .delete-button */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .change-car-type-modal-body .cancel-button:hover {
-  background-color: #8c2f68;
+  filter: brightness(0.9);
 }

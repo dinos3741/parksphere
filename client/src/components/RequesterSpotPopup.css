@@ -1,22 +1,8 @@
-/* From OwnerSpotPopup.css */
-.leaflet-popup-content-wrapper {
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.leaflet-popup-content {
-    margin: 15px;
-    font-size: 14px;
-    line-height: 1.4;
-}
-
+/* Leaflet popup chrome (.leaflet-popup-content-wrapper/-content/-tip) is now styled once, with
+   tokens, in Map.css — this file used to redefine the same global classes with slightly different
+   hardcoded values, silently fighting over which one wins depending on bundle order. */
 .leaflet-popup-tip-container {
     visibility: visible;
-}
-
-.leaflet-popup-tip {
-    background: white;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .leaflet-popup-close-button {
@@ -36,7 +22,7 @@
 
 .requester-spot-popup .title {
   font-size: 20px;
-  color: #252c7e;
+  color: var(--color-brand);
   margin-bottom: 12px;
 }
 
@@ -44,23 +30,23 @@
   margin: 5px;
   padding: 10px 15px;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 14px;
 }
 
 .requester-spot-popup .accept-button {
-  background-color: #4CAF50; /* Green */
+  background-color: var(--color-success);
   color: white;
 }
 
 .requester-spot-popup .decline-button {
-  background-color: #f44336; /* Red */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .username-link {
-  color: blue;
+  color: var(--color-brand);
   text-decoration: underline;
   cursor: pointer;
 }

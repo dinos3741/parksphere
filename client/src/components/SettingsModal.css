@@ -12,12 +12,12 @@
 }
 
 .settings-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  background: var(--gradient-brand);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 500px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
 }
 
@@ -38,7 +38,7 @@
 
 .settings-modal-title {
   margin: 0;
-  font-family: 'Advent Pro', sans-serif; /* Match main title font */
+  font-family: var(--font-brand);
   font-size: 2.2em;
   font-weight: 550;
   letter-spacing: 15px;
@@ -48,18 +48,27 @@
 }
 
 .settings-modal-close-button {
-  background: none;
+  /* Circular X, matching the mobile app's modal close-button pattern instead of a bare glyph */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.25);
   border: none;
-  font-size: 2em;
+  border-radius: 50%;
+  font-size: 1.3em;
+  line-height: 1;
   cursor: pointer;
-  color: #aaa;
+  color: white;
   position: absolute; /* Position absolutely */
   top: 10px; /* Align to top */
   right: 10px; /* Align to right */
+  transition: background-color 0.15s ease;
 }
 
 .settings-modal-close-button:hover {
-  color: #333;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 
@@ -73,7 +82,7 @@
 }
 
 .tagline {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 300;
   font-size: 0.78rem;
   margin-top: 3px;
@@ -113,7 +122,7 @@
 
 .filter-dropdown {
   margin-left: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   padding: 6px 10px;
   font-size: 0.9rem;
   width: 120px;

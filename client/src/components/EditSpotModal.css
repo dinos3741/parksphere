@@ -12,12 +12,12 @@
 }
 
 .edit-spot-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  background: var(--gradient-brand);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 400px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
 }
 
@@ -38,7 +38,7 @@
 
 .edit-spot-modal-title-venio {
   margin: 0;
-  font-family: 'Advent Pro', sans-serif; /* Match main title font */
+  font-family: var(--font-brand);
   font-size: 2.2em;
   font-weight: 550;
   letter-spacing: 15px;
@@ -51,7 +51,7 @@
 
 .edit-spot-modal-title {
   margin: 0;
-  font-family: 'Advent Pro', sans-serif;
+  font-family: var(--font-brand);
   font-size: 1.8em; /* Adjust as needed */
   font-weight: 550;
   color: white;
@@ -69,7 +69,7 @@
 }
 
 .tagline {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 300;
   font-size: 0.5rem;
   margin-top: 3px;
@@ -116,7 +116,7 @@
   flex: 1;
   padding: 8px;
   border: 1px solid #ccc;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 1em;
   width: 100%;
   box-sizing: border-box;
@@ -136,22 +136,22 @@
 .modal-buttons button {
     padding: 8px 12px; /* From SideDrawer */
     border: none;
-    border-radius: 10px; /* From SideDrawer */
+    border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: 14px; /* From SideDrawer */
     margin: 0 5px; /* From SideDrawer */
     width: 120px; /* Fixed width from SideDrawer */
     color: white;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Keep existing shadow */
+    box-shadow: var(--shadow-sm);
 }
 
 .modal-buttons button:first-of-type { /* Update Spot button */
-    background-color: #3454bd; /* Purple-blue from SideDrawer's edit-button */
+    background-color: var(--color-brand);
 }
 
 .modal-buttons button:last-of-type { /* Cancel button */
-    background-color: #a5387b; /* Purple-red from SideDrawer's delete-button */
+    background-color: var(--color-danger);
 }
 
 .modal-buttons button:hover {

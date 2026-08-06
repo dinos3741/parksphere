@@ -6,13 +6,13 @@
   top: 50%;
   transform: translateY(-50%);
   right: -300px; /* Start off-screen */
-  background-color: rgb(229, 226, 236);
+  background-color: var(--color-surface-tint);
   overflow-x: hidden;
   transition: right 0.3s ease-in-out;
-  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  border-radius: 15px 0 0 15px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 
 .requester-side-drawer.open {
@@ -21,12 +21,12 @@
 
 .requester-side-drawer-header {
   padding: 1rem;
-  background-color: #603aac;
+  background-color: var(--color-brand);
   border-bottom: 1px solid #eee;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-top-left-radius: 15px;
+  border-top-left-radius: var(--radius-lg);
 }
 
 .requester-side-drawer-header h3 {
@@ -43,7 +43,7 @@
 
 .requester-side-drawer-content p {
   margin-bottom: 10px;
-  color: #7A1BE0;
+  color: var(--color-brand);
 }
 
 .requester-side-drawer-footer {
@@ -57,29 +57,29 @@
 .requester-side-drawer-footer button {
   padding: 10px 15px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 16px;
-  transition: background-color 0.3s ease;
+  transition: filter 0.15s ease;
   flex-grow: 1;
 }
 
 .request-button {
-  background-color: #3454bd;
+  background-color: var(--color-brand);
   color: white;
 }
 
 .request-button:hover {
-  background-color: #6a17c0;
+  filter: brightness(0.85);
 }
 
 .cancel-request-button {
-  background-color: #a5387b; /* A shade of red/purple */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .cancel-request-button:hover {
-  background-color: #c0392b; /* A darker red on hover */
+  background-color: var(--color-danger-dark);
 }
 
 /* Spot details grid */
@@ -100,7 +100,7 @@
 
 .spot-detail-text {
   /* Styles for text content */
-  color: #7A1BE0;
+  color: var(--color-brand);
   font-size: 1rem;
 }
 
@@ -109,28 +109,28 @@
 }
 
 .arrived-button {
-  background-color: #28a745; /* Green */
+  background-color: var(--color-success);
   color: white;
 }
 
 .arrived-button:hover {
-  background-color: #218838; /* Darker green on hover */
+  background-color: var(--color-success-dark);
 }
 
 .chat-owner-button-style {
   padding: 10px 15px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 16px;
-  transition: background-color 0.3s ease;
-  background-color: #603aac; /* Purple */
+  transition: filter 0.15s ease;
+  background-color: var(--color-brand);
   color: white;
   flex-grow: 1;
 }
 
 .chat-owner-button-style:hover {
-  background-color: #4a148c; /* Darker purple on hover */
+  filter: brightness(0.85);
 }
 
 .chat-button-wrapper {
@@ -157,10 +157,10 @@
 .request-item {
   display: flex;
   align-items: center;
-  background-color: #f3e5f5;
+  background-color: var(--color-surface-tint);
   padding: 5px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .request-item.accepted {
@@ -170,12 +170,12 @@
 .requester-avatar {
   font-size: 2rem;
   margin-right: 15px;
-  color: #4a148c;
+  color: var(--color-brand);
   position: relative;
 }
 
 .requester-avatar.accepted {
-  color: #007bff;
+  color: var(--color-brand-light);
 }
 
 .request-details {
@@ -187,18 +187,18 @@
 
 .requester-username {
   font-weight: bold;
-  color: #4a148c;
+  color: var(--color-brand);
 }
 
 .requester-username.accepted {
-  color: #007bff;
+  color: var(--color-brand-light);
 }
 
 .chat-symbol {
   font-size: 1.1rem;
   margin-left: 10px;
   cursor: pointer;
-  color: #3454bd;
+  color: var(--color-brand);
 }
 
 .no-approvals-text {

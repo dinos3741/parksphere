@@ -12,18 +12,18 @@
 }
 
 .modal-content {
-  background-color: rgb(229, 226, 236);
+  background-color: var(--color-surface-tint);
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   width: 300px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
   text-align: center;
   position: relative; /* Added for positioning the close button */
 }
 
 .title {
   font-size: 20px;
-  color: #7A1BE0;
+  color: var(--color-brand);
   margin-bottom: 12px;
 }
 
@@ -44,27 +44,27 @@
   margin: 5px;
   padding: 10px 15px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   font-size: 14px;
 }
 
 .accept-button {
-  background-color: #3454bd; /* Purple-blue */
+  background-color: var(--color-brand);
   color: white;
 }
 
 .accept-button:hover {
-  background-color: #2a43a0;
+  filter: brightness(0.85);
 }
 
 .decline-button {
-  background-color: #a5387b; /* Purple-red */
+  background-color: var(--color-danger);
   color: white;
 }
 
 .decline-button:hover {
-  background-color: #8e2f68;
+  background-color: var(--color-danger-dark);
 }
 
 .close-button {

@@ -12,12 +12,12 @@
 }
 
 .profile-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0); /* Lighter gradient */
+  background: var(--gradient-brand);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 500px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
 }
 
@@ -38,7 +38,7 @@
 
 .profile-modal-title {
   margin: 0;
-  font-family: 'Advent Pro', sans-serif; /* Match main title font */
+  font-family: var(--font-brand);
   font-size: 2.2em;
   font-weight: 550;
   letter-spacing: 15px;
@@ -48,18 +48,26 @@
 }
 
 .profile-modal-close-button {
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.25);
   border: none;
-  font-size: 2em;
+  border-radius: 50%;
+  font-size: 1.3em;
+  line-height: 1;
   cursor: pointer;
-  color: #aaa;
-  position: absolute; /* Position absolutely */
-  top: 10px; /* Align to top */
-  right: 10px; /* Align to right */
+  color: white;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  transition: background-color 0.15s ease;
 }
 
 .profile-modal-close-button:hover {
-  color: white;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 
@@ -122,7 +130,7 @@
 }
 
 .tagline {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 300;
   font-size: 0.5rem;
   margin-top: 3px;
@@ -262,7 +270,7 @@
 
 .settings-menu-item:hover {
   background-color: rgba(255, 255, 255, 0.1); /* Slight highlight on hover */
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 

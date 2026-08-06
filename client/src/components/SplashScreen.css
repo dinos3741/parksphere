@@ -1,9 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Advent+Pro:wght@400;600&display=swap');
-
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
-  background: linear-gradient(to right, #512da8, #1976d2);
+  font-family: var(--font-body);
+  background: var(--gradient-brand);
   color: white;
 }
 
@@ -38,7 +36,7 @@ body {
 }
 
 .logo {
-  font-family: 'Advent Pro', sans-serif; /* Changed to Advent Pro */
+  font-family: var(--font-brand);
   font-size: 2.7rem;
   font-style: normal;
   font-weight: 600; /* Semi-bold */
@@ -56,7 +54,7 @@ body {
 }
 
 .tagline-splash {
-  font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+  font-family: var(--font-body);
   font-weight: 440; /* Semi-bold */
   font-size: 1.4rem;
   margin-top: 20px;
@@ -77,13 +75,13 @@ body {
 
 .btn {
   background-color: #87CEEB; /* Blue Ciel */
-  font-family: 'Inter', sans-serif; /* Changed to Inter */
+  font-family: var(--font-body);
   font-weight: 500;
   border: none;
   color: black;
   padding: 10px 20px;
   font-size: 1rem;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   transition: background 0.3s;
   text-decoration: none;
@@ -112,8 +110,8 @@ body {
 .image img {
   max-width: 100%;
   height: auto; /* Ensure image scales proportionally */
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
 }
 
 .text {
@@ -130,7 +128,7 @@ body {
 }
 
 h2 {
-  font-family: 'Inter', sans-serif; /* Changed to Advent Pro */
+  font-family: var(--font-body);
   font-size: 2rem; /* Adjust size as needed */
   font-weight: 400;
   margin-top: 0;
@@ -144,14 +142,18 @@ ul {
 }
 
 footer {
+  /* Sits on the purple gradient body — a translucent white bar reads as "quiet footer" here the
+     same way the solid neutral treatment does on the light dashboard/auth pages (App.css,
+     Login.css, Register.css), instead of the previous solid "Blue Ciel" block with literal
+     `color: blue` text. */
   text-align: center;
-  padding: 2px 0; /* Reduced vertical padding by 20% */
-  font-size: 1rem;
-  color: blue;
-  background-color: #547abb; /* Blue Ciel */
-  width: 100%; /* Full width */
+  padding: 10px 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  width: 100%;
   margin-top: 40px; /* Keep space above */
-  border-radius: 10px; /* Rounded corners */
 }
 
 @media (max-width: 768px) {

@@ -43,7 +43,7 @@
 }
 
 .message-icon {
-  color: #007bff;
+  color: var(--color-brand);
   font-size: 26px;
   cursor: pointer;
   margin-right: 15px;

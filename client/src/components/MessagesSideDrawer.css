@@ -6,13 +6,13 @@
   transform: translateY(-50%);
   width: 300px;
   height: 70%;
-  background-color: rgb(229, 226, 236);
-  box-shadow: 2px 0 5px rgba(0,0,0,0.1); /* Shadow on the right */
+  background-color: var(--color-surface-tint);
+  box-shadow: var(--shadow-sm);
   transition: left 0.3s ease-in-out;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  border-radius: 0 15px 15px 0; /* Rounded corners on the right */
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0; /* Rounded corners on the right */
 }
 
 .messages-side-drawer.open {
@@ -25,8 +25,8 @@
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid #eee;
-  background-color: #603aac;
-  border-top-right-radius: 15px;
+  background-color: var(--color-brand);
+  border-top-right-radius: var(--radius-lg);
   gap: 15px;
 }
 
@@ -89,7 +89,7 @@
 .message-details .username {
   font-weight: bold;
   margin: 0;
-  color: blue;
+  color: var(--color-brand);
 }
 
 .message-details .last-message {
@@ -109,22 +109,22 @@
   display: flex;
   padding: 10px;
   border-top: 1px solid #eee;
-  background-color: rgb(229, 226, 236);
+  background-color: var(--color-surface-tint);
 }
 
 .message-input-container input {
   flex-grow: 1;
   padding: 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-pill);
   margin-right: 10px;
   border-width: 1px;
 }
 
 .message-input-container button {
-  background-color: #603aac;
+  background-color: var(--color-brand);
   color: white;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--radius-pill);
   padding: 8px 15px;
   cursor: pointer;
 }
@@ -135,12 +135,15 @@
 }
 
 .message {
+  /* Was a literal `color: blue` — a leftover default rather than a deliberate choice (same class
+     of bug as the old footer's `color: blue`, App.css) — dark neutral text reads correctly on
+     both .sent's light green and .received's white bubble background. */
   padding: 0px 12px 5px 12px;
   border-radius: 18px;
   margin-bottom: 10px;
   max-width: 80%;
   word-wrap: break-word;
-  color: blue;
+  color: #1a1a1a;
 }
 
 .sent {

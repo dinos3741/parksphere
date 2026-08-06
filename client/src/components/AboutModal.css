@@ -12,13 +12,13 @@
 }
 
 .about-modal-content {
-  background: linear-gradient(to right, #6746B0, #3F92E0);
+  background: var(--gradient-brand);
   padding: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 500px;
   max-height: 85vh;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -41,7 +41,7 @@
 
 .about-modal-title {
   margin: 0;
-  font-family: 'Advent Pro', sans-serif;
+  font-family: var(--font-brand);
   font-size: 1.8em;
   font-weight: 550;
   letter-spacing: 5px;
@@ -51,18 +51,26 @@
 }
 
 .about-modal-close-button {
-  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.25);
   border: none;
-  font-size: 2em;
+  border-radius: 50%;
+  font-size: 1.3em;
+  line-height: 1;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.6);
+  color: white;
   position: absolute;
   top: 10px;
   right: 15px;
+  transition: background-color 0.15s ease;
 }
 
 .about-modal-close-button:hover {
-  color: white;
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .about-modal-body {
@@ -88,7 +96,7 @@
 }
 
 .about-section-title {
-  font-family: 'Advent Pro', sans-serif;
+  font-family: var(--font-brand);
   font-size: 1.8em;
   color: #df1a83;
   margin-bottom: 15px;
@@ -98,7 +106,7 @@
 .about-main-image {
   width: 100%;
   height: auto;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   margin-bottom: 15px;
 }
 
@@ -110,7 +118,7 @@
 }
 
 .about-section-subtitle {
-  font-family: 'Advent Pro', sans-serif;
+  font-family: var(--font-brand);
   font-size: 1.5em;
   color: #df1a83;
   margin-bottom: 10px;
@@ -147,7 +155,7 @@
 }
 
 .tagline {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 300;
   font-size: 0.7rem;
   margin-top: 3px;
