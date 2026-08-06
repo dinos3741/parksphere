@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiRequest } from '../utils/apiService';
 import { resetParkDetectionState, clearAuthKeys } from '../utils/dataReset';
@@ -69,6 +70,18 @@ export const AuthProvider = ({ children }) => {
       }
     }
   }, [isLoggedIn, userId, token, serverUrl]);
+
+  // 2026-08-07: fetchUserData() otherwise only ran once, at the isLoggedIn transition (App.js's
+  // effect) — if that one attempt hit bad connectivity, currentUser stayed null for the rest of
+  // the session with no way to recover short of a full relaunch, and (before the App.js render-gate
+  // fix) looked exactly like being logged out even though the token itself was still perfectly
+  // valid. Same fix, same reasoning, as SpotContext.js's fetchParkingSpots re-fetch-on-foreground.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') fetchUserData();
+    });
+    return () => sub.remove();
+  }, [fetchUserData]);
 
   const rateUser = async (ratedUserId, rating) => {
     if (!token || !ratedUserId) return;

@@ -171,6 +171,15 @@ function AppLayout({
           socket={socket}
           setActiveScreen={setActiveScreen}
         />
+      ) : isLoggedIn ? (
+        // 2026-08-07: a valid, unexpired token (isLoggedIn — restored straight from AsyncStorage,
+        // no network needed) but currentUser still null just means fetchUserData()'s network call
+        // hasn't succeeded yet — e.g. poor connectivity right when the app resumes. Used to fall
+        // through to the Login screen here, which looked exactly like being logged out even though
+        // nothing was actually invalidated. A spinner instead makes that distinction visible.
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+          <ActivityIndicator size="large" color="#512da8" />
+        </View>
       ) : showRegister ? (
         <Register onBack={() => setShowRegister(false)} />
       ) : (
