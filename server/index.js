@@ -59,12 +59,46 @@ const io = new Server(server, { // Initialize Socket.IO
 
 const userSockets = {}; // Map userId to socketId
 
+// 2026-08-08: sockets previously had NO authentication at all — every handler below trusted
+// whatever userId/ownerId/requesterId/from the CLIENT put in the event payload, unlike every REST
+// route (authenticateToken). Any connected client could register() as an arbitrary userId, accept/
+// decline requests it doesn't own, or move credits via confirm-transaction using a spoofed
+// requesterId. This mirrors authenticateToken's mock-bypass + local-HS256 verification (references
+// JWT_SECRET, defined further down — safe: this callback only runs once a real client connects,
+// long after the whole module has finished loading). Deliberately NOT replicating
+// authenticateToken's Keycloak RS256 fallback here: that path expects real Express req/res objects
+// (express-oauth2-jwt-bearer), and no client ever connects a socket with a raw, un-exchanged
+// Keycloak token — every session always holds the local JWT /api/login issues after the Keycloak
+// exchange, so the gap that fallback closes for REST doesn't exist for sockets.
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Unauthorized: no token'));
+
+  if (token.startsWith('mock-jwt-token-')) {
+    socket.userId = -1;
+    socket.username = 'demo user';
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.userId = decoded.userId;
+    socket.username = decoded.username;
+    next();
+  } catch (err) {
+    next(new Error('Unauthorized: invalid token'));
+  }
+});
+
 io.on('connection', (socket) => {
   console.log('Server: A user connected:', socket.id);
   console.log('Server: userSockets on connection:', userSockets);
 
   socket.on('register', (payload) => {
-    const { userId, username } = payload;
+    // userId comes from the verified handshake (io.use above), not the client payload — a socket
+    // can now only ever register itself as the account it actually authenticated as.
+    const userId = socket.userId;
+    const username = payload?.username || socket.username;
     if (!userId) return;
 
     if (!userSockets[userId]) {
@@ -79,7 +113,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('unregister', (userId) => {
+  socket.on('unregister', () => {
+    const userId = socket.userId;
     if (userId && userSockets[userId]) {
       const sockets = userSockets[userId];
       const index = sockets.findIndex(s => s.socketId === socket.id); // Find the specific socket
@@ -98,26 +133,34 @@ io.on('connection', (socket) => {
 
   socket.on('acceptRequest', async (data) => {
     console.log('Server: acceptRequest event received with data:', data);
-    const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
+    const { requestId, spotId, ownerUsername } = data;
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
 
-      // 1. Check if the spot still exists and get its price
-      const spotResult = await client.query('SELECT price FROM parking_spots WHERE id = $1 FOR UPDATE', [spotId]);
+      // 1. Check if the spot still exists, get its price AND its real owner — ownerId used to come
+      // straight from the client payload, so anyone could claim to own any spot; deriving it here
+      // (already fetching this row anyway) and gating on it below closes that off.
+      const spotResult = await client.query('SELECT price, user_id FROM parking_spots WHERE id = $1 FOR UPDATE', [spotId]);
       if (spotResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return;
       }
-      const { price } = spotResult.rows[0];
+      const { price, user_id: ownerId } = spotResult.rows[0];
+      if (String(ownerId) !== String(socket.userId)) {
+        await client.query('ROLLBACK');
+        return; // not this spot's real owner
+      }
 
-      // 2. Check if the request is still pending
-      const requestCheck = await client.query('SELECT status FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
+      // 2. Check if the request is still pending, and derive the real requester the same way —
+      // not from the client payload either.
+      const requestCheck = await client.query('SELECT status, requester_id FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
       if (requestCheck.rows.length === 0 || requestCheck.rows[0].status !== 'pending') {
         await client.query('ROLLBACK');
         return;
       }
+      const { requester_id: requesterId } = requestCheck.rows[0];
 
       // 3. Update the accepted request
       await client.query(
@@ -193,16 +236,23 @@ io.on('connection', (socket) => {
   });
 
   socket.on('declineRequest', async (data) => {
-    const { requestId, requesterId, spotId, ownerUsername, ownerId } = data;
-    const requesterSockets = userSockets[requesterId];
+    const { requestId, spotId, ownerUsername } = data;
 
     try {
+      // Derive the real owner/requester from the request row itself — used to trust ownerId/
+      // requesterId straight from the client payload, so anyone could decline anyone else's request.
+      const reqResult = await pool.query('SELECT owner_id, requester_id FROM requests WHERE id = $1 AND spot_id = $2', [requestId, spotId]);
+      if (reqResult.rows.length === 0) return;
+      const { owner_id: ownerId, requester_id: requesterId } = reqResult.rows[0];
+      if (String(ownerId) !== String(socket.userId)) return; // not this spot's real owner
+
       // Update the request status in the database
       await pool.query(
         `UPDATE requests SET status = 'rejected', responded_at = NOW() WHERE id = $1 AND spot_id = $2`,
         [requestId, spotId]
       );
-      
+
+      const requesterSockets = userSockets[requesterId];
       if (requesterSockets) {
         requesterSockets.forEach(s => {
           io.to(s.socketId).emit('requestResponse', {
@@ -229,14 +279,10 @@ io.on('connection', (socket) => {
     console.log('Server: Received requester-arrived event with data:', data);
     console.log('Server: Incoming socket.id for requester-arrived:', socket.id);
     const { spotId } = data;
-    let requesterId = null;
-    for (const userIdKey in userSockets) {
-      if (userSockets[userIdKey].some(s => s.socketId === socket.id)) {
-        requesterId = userIdKey;
-        break;
-      }
-    }
-    console.log('Server: Identified requesterId:', requesterId);
+    // Now comes straight from the verified handshake instead of a reverse-lookup through
+    // userSockets by socket.id — equally correct and no longer dependent on that in-memory map
+    // happening to be in sync.
+    const requesterId = socket.userId;
     if (!requesterId) return;
 
     try {
@@ -274,18 +320,29 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('reject-arrival', (data) => {
-    const { spotId, requesterId } = data;
-    const requesterSockets = userSockets[requesterId];
-    if (requesterSockets) {
-      requesterSockets.forEach(s => {
-        io.to(s.socketId).emit('arrivalRejected', { spotId });
-      });
+  socket.on('reject-arrival', async (data) => {
+    const { spotId } = data;
+    try {
+      // Same pattern as acceptRequest/declineRequest — verify the emitting socket actually owns
+      // this spot, and derive the requester from the accepted request rather than trusting the
+      // client's requesterId.
+      const spotResult = await pool.query('SELECT user_id FROM parking_spots WHERE id = $1', [spotId]);
+      if (spotResult.rows.length === 0 || String(spotResult.rows[0].user_id) !== String(socket.userId)) return;
+      const reqResult = await pool.query(`SELECT requester_id FROM requests WHERE spot_id = $1 AND status = 'accepted' LIMIT 1`, [spotId]);
+      if (reqResult.rows.length === 0) return;
+      const requesterSockets = userSockets[reqResult.rows[0].requester_id];
+      if (requesterSockets) {
+        requesterSockets.forEach(s => {
+          io.to(s.socketId).emit('arrivalRejected', { spotId });
+        });
+      }
+    } catch (error) {
+      console.error('Error handling reject-arrival:', error);
     }
   });
 
   socket.on('confirm-transaction', async (data) => {
-    const { spotId, requesterId } = data;
+    const { spotId } = data;
     const client = await pool.connect();
 
     try {
@@ -297,6 +354,23 @@ io.on('connection', (socket) => {
         return;
       }
       const { user_id: ownerId, price } = spotResult.rows[0];
+      if (String(ownerId) !== String(socket.userId)) {
+        await client.query('ROLLBACK');
+        return; // not this spot's real owner
+      }
+
+      // Derive the requester from the actual accepted request for this spot — used to trust
+      // requesterId straight from the client payload, which meant a malicious "owner" could redirect
+      // this credit transfer to debit an arbitrary victim's account instead of the real requester.
+      const acceptedReqResult = await client.query(
+        `SELECT requester_id FROM requests WHERE spot_id = $1 AND status = 'accepted' LIMIT 1`,
+        [spotId]
+      );
+      if (acceptedReqResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return;
+      }
+      const { requester_id: requesterId } = acceptedReqResult.rows[0];
 
       const requesterResult = await client.query('SELECT credits, reserved_amount FROM users WHERE id = $1', [requesterId]);
       if (requesterResult.rows.length === 0) {
@@ -382,7 +456,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('privateMessage', async (data) => {
-    const { from, to, message } = data;
+    // from comes from the verified handshake, not the client payload — used to let anyone send a
+    // message that appeared to come from an arbitrary spoofed sender.
+    const from = socket.userId;
+    const { to, message } = data;
     const recipientSockets = userSockets[to];
 
     try {
@@ -414,8 +491,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('A user disconnected:', socket.id);
-    // Find which user was connected on this socket and remove them
-    for (const userId in userSockets) {
+    // Now a direct lookup via the verified socket.userId instead of a reverse search through
+    // userSockets by socket.id — functionally identical, just no longer needs the search.
+    const userId = socket.userId;
+    if (userId != null && userSockets[userId]) {
       const sockets = userSockets[userId];
       const index = sockets.findIndex(s => s.socketId === socket.id);
       if (index !== -1) {
@@ -424,7 +503,6 @@ io.on('connection', (socket) => {
         if (sockets.length === 0) {
           delete userSockets[userId];
         }
-        break;
       }
     }
     console.log('Server: userSockets on disconnect:', userSockets);
