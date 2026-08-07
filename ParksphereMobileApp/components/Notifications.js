@@ -13,7 +13,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 const DEFAULT_EXPANDED_HEIGHT = 260;
 const MIN_EXPANDED_HEIGHT = 120;
 const MAX_EXPANDED_HEIGHT = 500;
-const SLIDE_DURATION_MS = 150; // was 250 — snappier collapse-on-map-tap
+const EXPAND_DURATION_MS = 150;
+const COLLAPSE_DURATION_MS = 100; // was tied to EXPAND_DURATION_MS (both 150) — collapse still read as slower than expand at equal durations, so it now gets its own faster one
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HANDLE_HIDE_OFFSET = 60; // > collapsedHandle's 40pt width, so it fully clears the right edge
 
@@ -63,14 +64,15 @@ const Notifications = ({ notifications, onHeightChange }) => {
 
   const animateTo = (expand) => {
     setIsExpanded(expand);
+    const duration = expand ? EXPAND_DURATION_MS : COLLAPSE_DURATION_MS;
     Animated.parallel([
       // useNativeDriver: false on both — the expanded panel's Animated.View also has `height`
       // (animatedHeight) in its style, which the native driver can't handle. Mixing a
       // native-driven transform with a JS-driven height on the same view is what throws "style
       // property height is not supported by native animated module"; keeping both JS-driven here
       // avoids the conflict (fine for a small overlay like this — no real perf cost).
-      Animated.timing(panelSlide, { toValue: expand ? 0 : SCREEN_WIDTH, duration: SLIDE_DURATION_MS, useNativeDriver: false }),
-      Animated.timing(handleSlide, { toValue: expand ? HANDLE_HIDE_OFFSET : 0, duration: SLIDE_DURATION_MS, useNativeDriver: false }),
+      Animated.timing(panelSlide, { toValue: expand ? 0 : SCREEN_WIDTH, duration, useNativeDriver: false }),
+      Animated.timing(handleSlide, { toValue: expand ? HANDLE_HIDE_OFFSET : 0, duration, useNativeDriver: false }),
     ]).start();
     if (onHeightChange) onHeightChange(expand ? animatedHeight._value : 0);
   };
