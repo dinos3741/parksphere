@@ -158,9 +158,15 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, onDeleteSpot,
                 )}
               </View>
 
-              {isAccepted && (
+              {!isOwner && (
                 <View style={styles.detailsSection}>
                   <Text style={styles.sectionLabel}>OWNER DETAILS</Text>
+                  {/* 2026-08-07: used to be bundled with car color/plate below, all gated behind
+                      isAccepted — but messaging the owner shouldn't require an accepted request
+                      first (e.g. asking "are you really leaving?" before you've even requested the
+                      spot). Car color/plate stay accepted-only: the server already nulls those two
+                      out for a non-accepted viewer (GET /api/parkingspots' privacy logic), so
+                      showing their rows here would just render blank values. */}
                   <TouchableOpacity style={styles.detailRow} onPress={handleUsernameClick}>
                     <View style={styles.detailLabelGroup}>
                       <Ionicons name="person-outline" size={17} color="#512da8" style={styles.detailIcon} />
@@ -168,22 +174,26 @@ const SpotDetailsModal = ({ visible, spot, onClose, onRequestSpot, onDeleteSpot,
                     </View>
                     <Text style={[styles.detailValue, styles.linkValue]}>{spot.username}</Text>
                   </TouchableOpacity>
-                  <View style={styles.rowDivider} />
-                  <View style={styles.detailRow}>
-                    <View style={styles.detailLabelGroup}>
-                      <Ionicons name="color-palette-outline" size={17} color="#512da8" style={styles.detailIcon} />
-                      <Text style={styles.detailLabel}>Car color</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{spot.car_color}</Text>
-                  </View>
-                  <View style={styles.rowDivider} />
-                  <View style={styles.detailRow}>
-                    <View style={styles.detailLabelGroup}>
-                      <Ionicons name="card-outline" size={17} color="#512da8" style={styles.detailIcon} />
-                      <Text style={styles.detailLabel}>Plate</Text>
-                    </View>
-                    <Text style={styles.detailValue}>{spot.plate_number}</Text>
-                  </View>
+                  {isAccepted && (
+                    <>
+                      <View style={styles.rowDivider} />
+                      <View style={styles.detailRow}>
+                        <View style={styles.detailLabelGroup}>
+                          <Ionicons name="color-palette-outline" size={17} color="#512da8" style={styles.detailIcon} />
+                          <Text style={styles.detailLabel}>Car color</Text>
+                        </View>
+                        <Text style={styles.detailValue}>{spot.car_color}</Text>
+                      </View>
+                      <View style={styles.rowDivider} />
+                      <View style={styles.detailRow}>
+                        <View style={styles.detailLabelGroup}>
+                          <Ionicons name="card-outline" size={17} color="#512da8" style={styles.detailIcon} />
+                          <Text style={styles.detailLabel}>Plate</Text>
+                        </View>
+                        <Text style={styles.detailValue}>{spot.plate_number}</Text>
+                      </View>
+                    </>
+                  )}
                 </View>
               )}
 
