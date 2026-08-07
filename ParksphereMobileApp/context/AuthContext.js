@@ -15,6 +15,10 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // To show a spinner while checking storage
+  // True once at least one fetchUserData() attempt has failed to reach the server (network error,
+  // not a real 401/403 rejection) while still waiting on the first successful profile fetch — lets
+  // App.js show "can't reach the server" instead of an unexplained infinite spinner.
+  const [profileFetchFailed, setProfileFetchFailed] = useState(false);
 
   // Kept in sync via the effect below, read from logout() — a ref (not a `userId` closure/dep) so
   // logout() itself can stay referentially stable (empty deps array; see its own comment for why
@@ -56,6 +60,7 @@ export const AuthProvider = ({ children }) => {
         if (response.ok) {
           const data = await response.json();
           setCurrentUser(data);
+          setProfileFetchFailed(false);
           // Cache locally (no network needed to read it back) so the Login screen can offer an
           // offline mock-mode entry point on this device without requiring a live login first —
           // the whole point being to reach mock mode when there's no connectivity at all.
@@ -67,9 +72,19 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
+        setProfileFetchFailed(true);
       }
     }
   }, [isLoggedIn, userId, token, serverUrl]);
+
+  // Keeps retrying while stuck in "have a token, no profile yet" — complements the AppState
+  // foreground retry below with a bounded interval so recovery doesn't require backgrounding and
+  // refore-grounding the app by hand. Stops itself the moment currentUser lands.
+  useEffect(() => {
+    if (!isLoggedIn || currentUser) return;
+    const interval = setInterval(() => { fetchUserData(); }, 5000);
+    return () => clearInterval(interval);
+  }, [isLoggedIn, currentUser, fetchUserData]);
 
   // 2026-08-07: fetchUserData() otherwise only ran once, at the isLoggedIn transition (App.js's
   // effect) — if that one attempt hit bad connectivity, currentUser stayed null for the rest of
@@ -166,6 +181,7 @@ export const AuthProvider = ({ children }) => {
     setUserId(data.userId);
     setCurrentUsername(data.username);
     setIsLoggedIn(true);
+    setProfileFetchFailed(false);
     await AsyncStorage.setItem('userToken', data.token);
     await AsyncStorage.setItem('userId', data.userId.toString());
     await AsyncStorage.setItem('username', data.username);
@@ -183,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentUsername(null);
     setCurrentUser(null);
     setIsLoggedIn(false);
+    setProfileFetchFailed(false);
     await clearAuthKeys();
   }, []);
 
@@ -204,8 +221,9 @@ export const AuthProvider = ({ children }) => {
         currentUsername, 
         currentUser, 
         setCurrentUser,
-        isLoggedIn, 
-        isLoading, 
+        isLoggedIn,
+        isLoading,
+        profileFetchFailed,
         login,
         logout,
         serverUrl,

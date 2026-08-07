@@ -2,12 +2,13 @@ import "./polyfills";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Alert, Modal, DeviceEventEmitter, View, ActivityIndicator, Text } from 'react-native';
+import { StyleSheet, Alert, Modal, DeviceEventEmitter, View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigationContainerRef } from '@react-navigation/native';
 import * as Location from 'expo-location'; 
 import * as Font from 'expo-font';
 import { useAudioPlayer } from 'expo-audio';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { apiRequest } from './utils/apiService';
 import LeavingModal from './components/LeavingModal';
 import HMMOverlay from './components/HMMOverlay';
@@ -151,7 +152,7 @@ function AppLayout({
 }) {
   console.log(`[App.js] AppLayout rendering. isLoggedIn: ${isLoggedIn}`);
   const { fetchParkingSpots, retryPendingManualDeclare } = useSpots();
-  const { userId, token, fetchUserData } = useAuth();
+  const { userId, token, fetchUserData, profileFetchFailed } = useAuth();
   const { showHmmEngine, showFlightRecorder, showFixesWindow } = useDebugTools();
 
   useEffect(() => {
@@ -171,6 +172,41 @@ function AppLayout({
           socket={socket}
           setActiveScreen={setActiveScreen}
         />
+      ) : isLoggedIn && profileFetchFailed ? (
+        // 2026-08-07: an unexplained infinite spinner (the branch below) is its own kind of
+        // confusing once the server has been unreachable for a while — this fires once at least one
+        // fetchUserData() attempt has actually failed (not just "still in flight"), so there's a
+        // clear signal instead of silent waiting. AuthContext.js keeps retrying every 5s and on every
+        // foreground regardless — "Try again" just gives an immediate, visible retry on top of that.
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff', padding: 32 }}>
+          <View style={{
+            width: 100, height: 100, borderRadius: 50,
+            backgroundColor: 'rgba(81, 45, 168, 0.08)',
+            justifyContent: 'center', alignItems: 'center',
+            shadowColor: '#512da8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 16,
+            elevation: 6,
+          }}>
+            <View style={{
+              width: 74, height: 74, borderRadius: 37,
+              backgroundColor: 'rgba(81, 45, 168, 0.12)',
+              justifyContent: 'center', alignItems: 'center',
+            }}>
+              <Ionicons name="cloud-offline-outline" size={40} color="#512da8" />
+            </View>
+          </View>
+          <Text style={{ marginTop: 20, fontSize: 16, fontWeight: '600', color: '#333', textAlign: 'center' }}>
+            Can't reach the server
+          </Text>
+          <Text style={{ marginTop: 6, fontSize: 14, color: '#777', textAlign: 'center' }}>
+            You're still logged in — this will resolve automatically once you're back online.
+          </Text>
+          <TouchableOpacity
+            onPress={fetchUserData}
+            style={{ marginTop: 20, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 999, backgroundColor: '#512da8' }}
+          >
+            <Text style={{ color: 'white', fontWeight: '600' }}>Try again</Text>
+          </TouchableOpacity>
+        </View>
       ) : isLoggedIn ? (
         // 2026-08-07: a valid, unexpired token (isLoggedIn — restored straight from AsyncStorage,
         // no network needed) but currentUser still null just means fetchUserData()'s network call
