@@ -174,5 +174,17 @@ export const apiRequest = async (endpoint, options = {}) => {
     ...options.headers
   };
 
-  return fetch(endpoint, { ...options, headers });
+  // 2026-08-08: plain fetch() had no timeout — a genuinely unreachable .local hostname (e.g. the
+  // Mac is asleep, or mDNS just fails to resolve) can hang far longer than expected before iOS's
+  // own OS-level timeout gives up, way past AuthContext.js's 5s retry interval. That left
+  // fetchUserData() stuck showing a bare spinner for a long, unpredictable stretch instead of
+  // failing promptly into the "can't reach server" retry screen. 10s is generous for a real local
+  // network round-trip but short enough that a stuck request resolves quickly either way.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    return await fetch(endpoint, { ...options, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
