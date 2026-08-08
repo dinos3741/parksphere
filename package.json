@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Root orchestration for Venio project",
   "scripts": {
-    "docker": "docker-compose up -d",
+    "docker": "docker compose up -d",
     "server": "cd server && npm start",
     "client": "cd client && npm start",
     "mobile": "cd ParksphereMobileApp && npm start",
