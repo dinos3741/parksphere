@@ -172,7 +172,7 @@ function AppLayout({
           socket={socket}
           setActiveScreen={setActiveScreen}
         />
-      ) : isLoggedIn && profileFetchFailed ? (
+      ) : isLoggedIn && !currentUser && profileFetchFailed ? (
         // 2026-08-07: an unexplained infinite spinner (the branch below) is its own kind of
         // confusing once the server has been unreachable for a while — this fires once at least one
         // fetchUserData() attempt has actually failed (not just "still in flight"), so there's a
@@ -232,6 +232,38 @@ function AppLayout({
            />
            {navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFlightRecorder && <DebugSimulator />}
            {__DEV__ && navigationRef.getCurrentRoute()?.name === 'Home' && currentUser?.role === 'admin' && showFixesWindow && <StreamMonitor />}
+           {/* 2026-08-08: currentUser is now hydrated from cache on boot (AuthContext.js), so a
+               failed/slow fetchUserData() no longer blocks the app — it just means the profile
+               being shown might be stale. Docked above the tab bar (bottom:20, height:58,
+               RootNavigator.js) rather than the top, which is already occupied by RootNavigator's
+               own absolute-positioned header. */}
+           {currentUser && profileFetchFailed && (
+             <View
+               pointerEvents="box-none"
+               style={{ position: 'absolute', left: 12, right: 12, bottom: 90, zIndex: 998 }}
+             >
+               <View style={{
+                 flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                 backgroundColor: 'rgba(81, 45, 168, 0.95)', borderRadius: 16,
+                 paddingVertical: 10, paddingHorizontal: 14,
+                 shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8,
+                 elevation: 6,
+               }}>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                   <Ionicons name="cloud-offline-outline" size={18} color="white" />
+                   <Text style={{ color: 'white', marginLeft: 8, fontSize: 13, flexShrink: 1 }}>
+                     Can't reach the server — showing cached data
+                   </Text>
+                 </View>
+                 <TouchableOpacity
+                   onPress={fetchUserData}
+                   style={{ paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)' }}
+                 >
+                   <Text style={{ color: 'white', fontWeight: '600', fontSize: 13 }}>Retry</Text>
+                 </TouchableOpacity>
+               </View>
+             </View>
+           )}
         </View>
       )}
     </>

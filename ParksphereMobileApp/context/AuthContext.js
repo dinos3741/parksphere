@@ -35,12 +35,22 @@ export const AuthProvider = ({ children }) => {
         const storedToken = await AsyncStorage.getItem('userToken');
         const storedUserId = await AsyncStorage.getItem('userId');
         const storedUsername = await AsyncStorage.getItem('username');
-        
+
         if (storedToken && storedUserId && storedUsername) {
           setToken(storedToken);
           setUserId(parseInt(storedUserId, 10));
           setCurrentUsername(storedUsername);
           setIsLoggedIn(true);
+          // 2026-08-08: currentUser used to be plain in-memory state — always null on a cold start
+          // regardless of how recently it was last fetched successfully, forcing every launch to
+          // block on a live fetchUserData() round-trip before the app would render at all. Hydrating
+          // from a cached copy here means a valid token can get you into the app immediately; a
+          // stale/unreachable server just means the cached profile might be a bit out of date
+          // (App.js shows a banner via profileFetchFailed), not a blocked launch.
+          const cachedUser = await AsyncStorage.getItem('cachedCurrentUser');
+          if (cachedUser) {
+            try { setCurrentUser(JSON.parse(cachedUser)); } catch (e) { /* corrupt cache, ignore */ }
+          }
         }
       } catch (error) {
         console.error('Failed to load auth data', error);
@@ -61,6 +71,7 @@ export const AuthProvider = ({ children }) => {
           const data = await response.json();
           setCurrentUser(data);
           setProfileFetchFailed(false);
+          await AsyncStorage.setItem('cachedCurrentUser', JSON.stringify(data));
           // Cache locally (no network needed to read it back) so the Login screen can offer an
           // offline mock-mode entry point on this device without requiring a live login first —
           // the whole point being to reach mock mode when there's no connectivity at all.
@@ -130,6 +141,7 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const updatedData = await response.json();
         setCurrentUser(updatedData);
+        await AsyncStorage.setItem('cachedCurrentUser', JSON.stringify(updatedData));
         return true;
       }
       return false;

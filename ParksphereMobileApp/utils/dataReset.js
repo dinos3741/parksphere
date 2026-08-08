@@ -53,6 +53,7 @@ export const clearAuthKeys = async () => {
     'userToken',
     'userId',
     'username',
+    'cachedCurrentUser',
     'autoDetectionEnabled',
     'mockModeEnabled',
   ];
