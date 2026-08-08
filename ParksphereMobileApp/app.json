@@ -23,6 +23,7 @@
         "NSLocationAlwaysUsageDescription": "Allow Venio to detect your parking spots automatically even when the app is in the background.",
         "NSBluetoothAlwaysUsageDescription": "Venio uses Bluetooth to detect when you connect to your car's system for more accurate parking detection.",
         "NSBluetoothPeripheralUsageDescription": "Venio uses Bluetooth to detect when you connect to your car's system.",
+        "NSLocalNetworkUsageDescription": "Venio syncs with your parking server over your local network during development/testing.",
         "UISupportedExternalAccessoryProtocols": [
           "com.apple.mfi.externalaccessory"
         ],
