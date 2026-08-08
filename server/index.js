@@ -1,5 +1,4 @@
 require('dotenv').config();
-console.log('DEBUG: JWT_SECRET from env:', process.env.JWT_SECRET);
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors'); // Import cors
@@ -37,17 +36,23 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3002",
-  "http://localhost:8081",
-  "http://192.168.1.70:3000",
-  "http://192.168.1.70:8081",
-  "http://192.168.1.22:3000",
-  "http://192.168.1.22:8081",
-  "http://192.168.1.22:19000",
-  "http://192.168.1.22:19006"
-];
+// 2026-08-08: was a hardcoded array of specific local dev IPs — broke every time a dev machine's
+// LAN IP changed, and had no way to add a real deployed origin at all (the whole point of the
+// production docker-compose this now ships alongside). CORS_ALLOWED_ORIGINS is a comma-separated
+// list; the hardcoded dev list below is the fallback default so local dev keeps working unconfigured.
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : [
+      "http://localhost:3000",
+      "http://localhost:3002",
+      "http://localhost:8081",
+      "http://192.168.1.70:3000",
+      "http://192.168.1.70:8081",
+      "http://192.168.1.22:3000",
+      "http://192.168.1.22:8081",
+      "http://192.168.1.22:19000",
+      "http://192.168.1.22:19006"
+    ];
 
 const server = http.createServer(app); // Create http server
 const io = new Server(server, { // Initialize Socket.IO
