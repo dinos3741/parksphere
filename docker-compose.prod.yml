@@ -1,0 +1,147 @@
+version: '3.8'
+
+# Production stack: Keycloak + its own Postgres, the app's own Postgres, the Node backend, the React
+# web client (built once into a shared volume, served by Caddy), and Caddy itself as the sole public
+# entrypoint (automatic HTTPS via Let's Encrypt — just needs DOMAIN's DNS pointed at this host and
+# ports 80/443 reachable).
+#
+# Keycloak is deliberately NOT publicly exposed — only `server` can reach it, over the internal
+# Docker network. This app's own login flow never redirects a user's browser to Keycloak's hosted
+# pages (the server does a password-grant exchange server-to-server), so there's no reason to put a
+# whole second admin console on the open internet. Reach it yourself via an SSH tunnel:
+#   ssh -L 8080:localhost:8080 <user>@<this-host>
+# then browse http://localhost:8080 locally.
+#
+# Usage: copy .env.prod.example to .env.prod, fill in real values, then:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+
+services:
+  keycloak-db:
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    restart: unless-stopped
+    # `start` (not `start-dev`) — start-dev disables several production safeguards (e.g. runs an
+    # in-memory-friendly config, relaxed defaults) that have no place outside local development.
+    command: start --hostname-strict=false --http-enabled=true
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_PORT: 8080
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    networks:
+      - internal
+    # No `ports:` on purpose — see the file-level comment above.
+
+  app-db:
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - app_db_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${APP_DB_NAME}
+      POSTGRES_USER: ${APP_DB_USER}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${APP_DB_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  server:
+    build:
+      context: ./server
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      DB_USER: ${APP_DB_USER}
+      DB_HOST: app-db
+      DB_NAME: ${APP_DB_NAME}
+      DB_PASSWORD: ${APP_DB_PASSWORD}
+      DB_PORT: 5432
+      JWT_SECRET: ${JWT_SECRET}
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_MOBILE_CLIENT_ID: ${GOOGLE_MOBILE_CLIENT_ID}
+      # Same-origin behind Caddy for the web client, so this mostly matters for anything hitting the
+      # API cross-origin (a different host testing against it, etc.) — mobile's fetch doesn't send/
+      # enforce Origin the way a browser does, so CORS doesn't gate it either way.
+      CORS_ALLOWED_ORIGINS: https://${DOMAIN}
+    volumes:
+      - server_uploads:/app/uploads
+    depends_on:
+      app-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+    networks:
+      - internal
+
+  # Runs once, builds the React app, copies the static output into client_build, then exits.
+  # Caddy waits for this to finish (service_completed_successfully below) before it ever starts.
+  client-build:
+    build:
+      context: ./client
+      args:
+        REACT_APP_SERVER_URL: https://${DOMAIN}
+    volumes:
+      - client_build:/output
+    restart: "no"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - client_build:/srv:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      server:
+        condition: service_started
+      client-build:
+        condition: service_completed_successfully
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  keycloak_db_data:
+  app_db_data:
+  server_uploads:
+  client_build:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,24 @@
+{$DOMAIN} {
+	# API + Socket.IO + avatar uploads all live on the same origin as the static site — Caddy just
+	# routes by path prefix. Same-origin also means the web client's existing relative-URL fetches
+	# (e.g. App.js's /api/me) keep working unchanged, same as CRA's local dev proxy does today.
+	handle /api/* {
+		reverse_proxy server:3001
+	}
+
+	handle /socket.io/* {
+		reverse_proxy server:3001
+	}
+
+	handle /uploads/* {
+		reverse_proxy server:3001
+	}
+
+	# Everything else: the React static build, with an SPA fallback to index.html so a direct/
+	# refreshed navigation to a client-side route (e.g. /dashboard, /ops) doesn't 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
