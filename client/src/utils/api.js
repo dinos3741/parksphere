@@ -1,4 +1,6 @@
-const BASE_URL = 'http://localhost:3001/api';
+// Matches utils/socket.js's existing REACT_APP_SERVER_URL pattern — was hardcoded to localhost,
+// which is fine for local dev but silently broken against any deployed server.
+const BASE_URL = `${process.env.REACT_APP_SERVER_URL || 'http://localhost:3001'}/api`;
 
 export const sendAuthenticatedRequest = async (url, method = 'GET', body = null) => {
   const token = localStorage.getItem('token');

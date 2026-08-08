@@ -38,6 +38,11 @@ import RequesterDetailsModal from './components/RequesterDetailsModal';
 import SearchDropdown from './components/SearchDropdown';
 import './App.css';
 
+// Matches utils/api.js and utils/socket.js's REACT_APP_SERVER_URL pattern — the several fetch()
+// calls below used to hardcode localhost directly instead of taking the serverUrl prop they were
+// already passed, silently breaking against any deployed server.
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
+
 function MainAppContent({ serverUrl }) {
   const [isChatOpen, setChatOpen] = useState(false);
   const [showSearchUserModal, setShowSearchUserModal] = useState(false);
@@ -283,7 +288,7 @@ function MainAppContent({ serverUrl }) {
     if (!currentUserId) return;
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/user/pending-requests`, {
+      const response = await fetch(`${serverUrl}/api/user/pending-requests`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
@@ -300,7 +305,7 @@ function MainAppContent({ serverUrl }) {
     if (!currentUserId) return;
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/user/spot-requests`, {
+      const response = await fetch(`${serverUrl}/api/user/spot-requests`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) {
@@ -757,7 +762,7 @@ function MainAppContent({ serverUrl }) {
     if (!userToRate) return;
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/users/rate`, {
+      const response = await fetch(`${serverUrl}/api/users/rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ rated_user_id: userToRate.requester_id, rating }),
@@ -808,7 +813,7 @@ function MainAppContent({ serverUrl }) {
     // Fetch historical messages
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/messages/conversations/${recipient.id}`, {
+      const response = await fetch(`${serverUrl}/api/messages/conversations/${recipient.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -831,7 +836,7 @@ function MainAppContent({ serverUrl }) {
   const handleDeleteSpot = useCallback(async (spotId) => {
     try {
       const token = getToken();
-      const response = await fetch(`http://localhost:3001/api/parkingspots/${spotId}`, {
+      const response = await fetch(`${serverUrl}/api/parkingspots/${spotId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -1128,7 +1133,7 @@ function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <MainAppContent serverUrl="http://localhost:3001" />
+                <MainAppContent serverUrl={SERVER_URL} />
               </ProtectedRoute>
             }
           />
@@ -1136,7 +1141,7 @@ function App() {
             path="/ops"
             element={
               <AdminRoute>
-                <OpsMap serverUrl="http://localhost:3001" />
+                <OpsMap serverUrl={SERVER_URL} />
               </AdminRoute>
             }
           />
